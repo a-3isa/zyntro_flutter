@@ -1,0 +1,21 @@
+﻿Analyzing zyntro_flutter...                                     
+
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\features\moderation\presentation\moderation_queue_page.dart:177:35 - use_build_context_synchronously
+  error - Undefined name 'AppRadius' - lib\features\moderation\presentation\moderation_queue_page.dart:320:57 - undefined_identifier
+   info - 'groupValue' is deprecated and shouldn't be used. Use a RadioGroup ancestor to manage group value instead. This feature was deprecated after v3.32.0-0.0.pre - lib\features\moderation\presentation\report_dialog.dart:195:15 - deprecated_member_use
+   info - 'onChanged' is deprecated and shouldn't be used. Use RadioGroup to handle value change instead. This feature was deprecated after v3.32.0-0.0.pre - lib\features\moderation\presentation\report_dialog.dart:196:15 - deprecated_member_use
+  error - The name 'User' isn't a type, so it can't be used as a type argument - lib\features\profile\presentation\profile_page.dart:13:56 - non_type_as_type_argument
+  error - The name 'User' isn't a type, so it can't be used as a type argument - lib\features\profile\presentation\profile_page.dart:35:22 - non_type_as_type_argument
+  error - The getter 'photoURL' isn't defined for the type 'Object' - lib\features\profile\presentation\profile_page.dart:109:43 - undefined_getter
+  error - The getter 'photoURL' isn't defined for the type 'Object' - lib\features\profile\presentation\profile_page.dart:110:45 - undefined_getter
+  error - The getter 'photoURL' isn't defined for the type 'Object' - lib\features\profile\presentation\profile_page.dart:112:33 - undefined_getter
+  error - The getter 'displayName' isn't defined for the type 'Object' - lib\features\profile\presentation\profile_page.dart:114:34 - undefined_getter
+  error - The getter 'displayName' isn't defined for the type 'Object' - lib\features\profile\presentation\profile_page.dart:115:40 - undefined_getter
+  error - The getter 'displayName' isn't defined for the type 'Object' - lib\features\profile\presentation\profile_page.dart:127:26 - undefined_getter
+  error - The getter 'workoutPreference' isn't defined for the type 'Object' - lib\features\profile\presentation\profile_page.dart:135:26 - undefined_getter
+   info - 'groupValue' is deprecated and shouldn't be used. Use a RadioGroup ancestor to manage group value instead. This feature was deprecated after v3.32.0-0.0.pre - lib\features\session\presentation\start_session_page.dart:154:23 - deprecated_member_use
+   info - 'onChanged' is deprecated and shouldn't be used. Use RadioGroup to handle value change instead. This feature was deprecated after v3.32.0-0.0.pre - lib\features\session\presentation\start_session_page.dart:155:23 - deprecated_member_use
+  error - Undefined name 'AppRadius' - lib\features\settings\presentation\community_guidelines_page.dart:75:53 - undefined_identifier
+  error - The getter 'cardBackground' isn't defined for the type 'AppColors' - lib\features\settings\presentation\privacy_settings_page.dart:69:36 - undefined_getter
+  error - Undefined name 'AppRadius' - lib\features\settings\presentation\privacy_settings_page.dart:70:55 - undefined_identifier
+

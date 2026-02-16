@@ -1,0 +1,8 @@
+{
+  "projects": {
+    "default": "gym-avatar",
+    "dev": "gym-avatar-dev",
+    "staging": "gym-avatar-staging",
+    "prod": "gym-avatar"
+  }
+}

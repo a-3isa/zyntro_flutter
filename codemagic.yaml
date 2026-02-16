@@ -1,0 +1,145 @@
+workflows:
+  # Android Production Build Workflow
+  android-workflow:
+    name: Android Production Build
+    max_build_duration: 60
+    instance_type: mac_mini_m1
+    environment:
+      flutter: 3.24.0
+      java: 17
+      groups:
+        - firebase_credentials
+        - android_signing
+    scripts:
+      - name: Set up local properties
+        script: |
+          echo "storePassword=$KEYSTORE_PASSWORD" > android/key.properties
+          echo "keyPassword=$KEY_PASSWORD" >> android/key.properties
+          echo "keyAlias=$KEY_ALIAS" >> android/key.properties
+          echo "storeFile=$CM_KEYSTORE_PATH" >> android/key.properties
+      
+      - name: Set up environment
+        script: |
+          echo "FIREBASE_API_KEY=$FIREBASE_API_KEY" > .env
+          echo "FIREBASE_AUTH_DOMAIN=$FIREBASE_AUTH_DOMAIN" >> .env
+          echo "FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID" >> .env
+          echo "FIREBASE_STORAGE_BUCKET=$FIREBASE_STORAGE_BUCKET" >> .env
+          echo "FIREBASE_MESSAGING_SENDER_ID=$FIREBASE_MESSAGING_SENDER_ID" >> .env
+          echo "FIREBASE_APP_ID=$FIREBASE_APP_ID" >> .env
+          echo "ENV=production" >> .env
+          echo "STRIPE_PUBLISHABLE_KEY=$STRIPE_PUBLISHABLE_KEY" >> .env
+      
+      - name: Get Flutter packages
+        script: flutter pub get
+      
+      - name: Run Flutter analyze
+        script: flutter analyze
+        ignore_failure: true
+      
+      - name: Run tests
+        script: flutter test
+        ignore_failure: true
+      
+      - name: Build APK
+        script: flutter build apk --flavor prod --dart-define=ENV=prod --release
+      
+      - name: Build App Bundle
+        script: flutter build appbundle --flavor prod --dart-define=ENV=prod --release
+    
+    artifacts:
+      - build/app/outputs/flutter-apk/*.apk
+      - build/app/outputs/bundle/**/*.aab
+    
+    publishing:
+      google_play:
+        credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
+        track: internal
+        submit_as_draft: true
+
+  # iOS Production Build Workflow
+  ios-workflow:
+    name: iOS Production Build
+    max_build_duration: 60
+    instance_type: mac_mini_m1
+    integrations:
+      app_store_connect: Zyntro App Store Connect
+    environment:
+      flutter: 3.24.0
+      xcode: latest
+      cocoapods: default
+      groups:
+        - firebase_credentials
+    scripts:
+      - name: Set up environment
+        script: |
+          echo "FIREBASE_API_KEY=$FIREBASE_API_KEY" > .env
+          echo "FIREBASE_AUTH_DOMAIN=$FIREBASE_AUTH_DOMAIN" >> .env
+          echo "FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID" >> .env
+          echo "FIREBASE_STORAGE_BUCKET=$FIREBASE_STORAGE_BUCKET" >> .env
+          echo "FIREBASE_MESSAGING_SENDER_ID=$FIREBASE_MESSAGING_SENDER_ID" >> .env
+          echo "FIREBASE_APP_ID=$FIREBASE_APP_ID" >> .env
+          echo "ENV=production" >> .env
+          echo "STRIPE_PUBLISHABLE_KEY=$STRIPE_PUBLISHABLE_KEY" >> .env
+      
+      - name: Set up code signing settings on Xcode project
+        script: xcode-project use-profiles
+      
+      - name: Get Flutter packages
+        script: flutter pub get
+      
+      - name: Install pods
+        script: |
+          cd ios
+          pod install
+          cd ..
+      
+      - name: Run Flutter analyze
+        script: flutter analyze
+        ignore_failure: true
+      
+      - name: Run tests
+        script: flutter test
+        ignore_failure: true
+      
+      - name: Build IPA
+        script: flutter build ipa --flavor prod --dart-define=ENV=prod --release --export-options-plist=/Users/builder/export_options.plist
+    
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        submit_to_app_store: false
+
+  # Development Build for Testing
+  dev-workflow:
+    name: Development Build
+    max_build_duration: 30
+    instance_type: mac_mini_m1
+    environment:
+      flutter: 3.24.0
+      java: 17
+    triggering:
+      events:
+        - pull_request
+      branch_patterns:
+        - pattern: dev
+          include: true
+    scripts:
+      - name: Get Flutter packages
+        script: flutter pub get
+      
+      - name: Run Flutter analyze
+        script: flutter analyze
+      
+      - name: Run tests
+        script: flutter test
+      
+      - name: Build APK (debug)
+        script: flutter build apk --flavor dev --dart-define=ENV=dev --debug
+    
+    artifacts:
+      - build/app/outputs/flutter-apk/*.apk

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="facebook_app_id">1231492372238127</string>
+    <string name="fb_login_protocol_scheme">fbf9defda1ff59118d98fc13a8fd03f60e</string>
+    <string name="facebook_client_token">c862432f66efa524c8eefa6c2c0ad48d</string>
+    <string name="app_name">Zyntro</string>
+</resources>
