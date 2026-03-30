@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/theme/app_theme.dart';
-import '../services/auth_service.dart';
+import '../features/auth/presentation/providers/auth_controller.dart';
 
 /// A reusable dialog for re-authentication before sensitive operations.
 ///
@@ -75,7 +75,7 @@ class _ReauthenticationDialogState
       final password = _passwordController.text;
 
       // Verify the password by re-authenticating
-      await ref.read(authServiceProvider).reauthenticate(password);
+      await ref.read(authControllerProvider).reauthenticate(password);
 
       if (mounted) {
         Navigator.of(context).pop(password);

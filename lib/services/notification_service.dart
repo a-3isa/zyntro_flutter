@@ -12,7 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 import '../app/navigation/app_router.dart';
-import 'auth_service.dart';
+import '../features/auth/auth_providers.dart';
 import '../core/models/models.dart';
 
 /// Notification types matching React Native.
@@ -1132,7 +1132,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 /// Notification service provider.
 final notificationServiceProvider = Provider<NotificationService>((ref) {
-  return NotificationService(ref.watch(firestoreProvider));
+  return NotificationService(ref.watch(authFirestoreProvider));
 });
 
 /// User notifications stream provider.
@@ -1155,3 +1155,4 @@ final notificationPreferencesProvider =
           .watch(notificationServiceProvider)
           .getNotificationPreferences(userId);
     });
+

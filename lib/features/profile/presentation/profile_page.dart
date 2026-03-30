@@ -9,7 +9,6 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/models/models.dart';
 import '../../../core/constants/constants.dart';
 import '../../../app/navigation/app_router.dart';
-import '../../../services/auth_service.dart';
 import '../../../services/user_service.dart';
 import '../../../services/moderation_service.dart';
 import '../../../services/follow_service.dart';
@@ -20,13 +19,41 @@ import '../../../widgets/premium_effects.dart';
 import '../../../widgets/premium_animations.dart';
 import '../../moderation/presentation/report_dialog.dart';
 import '../../../widgets/responsive_center.dart';
+import '../../auth/auth_providers.dart';
+import '../../auth/domain/entities/user_profile_entity.dart';
+import '../../auth/presentation/providers/auth_controller.dart';
+
+User _toLegacyUser(UserProfileEntity profile) {
+  return User(
+    id: profile.id,
+    displayName: profile.displayName,
+    photoURL: profile.photoUrl,
+    avatarConfig: profile.avatarConfig,
+    isPrivate: profile.isPrivate,
+    workoutPreference: profile.workoutPreference,
+    beginnerFlag: profile.beginnerFlag,
+    createdAt: DateTime.now(),
+    updatedAt: DateTime.now(),
+  );
+}
 
 /// Provider to fetch another user's profile by ID.
 final otherUserProfileProvider = FutureProvider.family<User?, String>((
   ref,
   userId,
 ) async {
-  return ref.read(authServiceProvider).getUserProfile(userId);
+  final profile = await ref.read(authControllerProvider).getUserProfile(userId);
+  if (profile == null) return null;
+  return _toLegacyUser(profile);
+});
+
+final currentUserProfileProvider = FutureProvider<User?>((ref) async {
+  final authState = ref.watch(authSessionProvider);
+  final uid = authState.valueOrNull?.id;
+  if (uid == null) return null;
+  final profile = await ref.read(authControllerProvider).getUserProfile(uid);
+  if (profile == null) return null;
+  return _toLegacyUser(profile);
 });
 
 /// Provider for followers count.
@@ -50,8 +77,8 @@ final followStatusProvider = FutureProvider.family<FollowStatus?, String>((
   ref,
   targetUserId,
 ) async {
-  final authState = ref.watch(authStateProvider);
-  final currentUserId = authState.valueOrNull?.uid;
+  final authState = ref.watch(authSessionProvider);
+  final currentUserId = authState.valueOrNull?.id;
   if (currentUserId == null || currentUserId == targetUserId) return null;
   return ref
       .read(followServiceProvider)
@@ -74,8 +101,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authStateProvider);
-    final currentUserId = authState.valueOrNull?.uid;
+    final authState = ref.watch(authSessionProvider);
+    final currentUserId = authState.valueOrNull?.id;
     final firebaseUser = authState.valueOrNull;
 
     final targetUserId = widget.userId ?? currentUserId;
@@ -85,7 +112,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     if (widget.userId != null) {
       userProfileAsync = ref.watch(otherUserProfileProvider(widget.userId!));
     } else {
-      userProfileAsync = ref.watch(userProfileProvider);
+      userProfileAsync = ref.watch(currentUserProfileProvider);
     }
 
     return Scaffold(
@@ -121,7 +148,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               ScaleOnTap(
                 onTap: () async {
                   HapticFeedback.mediumImpact();
-                  await ref.read(authServiceProvider).sendEmailVerification();
+                  await ref
+                      .read(authControllerProvider)
+                      .sendEmailVerification();
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
@@ -253,7 +282,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           return RefreshIndicator(
             onRefresh: () async {
               if (isCurrentUser) {
-                ref.invalidate(userProfileProvider);
+                ref.invalidate(currentUserProfileProvider);
               }
               if (widget.userId != null) {
                 ref.invalidate(otherUserProfileProvider(widget.userId!));
@@ -375,7 +404,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               BounceAnimation(
                 onTap: () {
                   if (isCurrentUser) {
-                    ref.invalidate(userProfileProvider);
+                    ref.invalidate(currentUserProfileProvider);
                   } else if (targetUserId != null) {
                     ref.invalidate(otherUserProfileProvider(targetUserId));
                   }
@@ -383,7 +412,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 child: ElevatedButton(
                   onPressed: () {
                     if (isCurrentUser) {
-                      ref.invalidate(userProfileProvider);
+                      ref.invalidate(currentUserProfileProvider);
                     } else if (targetUserId != null) {
                       ref.invalidate(otherUserProfileProvider(targetUserId));
                     }
@@ -589,8 +618,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   }
 
   Future<void> _handleFollow(String targetUserId, bool isPrivate) async {
-    final authState = ref.read(authStateProvider);
-    final currentUserId = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final currentUserId = authState.valueOrNull?.id;
     if (currentUserId == null) return;
 
     HapticFeedback.mediumImpact();
@@ -598,7 +627,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
     try {
       final userProfile = await ref
-          .read(authServiceProvider)
+          .read(authControllerProvider)
           .getUserProfile(currentUserId);
       await ref
           .read(followServiceProvider)
@@ -657,8 +686,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
     if (confirmed != true) return;
 
-    final authState = ref.read(authStateProvider);
-    final currentUserId = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final currentUserId = authState.valueOrNull?.id;
     if (currentUserId == null) return;
 
     HapticFeedback.mediumImpact();
@@ -701,8 +730,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     final followingAsync = ref.watch(followingCountProvider(uid));
     final postsAsync = ref.watch(userPostsProvider(uid));
 
-    final authState = ref.watch(authStateProvider);
-    final currentUserId = authState.valueOrNull?.uid;
+    final authState = ref.watch(authSessionProvider);
+    final currentUserId = authState.valueOrNull?.id;
 
     AsyncValue<List<FriendStreakComparison>>? comparisonAsync;
     if (currentUserId != null) {
@@ -1024,12 +1053,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     String action,
     String targetUserId,
   ) async {
-    final authState = ref.read(authStateProvider);
-    final currentUserId = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final currentUserId = authState.valueOrNull?.id;
     if (currentUserId == null) return;
 
     final user = await ref
-        .read(authServiceProvider)
+        .read(authControllerProvider)
         .getUserProfile(targetUserId);
     final userName = user?.displayName ?? 'User';
 

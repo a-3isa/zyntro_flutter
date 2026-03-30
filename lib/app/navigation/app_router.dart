@@ -31,7 +31,7 @@ import '../../features/profile/presentation/workout_history_page.dart';
 import '../../features/profile/presentation/edit_profile_page.dart';
 import '../../features/moderation/presentation/moderation_queue_page.dart';
 import '../../features/feed/presentation/post_detail_page.dart';
-import '../../services/auth_service.dart';
+import '../../features/auth/auth_providers.dart';
 import '../../services/storage_service.dart';
 
 /// Route names for type-safe navigation.
@@ -162,8 +162,9 @@ CustomTransitionPage<T> buildModalPageTransition<T>({
 
 /// GoRouter provider with auth-based redirects and premium transitions.
 final routerProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authStateProvider);
-  final profileCompleteAsync = ref.watch(profileCompletionProvider);
+  final authState = ref.watch(authSessionProvider);
+  final profileCompleteAsync = ref.watch(authProfileCompletionProvider);
+  final rollbackActiveAsync = ref.watch(authMigrationRollbackActiveProvider);
   final storageService = ref.watch(storageServiceProvider);
 
   return GoRouter(
@@ -173,6 +174,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final isLoggedIn = authState.valueOrNull != null;
       final isLoading = authState.isLoading;
+      final rollbackActive = rollbackActiveAsync.valueOrNull ?? false;
       final isOnAuthPage =
           state.matchedLocation == AppRoutes.login ||
           state.matchedLocation == AppRoutes.signUp ||
@@ -189,6 +191,11 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // Not logged in, redirect to login
       if (!isLoggedIn && !isOnAuthPage) {
+        return AppRoutes.login;
+      }
+
+      // Guardrail: if rollback is active, keep navigation on auth entry routes.
+      if (rollbackActive && !isOnAuthPage) {
         return AppRoutes.login;
       }
 

@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/models/models.dart';
 import '../core/constants/feature_flags.dart';
 import '../utils/retry_helper.dart';
-import 'auth_service.dart';
+import '../features/auth/auth_providers.dart';
 import 'notification_service.dart';
 import 'content_filter_service.dart';
 import 'media_service.dart';
@@ -729,7 +729,7 @@ class PostService {
 
 /// Post service provider.
 final postServiceProvider = Provider<PostService>((ref) {
-  return PostService(ref.watch(firestoreProvider), ref);
+  return PostService(ref.watch(authFirestoreProvider), ref);
 });
 
 /// Public feed posts provider.
@@ -767,3 +767,4 @@ final commentsProvider = StreamProvider.family<List<Comment>, String>((
   // ignore: deprecated_member_use_from_same_package
   return ref.watch(postServiceProvider).subscribeToComments(postId);
 });
+

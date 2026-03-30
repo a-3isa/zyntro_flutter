@@ -5,11 +5,11 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../app/navigation/app_router.dart';
-import '../../../services/auth_service.dart';
 import '../../../widgets/reauthentication_dialog.dart';
 import '../../../widgets/zyntro_button.dart';
 import '../../../widgets/premium_animations.dart';
 import '../../../widgets/premium_effects.dart';
+import '../../auth/presentation/providers/auth_controller.dart';
 
 /// Account deletion page with confirmation and password verification.
 /// Shows warnings about permanent data loss before allowing account deletion.
@@ -104,7 +104,7 @@ class _DeleteAccountPageState extends ConsumerState<DeleteAccountPage> {
     });
 
     try {
-      await ref.read(authServiceProvider).deleteAccount(password);
+      await ref.read(authControllerProvider).deleteAccount(password);
 
       if (mounted) {
         // Navigate to login page after successful deletion

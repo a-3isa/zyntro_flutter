@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../core/models/models.dart';
-import '../../../services/auth_service.dart';
+import '../../auth/auth_providers.dart';
 import '../../../services/moderation_service.dart';
 
 /// Report dialog for reporting users, posts, or comments.
@@ -85,8 +85,8 @@ class _ReportDialogState extends ConsumerState<ReportDialog> {
     setState(() => _isSubmitting = true);
 
     try {
-      final authState = ref.read(authStateProvider);
-      final reporterId = authState.valueOrNull?.uid;
+      final authState = ref.read(authSessionProvider);
+      final reporterId = authState.valueOrNull?.id;
       if (reporterId == null) throw Exception('Not authenticated');
 
       final moderationService = ref.read(moderationServiceProvider);

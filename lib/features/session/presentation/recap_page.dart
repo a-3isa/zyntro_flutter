@@ -10,7 +10,7 @@ import '../../../core/constants/constants.dart';
 import '../../../services/session_service.dart';
 import '../../../services/post_service.dart';
 import '../../../services/media_service.dart';
-import '../../../services/auth_service.dart';
+import '../../auth/auth_providers.dart';
 import '../../../app/navigation/app_router.dart';
 import '../../../widgets/premium_effects.dart';
 import '../../../widgets/premium_animations.dart';
@@ -255,8 +255,8 @@ class _RecapPageState extends ConsumerState<RecapPage> {
     });
 
     try {
-      final authState = ref.read(authStateProvider);
-      final uid = authState.valueOrNull?.uid;
+      final authState = ref.read(authSessionProvider);
+      final uid = authState.valueOrNull?.id;
       if (uid == null) throw Exception('Not authenticated');
 
       final postService = ref.read(postServiceProvider);

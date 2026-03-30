@@ -4,9 +4,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/feature_flags.dart';
+import '../../auth/auth_providers.dart';
 import '../../../widgets/widgets.dart';
 import '../../../services/notification_service.dart';
-import '../../../services/auth_service.dart';
 import 'package:flutter/services.dart';
 import '../../../widgets/premium_animations.dart';
 
@@ -32,8 +32,8 @@ class _NotificationPreferencesPageState
   }
 
   Future<void> _loadPreferences() async {
-    final authState = ref.read(authStateProvider);
-    final uid = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final uid = authState.valueOrNull?.id;
     if (uid == null) return;
 
     final prefs = await ref
@@ -49,8 +49,8 @@ class _NotificationPreferencesPageState
   }
 
   Future<void> _updatePreference(NotificationPreferences newPrefs) async {
-    final authState = ref.read(authStateProvider);
-    final uid = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final uid = authState.valueOrNull?.id;
     if (uid == null) return;
 
     // Optimistic update

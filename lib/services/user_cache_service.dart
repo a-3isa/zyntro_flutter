@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/models/models.dart';
-import 'auth_service.dart';
+import '../features/auth/auth_providers.dart';
 
 /// User cache service for reducing Firestore reads.
 /// Implements in-memory caching with TTL for frequently accessed user data.
@@ -259,5 +259,6 @@ class _CachedUser {
 
 /// User cache service provider.
 final userCacheServiceProvider = Provider<UserCacheService>((ref) {
-  return UserCacheService(ref.watch(firestoreProvider));
+  return UserCacheService(ref.watch(authFirestoreProvider));
 });
+

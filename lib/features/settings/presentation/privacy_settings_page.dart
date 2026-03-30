@@ -4,11 +4,12 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../app/navigation/app_router.dart';
-import '../../../services/auth_service.dart';
 import 'package:flutter/services.dart';
 import '../../../widgets/premium_animations.dart';
 import '../../../widgets/premium_effects.dart';
 import '../../../services/follow_service.dart';
+import '../../auth/auth_providers.dart';
+import '../../auth/presentation/providers/auth_controller.dart';
 
 /// Privacy settings page for managing account privacy.
 /// Migrated from React Native PrivacySettingsScreen.
@@ -28,10 +29,10 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
     setState(() => _isUpdating = true);
 
     try {
-      await ref.read(authServiceProvider).updateUserProfile(uid, {
-        'isPrivate': value,
-      });
-      ref.invalidate(userProfileProvider);
+      await ref
+          .read(authControllerProvider)
+          .updateUserProfile(userId: uid, data: {'isPrivate': value});
+      ref.invalidate(authUserProfileProvider);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -47,9 +48,9 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final userAsync = ref.watch(userProfileProvider);
-    final authState = ref.watch(authStateProvider);
-    final uid = authState.valueOrNull?.uid;
+    final userAsync = ref.watch(authUserProfileProvider);
+    final authState = ref.watch(authSessionProvider);
+    final uid = authState.valueOrNull?.id;
 
     return Scaffold(
       backgroundColor: AppColors.backgroundDark,

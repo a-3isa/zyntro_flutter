@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import '../core/models/models.dart';
 import '../core/constants/constants.dart';
-import 'auth_service.dart';
+import '../features/auth/auth_providers.dart';
 import 'notification_service.dart';
 
 /// Follow service for managing follow relationships.
@@ -341,13 +341,13 @@ class FollowService {
 
 /// Follow service provider.
 final followServiceProvider = Provider<FollowService>((ref) {
-  return FollowService(ref.watch(firestoreProvider), ref);
+  return FollowService(ref.watch(authFirestoreProvider), ref);
 });
 
 /// Pending follow requests count provider.
 final pendingFollowRequestsCountProvider = FutureProvider<int>((ref) async {
-  final authState = ref.watch(authStateProvider);
-  final uid = authState.valueOrNull?.uid;
+  final authState = ref.watch(authSessionProvider);
+  final uid = authState.valueOrNull?.id;
   if (uid == null) return 0;
 
   final requests = await ref
@@ -355,3 +355,4 @@ final pendingFollowRequestsCountProvider = FutureProvider<int>((ref) async {
       .getPendingFollowRequests(uid);
   return requests.length;
 });
+

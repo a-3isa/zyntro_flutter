@@ -11,8 +11,10 @@ import '../../../utils/haptic_manager.dart';
 import '../../../widgets/widgets.dart';
 import '../../../widgets/premium_animations.dart';
 import '../../../core/models/models.dart';
+import '../../auth/auth_providers.dart';
+import '../../auth/domain/entities/user_profile_entity.dart';
+import '../../auth/presentation/providers/auth_controller.dart';
 import '../../../services/post_service.dart';
-import '../../../services/auth_service.dart';
 import '../../../services/moderation_service.dart';
 import '../../../widgets/reaction_buttons.dart';
 import '../../../widgets/photo_viewer_page.dart';
@@ -33,7 +35,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
   bool _isLoading = true;
   bool _isSubmitting = false;
   Post? _post;
-  User? _author;
+  UserProfileEntity? _author;
   ReactionType? _currentReaction;
   Map<ReactionType, int> _reactionCounts = {};
 
@@ -55,10 +57,10 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
       final post = await postService.getPost(widget.postId);
       if (post != null && mounted) {
         final author = await ref
-            .read(authServiceProvider)
+            .read(authControllerProvider)
             .getUserProfile(post.authorId);
-        final authState = ref.read(authStateProvider);
-        final uid = authState.valueOrNull?.uid;
+        final authState = ref.read(authSessionProvider);
+        final uid = authState.valueOrNull?.id;
 
         // Fetch reaction data
         final counts = await postService.getReactionCounts(widget.postId);
@@ -89,8 +91,8 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
     // Haptic feedback on reaction
     HapticManager.medium();
 
-    final authState = ref.read(authStateProvider);
-    final uid = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final uid = authState.valueOrNull?.id;
     if (uid == null || _post == null) return;
 
     final previousReaction = _currentReaction;
@@ -159,11 +161,11 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
     }
     if (_commentController.text.trim().isEmpty || _post == null) return;
 
-    final authState = ref.read(authStateProvider);
-    final uid = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final uid = authState.valueOrNull?.id;
     if (uid == null) return;
 
-    final user = await ref.read(authServiceProvider).getUserProfile(uid);
+    final user = await ref.read(authControllerProvider).getUserProfile(uid);
     if (user == null) return;
 
     setState(() => _isSubmitting = true);
@@ -175,7 +177,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
             postId: _post!.id,
             userId: uid,
             userName: user.displayName,
-            userPhotoURL: user.photoURL,
+            userPhotoURL: user.photoUrl,
             text: _commentController.text.trim(),
           );
       _commentController.clear();
@@ -357,10 +359,10 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                     children: [
                       CircleAvatar(
                         backgroundColor: AppColors.primaryMuted,
-                        backgroundImage: _author?.photoURL != null
-                            ? NetworkImage(_author!.photoURL!)
+                        backgroundImage: _author?.photoUrl != null
+                            ? NetworkImage(_author!.photoUrl!)
                             : null,
-                        child: _author?.photoURL == null
+                        child: _author?.photoUrl == null
                             ? Text(
                                 _author?.displayName.isNotEmpty == true
                                     ? _author!.displayName[0].toUpperCase()
@@ -856,8 +858,8 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
   }
 
   Widget _buildCommentTile(Comment comment) {
-    final authState = ref.read(authStateProvider);
-    final currentUserId = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final currentUserId = authState.valueOrNull?.id;
     final isOwnComment = currentUserId == comment.authorId;
 
     return Padding(
@@ -948,15 +950,15 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
   }
 
   bool _isOwnPost() {
-    final authState = ref.read(authStateProvider);
-    final currentUserId = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final currentUserId = authState.valueOrNull?.id;
     return _post != null && currentUserId == _post!.authorId;
   }
 
   Future<void> _handlePostAction(String action) async {
     if (_post == null) return;
-    final authState = ref.read(authStateProvider);
-    final currentUserId = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final currentUserId = authState.valueOrNull?.id;
     if (currentUserId == null) return;
 
     final authorName = _author?.displayName ?? 'User';
@@ -989,8 +991,8 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
     required String action,
     required Comment comment,
   }) async {
-    final authState = ref.read(authStateProvider);
-    final currentUserId = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final currentUserId = authState.valueOrNull?.id;
     if (currentUserId == null) return;
 
     switch (action) {
@@ -1010,8 +1012,8 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
   }
 
   Future<void> _blockUser(String userId, String userName) async {
-    final authState = ref.read(authStateProvider);
-    final currentUserId = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final currentUserId = authState.valueOrNull?.id;
     if (currentUserId == null) return;
 
     final confirmed = await showDialog<bool>(

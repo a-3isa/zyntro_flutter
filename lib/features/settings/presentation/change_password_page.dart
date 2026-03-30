@@ -4,11 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_theme.dart';
-import '../../../services/auth_service.dart';
 import '../../../widgets/reauthentication_dialog.dart';
 import '../../../widgets/zyntro_button.dart';
 import '../../../widgets/premium_animations.dart';
 import '../../../widgets/premium_effects.dart';
+import '../../auth/presentation/providers/auth_controller.dart';
 
 /// Password change page for authenticated users.
 /// Requires current password for re-authentication before allowing password change.
@@ -55,8 +55,11 @@ class _ChangePasswordPageState extends ConsumerState<ChangePasswordPage> {
 
     try {
       await ref
-          .read(authServiceProvider)
-          .changePassword(currentPassword, _newPasswordController.text);
+          .read(authControllerProvider)
+          .changePassword(
+            currentPassword: currentPassword,
+            newPassword: _newPasswordController.text,
+          );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

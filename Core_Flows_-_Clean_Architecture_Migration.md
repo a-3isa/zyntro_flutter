@@ -497,4 +497,129 @@ After migration, we should see:
   - Easier to fix bugs
   - Better test coverage
 
+---
+
+## Auth Migration Plan and Status (Implemented on February 16, 2026)
+
+This section tracks the first production migration slice for the `auth` feature using the layer-by-layer flow above.
+
+### Scope for this slice
+
+- Migrate core auth flow wiring to clean architecture:
+  - Router auth redirect state
+  - Splash login state check
+  - Login
+  - Sign up
+  - Forgot password
+  - Onboarding resend verification
+  - Profile setup submission
+- Remove legacy auth providers once all screens/services are migrated.
+
+### Implemented architecture
+
+`lib/features/auth/` now contains:
+
+- `domain/`
+  - `entities/auth_user_entity.dart`
+  - `entities/user_profile_entity.dart`
+  - `failures/auth_failure.dart`
+  - `repositories/auth_repository.dart`
+  - `usecases/authentication_usecase.dart`
+- `data/`
+  - `exceptions/auth_data_exception.dart`
+  - `models/auth_user_model.dart`
+  - `models/user_profile_model.dart`
+  - `datasources/auth_remote_data_source.dart`
+  - `datasources/auth_local_data_source.dart` (SharedPreferences TTL cache)
+  - `repositories/auth_repository_impl.dart`
+- `presentation/providers/`
+  - `auth_controller.dart`
+- Feature DI wiring:
+  - `auth_providers.dart`
+
+### Migration wiring completed
+
+- `lib/app/navigation/app_router.dart`
+  - uses `authSessionProvider` and `authProfileCompletionProvider`
+- `lib/features/auth/presentation/splash_page.dart`
+  - uses `authSessionProvider`
+- `lib/features/auth/presentation/login_page.dart`
+  - uses `authControllerProvider`
+- `lib/features/auth/presentation/signup_page.dart`
+  - uses `authControllerProvider`
+- `lib/features/auth/presentation/forgot_password_page.dart`
+  - uses `authControllerProvider`
+- `lib/features/auth/presentation/profile_setup_page.dart`
+  - uses `authSessionProvider`, `authProfileCompletionProvider`, and `authControllerProvider`
+- `lib/features/auth/presentation/onboarding_page.dart`
+  - uses `authSessionProvider` and `authControllerProvider`
+- `lib/widgets/email_verification_banner.dart`
+  - uses `authSessionProvider` and `authControllerProvider`
+- `lib/widgets/reauthentication_dialog.dart`
+  - uses `authControllerProvider`
+- `lib/features/settings/presentation/settings_page.dart`
+  - uses `authControllerProvider` (`signOut`)
+- `lib/features/settings/presentation/change_password_page.dart`
+  - uses `authControllerProvider` (`changePassword`)
+- `lib/features/settings/presentation/change_email_page.dart`
+  - uses `authSessionProvider` and `authControllerProvider` (`changeEmail`)
+- `lib/features/settings/presentation/delete_account_page.dart`
+  - uses `authControllerProvider` (`deleteAccount`)
+- `lib/features/settings/presentation/privacy_settings_page.dart`
+  - uses `authControllerProvider` (`updateUserProfile`)
+- `lib/features/profile/presentation/edit_profile_page.dart`
+  - uses `authSessionProvider` and `authControllerProvider` (`updateUserProfile`)
+- `lib/features/profile/presentation/profile_page.dart`
+  - migrated legacy auth service calls to `authControllerProvider`
+- `lib/features/feed/presentation/post_detail_page.dart`
+  - uses `authSessionProvider` and `authControllerProvider`
+- `lib/features/notifications/presentation/notifications_page.dart`
+  - uses `authSessionProvider`
+- `lib/features/notifications/presentation/notification_preferences_page.dart`
+  - uses `authSessionProvider`
+- `lib/features/settings/presentation/blocked_users_page.dart`
+  - uses `authSessionProvider`
+- `lib/features/profile/presentation/follow_requests_page.dart`
+  - uses `authSessionProvider`
+- `lib/features/profile/presentation/workout_history_page.dart`
+  - uses `authSessionProvider`
+- `lib/features/session/presentation/start_session_page.dart`
+  - uses `authSessionProvider`
+- `lib/features/session/presentation/session_page.dart`
+  - uses `authSessionProvider`
+- `lib/features/session/presentation/recap_page.dart`
+  - uses `authSessionProvider`
+- `lib/features/session/presentation/session_room_page.dart`
+  - uses `authSessionProvider`
+- `lib/features/moderation/presentation/report_dialog.dart`
+  - uses `authSessionProvider`
+- `lib/features/feed/presentation/feed_page.dart`
+  - uses `authSessionProvider`
+- `lib/features/social/presentation/social_page.dart`
+  - uses `authSessionProvider`
+- `lib/widgets/post_card_widget.dart`
+  - uses `authSessionProvider`
+- `lib/services/follow_service.dart`
+  - uses `authSessionProvider` in auth-dependent providers
+- `lib/services/buddy_service.dart`
+  - uses `authSessionProvider` in auth-dependent providers
+- `lib/services/moderation_service.dart`
+  - uses `authSessionProvider` in auth-dependent providers
+
+### Tests added
+
+- `test/features/auth/domain/authentication_usecase_test.dart`
+- `test/features/auth/data/auth_repository_impl_test.dart`
+
+### Validation completed
+
+- `dart analyze lib`: clean (with existing non-blocking infos in `lib/widgets/shimmer_widgets.dart`)
+- `flutter test` for new auth test suites: passing
+- `flutter test` full repository suite: passing (`103` passed, `8` skipped performance integration placeholders)
+
+### Remaining migration backlog for auth
+
+1. Add/implement currently skipped performance integration tests in `test/performance/realtime_test.dart`.
+2. Expand widget/integration coverage for migrated UI flows (login/profile/session/social) beyond current logic and service tests.
+
 &nbsp;

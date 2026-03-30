@@ -6,8 +6,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/constants.dart';
+import '../../auth/auth_providers.dart';
 import '../../../services/session_service.dart';
-import '../../../services/auth_service.dart';
 import '../../../services/follow_service.dart';
 import '../../../core/models/models.dart';
 import '../../../widgets/zyntro_button.dart';
@@ -48,8 +48,8 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
 
   Future<void> _loadMutualFollows() async {
     setState(() => _isLoadingFollows = true);
-    final authState = ref.read(authStateProvider);
-    final uid = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final uid = authState.valueOrNull?.id;
     if (uid == null) {
       if (mounted) setState(() => _isLoadingFollows = false);
       return;
@@ -83,8 +83,8 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
     setState(() => _isLoading = true);
 
     try {
-      final authState = ref.read(authStateProvider);
-      final uid = authState.valueOrNull?.uid;
+      final authState = ref.read(authSessionProvider);
+      final uid = authState.valueOrNull?.id;
       if (uid == null) throw Exception('Not authenticated');
 
       final sessionId = await ref
@@ -173,24 +173,35 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
 
   @override
   Widget build(BuildContext context) {
+    final selectedGradient = _getCategoryGradient(_selectedType.category);
+    
     return Scaffold(
       backgroundColor: AppColors.backgroundDark,
-
       body: Column(
         children: [
-          // Custom Header
+          // Custom Header with Premium Styling
           Container(
             padding: EdgeInsets.only(
               top: MediaQuery.paddingOf(context).top + 8,
-              bottom: 8,
+              bottom: 12,
               left: 16,
               right: 16,
             ),
             decoration: BoxDecoration(
               color: AppColors.surfaceDark,
               border: Border(
-                bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+                bottom: BorderSide(
+                  color: selectedGradient.first.withValues(alpha: 0.2),
+                  width: 1,
+                ),
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: selectedGradient.first.withValues(alpha: 0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             child: Row(
               children: [
@@ -200,13 +211,16 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                     context.pop();
                   },
                   child: Container(
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       color: AppColors.surfaceSecondaryDark,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.05),
+                      ),
                     ),
                     child: const Icon(
-                      Icons.close,
+                      Icons.close_rounded,
                       color: AppColors.textDark,
                       size: 20,
                     ),
@@ -216,7 +230,11 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                 const Expanded(
                   child: GradientText(
                     text: 'Start Session',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontSize: 22, 
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: -0.5,
+                    ),
                     colors: [AppColors.textDark, AppColors.textSecondaryDark],
                   ),
                 ),
@@ -226,23 +244,19 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
           Expanded(
             child: Stack(
               children: [
-                // Background orbs
+                // Background ambient orbs
                 Positioned(
-                  top: -80,
-                  right: -80,
+                  top: -100,
+                  right: -100,
                   child: Container(
-                    width: 200,
-                    height: 200,
+                    width: 300,
+                    height: 300,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       gradient: RadialGradient(
                         colors: [
-                          _getCategoryGradient(
-                            _selectedType.category,
-                          ).first.withValues(alpha: 0.2),
-                          _getCategoryGradient(
-                            _selectedType.category,
-                          ).first.withValues(alpha: 0.0),
+                          selectedGradient.first.withValues(alpha: 0.15),
+                          selectedGradient.first.withValues(alpha: 0.0),
                         ],
                       ),
                     ),
@@ -250,20 +264,17 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                 ),
 
                 SingleChildScrollView(
-                  padding: const EdgeInsets.all(AppSpacing.xl),
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 24,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       // Workout type selection
-                      Text(
-                        'Workout Type',
-                        style: TextStyle(
-                          fontSize: AppFontSize.lg,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textDark,
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.md),
+                      const SectionHeader(title: 'Workout Type'),
+                      const SizedBox(height: 16),
 
                       // Responsive grid for workout types
                       LayoutBuilder(
@@ -277,117 +288,114 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                             gridDelegate:
                                 SliverGridDelegateWithFixedCrossAxisCount(
                                   crossAxisCount: crossAxisCount,
-                                  crossAxisSpacing: AppSpacing.md,
-                                  mainAxisSpacing: AppSpacing.md,
-                                  childAspectRatio: 1.0,
+                                  crossAxisSpacing: 12,
+                                  mainAxisSpacing: 12,
+                                  childAspectRatio: 0.95,
                                 ),
                             itemCount: WorkoutType.values.length,
                             itemBuilder: (context, index) {
                               final type = WorkoutType.values[index];
-                              return _buildTypeCard(type: type);
+                              return _buildTypeCard(type: type, index: index);
                             },
                           );
                         },
                       ),
 
-                      const SizedBox(height: AppSpacing.xxl),
+                      const SizedBox(height: 32),
 
                       // Session mode
                       Row(
                         children: [
-                          Text(
-                            'Session Mode',
-                            style: TextStyle(
-                              fontSize: AppFontSize.lg,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textDark,
-                            ),
-                          ),
+                          const SectionHeader(title: 'Session Mode'),
                           const SizedBox(width: 8),
                           Tooltip(
                             message:
                                 'Choose how you want to log sets with friends',
                             triggerMode: TooltipTriggerMode.tap,
                             child: Icon(
-                              Icons.info_outline,
-                              size: 18,
-                              color: AppColors.textSecondaryDark,
+                              Icons.info_outline_rounded,
+                              size: 16,
+                              color: AppColors.textTertiaryDark,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: AppSpacing.md),
+                      const SizedBox(height: 16),
 
-                      ...SessionMode.values.map((mode) => _buildModeCard(mode)),
+                      ...SessionMode.values.asMap().entries.map(
+                        (entry) => _buildModeCard(entry.value, index: entry.key),
+                      ),
 
-                      const SizedBox(height: AppSpacing.xxl),
+                      const SizedBox(height: 32),
 
                       // Invite friends section
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            'Invite Friends',
-                            style: TextStyle(
-                              fontSize: AppFontSize.lg,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textDark,
-                            ),
-                          ),
+                          const SectionHeader(title: 'Invite Friends'),
                           if (_selectedFriends.isNotEmpty)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  colors: AppColors.primaryGradient,
+                            FadeInAnimation(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
                                 ),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                '${_selectedFriends.length} selected',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: AppColors.primaryGradient,
+                                  ),
+                                  borderRadius: BorderRadius.circular(20),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: AppColors.primary.withValues(alpha: 0.3),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Text(
+                                  '${_selectedFriends.length} selected',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
                             ),
                         ],
                       ),
-                      const SizedBox(height: AppSpacing.sm),
+                      const SizedBox(height: 4),
                       Text(
-                        'Optional - start solo or with friends',
+                        'Start solo or train together with mutual follows',
                         style: TextStyle(
                           color: AppColors.textTertiaryDark,
-                          fontSize: AppFontSize.sm,
+                          fontSize: 13,
                         ),
                       ),
-                      const SizedBox(height: AppSpacing.md),
+                      const SizedBox(height: 16),
 
                       // Search bar
                       if (_mutualFollows.isNotEmpty || _isLoadingFollows)
-                        Container(
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceSecondaryDark,
-                            borderRadius: BorderRadius.circular(
-                              AppBorderRadius.lg,
-                            ),
-                            border: Border.all(color: AppColors.borderDark),
+                        GlassContainer(
+                          blur: 10,
+                          backgroundColor: AppColors.surfaceSecondaryDark.withValues(alpha: 0.4),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.05),
                           ),
                           child: TextField(
                             controller: _searchController,
-                            style: const TextStyle(color: AppColors.textDark),
+                            style: const TextStyle(color: AppColors.textDark, fontSize: 14),
                             decoration: InputDecoration(
                               hintText: 'Search friends...',
                               hintStyle: TextStyle(
                                 color: AppColors.textTertiaryDark,
                               ),
                               prefixIcon: Icon(
-                                Icons.search,
+                                Icons.search_rounded,
                                 color: AppColors.textSecondaryDark,
+                                size: 20,
                               ),
                               border: InputBorder.none,
                               contentPadding: const EdgeInsets.symmetric(
@@ -401,7 +409,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                           ),
                         ),
 
-                      const SizedBox(height: AppSpacing.md),
+                      const SizedBox(height: 16),
 
                       if (_isLoadingFollows)
                         _buildLoadingSkeleton()
@@ -412,22 +420,24 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                             children: [
                               Icon(
                                 Icons.person_add_outlined,
-                                size: 40,
-                                color: AppColors.textSecondaryDark,
+                                size: 48,
+                                color: AppColors.textTertiaryDark,
                               ),
-                              const SizedBox(height: AppSpacing.md),
+                              const SizedBox(height: 16),
                               const Text(
                                 'No mutual follows yet',
                                 style: TextStyle(
-                                  fontWeight: FontWeight.w600,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
                                   color: AppColors.textDark,
                                 ),
                               ),
-                              const SizedBox(height: AppSpacing.xs),
+                              const SizedBox(height: 4),
                               Text(
                                 'Start a solo session or find friends first!',
                                 style: TextStyle(
                                   color: AppColors.textSecondaryDark,
+                                  fontSize: 14,
                                 ),
                                 textAlign: TextAlign.center,
                               ),
@@ -440,24 +450,28 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                               _buildFriendTile(entry.value, index: entry.key),
                         ),
 
-                      const SizedBox(height: AppSpacing.xxxl),
+                      const SizedBox(height: 40),
 
-                      // Start button with pulsing glow when ready
+                      // Start button
                       PulsingGlow(
-                        glowColor: AppColors.primary,
+                        glowColor: AppColors.primary.withValues(alpha: 0.3),
                         child: ZyntroButton(
                           title: _selectedFriends.isEmpty
                               ? 'Start ${_selectedType.displayName} Session'
-                              : 'Start with ${_selectedFriends.length + 1} people',
+                              : 'Start with ${_selectedFriends.length + 1} athletes',
                           fullWidth: true,
                           size: ZyntroButtonSize.lg,
+                          variant: ZyntroButtonVariant.premium,
                           loading: _isLoading,
-                          rightIcon: const Icon(Icons.play_arrow_rounded),
-                          onPressed: _isLoading ? null : _handleStartSession,
+                          rightIcon: const Icon(Icons.bolt_rounded),
+                          onPressed: _isLoading ? null : () {
+                            HapticManager.heavy();
+                            _handleStartSession();
+                          },
                         ),
                       ),
 
-                      const SizedBox(height: AppSpacing.xl),
+                      const SizedBox(height: 40),
                     ],
                   ),
                 ),
@@ -469,170 +483,184 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
     );
   }
 
-  Widget _buildTypeCard({required WorkoutType type}) {
+  Widget _buildTypeCard({required WorkoutType type, required int index}) {
     final isSelected = _selectedType == type;
     final gradientColors = _getCategoryGradient(type.category);
     final icon = _getIconData(type.icon);
 
-    Widget card = AnimatedContainer(
-      duration: AppDurations.fast,
-      decoration: BoxDecoration(
-        gradient: isSelected
-            ? LinearGradient(
-                colors: gradientColors,
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              )
-            : null,
-        color: isSelected ? null : AppColors.surfaceSecondaryDark,
-        borderRadius: BorderRadius.circular(AppBorderRadius.xl),
-        border: Border.all(
-          color: isSelected ? gradientColors.first : AppColors.borderDark,
-          width: isSelected ? 2 : 1,
-        ),
-        boxShadow: isSelected
-            ? [
-                BoxShadow(
-                  color: gradientColors.first.withValues(alpha: 0.3),
-                  blurRadius: 16,
-                  offset: const Offset(0, 6),
+    return SlideInAnimation(
+      index: index,
+      child: BounceAnimation(
+        onTap: () {
+          setState(() => _selectedType = type);
+          HapticManager.selection();
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+          decoration: BoxDecoration(
+            gradient: isSelected
+                ? LinearGradient(
+                    colors: gradientColors,
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : null,
+            color: isSelected ? null : AppColors.surfaceSecondaryDark.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isSelected ? Colors.white.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.05),
+              width: isSelected ? 2 : 1,
+            ),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: gradientColors.first.withValues(alpha: 0.3),
+                      blurRadius: 16,
+                      offset: const Offset(0, 8),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? Colors.white.withValues(alpha: 0.2)
+                      : gradientColors.first.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(16),
                 ),
-              ]
-            : null,
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? Colors.white.withValues(alpha: 0.2)
-                  : gradientColors.first.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(
-              icon,
-              size: 28,
-              color: isSelected ? Colors.white : gradientColors.first,
-            ),
+                child: Icon(
+                  icon,
+                  size: 32,
+                  color: isSelected ? Colors.white : gradientColors.first,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                type.displayName,
+                style: TextStyle(
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                  fontSize: 14,
+                  color: isSelected ? Colors.white : AppColors.textDark,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              if (isSelected)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4.0),
+                  child: Container(
+                    width: 4,
+                    height: 4,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+            ],
           ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            type.displayName,
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: AppFontSize.sm,
-              color: isSelected ? Colors.white : AppColors.textDark,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
+        ),
       ),
-    );
-
-    // Wrap selected card with PulsingGlow effect
-    if (isSelected) {
-      card = PulsingGlow(glowColor: gradientColors.first, child: card);
-    }
-
-    return BounceAnimation(
-      onTap: () {
-        setState(() => _selectedType = type);
-        HapticFeedback.selectionClick();
-      },
-      child: card,
     );
   }
 
-  Widget _buildModeCard(SessionMode mode) {
+  Widget _buildModeCard(SessionMode mode, {required int index}) {
     final isSelected = _selectedMode == mode;
     final isTurnBased = mode == SessionMode.turnBased;
 
-    return GestureDetector(
-      onTap: () {
-        setState(() => _selectedMode = mode);
-        HapticFeedback.selectionClick();
-      },
-      child: AnimatedContainer(
-        duration: AppDurations.fast,
-        margin: const EdgeInsets.only(bottom: AppSpacing.md),
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? AppColors.primary.withValues(alpha: 0.15)
-              : AppColors.surfaceSecondaryDark,
-          borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-          border: Border.all(
-            color: isSelected ? AppColors.primary : AppColors.borderDark,
-            width: isSelected ? 2 : 1,
+    return SlideInAnimation.fromRight(
+      index: index,
+      child: ScaleOnTap(
+        onTap: () {
+          setState(() => _selectedMode = mode);
+          HapticManager.selection();
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? AppColors.primary.withValues(alpha: 0.1)
+                : AppColors.surfaceSecondaryDark.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isSelected ? AppColors.primary.withValues(alpha: 0.5) : Colors.white.withValues(alpha: 0.05),
+              width: isSelected ? 2 : 1,
+            ),
           ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? AppColors.primary.withValues(alpha: 0.2)
-                    : AppColors.surfaceDark,
-                borderRadius: BorderRadius.circular(12),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? AppColors.primary.withValues(alpha: 0.15)
+                      : AppColors.surfaceDark.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  isTurnBased
+                      ? Icons.sync_alt_rounded
+                      : Icons.compare_arrows_rounded,
+                  color: isSelected
+                      ? AppColors.primary
+                      : AppColors.textSecondaryDark,
+                  size: 24,
+                ),
               ),
-              child: Icon(
-                isTurnBased
-                    ? Icons.sync_alt_rounded
-                    : Icons.compare_arrows_rounded,
-                color: isSelected
-                    ? AppColors.primary
-                    : AppColors.textSecondaryDark,
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isTurnBased ? 'Turn-Based' : 'Parallel',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: isSelected
+                            ? AppColors.primary
+                            : AppColors.textDark,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      isTurnBased
+                          ? 'Take turns logging sets'
+                          : 'Everyone logs simultaneously',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textSecondaryDark,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: AppSpacing.lg),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    isTurnBased ? 'Turn-Based' : 'Parallel',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: isSelected
-                          ? AppColors.primary
-                          : AppColors.textDark,
+              if (isSelected)
+                const Icon(
+                  Icons.check_circle_rounded,
+                  color: AppColors.primary,
+                  size: 24,
+                )
+              else
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: AppColors.textTertiaryDark.withValues(alpha: 0.3),
+                      width: 2,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    isTurnBased
-                        ? 'Take turns logging sets'
-                        : 'Both log sets simultaneously',
-                    style: TextStyle(
-                      fontSize: AppFontSize.sm,
-                      color: AppColors.textSecondaryDark,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Radio<SessionMode>(
-              value: mode,
-              // ignore: deprecated_member_use
-              groupValue: _selectedMode,
-              fillColor: WidgetStateProperty.resolveWith<Color>((states) {
-                if (states.contains(WidgetState.selected)) {
-                  return AppColors.primary;
-                }
-                return AppColors.textSecondaryDark;
-              }),
-              // ignore: deprecated_member_use
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() => _selectedMode = value);
-                  HapticFeedback.selectionClick();
-                }
-              },
-            ),
-          ],
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -641,9 +669,8 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
   Widget _buildFriendTile(User user, {int index = 0}) {
     final isSelected = _selectedFriends.contains(user.id);
 
-    return SlideInAnimation.fromLeft(
+    return SlideInAnimation.fromBottom(
       index: index,
-      delay: const Duration(milliseconds: 30),
       child: ScaleOnTap(
         onTap: () {
           setState(() {
@@ -653,91 +680,93 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
               _selectedFriends.add(user.id);
             }
           });
-          HapticFeedback.selectionClick();
+          HapticManager.light();
         },
         child: AnimatedContainer(
-          duration: AppDurations.fast,
-          margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-          padding: const EdgeInsets.all(AppSpacing.md),
+          duration: const Duration(milliseconds: 200),
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: isSelected
-                ? AppColors.primary.withValues(alpha: 0.15)
-                : AppColors.surfaceSecondaryDark,
-            borderRadius: BorderRadius.circular(AppBorderRadius.lg),
+                ? AppColors.primary.withValues(alpha: 0.1)
+                : AppColors.surfaceSecondaryDark.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: isSelected ? AppColors.primary : AppColors.borderDark,
+              color: isSelected ? AppColors.primary.withValues(alpha: 0.4) : Colors.white.withValues(alpha: 0.05),
             ),
           ),
           child: Row(
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: isSelected
-                      ? const LinearGradient(colors: AppColors.primaryGradient)
-                      : null,
-                  color: isSelected ? null : AppColors.surfaceDark,
-                ),
-                child: user.photoURL != null
-                    ? ClipOval(
-                        child: CachedNetworkImage(
-                          imageUrl: user.photoURL!,
-                          fit: BoxFit.cover,
-                        ),
-                      )
-                    : Center(
-                        child: Text(
-                          user.displayName.isNotEmpty
-                              ? user.displayName[0].toUpperCase()
-                              : '?',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: isSelected
-                                ? Colors.white
-                                : AppColors.textDark,
-                          ),
-                        ),
-                      ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Text(
-                  user.displayName,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.textDark,
+                  border: Border.all(
+                    color: isSelected ? AppColors.primary : Colors.white.withValues(alpha: 0.1),
+                    width: 2,
                   ),
                 ),
+                child: ClipOval(
+                  child: user.photoURL != null
+                      ? CachedNetworkImage(
+                          imageUrl: user.photoURL!,
+                          placeholder: (context, url) => Container(color: AppColors.surfaceDark),
+                          errorWidget: (context, url, error) => _buildAvatarPlaceholder(user),
+                          fit: BoxFit.cover,
+                        )
+                      : _buildAvatarPlaceholder(user),
+                ),
               ),
-              // Animated checkmark with FadeInAnimation
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      user.displayName,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: AppColors.textDark,
+                      ),
+                    ),
+                    Text(
+                      '@${user.id.substring(0, 8)}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textTertiaryDark,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 200),
-                child: Container(
+                child: Icon(
+                  isSelected ? Icons.check_circle_rounded : Icons.add_circle_outline_rounded,
                   key: ValueKey(isSelected),
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: isSelected
-                        ? const LinearGradient(
-                            colors: AppColors.primaryGradient,
-                          )
-                        : null,
-                    color: isSelected ? null : AppColors.surfaceDark,
-                    border: Border.all(
-                      color: isSelected
-                          ? AppColors.primary
-                          : AppColors.borderDark,
-                    ),
-                  ),
-                  child: isSelected
-                      ? const Icon(Icons.check, size: 16, color: Colors.white)
-                      : null,
+                  color: isSelected ? AppColors.primary : AppColors.textTertiaryDark,
+                  size: 26,
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAvatarPlaceholder(User user) {
+    return Container(
+      color: AppColors.surfaceDark,
+      child: Center(
+        child: Text(
+          user.displayName.isNotEmpty ? user.displayName[0].toUpperCase() : '?',
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+            fontSize: 18,
           ),
         ),
       ),
@@ -749,28 +778,52 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
       children: List.generate(
         3,
         (index) => Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-          child: Container(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceSecondaryDark,
-              borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-            ),
+          padding: const EdgeInsets.only(bottom: 8),
+          child: GlassContainer(
+            blur: 5,
+            backgroundColor: AppColors.surfaceSecondaryDark.withValues(alpha: 0.3),
+            borderRadius: BorderRadius.circular(16),
+            padding: const EdgeInsets.all(12),
             child: Row(
-              children: const [
-                ShimmerLoader(
-                  width: 44,
-                  height: 44,
-                  borderRadius: BorderRadius.all(Radius.circular(22)),
+              children: [
+                const ShimmerLoader(
+                  width: 48,
+                  height: 48,
+                  borderRadius: BorderRadius.all(Radius.circular(24)),
                 ),
-                SizedBox(width: AppSpacing.md),
+                const SizedBox(width: 14),
                 Expanded(
-                  child: ShimmerLoader(width: double.infinity, height: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      ShimmerLoader(width: 120, height: 16),
+                      SizedBox(height: 6),
+                      ShimmerLoader(width: 80, height: 12),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class SectionHeader extends StatelessWidget {
+  final String title;
+  const SectionHeader({super.key, required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      title,
+      style: const TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.bold,
+        letterSpacing: -0.3,
+        color: AppColors.textDark,
       ),
     );
   }

@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rxdart/rxdart.dart';
 
-import 'auth_service.dart';
+import '../features/auth/auth_providers.dart';
 
 /// User presence status in a session.
 enum PresenceStatus { online, away, offline }
@@ -280,7 +280,7 @@ class PresenceService {
 
 /// Presence service provider.
 final presenceServiceProvider = Provider<PresenceService>((ref) {
-  return PresenceService(ref.watch(firestoreProvider));
+  return PresenceService(ref.watch(authFirestoreProvider));
 });
 
 /// Session online users stream provider.
@@ -296,3 +296,4 @@ final sessionPresenceProvider =
     StreamProvider.family<List<UserPresence>, String>((ref, sessionId) {
       return ref.watch(presenceServiceProvider).listenToAllPresence(sessionId);
     });
+

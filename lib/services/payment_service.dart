@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'auth_service.dart';
+import '../features/auth/auth_providers.dart';
 
 /// Price for global leaderboard access in cents ($5.00).
 const int globalLeaderboardPriceCents = 500;
@@ -111,5 +111,6 @@ class PaymentService {
 
 /// Payment service provider.
 final paymentServiceProvider = Provider<PaymentService>((ref) {
-  return PaymentService(ref.watch(firestoreProvider));
+  return PaymentService(ref.watch(authFirestoreProvider));
 });
+

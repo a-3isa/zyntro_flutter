@@ -1,0 +1,17 @@
+export 'models/migration_lifecycle.dart';
+export 'models/migration_slice.dart';
+export 'models/layer_contract.dart';
+export 'models/validation_report.dart';
+export 'models/migration_backlog_item.dart';
+export 'models/domain_failure_category.dart';
+export 'models/telemetry_baseline.dart';
+export 'models/rollback_event.dart';
+export 'services/migration_evidence_policy.dart';
+export 'services/migration_transition_guard.dart';
+export 'services/migration_state_machine.dart';
+export 'services/validation_evidence_service.dart';
+export 'services/migration_governance_repository.dart';
+export 'services/feature_blueprint_validator.dart';
+export 'services/migration_backlog_service.dart';
+export 'services/domain_failure_category_mapper.dart';
+export 'services/telemetry_baseline_service.dart';

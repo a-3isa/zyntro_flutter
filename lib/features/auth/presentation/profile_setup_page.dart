@@ -10,7 +10,8 @@ import '../../../widgets/email_verification_banner.dart';
 import '../../../widgets/zyntro_button.dart';
 import '../../../widgets/premium_effects.dart';
 import '../../../widgets/avatar_selector.dart';
-import '../../../services/auth_service.dart';
+import '../auth_providers.dart';
+import 'providers/auth_controller.dart';
 
 /// Premium Profile setup screen for new users.
 class ProfileSetupPage extends ConsumerStatefulWidget {
@@ -44,18 +45,14 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
       }
 
       // Pre-fill data from social providers
-      final authState = ref.read(authStateProvider);
+      final authState = ref.read(authSessionProvider);
       final user = authState.valueOrNull;
 
       if (user != null) {
         // Detect auth provider
-        final providerData = user.providerData;
-        final isGoogleSignup = providerData.any(
-          (info) => info.providerId == 'google.com',
-        );
-        final isFacebookSignup = providerData.any(
-          (info) => info.providerId == 'facebook.com',
-        );
+        final providerData = user.providerIds;
+        final isGoogleSignup = providerData.contains('google.com');
+        final isFacebookSignup = providerData.contains('facebook.com');
 
         setState(() {
           if (isGoogleSignup) {
@@ -67,7 +64,7 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
           // Pre-fill name and photo for social signups
           if (_authProvider != 'email') {
             _nameController.text = user.displayName ?? '';
-            _photoUrl = user.photoURL;
+            _photoUrl = user.photoUrl;
           }
         });
       }
@@ -86,8 +83,8 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
     setState(() => _isLoading = true);
 
     try {
-      final authState = ref.read(authStateProvider);
-      final uid = authState.valueOrNull?.uid;
+      final authState = ref.read(authSessionProvider);
+      final uid = authState.valueOrNull?.id;
 
       if (uid == null) {
         throw Exception('User not authenticated');
@@ -109,19 +106,19 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
       setState(() => _uploadStatus = 'Creating profile...');
 
       await ref
-          .read(authServiceProvider)
+          .read(authControllerProvider)
           .createUserProfile(
             userId: uid,
             displayName: _nameController.text.trim(),
             workoutPreference: _workoutPreference,
             beginnerFlag: _isBeginner,
-            photoURL: photoUrlToSave,
+            photoUrl: photoUrlToSave,
             avatarConfig: avatarConfigToSave,
             authProvider: _authProvider,
           );
 
       if (mounted) {
-        ref.invalidate(profileCompletionProvider);
+        ref.invalidate(authProfileCompletionProvider);
         context.go(AppRoutes.main);
       }
     } catch (e) {
@@ -226,7 +223,7 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
                     // Email Verification Banner - only for email signups
                     Consumer(
                       builder: (context, ref, child) {
-                        final authState = ref.watch(authStateProvider);
+                        final authState = ref.watch(authSessionProvider);
                         final user = authState.valueOrNull;
 
                         // Only show for email signups
@@ -240,7 +237,7 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
                             child: EmailVerificationBanner(
                               onResendPressed: () async {
                                 await ref
-                                    .read(authServiceProvider)
+                                    .read(authControllerProvider)
                                     .sendEmailVerification();
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(

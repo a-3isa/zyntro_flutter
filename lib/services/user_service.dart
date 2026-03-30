@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/models/models.dart';
-import 'auth_service.dart';
+import '../features/auth/auth_providers.dart';
 
 /// Streak risk levels for at-risk detection.
 enum StreakRisk {
@@ -827,7 +827,7 @@ class UserService {
 
 /// User service provider.
 final userServiceProvider = Provider<UserService>((ref) {
-  return UserService(ref.watch(firestoreProvider));
+  return UserService(ref.watch(authFirestoreProvider));
 });
 
 /// User streak provider.
@@ -887,3 +887,4 @@ final streakHistoryProvider = FutureProvider.autoDispose
     ) async {
       return ref.watch(userServiceProvider).getStreakHistory(userId);
     });
+

@@ -1,0 +1,453 @@
+openapi: 3.0.3
+info:
+  title: Auth Migration Governance API
+  version: 1.0.0
+  description: >
+    Contract for managing auth clean-architecture migration slice lifecycle,
+    validation evidence, cutover readiness, and rollback governance.
+servers:
+  - url: https://internal.api.zyntro.example
+    description: Internal governance endpoint
+paths:
+  /migration-slices:
+    post:
+      summary: Create a migration slice
+      operationId: createMigrationSlice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMigrationSliceRequest'
+      responses:
+        '201':
+          description: Migration slice created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MigrationSlice'
+  /migration-slices/{sliceId}:
+    get:
+      summary: Get migration slice
+      operationId: getMigrationSlice
+      parameters:
+        - $ref: '#/components/parameters/SliceId'
+      responses:
+        '200':
+          description: Slice found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MigrationSlice'
+        '404':
+          description: Slice not found
+  /migration-slices/{sliceId}/state:
+    patch:
+      summary: Transition migration slice state
+      operationId: transitionMigrationSliceState
+      parameters:
+        - $ref: '#/components/parameters/SliceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransitionStateRequest'
+      responses:
+        '200':
+          description: State updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MigrationSlice'
+        '409':
+          description: Invalid transition or missing prerequisite evidence
+  /migration-slices/{sliceId}/validation-reports:
+    post:
+      summary: Attach validation report evidence
+      operationId: createValidationReport
+      parameters:
+        - $ref: '#/components/parameters/SliceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateValidationReportRequest'
+      responses:
+        '201':
+          description: Validation report created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationReport'
+  /migration-slices/{sliceId}/telemetry-baseline:
+    post:
+      summary: Register telemetry baseline and rollback trigger alerts
+      operationId: registerTelemetryBaseline
+      parameters:
+        - $ref: '#/components/parameters/SliceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTelemetryBaselineRequest'
+      responses:
+        '201':
+          description: Telemetry baseline created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TelemetryBaseline'
+  /migration-slices/{sliceId}/cutover:
+    post:
+      summary: Request auth cutover
+      operationId: requestCutover
+      parameters:
+        - $ref: '#/components/parameters/SliceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CutoverRequest'
+      responses:
+        '202':
+          description: Cutover accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CutoverResponse'
+        '409':
+          description: Cutover rejected due to unmet guardrails
+  /migration-slices/{sliceId}/rollback:
+    post:
+      summary: Trigger rollback event for severe regression
+      operationId: triggerRollback
+      parameters:
+        - $ref: '#/components/parameters/SliceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRollbackEventRequest'
+      responses:
+        '202':
+          description: Rollback accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RollbackEvent'
+  /migration-backlog-items:
+    post:
+      summary: Create follow-on non-auth migration backlog item
+      operationId: createMigrationBacklogItem
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMigrationBacklogItemRequest'
+      responses:
+        '201':
+          description: Backlog item created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MigrationBacklogItem'
+components:
+  parameters:
+    SliceId:
+      name: sliceId
+      in: path
+      required: true
+      schema:
+        type: string
+  schemas:
+    MigrationState:
+      type: string
+      enum:
+        - NOT_STARTED
+        - IN_PROGRESS
+        - VALIDATION_COMPLETE
+        - CUTOVER_COMPLETE
+        - LEGACY_REMOVED
+    MigrationSlice:
+      type: object
+      required:
+        - sliceId
+        - featureName
+        - state
+        - noDowntimeRequired
+        - securityEvidenceRequired
+        - observabilityBaselineRequired
+      properties:
+        sliceId:
+          type: string
+        featureName:
+          type: string
+          enum: [auth]
+        scopeDescription:
+          type: string
+        outOfScopeFlows:
+          type: array
+          items:
+            type: string
+        state:
+          $ref: '#/components/schemas/MigrationState'
+        noDowntimeRequired:
+          type: boolean
+        securityEvidenceRequired:
+          type: boolean
+        observabilityBaselineRequired:
+          type: boolean
+        rollbackPlanRef:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    CreateMigrationSliceRequest:
+      type: object
+      required:
+        - featureName
+        - scopeDescription
+        - outOfScopeFlows
+        - rollbackPlanRef
+      properties:
+        featureName:
+          type: string
+          enum: [auth]
+        scopeDescription:
+          type: string
+        outOfScopeFlows:
+          type: array
+          items:
+            type: string
+        rollbackPlanRef:
+          type: string
+    TransitionStateRequest:
+      type: object
+      required:
+        - fromState
+        - toState
+        - reason
+      properties:
+        fromState:
+          $ref: '#/components/schemas/MigrationState'
+        toState:
+          $ref: '#/components/schemas/MigrationState'
+        reason:
+          type: string
+    ValidationReportType:
+      type: string
+      enum:
+        - REGRESSION
+        - SECURITY
+        - CUTOVER_READINESS
+        - POST_CUTOVER
+    ValidationReport:
+      type: object
+      required:
+        - reportId
+        - sliceId
+        - reportType
+        - passRatePercent
+        - criticalOpenDefects
+        - evidenceRefs
+        - executedAt
+        - approvedBy
+      properties:
+        reportId:
+          type: string
+        sliceId:
+          type: string
+        reportType:
+          $ref: '#/components/schemas/ValidationReportType'
+        passRatePercent:
+          type: number
+          minimum: 0
+          maximum: 100
+        criticalOpenDefects:
+          type: integer
+          minimum: 0
+        evidenceRefs:
+          type: array
+          items:
+            type: string
+        executedAt:
+          type: string
+          format: date-time
+        approvedBy:
+          type: string
+    CreateValidationReportRequest:
+      type: object
+      required:
+        - reportType
+        - passRatePercent
+        - criticalOpenDefects
+        - evidenceRefs
+        - approvedBy
+      properties:
+        reportType:
+          $ref: '#/components/schemas/ValidationReportType'
+        passRatePercent:
+          type: number
+          minimum: 0
+          maximum: 100
+        criticalOpenDefects:
+          type: integer
+          minimum: 0
+        evidenceRefs:
+          type: array
+          items:
+            type: string
+        approvedBy:
+          type: string
+    TelemetryBaseline:
+      type: object
+      required:
+        - baselineId
+        - sliceId
+        - successRateMetricName
+        - errorRateMetricName
+        - rollbackAlertCondition
+        - alertChannels
+        - active
+      properties:
+        baselineId:
+          type: string
+        sliceId:
+          type: string
+        successRateMetricName:
+          type: string
+        errorRateMetricName:
+          type: string
+        rollbackAlertCondition:
+          type: string
+        alertChannels:
+          type: array
+          items:
+            type: string
+        active:
+          type: boolean
+    CreateTelemetryBaselineRequest:
+      type: object
+      required:
+        - successRateMetricName
+        - errorRateMetricName
+        - rollbackAlertCondition
+        - alertChannels
+      properties:
+        successRateMetricName:
+          type: string
+        errorRateMetricName:
+          type: string
+        rollbackAlertCondition:
+          type: string
+        alertChannels:
+          type: array
+          items:
+            type: string
+    CutoverRequest:
+      type: object
+      required:
+        - requestedBy
+        - changeReference
+      properties:
+        requestedBy:
+          type: string
+        changeReference:
+          type: string
+    CutoverResponse:
+      type: object
+      required:
+        - sliceId
+        - accepted
+        - message
+      properties:
+        sliceId:
+          type: string
+        accepted:
+          type: boolean
+        message:
+          type: string
+    RollbackEvent:
+      type: object
+      required:
+        - rollbackEventId
+        - sliceId
+        - triggerFailureCode
+        - triggeredAt
+        - actionSummary
+      properties:
+        rollbackEventId:
+          type: string
+        sliceId:
+          type: string
+        triggerFailureCode:
+          type: string
+        triggeredAt:
+          type: string
+          format: date-time
+        actionSummary:
+          type: string
+        resolvedAt:
+          type: string
+          format: date-time
+          nullable: true
+    CreateRollbackEventRequest:
+      type: object
+      required:
+        - triggerFailureCode
+        - actionSummary
+      properties:
+        triggerFailureCode:
+          type: string
+        actionSummary:
+          type: string
+    MigrationBacklogItem:
+      type: object
+      required:
+        - backlogItemId
+        - sourceSliceId
+        - targetFeatureName
+        - description
+        - priority
+        - status
+      properties:
+        backlogItemId:
+          type: string
+        sourceSliceId:
+          type: string
+        targetFeatureName:
+          type: string
+        description:
+          type: string
+        priority:
+          type: string
+          enum: [P1, P2, P3]
+        status:
+          type: string
+          enum: [OPEN, SCHEDULED, DONE]
+    CreateMigrationBacklogItemRequest:
+      type: object
+      required:
+        - sourceSliceId
+        - targetFeatureName
+        - description
+        - priority
+      properties:
+        sourceSliceId:
+          type: string
+        targetFeatureName:
+          type: string
+        description:
+          type: string
+        priority:
+          type: string
+          enum: [P1, P2, P3]

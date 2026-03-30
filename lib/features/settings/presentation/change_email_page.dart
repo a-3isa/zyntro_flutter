@@ -4,11 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_theme.dart';
-import '../../../services/auth_service.dart';
 import '../../../widgets/reauthentication_dialog.dart';
 import '../../../widgets/zyntro_button.dart';
 import '../../../widgets/premium_animations.dart';
 import '../../../widgets/premium_effects.dart';
+import '../../auth/auth_providers.dart';
+import '../../auth/presentation/providers/auth_controller.dart';
 
 /// Email change page for authenticated users.
 /// Requires password for re-authentication before allowing email change.
@@ -53,8 +54,11 @@ class _ChangeEmailPageState extends ConsumerState<ChangeEmailPage> {
 
     try {
       await ref
-          .read(authServiceProvider)
-          .changeEmail(password, _newEmailController.text.trim());
+          .read(authControllerProvider)
+          .changeEmail(
+            password: password,
+            newEmail: _newEmailController.text.trim(),
+          );
 
       if (mounted) {
         await showDialog(
@@ -156,7 +160,7 @@ class _ChangeEmailPageState extends ConsumerState<ChangeEmailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authStateProvider);
+    final authState = ref.watch(authSessionProvider);
     final currentEmail = authState.valueOrNull?.email ?? '';
 
     return Scaffold(

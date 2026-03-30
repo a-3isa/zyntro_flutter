@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../core/models/models.dart';
-import '../../../services/auth_service.dart';
+import '../../auth/auth_providers.dart';
 import 'package:flutter/services.dart';
 import '../../../widgets/premium_animations.dart';
 import '../../../widgets/premium_effects.dart';
@@ -75,8 +75,8 @@ class _BlockedUsersPageState extends ConsumerState<BlockedUsersPage> {
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authStateProvider);
-    final uid = authState.valueOrNull?.uid;
+    final authState = ref.watch(authSessionProvider);
+    final uid = authState.valueOrNull?.id;
     final blockedUsersAsync = ref.watch(blockedUsersProvider);
 
     return Scaffold(

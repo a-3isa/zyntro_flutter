@@ -4,8 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
 import '../../../core/theme/app_theme.dart';
+import '../../auth/auth_providers.dart';
 import '../../../services/notification_service.dart';
-import '../../../services/auth_service.dart';
 import '../../../utils/haptic_manager.dart';
 import '../../../widgets/premium_animations.dart';
 import '../../../widgets/premium_effects.dart';
@@ -22,11 +22,19 @@ class NotificationsPage extends ConsumerStatefulWidget {
 class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authStateProvider);
-    final uid = authState.valueOrNull?.uid;
+    final authState = ref.watch(authSessionProvider);
+    final uid = authState.valueOrNull?.id;
 
     if (uid == null) {
-      return const Scaffold(body: Center(child: Text('Not logged in')));
+      return const Scaffold(
+        backgroundColor: AppColors.backgroundDark,
+        body: Center(
+          child: Text(
+            'Not logged in',
+            style: TextStyle(color: AppColors.textSecondaryDark),
+          ),
+        ),
+      );
     }
 
     final notificationsAsync = ref.watch(userNotificationsProvider(uid));
@@ -35,19 +43,29 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       backgroundColor: AppColors.backgroundDark,
       body: Column(
         children: [
-          // Custom Header
+          // Custom Header with Premium Styling
           Container(
             padding: EdgeInsets.only(
               top: MediaQuery.paddingOf(context).top + 8,
-              bottom: 8,
+              bottom: 12,
               left: 16,
               right: 16,
             ),
             decoration: BoxDecoration(
               color: AppColors.surfaceDark,
               border: Border(
-                bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+                bottom: BorderSide(
+                  color: AppColors.primary.withValues(alpha: 0.15),
+                  width: 1,
+                ),
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: 0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -58,25 +76,28 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                     context.pop();
                   },
                   child: Container(
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       color: AppColors.surfaceSecondaryDark,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.05),
+                      ),
                     ),
                     child: const Icon(
-                      Icons.arrow_back,
+                      Icons.arrow_back_rounded,
                       color: AppColors.textDark,
                       size: 20,
                     ),
                   ),
                 ),
-                Expanded(
+                const Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    child: const GradientText(
+                    padding: EdgeInsets.symmetric(horizontal: 16.0),
+                    child: GradientText(
                       text: 'Notifications',
                       style: TextStyle(
-                        fontSize: 20,
+                        fontSize: 22,
                         fontWeight: FontWeight.bold,
                       ),
                       colors: [AppColors.textDark, AppColors.textSecondaryDark],
@@ -89,6 +110,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                       icon: const Icon(
                         Icons.settings_outlined,
                         color: AppColors.textDark,
+                        size: 22,
                       ),
                       tooltip: 'Notification Settings',
                       onPressed: () {
@@ -112,8 +134,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                           'Read All',
                           style: TextStyle(
                             color: AppColors.primary,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
                           ),
                         ),
                       ),
@@ -171,7 +193,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                         color: AppColors.error,
                       ),
                       const SizedBox(height: AppSpacing.md),
-                      Text(
+                      const Text(
                         'Failed to load notifications',
                         style: TextStyle(color: AppColors.textSecondaryDark),
                       ),
@@ -186,6 +208,9 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,
                           foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                       ),
                     ],
@@ -207,30 +232,33 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
           children: [
             PulseAnimation(
               child: Container(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
                   color: AppColors.surfaceSecondaryDark,
                   shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.05),
+                  ),
                 ),
                 child: const Icon(
-                  Icons.notifications_none,
-                  size: 48,
+                  Icons.notifications_none_rounded,
+                  size: 56,
                   color: AppColors.textSecondaryDark,
                 ),
               ),
             ),
             const SizedBox(height: AppSpacing.lg),
-            Text(
+            const Text(
               'No notifications yet',
               style: TextStyle(
-                fontSize: AppFontSize.lg,
+                fontSize: 20,
                 fontWeight: FontWeight.bold,
                 color: AppColors.textDark,
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
-            Text(
-              'You\'ll see updates here',
+            const Text(
+              'You\'ll see updates here when they arrive',
               style: TextStyle(color: AppColors.textSecondaryDark),
             ),
           ],
@@ -250,31 +278,20 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: AppSpacing.lg),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Colors.transparent,
-              AppColors.error.withValues(alpha: 0.8),
-            ],
-          ),
+          color: AppColors.error.withValues(alpha: 0.1),
         ),
-        child: const Icon(Icons.delete, color: Colors.white),
+        child: const Icon(Icons.delete_outline_rounded, color: AppColors.error),
       ),
       confirmDismiss: (_) async {
         HapticManager.medium();
         return true;
       },
       onDismissed: (_) async {
-        // Store notification for undo
         final deletedNotification = notification;
-
-        // Remove from UI optimistically (Riverpod stream will update, but we want to be responsive)
-        // actually accessing the provider to delete happens below.
-
         await ref
             .read(notificationServiceProvider)
             .deleteNotification(notification.id);
 
-        // Show undo snackbar
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -285,10 +302,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                 textColor: AppColors.primary,
                 onPressed: () async {
                   HapticManager.medium();
-                  // Check if mounted before restoring
                   if (!mounted) return;
-
-                  // Restore notification
                   await ref
                       .read(notificationServiceProvider)
                       .createNotification(
@@ -302,7 +316,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
               ),
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppBorderRadius.md),
+                borderRadius: BorderRadius.circular(12),
               ),
             ),
           );
@@ -313,55 +327,55 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         onTap: () => _handleNotificationTap(notification),
         child: Container(
           margin: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
-            vertical: AppSpacing.xs,
+            horizontal: 16,
+            vertical: 6,
           ),
           decoration: BoxDecoration(
             color: notification.read
                 ? AppColors.surfaceDark
-                : AppColors.surfaceSecondaryDark,
-            borderRadius: BorderRadius.circular(AppBorderRadius.md),
-            border: notification.read
-                ? Border.all(color: AppColors.borderDark)
-                : Border.all(color: color.withValues(alpha: 0.3), width: 1.5),
+                : AppColors.surfaceSecondaryDark.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: notification.read
+                  ? AppColors.borderDark.withValues(alpha: 0.3)
+                  : color.withValues(alpha: 0.2),
+              width: 1,
+            ),
+            boxShadow: notification.read
+                ? []
+                : [
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.05),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
           ),
           child: ListTile(
             contentPadding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md,
-              vertical: AppSpacing.xs,
+              horizontal: 16,
+              vertical: 8,
             ),
             leading: Container(
-              width: 44,
-              height: 44,
+              width: 48,
+              height: 48,
               decoration: BoxDecoration(
-                gradient: notification.read
-                    ? null
-                    : LinearGradient(
-                        colors: [
-                          color.withValues(alpha: 0.2),
-                          color.withValues(alpha: 0.1),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                color: notification.read ? color.withValues(alpha: 0.1) : null,
+                color: color.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: notification.read
-                  ? Icon(icon, color: color.withValues(alpha: 0.7), size: 22)
+                  ? Icon(icon, color: color.withValues(alpha: 0.6), size: 22)
                   : PulseAnimation(
-                      minScale: 0.95,
+                      minScale: 0.9,
                       maxScale: 1.0,
-                      duration: const Duration(milliseconds: 1500),
                       child: Icon(icon, color: color, size: 22),
                     ),
             ),
             title: Text(
               notification.title,
               style: TextStyle(
-                fontWeight: notification.read
-                    ? FontWeight.normal
-                    : FontWeight.bold,
+                fontWeight: notification.read ? FontWeight.w500 : FontWeight.w700,
+                fontSize: 15,
                 color: AppColors.textDark,
               ),
             ),
@@ -373,34 +387,30 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                   notification.message,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: AppColors.textSecondaryDark),
+                  style: TextStyle(
+                    color: AppColors.textSecondaryDark,
+                    fontSize: 13,
+                    height: 1.3,
+                  ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 Text(
                   timeago.format(notification.createdAt),
                   style: TextStyle(
-                    fontSize: AppFontSize.xs,
+                    fontSize: 11,
                     color: AppColors.textTertiaryDark,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
             ),
             trailing: !notification.read
                 ? Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: AppColors.primaryGradient,
-                      ),
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: AppColors.primary,
                       shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.primary.withValues(alpha: 0.4),
-                          blurRadius: 4,
-                          spreadRadius: 1,
-                        ),
-                      ],
                     ),
                   )
                 : null,
@@ -412,10 +422,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
 
   /// Handle notification tap - mark as read and navigate based on type.
   Future<void> _handleNotificationTap(AppNotification notification) async {
-    // Haptic feedback on tap
     HapticManager.light();
 
-    // Mark as read first
     if (!notification.read) {
       await ref
           .read(notificationServiceProvider)
@@ -424,13 +432,11 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
 
     if (!mounted) return;
 
-    // Navigate based on notification type and data
     final data = notification.data;
 
     switch (notification.type) {
       case NotificationType.sessionInvite:
       case NotificationType.buddySession:
-        // Navigate to session room
         final sessionId = data?['sessionId'] as String?;
         final sessionType = data?['sessionType'] as String? ?? 'strength';
         if (sessionId != null) {
@@ -439,7 +445,6 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         break;
 
       case NotificationType.voiceNote:
-        // Navigate to session room where voice note was sent
         final sessionId = data?['sessionId'] as String?;
         if (sessionId != null) {
           context.push('/session/room/$sessionId?type=strength');
@@ -447,12 +452,10 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         break;
 
       case NotificationType.followRequest:
-        // Navigate to follow requests screen
         context.push('/follow-requests');
         break;
 
       case NotificationType.followAccepted:
-        // Navigate to user's profile
         final userId = data?['byUserId'] as String?;
         if (userId != null) {
           context.push('/user/$userId');
@@ -461,29 +464,23 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
 
       case NotificationType.buddyInvite:
       case NotificationType.buddyAccepted:
-        // Navigate to buddy section
         context.push('/buddies');
         break;
 
       case NotificationType.postLike:
       case NotificationType.postComment:
-        // Navigate to post detail
         final postId = data?['postId'] as String?;
         if (postId != null) {
           context.push('/post/$postId');
         }
         break;
       case NotificationType.sessionMilestone:
-        // Navigate to session recap or milestones page
-        // For now, maybe just open app or specific milestone page if exists
         break;
       case NotificationType.streakMilestone:
-        // Navigate to profile or leaderboard
         context.push('/profile');
         break;
       case NotificationType.friendStreakBroken:
       case NotificationType.friendStreakExtended:
-        // Navigate to user profile or leaderboard
         final friendId = data?['friendId'] as String?;
         if (friendId != null) {
           context.push('/user/$friendId');
@@ -492,7 +489,6 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         }
         break;
       case NotificationType.turnChange:
-        // Navigate to session room
         final sessionId = data?['sessionId'] as String?;
         final sessionType = data?['sessionType'] as String? ?? 'strength';
         if (sessionId != null) {
@@ -505,30 +501,30 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   IconData _getIconForType(NotificationType type) {
     switch (type) {
       case NotificationType.sessionInvite:
-        return Icons.fitness_center;
+        return Icons.fitness_center_rounded;
       case NotificationType.voiceNote:
-        return Icons.mic;
+        return Icons.mic_rounded;
       case NotificationType.followRequest:
-        return Icons.person_add;
+        return Icons.person_add_rounded;
       case NotificationType.followAccepted:
-        return Icons.check_circle;
+        return Icons.check_circle_rounded;
       case NotificationType.buddyInvite:
       case NotificationType.buddyAccepted:
       case NotificationType.buddySession:
-        return Icons.people;
+        return Icons.people_rounded;
       case NotificationType.postLike:
-        return Icons.favorite;
+        return Icons.favorite_rounded;
       case NotificationType.postComment:
-        return Icons.comment;
+        return Icons.comment_rounded;
       case NotificationType.sessionMilestone:
-        return Icons.emoji_events;
+        return Icons.emoji_events_rounded;
       case NotificationType.streakMilestone:
       case NotificationType.friendStreakExtended:
-        return Icons.local_fire_department;
+        return Icons.local_fire_department_rounded;
       case NotificationType.friendStreakBroken:
-        return Icons.heart_broken;
+        return Icons.heart_broken_rounded;
       case NotificationType.turnChange:
-        return Icons.swap_horiz;
+        return Icons.swap_horiz_rounded;
     }
   }
 
@@ -560,3 +556,4 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     }
   }
 }
+

@@ -2,11 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
-import '../../../widgets/premium_effects.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../core/models/models.dart';
-import '../../../services/auth_service.dart';
+import '../../auth/auth_providers.dart';
 import '../../../services/leaderboard_service.dart';
 import '../../../services/user_service.dart';
 import '../../../services/workout_service.dart';
@@ -68,7 +67,7 @@ class _SocialPageState extends ConsumerState<SocialPage>
     setState(() => _isLoadingMoreBuddies = true);
 
     try {
-      final authState = ref.read(authStateProvider).value;
+      final authState = ref.read(authSessionProvider).value;
       if (authState == null) {
         if (mounted) {
           setState(() {
@@ -83,7 +82,7 @@ class _SocialPageState extends ConsumerState<SocialPage>
       if (refresh) {
         // Fetch all IDs
         final userService = ref.read(userServiceProvider);
-        _allBuddyIds = await userService.computeAndCacheBuddies(authState.uid);
+        _allBuddyIds = await userService.computeAndCacheBuddies(authState.id);
         setState(() => _buddies.clear());
       }
 
@@ -223,8 +222,8 @@ class _SocialPageState extends ConsumerState<SocialPage>
   }
 
   Widget _buildBuddiesTab() {
-    final authState = ref.watch(authStateProvider).value;
-    final userId = authState?.uid ?? '';
+    final authState = ref.watch(authSessionProvider).value;
+    final userId = authState?.id ?? '';
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -687,8 +686,8 @@ class _SocialPageState extends ConsumerState<SocialPage>
   }
 
   Widget _buildLeaderboardTab() {
-    final authState = ref.watch(authStateProvider).value;
-    final userId = authState?.uid ?? '';
+    final authState = ref.watch(authSessionProvider).value;
+    final userId = authState?.id ?? '';
 
     // We'll use a local state for the toggle here since it's UI specific
     // Or we could move it to a provider. For now, let's use a ValueNotifier
@@ -853,7 +852,7 @@ class _PointsLeaderboard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final userId = ref.watch(authStateProvider).value?.uid ?? '';
+    final userId = ref.watch(authSessionProvider).value?.id ?? '';
     final leaderboardAsync = ref.watch(friendsLeaderboardProvider(userId));
 
     return leaderboardAsync.when(
@@ -1176,8 +1175,8 @@ class _StreakLeaderboard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final authState = ref.watch(authStateProvider).value;
-    final userId = authState?.uid;
+    final authState = ref.watch(authSessionProvider).value;
+    final userId = authState?.id;
 
     if (userId == null) {
       return const Center(child: Text('Please sign in to view leaderboard'));

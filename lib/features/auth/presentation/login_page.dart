@@ -6,12 +6,13 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../app/navigation/app_router.dart';
-import '../../../services/auth_service.dart';
 import '../../../utils/validators.dart';
 import '../../../widgets/zyntro_button.dart';
 import '../../../widgets/premium_effects.dart';
 import '../../../widgets/premium_animations.dart';
 import '../../../widgets/responsive_center.dart';
+import 'providers/auth_controller.dart';
+import 'widgets/auth_error_surface.dart';
 
 /// Premium Login screen with glassmorphism and gradient accents.
 class LoginPage extends ConsumerStatefulWidget {
@@ -66,7 +67,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
 
     try {
       final user = await ref
-          .read(authServiceProvider)
+          .read(authControllerProvider)
           .signInWithEmail(
             _emailController.text.trim(),
             _passwordController.text,
@@ -81,7 +82,9 @@ class _LoginPageState extends ConsumerState<LoginPage>
               builder: (dialogContext) => _EmailVerificationDialog(
                 email: user.email ?? '',
                 onResend: () async {
-                  await ref.read(authServiceProvider).sendEmailVerification();
+                  await ref
+                      .read(authControllerProvider)
+                      .sendEmailVerification();
                   if (dialogContext.mounted && mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
@@ -96,10 +99,10 @@ class _LoginPageState extends ConsumerState<LoginPage>
                   }
                 },
                 onCheckVerification: () async {
-                  await ref.read(authServiceProvider).reloadUser();
-                  final currentUser = ref
-                      .read(firebaseAuthProvider)
-                      .currentUser;
+                  await ref.read(authControllerProvider).reloadCurrentUser();
+                  final currentUser = await ref
+                      .read(authControllerProvider)
+                      .getCurrentUser();
                   if (currentUser?.emailVerified == true) {
                     if (dialogContext.mounted) {
                       Navigator.pop(dialogContext);
@@ -130,7 +133,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
         HapticFeedback.heavyImpact();
         context.go(AppRoutes.main);
       }
-    } on AuthException catch (e) {
+    } on AuthFlowException catch (e) {
       if (mounted) {
         HapticFeedback.heavyImpact();
         setState(() {
@@ -159,12 +162,12 @@ class _LoginPageState extends ConsumerState<LoginPage>
     });
 
     try {
-      final user = await ref.read(authServiceProvider).signInWithGoogle();
+      final user = await ref.read(authControllerProvider).signInWithGoogle();
 
       if (user != null && mounted) {
         final profile = await ref
-            .read(authServiceProvider)
-            .getUserProfile(user.uid);
+            .read(authControllerProvider)
+            .getUserProfile(user.id);
         // Check mounted again after async call
         if (!mounted) return;
         HapticFeedback.mediumImpact();
@@ -202,11 +205,9 @@ class _LoginPageState extends ConsumerState<LoginPage>
     });
 
     try {
-      final userCredential = await ref
-          .read(authServiceProvider)
-          .signInWithFacebook();
+      final user = await ref.read(authControllerProvider).signInWithFacebook();
 
-      if (userCredential.user != null && mounted) {
+      if (user != null && mounted) {
         HapticFeedback.mediumImpact();
         context.go(AppRoutes.main);
       }
@@ -440,45 +441,13 @@ class _LoginPageState extends ConsumerState<LoginPage>
                         if (_errorMessage != null) ...[
                           SlideInAnimation.fromBottom(
                             index: 0,
-                            child: PulseAnimation(
-                              minScale: 1.0,
-                              maxScale: 1.02,
-                              duration: const Duration(milliseconds: 1500),
-                              child: Container(
-                                padding: const EdgeInsets.all(AppSpacing.md),
-                                decoration: BoxDecoration(
-                                  color: AppColors.error.withValues(
-                                    alpha: 0.15,
-                                  ),
-                                  borderRadius: BorderRadius.circular(
-                                    AppBorderRadius.md,
-                                  ),
-                                  border: Border.all(
-                                    color: AppColors.error.withValues(
-                                      alpha: 0.3,
-                                    ),
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.error_outline,
-                                      color: AppColors.error,
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: AppSpacing.sm),
-                                    Expanded(
-                                      child: Text(
-                                        _errorMessage!,
-                                        style: const TextStyle(
-                                          color: AppColors.error,
-                                          fontSize: AppFontSize.sm,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                            child: AuthErrorSurface(
+                              message: _errorMessage!,
+                              suggestion:
+                                  'Confirm credentials and retry, or use password reset.',
+                              onDismiss: () {
+                                setState(() => _errorMessage = null);
+                              },
                             ),
                           ),
                           const SizedBox(height: AppSpacing.lg),

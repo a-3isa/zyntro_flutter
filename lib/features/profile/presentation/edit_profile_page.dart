@@ -8,15 +8,38 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/constants.dart';
-import '../../../services/auth_service.dart';
+import '../../../core/models/models.dart';
 import '../../../services/media_service.dart';
 import '../../../utils/haptic_manager.dart';
 import '../../../widgets/premium_animations.dart';
 import '../../../widgets/premium_effects.dart';
 import '../../../widgets/responsive_center.dart';
 import '../../../widgets/avatar_selector.dart';
+import '../../auth/auth_providers.dart';
+import '../../auth/presentation/providers/auth_controller.dart';
 
 import 'package:cached_network_image/cached_network_image.dart';
+
+final editProfileUserProvider = FutureProvider<User?>((ref) async {
+  final authState = ref.watch(authSessionProvider);
+  final uid = authState.valueOrNull?.id;
+  if (uid == null) return null;
+
+  final profile = await ref.read(authControllerProvider).getUserProfile(uid);
+  if (profile == null) return null;
+
+  return User(
+    id: profile.id,
+    displayName: profile.displayName,
+    photoURL: profile.photoUrl,
+    avatarConfig: profile.avatarConfig,
+    isPrivate: profile.isPrivate,
+    workoutPreference: profile.workoutPreference,
+    beginnerFlag: profile.beginnerFlag,
+    createdAt: DateTime.now(),
+    updatedAt: DateTime.now(),
+  );
+});
 
 /// Edit profile page for updating user profile information.
 class EditProfilePage extends ConsumerStatefulWidget {
@@ -86,7 +109,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
   }
 
   void _loadUserData() {
-    final userAsync = ref.read(userProfileProvider);
+    final userAsync = ref.read(editProfileUserProvider);
     userAsync.whenData((user) {
       if (user != null) {
         _displayNameController.text = user.displayName;
@@ -141,8 +164,8 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
   Future<void> _saveChanges() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final authState = ref.read(authStateProvider);
-    final uid = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final uid = authState.valueOrNull?.id;
     if (uid == null) return;
 
     HapticFeedback.mediumImpact();
@@ -196,10 +219,12 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
       }
 
       // Update profile
-      await ref.read(authServiceProvider).updateUserProfile(uid, updates);
+      await ref
+          .read(authControllerProvider)
+          .updateUserProfile(userId: uid, data: updates);
 
       // Invalidate user profile provider to refresh data
-      ref.invalidate(userProfileProvider);
+      ref.invalidate(editProfileUserProvider);
 
       if (mounted) {
         HapticFeedback.heavyImpact();
@@ -247,7 +272,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    final userAsync = ref.watch(userProfileProvider);
+    final userAsync = ref.watch(editProfileUserProvider);
 
     return Scaffold(
       backgroundColor: AppColors.backgroundDark,
@@ -872,9 +897,10 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                     Text('Error: $e'),
                     const SizedBox(height: AppSpacing.md),
                     BounceAnimation(
-                      onTap: () => ref.invalidate(userProfileProvider),
+                      onTap: () => ref.invalidate(editProfileUserProvider),
                       child: ElevatedButton(
-                        onPressed: () => ref.invalidate(userProfileProvider),
+                        onPressed: () =>
+                            ref.invalidate(editProfileUserProvider),
                         child: const Text('Retry'),
                       ),
                     ),

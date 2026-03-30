@@ -8,7 +8,7 @@ import '../core/models/models.dart';
 import '../core/constants/constants.dart';
 import '../utils/retry_helper.dart';
 import '../utils/offline_manager.dart';
-import 'auth_service.dart';
+import '../features/auth/auth_providers.dart';
 import 'notification_service.dart';
 import 'user_cache_service.dart';
 
@@ -665,7 +665,7 @@ class SessionService {
 
 /// Session service provider.
 final sessionServiceProvider = Provider<SessionService>((ref) {
-  return SessionService(ref.watch(firestoreProvider), ref);
+  return SessionService(ref.watch(authFirestoreProvider), ref);
 });
 
 /// Stream provider for current session.
@@ -808,3 +808,4 @@ final configurableDebouncedSessionEventsProvider =
           .listenToSessionEvents(params.sessionId)
           .debounceTime(params.debounce);
     });
+

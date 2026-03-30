@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_theme.dart';
-import '../../../services/auth_service.dart';
+import '../../auth/auth_providers.dart';
 import '../../../utils/haptic_manager.dart';
 import '../../../widgets/premium_animations.dart';
 import '../../../widgets/premium_effects.dart';
@@ -86,14 +86,14 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
   }
 
   Future<void> _loadWorkouts() async {
-    final authState = ref.read(authStateProvider);
-    final userId = widget.userId ?? authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final userId = widget.userId ?? authState.valueOrNull?.id;
     if (userId == null) return;
 
     setState(() => _isLoading = true);
 
     try {
-      final firestore = ref.read(firestoreProvider);
+      final firestore = ref.read(authFirestoreProvider);
       Query<Map<String, dynamic>> query = firestore
           .collection('workouts')
           .where('userId', isEqualTo: userId);
@@ -675,3 +675,4 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
     );
   }
 }
+

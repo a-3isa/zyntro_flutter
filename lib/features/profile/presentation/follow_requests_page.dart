@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/models/models.dart';
-import '../../../services/auth_service.dart';
+import '../../auth/auth_providers.dart';
 import '../../../services/follow_service.dart';
 import '../../../services/user_service.dart';
 import '../../../utils/haptic_manager.dart';
@@ -29,13 +29,13 @@ class _FollowRequestsPageState extends ConsumerState<FollowRequestsPage> {
     setState(() => _processingIds.add(requester.id));
 
     try {
-      final currentUser = ref.read(userProfileProvider).valueOrNull;
+      final currentUser = ref.read(authSessionProvider).valueOrNull;
       await ref
           .read(followServiceProvider)
           .acceptFollowRequest(
             requester.id,
             currentUserId,
-            acceptorName: currentUser?.displayName,
+            acceptorName: currentUser?.displayName ?? currentUser?.email,
           );
 
       // Recompute buddies after accept
@@ -100,8 +100,8 @@ class _FollowRequestsPageState extends ConsumerState<FollowRequestsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authStateProvider);
-    final uid = authState.valueOrNull?.uid;
+    final authState = ref.watch(authSessionProvider);
+    final uid = authState.valueOrNull?.id;
     final requestsAsync = ref.watch(pendingFollowRequestsProvider);
 
     return Scaffold(
@@ -321,8 +321,8 @@ class _FollowRequestsPageState extends ConsumerState<FollowRequestsPage> {
 
 /// Provider for pending follow requests list.
 final pendingFollowRequestsProvider = FutureProvider<List<User>>((ref) async {
-  final authState = ref.watch(authStateProvider);
-  final uid = authState.valueOrNull?.uid;
+  final authState = ref.watch(authSessionProvider);
+  final uid = authState.valueOrNull?.id;
   if (uid == null) return [];
 
   return ref.watch(followServiceProvider).getPendingFollowRequests(uid);

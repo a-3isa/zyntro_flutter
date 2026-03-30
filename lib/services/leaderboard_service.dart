@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'auth_service.dart';
+import '../features/auth/auth_providers.dart';
 import 'follow_service.dart';
 
 /// Leaderboard entry for display.
@@ -300,7 +300,7 @@ class LeaderboardService {
 
 /// Leaderboard service provider.
 final leaderboardServiceProvider = Provider<LeaderboardService>((ref) {
-  return LeaderboardService(ref.watch(firestoreProvider));
+  return LeaderboardService(ref.watch(authFirestoreProvider));
 });
 
 /// Friends leaderboard provider.
@@ -337,3 +337,4 @@ final eventsProvider = FutureProvider<List<LeaderboardEvent>>((ref) async {
   final leaderboardService = ref.watch(leaderboardServiceProvider);
   return leaderboardService.getEvents();
 });
+

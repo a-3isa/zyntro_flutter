@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/constants/constants.dart';
 import '../core/models/models.dart';
-import 'auth_service.dart';
+import '../features/auth/auth_providers.dart';
 import 'post_service.dart';
 import 'user_service.dart';
 import 'user_cache_service.dart';
@@ -238,7 +238,7 @@ class WorkoutService {
 
 /// Workout service provider.
 final workoutServiceProvider = Provider<WorkoutService>((ref) {
-  return WorkoutService(ref.watch(firestoreProvider));
+  return WorkoutService(ref.watch(authFirestoreProvider));
 });
 
 /// User workouts provider.
@@ -324,3 +324,4 @@ final friendsRecentActivityProvider =
 
       return activities;
     });
+

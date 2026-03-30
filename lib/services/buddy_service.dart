@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/models/models.dart';
 import '../core/constants/constants.dart';
-import 'auth_service.dart';
+import '../features/auth/auth_providers.dart';
 
 /// Buddy service for managing buddy pairs and invite codes.
 /// Matches React Native buddyService.ts behavior.
@@ -179,13 +179,14 @@ class BuddyService {
 
 /// Buddy service provider.
 final buddyServiceProvider = Provider<BuddyService>((ref) {
-  return BuddyService(ref.watch(firestoreProvider));
+  return BuddyService(ref.watch(authFirestoreProvider));
 });
 
 /// Current buddy pair provider.
 final currentBuddyPairProvider = FutureProvider<BuddyPair?>((ref) async {
-  final authState = ref.watch(authStateProvider);
-  final uid = authState.valueOrNull?.uid;
+  final authState = ref.watch(authSessionProvider);
+  final uid = authState.valueOrNull?.id;
   if (uid == null) return null;
   return ref.watch(buddyServiceProvider).getBuddyPair(uid);
 });
+

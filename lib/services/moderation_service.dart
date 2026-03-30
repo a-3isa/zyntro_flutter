@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/models/models.dart';
-import 'auth_service.dart';
+import '../features/auth/auth_providers.dart';
 import 'user_service.dart';
 
 /// Moderation service for report/block/ban functionality.
@@ -246,13 +246,13 @@ class ModerationService {
 
 /// Moderation service provider.
 final moderationServiceProvider = Provider<ModerationService>((ref) {
-  return ModerationService(ref.watch(firestoreProvider), ref);
+  return ModerationService(ref.watch(authFirestoreProvider), ref);
 });
 
 /// Blocked user IDs provider.
 final blockedUserIdsProvider = FutureProvider<List<String>>((ref) async {
-  final authState = ref.watch(authStateProvider);
-  final uid = authState.valueOrNull?.uid;
+  final authState = ref.watch(authSessionProvider);
+  final uid = authState.valueOrNull?.id;
   if (uid == null) return [];
 
   return ref.watch(moderationServiceProvider).getBlockedUserIds(uid);
@@ -260,8 +260,8 @@ final blockedUserIdsProvider = FutureProvider<List<String>>((ref) async {
 
 /// Blocked users list provider.
 final blockedUsersProvider = FutureProvider<List<User>>((ref) async {
-  final authState = ref.watch(authStateProvider);
-  final uid = authState.valueOrNull?.uid;
+  final authState = ref.watch(authSessionProvider);
+  final uid = authState.valueOrNull?.id;
   if (uid == null) return [];
 
   return ref.watch(moderationServiceProvider).getBlockedUsers(uid);
@@ -271,3 +271,4 @@ final blockedUsersProvider = FutureProvider<List<User>>((ref) async {
 final pendingReportsProvider = FutureProvider<List<Report>>((ref) async {
   return ref.watch(moderationServiceProvider).getPendingReports();
 });
+

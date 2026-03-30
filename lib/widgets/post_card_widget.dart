@@ -8,8 +8,8 @@ import '../core/theme/app_theme.dart';
 import '../core/constants/feature_flags.dart';
 
 import '../core/models/models.dart';
+import '../features/auth/auth_providers.dart';
 import '../services/post_service.dart';
-import '../services/auth_service.dart';
 import '../services/moderation_service.dart';
 import '../services/user_cache_service.dart';
 import '../features/moderation/presentation/report_dialog.dart';
@@ -70,8 +70,8 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
   }
 
   Future<void> _fetchReactionData() async {
-    final authState = ref.read(authStateProvider);
-    final uid = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final uid = authState.valueOrNull?.id;
     final postService = ref.read(postServiceProvider);
 
     try {
@@ -110,8 +110,8 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
   }
 
   Widget _buildFullCard(BuildContext context) {
-    final authState = ref.read(authStateProvider);
-    final currentUserId = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final currentUserId = authState.valueOrNull?.id;
     final isOwnPost = currentUserId == widget.post.authorId;
 
     final author = ref
@@ -721,8 +721,8 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
   }
 
   Future<void> _handleReaction(ReactionType type) async {
-    final authState = ref.read(authStateProvider);
-    final uid = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final uid = authState.valueOrNull?.id;
     if (uid == null) return;
 
     final currentReaction = _userReaction;
@@ -775,8 +775,8 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
     required String action,
     required String authorName,
   }) async {
-    final authState = ref.read(authStateProvider);
-    final currentUserId = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final currentUserId = authState.valueOrNull?.id;
     if (currentUserId == null) return;
 
     switch (action) {

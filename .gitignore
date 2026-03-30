@@ -67,3 +67,8 @@ ios/Runner/*.mobileprovision
 # Codemagic
 codemagic.secrets
 
+# Local workspace artifacts
+.codex/
+Thumbs.db
+*.tmp
+

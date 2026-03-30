@@ -6,11 +6,11 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/feature_flags.dart';
 import '../../../app/navigation/app_router.dart';
-import '../../../services/auth_service.dart';
 import '../../../widgets/mvp_feature_wrapper.dart';
 import '../../../widgets/premium_effects.dart';
 import '../../../widgets/premium_animations.dart';
 import '../../../widgets/circuit_breaker_status_widget.dart';
+import '../../auth/presentation/providers/auth_controller.dart';
 
 /// Settings page with app preferences and account options.
 class SettingsPage extends ConsumerWidget {
@@ -33,8 +33,18 @@ class SettingsPage extends ConsumerWidget {
             decoration: BoxDecoration(
               color: AppColors.surfaceDark,
               border: Border(
-                bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+                bottom: BorderSide(
+                  color: AppColors.primary.withValues(alpha: 0.2),
+                  width: 1.5,
+                ),
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: 0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             child: Row(
               children: [
@@ -48,6 +58,9 @@ class SettingsPage extends ConsumerWidget {
                     decoration: BoxDecoration(
                       color: AppColors.surfaceSecondaryDark,
                       borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.1),
+                      ),
                     ),
                     child: const Icon(
                       Icons.arrow_back,
@@ -551,7 +564,7 @@ class SettingsPage extends ConsumerWidget {
 
             if (confirmed == true && context.mounted) {
               HapticFeedback.heavyImpact();
-              await ref.read(authServiceProvider).signOut();
+              await ref.read(authControllerProvider).signOut();
               if (context.mounted) {
                 context.go(AppRoutes.login);
               }

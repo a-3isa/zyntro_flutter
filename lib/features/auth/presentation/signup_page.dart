@@ -5,12 +5,13 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../app/navigation/app_router.dart';
-import '../../../services/auth_service.dart';
 import '../../../utils/validators.dart';
 import '../../../widgets/zyntro_button.dart';
 import '../../../widgets/premium_effects.dart';
 import '../../../widgets/premium_animations.dart';
 import '../../../widgets/responsive_center.dart';
+import 'providers/auth_controller.dart';
+import 'widgets/auth_error_surface.dart';
 
 /// Premium Sign up screen with matching aesthetics to login.
 class SignUpPage extends ConsumerStatefulWidget {
@@ -106,7 +107,7 @@ class _SignUpPageState extends ConsumerState<SignUpPage>
 
     try {
       await ref
-          .read(authServiceProvider)
+          .read(authControllerProvider)
           .signUpWithEmail(
             _emailController.text.trim(),
             _passwordController.text,
@@ -122,7 +123,7 @@ class _SignUpPageState extends ConsumerState<SignUpPage>
           barrierDismissible: false,
           builder: (dialogContext) => _VerifyEmailDialog(
             onResend: () async {
-              await ref.read(authServiceProvider).sendEmailVerification();
+              await ref.read(authControllerProvider).sendEmailVerification();
               // Use ScaffoldMessenger captured from parent context
               scaffoldMessenger.showSnackBar(
                 SnackBar(
@@ -145,7 +146,7 @@ class _SignUpPageState extends ConsumerState<SignUpPage>
           ),
         );
       }
-    } on AuthException catch (e) {
+    } on AuthFlowException catch (e) {
       if (mounted) {
         HapticFeedback.heavyImpact();
         setState(() {
@@ -174,15 +175,15 @@ class _SignUpPageState extends ConsumerState<SignUpPage>
     });
 
     try {
-      final user = await ref.read(authServiceProvider).signInWithGoogle();
+      final user = await ref.read(authControllerProvider).signInWithGoogle();
 
       if (user != null && mounted) {
         HapticFeedback.mediumImpact();
 
         // Check if profile is complete
         final profileComplete = await ref
-            .read(authServiceProvider)
-            .isProfileComplete(user.uid);
+            .read(authControllerProvider)
+            .isProfileComplete(user.id);
 
         // Check mounted again after async call
         if (!mounted) return;
@@ -221,17 +222,15 @@ class _SignUpPageState extends ConsumerState<SignUpPage>
     });
 
     try {
-      final userCredential = await ref
-          .read(authServiceProvider)
-          .signInWithFacebook();
+      final user = await ref.read(authControllerProvider).signInWithFacebook();
 
-      if (userCredential.user != null && mounted) {
+      if (user != null && mounted) {
         HapticFeedback.mediumImpact();
 
         // Check if profile is complete
         final profileComplete = await ref
-            .read(authServiceProvider)
-            .isProfileComplete(userCredential.user!.uid);
+            .read(authControllerProvider)
+            .isProfileComplete(user.id);
 
         // Check mounted again after async call
         if (!mounted) return;
@@ -591,45 +590,13 @@ class _SignUpPageState extends ConsumerState<SignUpPage>
                         if (_errorMessage != null) ...[
                           SlideInAnimation.fromBottom(
                             index: 0,
-                            child: PulseAnimation(
-                              minScale: 1.0,
-                              maxScale: 1.02,
-                              duration: const Duration(milliseconds: 1500),
-                              child: Container(
-                                padding: const EdgeInsets.all(AppSpacing.md),
-                                decoration: BoxDecoration(
-                                  color: AppColors.error.withValues(
-                                    alpha: 0.15,
-                                  ),
-                                  borderRadius: BorderRadius.circular(
-                                    AppBorderRadius.md,
-                                  ),
-                                  border: Border.all(
-                                    color: AppColors.error.withValues(
-                                      alpha: 0.3,
-                                    ),
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.error_outline,
-                                      color: AppColors.error,
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: AppSpacing.sm),
-                                    Expanded(
-                                      child: Text(
-                                        _errorMessage!,
-                                        style: const TextStyle(
-                                          color: AppColors.error,
-                                          fontSize: AppFontSize.sm,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                            child: AuthErrorSurface(
+                              message: _errorMessage!,
+                              suggestion:
+                                  'Review input fields and retry account creation.',
+                              onDismiss: () {
+                                setState(() => _errorMessage = null);
+                              },
                             ),
                           ),
                           const SizedBox(height: AppSpacing.lg),
@@ -652,8 +619,9 @@ class _SignUpPageState extends ConsumerState<SignUpPage>
                                   : null,
                             ),
                             validator: (value) {
-                              if (!_emailTouched && !_formSubmitted)
+                              if (!_emailTouched && !_formSubmitted) {
                                 return null;
+                              }
                               return validateEmail(value);
                             },
                             onChanged: (_) {
@@ -698,8 +666,9 @@ class _SignUpPageState extends ConsumerState<SignUpPage>
                               ),
                             ),
                             validator: (value) {
-                              if (!_passwordTouched && !_formSubmitted)
+                              if (!_passwordTouched && !_formSubmitted) {
                                 return null;
+                              }
                               return validatePassword(value);
                             },
                             onChanged: (_) {
@@ -754,8 +723,9 @@ class _SignUpPageState extends ConsumerState<SignUpPage>
                               ),
                             ),
                             validator: (value) {
-                              if (!_confirmPasswordTouched && !_formSubmitted)
+                              if (!_confirmPasswordTouched && !_formSubmitted) {
                                 return null;
+                              }
                               if (value == null || value.isEmpty) {
                                 return 'Please confirm your password';
                               }

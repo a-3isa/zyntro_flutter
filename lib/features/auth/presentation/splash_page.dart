@@ -6,7 +6,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../app/navigation/app_router.dart';
 import '../../../widgets/zyntro_button.dart';
 import '../../../widgets/premium_effects.dart';
-import '../../../services/auth_service.dart';
+import '../auth_providers.dart';
 
 /// Welcome / Landing (formerly Splash) page.
 /// Displays branding and entry points (Get Started / Sign In).
@@ -15,7 +15,7 @@ class SplashPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final authState = ref.watch(authStateProvider);
+    final authState = ref.watch(authSessionProvider);
     final isLoading = authState.isLoading;
     final user = authState.valueOrNull;
 

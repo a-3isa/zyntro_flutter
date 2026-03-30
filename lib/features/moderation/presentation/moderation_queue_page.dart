@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../core/models/models.dart';
-import '../../../services/auth_service.dart';
+import '../../auth/auth_providers.dart';
 import '../../../services/moderation_service.dart';
 import '../../../widgets/premium_animations.dart';
 import '../../../widgets/premium_effects.dart';
@@ -19,6 +19,13 @@ class ModerationQueuePage extends ConsumerStatefulWidget {
   ConsumerState<ModerationQueuePage> createState() =>
       _ModerationQueuePageState();
 }
+
+final isModeratorProvider = FutureProvider<bool>((ref) async {
+  final authState = ref.watch(authSessionProvider);
+  final uid = authState.valueOrNull?.id;
+  if (uid == null) return false;
+  return ref.read(moderationServiceProvider).isModerator(uid);
+});
 
 class _ModerationQueuePageState extends ConsumerState<ModerationQueuePage> {
   final Set<String> _processingIds = {};
@@ -207,7 +214,9 @@ class _ModerationQueuePageState extends ConsumerState<ModerationQueuePage> {
 
   @override
   Widget build(BuildContext context) {
-    final userAsync = ref.watch(userProfileProvider);
+    final authState = ref.watch(authSessionProvider);
+    final moderatorId = authState.valueOrNull?.id;
+    final isModeratorAsync = ref.watch(isModeratorProvider);
     final reportsAsync = ref.watch(pendingReportsProvider);
 
     return Scaffold(
@@ -253,9 +262,9 @@ class _ModerationQueuePageState extends ConsumerState<ModerationQueuePage> {
             ),
           ),
           Expanded(
-            child: userAsync.when(
-              data: (user) {
-                if (user == null || !user.isModerator) {
+            child: isModeratorAsync.when(
+              data: (isModerator) {
+                if (!isModerator || moderatorId == null) {
                   return const Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -291,7 +300,7 @@ class _ModerationQueuePageState extends ConsumerState<ModerationQueuePage> {
                         itemCount: reports.length,
                         itemBuilder: (context, index) {
                           final report = reports[index];
-                          return _buildReportCard(report, user.id);
+                          return _buildReportCard(report, moderatorId);
                         },
                       ),
                     );

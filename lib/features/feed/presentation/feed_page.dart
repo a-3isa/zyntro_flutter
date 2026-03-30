@@ -10,8 +10,8 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/feature_flags.dart';
 import '../../../app/navigation/app_router.dart';
 import '../../../core/models/models.dart';
+import '../../auth/auth_providers.dart';
 import '../../../services/post_service.dart';
-import '../../../services/auth_service.dart';
 import '../../../services/moderation_service.dart';
 import '../../../services/follow_service.dart';
 import '../../../services/user_cache_service.dart';
@@ -137,8 +137,8 @@ class _FeedPageState extends ConsumerState<FeedPage>
                 children: [
                   _FeedTab(
                     fetchPosts: (cursor) async {
-                      final authState = ref.read(authStateProvider);
-                      final uid = authState.valueOrNull?.uid;
+                      final authState = ref.read(authSessionProvider);
+                      final uid = authState.valueOrNull?.id;
                       if (uid == null) {
                         return FeedResult(
                           posts: [],
@@ -265,8 +265,8 @@ class _FeedTabState extends ConsumerState<_FeedTab>
 
   Future<void> _loadInitial() async {
     if (widget.requiresAuth) {
-      final authState = ref.read(authStateProvider);
-      if (authState.valueOrNull?.uid == null) {
+      final authState = ref.read(authSessionProvider);
+      if (authState.valueOrNull?.id == null) {
         if (mounted) {
           setState(() {
             _isLoading = false;
@@ -562,8 +562,8 @@ class _FeedTabState extends ConsumerState<_FeedTab>
 
   /// Fetch reaction data (counts and user's reaction) for a list of posts.
   Future<void> _fetchReactionData(List<Post> posts) async {
-    final authState = ref.read(authStateProvider);
-    final uid = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final uid = authState.valueOrNull?.id;
     final postService = ref.read(postServiceProvider);
 
     // Fetch reaction counts and user reactions in parallel
@@ -585,8 +585,8 @@ class _FeedTabState extends ConsumerState<_FeedTab>
   }
 
   Widget _buildPostCard(Post post) {
-    final authState = ref.read(authStateProvider);
-    final currentUserId = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final currentUserId = authState.valueOrNull?.id;
     final isOwnPost = currentUserId == post.authorId;
 
     final author = ref
@@ -997,8 +997,8 @@ class _FeedTabState extends ConsumerState<_FeedTab>
     // Haptic feedback on reaction
     HapticManager.medium();
 
-    final authState = ref.read(authStateProvider);
-    final uid = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final uid = authState.valueOrNull?.id;
     if (uid == null) return;
 
     final currentReaction = _userReactions[post.id];
@@ -1067,8 +1067,8 @@ class _FeedTabState extends ConsumerState<_FeedTab>
     required Post post,
     required String authorName,
   }) async {
-    final authState = ref.read(authStateProvider);
-    final currentUserId = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final currentUserId = authState.valueOrNull?.id;
     if (currentUserId == null) return;
 
     switch (action) {

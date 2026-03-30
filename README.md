@@ -170,4 +170,5 @@ flutter pub run flutter_native_splash:create
 - [Privacy Policy](docs/privacy-policy.md)
 - [Terms of Service](docs/terms-of-service.md)
 - [Community Guidelines](docs/community-guidelines.md)
+- [Clean Architecture Feature Workflow](docs/clean-architecture-feature-workflow.md)
 

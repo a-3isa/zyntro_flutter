@@ -4,7 +4,8 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/theme/app_theme.dart';
-import '../services/auth_service.dart';
+import '../features/auth/auth_providers.dart';
+import '../features/auth/presentation/providers/auth_controller.dart';
 
 /// Enhanced email verification banner with refresh button, cooldown timer,
 /// and success animation when email is verified.
@@ -60,24 +61,32 @@ class _EmailVerificationBannerState
   void _startVerificationCheck() {
     // Check every 3 seconds
     _checkTimer = Timer.periodic(const Duration(seconds: 3), (_) async {
-      final user = ref.read(firebaseAuthProvider).currentUser;
+      final user = ref.read(authSessionProvider).valueOrNull;
       if (user != null && !user.emailVerified) {
-        await user.reload();
-        if (mounted && user.emailVerified) {
-          // Show success animation before hiding
-          setState(() => _isVerified = true);
-          _successAnimationController.forward();
+        try {
+          await ref.read(authControllerProvider).reloadCurrentUser();
+          final refreshedUser = await ref
+              .read(authControllerProvider)
+              .getCurrentUser();
 
-          // Refresh the auth state provider to trigger UI updates elsewhere
-          ref.invalidate(authStateProvider);
+          if (mounted && refreshedUser?.emailVerified == true) {
+            // Show success animation before hiding
+            setState(() => _isVerified = true);
+            _successAnimationController.forward();
 
-          // Hide after animation
-          Future.delayed(const Duration(seconds: 2), () {
-            if (mounted) setState(() => _isVisible = false);
-          });
+            // Refresh auth state to trigger UI updates elsewhere
+            ref.invalidate(authSessionProvider);
+
+            // Hide after animation
+            Future.delayed(const Duration(seconds: 2), () {
+              if (mounted) setState(() => _isVisible = false);
+            });
+          }
+        } catch (_) {
+          // Ignore transient refresh failures and keep polling.
         }
-      } else if (user != null && user.emailVerified && _isVisible) {
-        if (mounted) setState(() => _isVisible = false);
+      } else if (user != null && user.emailVerified && _isVisible && mounted) {
+        setState(() => _isVisible = false);
       }
     });
   }
@@ -134,18 +143,19 @@ class _EmailVerificationBannerState
     setState(() => _isRefreshing = true);
 
     try {
-      final user = ref.read(firebaseAuthProvider).currentUser;
-      if (user != null) {
-        await user.reload();
-        if (mounted && user.emailVerified) {
-          setState(() => _isVerified = true);
-          _successAnimationController.forward();
-          ref.invalidate(authStateProvider);
+      await ref.read(authControllerProvider).reloadCurrentUser();
+      final refreshedUser = await ref
+          .read(authControllerProvider)
+          .getCurrentUser();
 
-          Future.delayed(const Duration(seconds: 2), () {
-            if (mounted) setState(() => _isVisible = false);
-          });
-        }
+      if (mounted && refreshedUser?.emailVerified == true) {
+        setState(() => _isVerified = true);
+        _successAnimationController.forward();
+        ref.invalidate(authSessionProvider);
+
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) setState(() => _isVisible = false);
+        });
       }
     } finally {
       if (mounted) setState(() => _isRefreshing = false);
@@ -163,7 +173,7 @@ class _EmailVerificationBannerState
   @override
   Widget build(BuildContext context) {
     // Also hide if auth state provider says we are verified (reactive update)
-    final user = ref.watch(authStateProvider).valueOrNull;
+    final user = ref.watch(authSessionProvider).valueOrNull;
     if (user?.emailVerified == true) return const SizedBox.shrink();
 
     if (!_isVisible) return const SizedBox.shrink();

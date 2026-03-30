@@ -9,9 +9,10 @@ import '../../../widgets/email_verification_banner.dart';
 import '../../../widgets/zyntro_button.dart';
 import '../../../widgets/premium_effects.dart';
 import '../../../widgets/premium_animations.dart';
-import '../../../services/auth_service.dart';
 import '../../../services/storage_service.dart';
 import '../../../widgets/responsive_center.dart';
+import '../auth_providers.dart';
+import 'providers/auth_controller.dart';
 
 /// Premium Onboarding screen with animated slides.
 class OnboardingPage extends ConsumerStatefulWidget {
@@ -104,13 +105,13 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage>
                   // Email Verification Banner
                   Consumer(
                     builder: (context, ref, child) {
-                      final authState = ref.watch(authStateProvider);
+                      final authState = ref.watch(authSessionProvider);
                       final user = authState.valueOrNull;
                       if (user != null && !user.emailVerified) {
                         return EmailVerificationBanner(
                           onResendPressed: () async {
                             await ref
-                                .read(authServiceProvider)
+                                .read(authControllerProvider)
                                 .sendEmailVerification();
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(

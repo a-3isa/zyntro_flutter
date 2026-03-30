@@ -8,10 +8,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../app/navigation/app_router.dart';
-import '../../../services/auth_service.dart';
 import '../../../widgets/zyntro_button.dart';
 import '../../../widgets/premium_effects.dart';
 import '../../../widgets/premium_animations.dart';
+import 'providers/auth_controller.dart';
+import 'widgets/auth_error_surface.dart';
 
 /// Premium password reset/forgot password page with glassmorphism styling.
 /// Allows users to request a password reset email with resend cooldown.
@@ -110,7 +111,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage>
 
     try {
       await ref
-          .read(authServiceProvider)
+          .read(authControllerProvider)
           .sendPasswordResetEmail(_emailController.text.trim());
 
       await _saveCooldownTimestamp();
@@ -376,39 +377,12 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage>
           if (_errorMessage != null) ...[
             SlideInAnimation.fromBottom(
               index: 0,
-              child: PulseAnimation(
-                minScale: 1.0,
-                maxScale: 1.02,
-                duration: const Duration(milliseconds: 1500),
-                child: Container(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  decoration: BoxDecoration(
-                    color: AppColors.error.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(AppBorderRadius.md),
-                    border: Border.all(
-                      color: AppColors.error.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.error_outline,
-                        color: AppColors.error,
-                        size: 20,
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      Expanded(
-                        child: Text(
-                          _errorMessage!,
-                          style: const TextStyle(
-                            color: AppColors.error,
-                            fontSize: AppFontSize.sm,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+              child: AuthErrorSurface(
+                message: _errorMessage!,
+                suggestion: 'Verify email format and try sending reset again.',
+                onDismiss: () {
+                  setState(() => _errorMessage = null);
+                },
               ),
             ),
             const SizedBox(height: AppSpacing.lg),
