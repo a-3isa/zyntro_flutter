@@ -6,6 +6,7 @@ import 'package:rxdart/rxdart.dart';
 
 import '../core/models/models.dart';
 import '../core/constants/constants.dart';
+import '../features/session/domain/gym_session_plan.dart';
 import '../utils/retry_helper.dart';
 import '../utils/offline_manager.dart';
 import '../features/auth/auth_providers.dart';
@@ -49,6 +50,7 @@ class SessionService {
     String? buddyPairId,
     List<String>? invitedUserIds,
     SessionMode mode = SessionMode.turnBased,
+    SessionPhase phase = SessionPhase.live,
   }) async {
     // Check for existing active session
     final existingSessionId = await checkActiveSession(hostId);
@@ -79,6 +81,7 @@ class SessionService {
       'buddyPairId': buddyPairId,
       'mode': mode.value,
       'activeUserId': mode == SessionMode.turnBased ? hostId : null,
+      'phase': phase.value,
     });
 
     final startEventRef = sessionRef
@@ -400,6 +403,134 @@ class SessionService {
         .doc(sessionId)
         .snapshots()
         .map((doc) => doc.exists ? Session.fromFirestore(doc) : null);
+  }
+
+  /// Save user gym setup plan for a session.
+  Future<void> saveGymPlan({
+    required String sessionId,
+    required GymSessionPlan plan,
+  }) async {
+    await _firestore
+        .collection('sessions')
+        .doc(sessionId)
+        .collection('plans')
+        .doc(plan.userId)
+        .set(plan.toMap());
+  }
+
+  /// Ensure participant has a personal gym plan.
+  /// Reuses existing plan if present, otherwise clones host template.
+  Future<GymSessionPlan> ensureGymPlan({
+    required String sessionId,
+    required String hostId,
+    required String userId,
+  }) async {
+    final plansCollection = _firestore
+        .collection('sessions')
+        .doc(sessionId)
+        .collection('plans');
+
+    final userPlanRef = plansCollection.doc(userId);
+    final existingUserPlan = await userPlanRef.get();
+    if (existingUserPlan.exists) {
+      return GymSessionPlan.fromMap(existingUserPlan.data()!);
+    }
+
+    final hostPlanSnapshot = await plansCollection.doc(hostId).get();
+    if (!hostPlanSnapshot.exists) {
+      throw Exception('Host gym plan not found for session: $sessionId');
+    }
+
+    final hostPlan = GymSessionPlan.fromMap(hostPlanSnapshot.data()!);
+    final clonedPlan = GymSessionPlan(
+      userId: userId,
+      source: GymSessionPlanSource.personal,
+      isReady: false,
+      exercises: hostPlan.exercises
+          .map((exercise) => PlannedExercise.fromMap(exercise.toMap()))
+          .toList(),
+    );
+
+    await userPlanRef.set(clonedPlan.toMap());
+    return clonedPlan;
+  }
+
+  /// Update ready state and promote setup session to live when everyone is ready.
+  Future<void> setGymPlanReady({
+    required String sessionId,
+    required String userId,
+    required bool isReady,
+  }) async {
+    final sessionRef = _firestore.collection('sessions').doc(sessionId);
+    final plansCollection = sessionRef.collection('plans');
+    final userPlanRef = plansCollection.doc(userId);
+
+    await _firestore.runTransaction<void>((transaction) async {
+      final sessionSnapshot = await transaction.get(sessionRef);
+      final sessionData = sessionSnapshot.data();
+      if (sessionData == null) {
+        throw Exception('Session not found: $sessionId');
+      }
+
+      final participants =
+          (sessionData['participants'] as List<dynamic>?)
+              ?.cast<String>() ??
+          const <String>[];
+
+      final userPlanSnapshot = await transaction.get(userPlanRef);
+      if (userPlanSnapshot.exists) {
+        transaction.update(userPlanRef, {'isReady': isReady});
+      } else {
+        transaction.set(userPlanRef, {
+          'userId': userId,
+          'source': GymSessionPlanSource.personal.value,
+          'isReady': isReady,
+          'exercises': const [],
+        });
+      }
+
+      final planReadiness = <String, bool>{userId: isReady};
+      for (final participantId in participants) {
+        if (participantId == userId) continue;
+
+        final participantPlanSnapshot = await transaction.get(
+          plansCollection.doc(participantId),
+        );
+
+        if (!participantPlanSnapshot.exists) {
+          planReadiness[participantId] = false;
+          continue;
+        }
+
+        final planData = participantPlanSnapshot.data();
+        if (planData == null) {
+          planReadiness[participantId] = false;
+          continue;
+        }
+
+        planReadiness[participantId] = GymSessionPlan.fromMap(planData).isReady;
+      }
+
+      if (participants.isNotEmpty &&
+          participants.every((participantId) => planReadiness[participantId] == true)) {
+        transaction.update(sessionRef, {'phase': SessionPhase.live.value});
+      }
+    });
+  }
+
+  /// Listen to user's gym plan changes in real-time.
+  Stream<GymSessionPlan?> listenToGymPlan(String sessionId, String userId) {
+    return _firestore
+        .collection('sessions')
+        .doc(sessionId)
+        .collection('plans')
+        .doc(userId)
+        .snapshots()
+        .map((snapshot) {
+          final data = snapshot.data();
+          if (!snapshot.exists || data == null) return null;
+          return GymSessionPlan.fromMap(data);
+        });
   }
 
   /// Listen to session events in real-time.
