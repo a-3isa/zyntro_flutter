@@ -1,84 +1,126 @@
-# Gym Session Setup Flow Design
+# Gym Session Flow And Session Theme Migration Design
 
 ## Summary
 
-Add a pre-start setup flow for gym sessions so the host defines the initial exercise list and planned set counts before the live session begins. Invited participants receive that host plan as a starting point, but each participant can edit their own copy without affecting anyone else. The live session starts only after each participant marks themselves ready. During the live session, participants log weight and reps set-by-set instead of planning them up front.
+Migrate gym sessions from the current "start immediately and log freely" flow into a staged experience inspired by the approved Figma prototypes. The host defines an initial exercise plan and planned set counts by selecting from the exercise catalog, each participant receives a private editable copy, the session waits for everyone to mark themselves ready, and the live room shifts into guided set execution where reps and weight are entered only after a set is completed.
+
+At the same time, update the session experience to use the approved Figma visual direction: deep navy surfaces, neon-green primary actions, and cleaner muted text instead of the current zinc-plus-purple session styling.
 
 ## Goals
 
-- Let the host create the initial gym workout structure before the session goes live.
-- Give each participant an independent editable copy of the host plan.
-- Require explicit readiness before the live room starts.
-- Keep set execution separate from set planning.
-- Preserve the current cardio and non-gym flow.
+- Align gym session behavior with the approved prototype flow while keeping the app's existing real session infrastructure.
+- Add a pre-live gym setup phase with host-authored workout structure.
+- Replace routine free-text exercise entry with exercise selection from the app's exercise database, while allowing a manual fallback when the needed exercise is missing.
+- Give every participant an independent editable workout plan derived from the host template.
+- Gate the live session behind explicit readiness from all joined participants.
+- Change gym logging so planned sets are configured before the workout, while reps and weight are logged after each finished set.
+- Apply the approved Figma navy and neon-green theme to the session journey.
+- Preserve the current non-gym session flow.
 
 ## Non-Goals
 
-- Shared collaborative editing of one master plan after the host publishes it.
-- Reworking the session recap format for non-gym workouts.
-- Full exercise-programming features such as supersets, rest timers, or notes.
+- Rebuilding every prototype screen as a one-to-one Flutter route.
+- Changing cardio or other non-gym session behavior in this project.
+- Adding advanced workout-programming concepts such as supersets, timers, notes, or rest prescriptions.
+- Performing a full-app visual redesign outside the session experience in this iteration.
+- Creating a complex persisted backend state machine for every live room micro-state.
 
-## Product Behavior
+## Product Direction
 
-### Session Creation
+### Source Of Truth
 
-- When the selected workout type is `WorkoutType.gym`, pressing the start button creates the session and routes to a dedicated gym setup screen instead of the live room.
-- The session remains `active` for compatibility with existing active-session checks, but gains a new `phase` field:
-  - `setup`
-  - `live`
-- Solo gym sessions also use the setup screen. The host can define their plan and tap `Ready` to enter the live room immediately.
-- Non-gym sessions continue to route directly to the current live room flow.
+- The approved Figma prototypes are the source of truth for gym session behavior and visual tone.
+- The existing Flutter app remains the source of truth for how sessions are created, joined, listened to, and stored.
+- The target implementation is a merge of both:
+  - prototype-driven gym UX
+  - existing session backend and real-time architecture
 
-### Host Setup Experience
+### Gym Session Journey
 
-- The host lands on a gym setup page after session creation.
-- The page lets the host build an ordered list of exercises.
-- Each exercise includes:
-  - `name`
-  - `plannedSets`
-- The host can add, remove, reorder, and edit exercises before marking ready.
-- Once the host marks ready, their plan is locked unless they explicitly switch back to an edit state before the session moves to `live`.
+For `WorkoutType.gym`, the session journey becomes:
 
-### Participant Setup Experience
+1. Start session
+2. Host selects exercises from the exercise database and defines planned set counts, with a manual fallback for missing exercises
+3. Invited participants receive that list as their own editable starting draft
+4. Everyone reviews their personal plan and taps `Ready`
+5. The session transitions from `setup` to `live`
+6. The live room guides exercise execution one set at a time
+7. Reps and weight are captured only after a set is finished
+8. When it is not the current user's turn, the room shifts into a partner watch or hype state instead of showing the same generic logging form
 
-- Invited users who open the gym session during the setup phase see the host plan as their starting draft.
-- The first time a participant enters setup, the app creates a personal copy of the host plan for that participant.
-- Participants can change exercise names, remove exercises, add exercises, reorder items, and adjust planned set counts.
-- Participant edits affect only that participant's personal plan and never overwrite the host plan or other participants' plans.
+### Non-Gym Sessions
 
-### Readiness and Session Start
+- Non-gym sessions continue to use the current start-to-room flow.
+- This migration must be additive so existing cardio and general session behavior keeps working.
 
-- Each participant has an individual `isReady` flag.
-- The setup screen shows readiness state for everyone currently in the session.
-- The session moves from `phase=setup` to `phase=live` only when every joined participant is ready.
-- When the phase becomes `live`, users navigate into the existing live session room.
-- If a new invited participant joins before `phase=live`, they receive a personal copy of the host plan and must also mark ready before the session starts.
+## Session Architecture
 
-### Live Gym Session Experience
+### Screen Strategy
 
-- The live room no longer asks gym users to define exercises and set counts from scratch.
-- Instead, the room loads the participant's personal planned exercise list.
-- The room should focus on execution:
-  - choose the current exercise from the participant's plan
-  - log one completed set at a time
-  - enter `weight` and `reps` only when a set is finished
-- Planned set count is treated as a target for progress display, not as pre-filled completed data.
-- Completed sets accumulate into the existing local exercise summary and session analytics.
+Use three Flutter screens for the gym flow instead of recreating every prototype screen literally:
 
-## Data Design
+1. `StartSessionPage`
+2. `GymSessionSetupPage`
+3. `SessionRoomPage`
+
+This keeps routing manageable while still delivering the important behavior from the prototypes.
+
+### StartSessionPage
+
+- Keep the current start experience as the entry point.
+- When the selected type is `WorkoutType.gym`, pressing start creates a session in a setup phase and routes to the new setup page instead of directly to the room.
+- For non-gym types, keep the current route to the live room.
+
+### GymSessionSetupPage
+
+This page merges the prototype setup steps into a guided setup experience with clear sections:
+
+- exercise selection and ordering
+- searchable exercise-database picker
+- manual custom-exercise fallback when search does not find a match
+- planned set counts
+- personal plan review
+- readiness visibility for all participants
+- `Ready` action
+
+Responsibilities:
+
+- load session and participant data
+- create or hydrate the current user's plan
+- show the host template as the basis for participant plans
+- let the user add exercises primarily from the catalog, with an explicit custom fallback
+- save edits to the current user's personal plan only
+- display participant readiness
+- transition to the live room when the session phase becomes `live`
+
+### SessionRoomPage For Gym
+
+Keep the existing room route, but change the gym experience from a form-first logger into a guided live workout screen.
+
+The room should show:
+
+- active exercise
+- current set number versus planned set count
+- clear primary action for `Start Set` or `Finish Set`
+- post-set logging for reps and optional weight
+- partner turn and hype state when the user is not the active athlete
+
+The room should no longer ask gym users to build their workout structure from scratch.
+
+## Data And State Design
 
 ### Session Document
 
-Add fields to the existing `sessions/{sessionId}` document:
+Extend `sessions/{sessionId}` with:
 
 - `phase: 'setup' | 'live'`
 - `setupUpdatedAt`
 
-The existing `status` field remains unchanged and continues to represent overall session lifecycle such as `active`, `paused`, and `completed`.
+The existing `status` field remains responsible for lifecycle states such as `active`, `paused`, and `completed`.
 
-### Session Plan Subcollection
+### Per-User Gym Plans
 
-Add `sessions/{sessionId}/plans/{userId}` documents for personal gym plans.
+Add `sessions/{sessionId}/plans/{userId}` documents.
 
 Document shape:
 
@@ -92,141 +134,250 @@ Document shape:
 Each exercise entry:
 
 - `id`
+- `sourceType: 'catalog' | 'custom'`
+- `exerciseId`
 - `name`
+- `muscleGroup`
+- `equipment`
 - `plannedSets`
 - `order`
 
-The host plan document is the canonical template used to seed participant copies. After a participant copy is created, it is independent.
+Rules:
 
-### Model Changes
+- the host plan is the seed template
+- the first time another participant joins during setup, their personal plan is cloned from the host template
+- after cloning, edits affect only that participant's plan
 
-Add lightweight planning models distinct from completed-set models:
+### Modeling Boundary
+
+Introduce planning models that are distinct from live logging models:
 
 - `PlannedExercise`
 - `GymSessionPlan`
 
-Do not overload the existing `Exercise` and `SetData` models with planning-only state. Those models currently represent completed session logging and should keep that responsibility.
+Do not overload the existing completed-set models with setup-phase concerns.
 
-## App Structure
+### Exercise Catalog Source
 
-### New Screen
+Use the existing catalog in `lib/core/data/gym_exercises.dart` as the initial exercise database for the gym session flow.
 
-Add a dedicated page for gym setup, for example:
+The setup UI should read from that source and expose:
 
-- `lib/features/session/presentation/gym_session_setup_page.dart`
+- search by name
+- browse by muscle group
+- optional filtering by equipment
 
-Responsibilities:
+This keeps the design database-backed from the user's point of view without expanding scope into a new remote exercise service in this iteration.
 
-- load session and plan data
-- create or hydrate personal plan documents
-- manage ready state
-- show participant readiness
-- transition to live room when the session phase changes
+### Missing Exercise Fallback
+
+If a user cannot find the exercise they need in the catalog:
+
+- the setup UI should offer an explicit `Add Custom Exercise` action
+- the user can type the exercise name manually
+- the custom exercise is stored in the plan with `sourceType = custom`
+- custom exercises remain valid for setup, readiness, and live logging
+
+Behavior rules:
+
+- catalog selection is the default path
+- manual entry is the fallback path
+- if the host adds a custom exercise before others clone the template, that custom exercise is copied into participant starter plans
+- if a participant adds a custom exercise to their own plan, it affects only their personal plan
+
+### UI-Owned Live State
+
+The UI should own transient live-training state such as:
+
+- whether the current user is timing a set
+- whether the reps input step is open
+- whether the weight entry step is open
+- whether the user is currently in a watch or hype state
+
+Firestore should own only the durable shared state:
+
+- session phase
+- participants
+- personal plans
+- readiness
+
+This keeps the backend model simpler and avoids an unnecessary fine-grained live state machine.
+
+## Detailed Behavior
+
+### Session Creation
+
+- Starting a gym session creates the session with:
+  - `status = active`
+  - `phase = setup`
+- Solo gym sessions also pass through setup. A solo user can define their plan and tap `Ready` to move themselves into the live room.
+
+### Host Setup
+
+- The host lands on the setup page immediately after session creation.
+- The host can add exercises by selecting them from the exercise database.
+- If the desired exercise is missing, the host can add it manually as a custom exercise.
+- The host can remove and reorder selected exercises.
+- The host sets planned set counts for each exercise.
+- The host cannot mark ready until at least one exercise exists and every exercise has a valid planned set count.
+
+### Participant Setup
+
+- Invited users joining during setup see the host plan as their starting draft.
+- On first load, if no plan exists for that participant, the app clones the host template into `plans/{userId}`.
+- Participants can:
+  - add exercises from the same exercise database
+  - manually add a custom exercise if the catalog does not contain it
+  - remove exercises
+  - reorder exercises
+  - change planned set counts
+- Those edits affect only their personal plan.
+
+### Readiness And Live Start
+
+- Each participant has their own `isReady` flag.
+- The setup screen shows who is ready and who is still editing or missing.
+- The session moves from `setup` to `live` only when every joined participant is ready.
+- The phase transition should be atomic.
+- If the session becomes live while someone is still viewing setup, that page should redirect them into the room automatically.
+
+### Live Gym Loop
+
+The live gym room should follow this loop:
+
+1. Load the current user's personal plan
+2. Show the active exercise and current set progress
+3. Let the user start the set
+4. Let the user finish the set
+5. After the set is finished, prompt for reps
+6. Prompt for optional weight
+7. Log the completed set through the existing session event flow
+8. Advance to the next set or next exercise
+9. If applicable, show the partner turn or hype state between turns
+
+Planned set count remains a target and progress indicator, not pre-completed data.
+
+The live room should log sets against the selected exercise's stable identity:
+
+- catalog exercises use their catalog `exerciseId`
+- custom exercises use their plan entry `id`
+
+The UI and event text should still show the human-readable exercise name.
+
+## Visual Design Direction
+
+### Session Palette
+
+Adopt the approved Figma session palette:
+
+- `navy-900`: `#0A0E27`
+- `navy-800`: `#151B3D`
+- `navy-700`: `#1E2749`
+- `neon-green`: `#39FF14`
+- `neon-green-hover`: `#2EE00F`
+- `gray-400`: `#8B8B98`
+- `gray-300`: `#A0A0AC`
+
+### Visual Intent
+
+The session experience should feel like:
+
+- deep navy performance surfaces
+- bright, high-contrast action moments
+- cleaner and more focused than the current zinc and purple treatment
+- athletic and energetic rather than glossy or ornamental
+
+### Rollout Scope
+
+Apply the new palette first to the session journey:
+
+- `StartSessionPage`
+- `GymSessionSetupPage`
+- `SessionRoomPage` gym mode
+
+Update shared theme tokens in `app_theme.dart` where that can be done safely without forcing a risky full-app repaint in the same iteration.
+
+### UI Notes
+
+- Clearly distinguish planned set counts from completed sets.
+- Do not use free-text as the default exercise-entry path in the gym setup flow.
+- Prefer a searchable selection sheet or full-screen picker backed by the exercise catalog.
+- Show `Add Custom Exercise` only as a clear fallback when search does not find the needed movement.
+- Use the neon green for primary action states such as start, ready, and finish.
+- Use navy surfaces and subtle elevation instead of the current near-black and purple-heavy feel.
+- Keep participant readiness and active-athlete focus visually obvious.
+
+## Routing And Services
 
 ### Routing
 
-Add a route for the setup page, for example:
+Add a dedicated setup route, for example:
 
 - `/session/setup/:sessionId`
 
-Routing rules:
+Rules:
 
-- `StartSessionPage` routes gym sessions to setup.
-- Non-gym sessions still route to `/session/room/:sessionId`.
-- If a gym session is already `phase=live`, opening its setup link should redirect to the live room.
+- gym start routes to setup
+- non-gym start routes to room
+- opening a setup route for a live gym session redirects to the room
 
-### Service Layer
+### SessionService Changes
 
-Extend `SessionService` with gym-setup specific methods:
+Extend `SessionService` with gym-specific capabilities:
 
-- create gym session with `phase=setup`
-- save host template plan
-- create participant plan from host template
-- save personal plan
+- create gym sessions with `phase = setup`
+- save the host template plan
+- create a participant plan from the host template
+- save personal plan edits
 - set participant ready state
-- start live phase when all joined participants are ready
-- listen to personal plan
-- listen to participant readiness
+- determine when all joined participants are ready
+- promote the session atomically to `phase = live`
+- listen to personal plans
+- listen to readiness state
 
-Use Firestore transactions or batched writes when promoting the session from `setup` to `live` so the phase transition is atomic.
-
-## Detailed Flow
-
-### Host Starts a Gym Session
-
-1. User selects `Gym` and taps start.
-2. App creates the session with:
-   - `status=active`
-   - `phase=setup`
-3. App navigates the host to the setup page.
-4. Host creates the initial exercise list and planned sets.
-5. Host taps `Ready`.
-6. The host plan is saved and host readiness becomes `true`.
-7. If all joined participants are ready, the session transitions to `phase=live`.
-
-### Invited User Joins During Setup
-
-1. Invited user opens the session.
-2. App joins them to the session participant list if needed.
-3. App checks for `plans/{userId}`.
-4. If no personal plan exists, the app clones the host template into that document.
-5. User edits their personal plan if desired.
-6. User taps `Ready`.
-7. When every joined participant is ready, the session becomes live.
-
-### Logging During Live Session
-
-1. Gym live room loads the participant's personal plan.
-2. User selects the exercise they are currently performing.
-3. User completes a set.
-4. User enters weight and reps for that completed set.
-5. The app logs the set with the current exercise name using the existing session event flow.
+Use transactions or batched writes for setup-to-live promotion.
 
 ## Error Handling
 
-- If the host has not created at least one exercise with at least one planned set, the host cannot mark ready.
-- If a participant plan cannot be cloned from the host template, the setup page shows a retry state instead of navigating to live mode.
-- If readiness updates fail, keep the user on the setup page and surface a snackbar with retry guidance.
-- If the session phase changes to `live` while someone is still on setup, the page should redirect automatically into the live room.
-- If a participant loses connectivity during setup, local edits should remain in the form until save succeeds, but the authoritative ready state remains server-backed.
-
-## UI Notes
-
-- Reuse the existing premium visual language from the session feature.
-- Show a clear distinction between:
-  - planned set count during setup
-  - completed set count during the live session
-- Setup should visually communicate:
-  - whose plan is being edited
-  - which participants are ready
-  - whether the session is waiting on other people
+- If the host plan is empty or invalid, keep `Ready` disabled.
+- If a participant plan cannot be cloned, show a retry state on setup instead of silently failing.
+- If readiness cannot be saved, keep the user on setup and show retry guidance.
+- If the session reaches `live` while a user is still editing, redirect automatically.
+- If network connectivity drops during setup, preserve local edits in the form until save succeeds.
+- If a partner has not finished setup yet, make the waiting state explicit instead of leaving the user on an ambiguous loading view.
 
 ## Testing Strategy
 
 ### Unit Tests
 
-- plan model serialization and deserialization
-- cloning host plan into a participant plan
+- planning model serialization and deserialization
+- host-template cloning into participant plans
 - readiness aggregation logic
-- promotion from `setup` to `live` only when all joined participants are ready
+- atomic promotion from `setup` to `live`
 
 ### Widget Tests
 
-- gym start button routes to setup instead of live room
-- host can add exercises and planned set counts
-- participant sees host template as initial data
-- participant edits do not affect host data
-- ready button is disabled until the plan is valid
+- gym start routes to setup instead of room
+- host can build and validate a plan
+- host selects exercises from the catalog instead of typing them
+- missing catalog exercises can be added through the custom fallback
+- participants receive a host-derived starting plan
+- participant edits do not mutate host data
+- ready is disabled until the plan is valid
+- gym room shows guided live controls instead of the old free-form input flow
 
 ### Integration Coverage
 
-- host creates a gym session, defines a plan, and reaches setup phase
-- invitee joins, receives copied plan, edits their own plan, and marks ready
-- once all joined participants are ready, both users land in the live room
-- live room logs weight and reps against planned exercises
+- host creates a gym session and lands in setup
+- invitee joins and receives a private copy of the host plan
+- invitee edits their plan without affecting the host
+- all joined participants tap ready and both users transition into the room
+- live room logs completed sets using post-set reps and weight entry
 
 ## Implementation Boundaries
 
-- Keep the new planning logic additive so current non-gym sessions keep working without migration risk.
-- Keep planning models and completed-set models separate.
-- Avoid large-scale refactoring of `SessionRoomPage`; only extract the gym-specific live input behavior needed to consume planned exercises.
+- Keep the migration gym-specific and additive.
+- Reuse the existing session backend architecture rather than inventing a parallel system.
+- Prefer one new setup page and a targeted gym-room upgrade over a large routing explosion.
+- Keep planning state separate from completed-set state.
+- Keep the session-theme rollout focused on the session journey first.
