@@ -306,6 +306,145 @@ void main() {
       );
     });
 
+    test('createSession defaults phase to live', () async {
+      final hostId = 'host_123';
+
+      when(() => mockUserCacheService.getUser(hostId)).thenAnswer(
+        (_) async => User(
+          id: hostId,
+          displayName: 'Host',
+          photoURL: null,
+          isPrivate: false,
+          workoutPreference: WorkoutType.other,
+          beginnerFlag: false,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+      final mockQuery = MockQuery();
+      final mockSnapshot = MockQuerySnapshot();
+      when(
+        () =>
+            mockSessionsCollection.where('participants', arrayContains: hostId),
+      ).thenReturn(mockQuery);
+      when(
+        () => mockQuery.where('status', isEqualTo: 'active'),
+      ).thenReturn(mockQuery);
+      when(() => mockQuery.get()).thenAnswer((_) async => mockSnapshot);
+      when(() => mockSnapshot.docs).thenReturn([]);
+
+      await sessionService.createSession(
+        hostId: hostId,
+        type: 'gym',
+        title: 'Live Gym Session',
+      );
+
+      final capturedPayloads =
+          verify(
+                () => mockBatch.set<Map<String, Object?>>(
+                  mockSessionDoc,
+                  captureAny(),
+                  any(),
+                ),
+              ).captured
+              .whereType<Map<String, Object?>>()
+              .toList();
+      expect(
+        capturedPayloads.any(
+          (payload) => payload['phase'] == SessionPhase.live.value,
+        ),
+        isTrue,
+      );
+    });
+
+    test('createSession seeds an empty host template for setup sessions', () async {
+      final hostId = 'host_123';
+      final mockPlansCollection = MockCollectionReference();
+      final mockHostPlanDoc = MockDocumentReference();
+
+      when(() => mockUserCacheService.getUser(hostId)).thenAnswer(
+        (_) async => User(
+          id: hostId,
+          displayName: 'Host',
+          photoURL: null,
+          isPrivate: false,
+          workoutPreference: WorkoutType.other,
+          beginnerFlag: false,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+      final mockQuery = MockQuery();
+      final mockSnapshot = MockQuerySnapshot();
+      when(
+        () =>
+            mockSessionsCollection.where('participants', arrayContains: hostId),
+      ).thenReturn(mockQuery);
+      when(
+        () => mockQuery.where('status', isEqualTo: 'active'),
+      ).thenReturn(mockQuery);
+      when(() => mockQuery.get()).thenAnswer((_) async => mockSnapshot);
+      when(() => mockSnapshot.docs).thenReturn([]);
+
+      when(() => mockSessionDoc.collection('plans')).thenReturn(mockPlansCollection);
+      when(() => mockPlansCollection.doc(hostId)).thenReturn(mockHostPlanDoc);
+
+      await sessionService.createSession(
+        hostId: hostId,
+        type: 'gym',
+        title: 'Gym Setup',
+        phase: SessionPhase.setup,
+      );
+
+      verify(
+        () => mockBatch.set<Map<String, dynamic>>(
+          mockHostPlanDoc,
+          any(
+            that: isA<Map<String, dynamic>>()
+                .having((m) => m['userId'], 'userId', hostId)
+                .having(
+                  (m) => m['source'],
+                  'source',
+                  GymSessionPlanSource.hostTemplate.value,
+                )
+                .having((m) => m['isReady'], 'isReady', false)
+                .having((m) => m['exercises'], 'exercises', isEmpty),
+          ),
+          any(),
+        ),
+      ).called(1);
+    });
+
+    test('saveGymPlan persists the user plan document', () async {
+      const sessionId = 'session_123';
+      const userId = 'user_456';
+      final mockPlansCollection = MockCollectionReference();
+      final mockUserPlanDoc = MockDocumentReference();
+      final plan = GymSessionPlan(
+        userId: userId,
+        source: GymSessionPlanSource.personal,
+        isReady: false,
+        exercises: [
+          PlannedExercise.custom(
+            id: 'custom_1',
+            name: 'JM Press',
+            plannedSets: 3,
+            order: 0,
+          ),
+        ],
+      );
+
+      when(() => mockSessionDoc.collection('plans')).thenReturn(mockPlansCollection);
+      when(() => mockPlansCollection.doc(userId)).thenReturn(mockUserPlanDoc);
+      when(() => mockUserPlanDoc.set(any())).thenAnswer((_) async {});
+
+      await sessionService.saveGymPlan(sessionId: sessionId, plan: plan);
+
+      verify(() => mockUserPlanDoc.set(plan.toMap())).called(1);
+    });
+
     test('ensureGymPlan clones host template when participant plan is missing', () async {
       const sessionId = 'session_123';
       const hostId = 'host_123';
@@ -367,6 +506,45 @@ void main() {
           ),
         ),
       ).called(1);
+    });
+
+    test('listenToGymPlan emits decoded user plans', () async {
+      const sessionId = 'session_123';
+      const userId = 'user_456';
+      final mockPlansCollection = MockCollectionReference();
+      final mockUserPlanDoc = MockDocumentReference();
+      final mockUserPlanSnapshot = MockDocumentSnapshot();
+      const encodedPlan = {
+        'userId': userId,
+        'source': 'personal',
+        'isReady': true,
+        'exercises': [
+          {
+            'id': 'custom_1',
+            'sourceType': 'custom',
+            'name': 'JM Press',
+            'plannedSets': 3,
+            'order': 0,
+          },
+        ],
+      };
+
+      when(() => mockSessionDoc.collection('plans')).thenReturn(mockPlansCollection);
+      when(() => mockPlansCollection.doc(userId)).thenReturn(mockUserPlanDoc);
+      when(
+        () => mockUserPlanDoc.snapshots(),
+      ).thenAnswer((_) => Stream.value(mockUserPlanSnapshot));
+      when(() => mockUserPlanSnapshot.exists).thenReturn(true);
+      when(() => mockUserPlanSnapshot.data()).thenReturn(encodedPlan);
+
+      final emittedPlan = await sessionService
+          .listenToGymPlan(sessionId, userId)
+          .first;
+
+      expect(emittedPlan, isNotNull);
+      expect(emittedPlan!.userId, userId);
+      expect(emittedPlan.isReady, isTrue);
+      expect(emittedPlan.exercises.single.name, 'JM Press');
     });
 
     test('setGymPlanReady promotes session to live when all participants are ready', () async {
@@ -434,6 +612,105 @@ void main() {
           'phase': SessionPhase.live.value,
         }),
       ).called(1);
+    });
+
+    test('setGymPlanReady does not re-promote sessions that are already live', () async {
+      const sessionId = 'session_123';
+      const userId = 'user_1';
+      const otherUserId = 'user_2';
+
+      final mockPlansCollection = MockCollectionReference();
+      final mockUserPlanDoc = MockDocumentReference();
+      final mockOtherPlanDoc = MockDocumentReference();
+      final mockSessionSnapshot = MockDocumentSnapshot();
+      final mockUserPlanSnapshot = MockDocumentSnapshot();
+      final mockOtherPlanSnapshot = MockDocumentSnapshot();
+
+      when(() => mockSessionDoc.collection('plans')).thenReturn(mockPlansCollection);
+      when(() => mockPlansCollection.doc(userId)).thenReturn(mockUserPlanDoc);
+      when(() => mockPlansCollection.doc(otherUserId)).thenReturn(mockOtherPlanDoc);
+      when(
+        () => mockTransaction.get(mockSessionDoc),
+      ).thenAnswer((_) async => mockSessionSnapshot);
+      when(
+        () => mockTransaction.get(mockUserPlanDoc),
+      ).thenAnswer((_) async => mockUserPlanSnapshot);
+      when(
+        () => mockTransaction.get(mockOtherPlanDoc),
+      ).thenAnswer((_) async => mockOtherPlanSnapshot);
+      when(() => mockSessionSnapshot.data()).thenReturn({
+        'participants': [userId, otherUserId],
+        'phase': SessionPhase.live.value,
+      });
+      when(() => mockUserPlanSnapshot.exists).thenReturn(true);
+      when(() => mockOtherPlanSnapshot.exists).thenReturn(true);
+      when(() => mockUserPlanSnapshot.data()).thenReturn({
+        'userId': userId,
+        'source': GymSessionPlanSource.personal.value,
+        'isReady': false,
+        'exercises': const [],
+      });
+      when(() => mockOtherPlanSnapshot.data()).thenReturn({
+        'userId': otherUserId,
+        'source': GymSessionPlanSource.personal.value,
+        'isReady': true,
+        'exercises': const [],
+      });
+      when(
+        () => mockTransaction.update(any(), any()),
+      ).thenAnswer((_) => mockTransaction);
+
+      await sessionService.setGymPlanReady(
+        sessionId: sessionId,
+        userId: userId,
+        isReady: true,
+      );
+
+      verify(
+        () => mockTransaction.update(mockUserPlanDoc, {'isReady': true}),
+      ).called(1);
+      verifyNever(
+        () => mockTransaction.update(mockSessionDoc, {
+          'phase': SessionPhase.live.value,
+        }),
+      );
+    });
+
+    test('setGymPlanReady rejects missing plans instead of creating empty ready plans', () async {
+      const sessionId = 'session_123';
+      const userId = 'user_1';
+
+      final mockPlansCollection = MockCollectionReference();
+      final mockUserPlanDoc = MockDocumentReference();
+      final mockSessionSnapshot = MockDocumentSnapshot();
+      final mockUserPlanSnapshot = MockDocumentSnapshot();
+
+      when(() => mockSessionDoc.collection('plans')).thenReturn(mockPlansCollection);
+      when(() => mockPlansCollection.doc(userId)).thenReturn(mockUserPlanDoc);
+      when(
+        () => mockTransaction.get(mockSessionDoc),
+      ).thenAnswer((_) async => mockSessionSnapshot);
+      when(
+        () => mockTransaction.get(mockUserPlanDoc),
+      ).thenAnswer((_) async => mockUserPlanSnapshot);
+      when(() => mockSessionSnapshot.data()).thenReturn({
+        'participants': [userId],
+        'phase': SessionPhase.setup.value,
+      });
+      when(() => mockUserPlanSnapshot.exists).thenReturn(false);
+      when(() => mockUserPlanSnapshot.data()).thenReturn(null);
+
+      expect(
+        () => sessionService.setGymPlanReady(
+          sessionId: sessionId,
+          userId: userId,
+          isReady: true,
+        ),
+        throwsA(isA<StateError>()),
+      );
+
+      verifyNever(() => mockTransaction.set(any(), any()));
+      verifyNever(() => mockTransaction.update(mockSessionDoc, any()));
     });
   });
 }

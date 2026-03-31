@@ -84,6 +84,19 @@ class SessionService {
       'phase': phase.value,
     });
 
+    if (phase == SessionPhase.setup) {
+      final hostPlanRef = sessionRef.collection('plans').doc(hostId);
+      batch.set(
+        hostPlanRef,
+        GymSessionPlan(
+          userId: hostId,
+          source: GymSessionPlanSource.hostTemplate,
+          isReady: false,
+          exercises: const [],
+        ).toMap(),
+      );
+    }
+
     final startEventRef = sessionRef
         .collection('events')
         .doc('start_${hostId}_${DateTime.now().millisecondsSinceEpoch}');
@@ -471,6 +484,9 @@ class SessionService {
       if (sessionData == null) {
         throw Exception('Session not found: $sessionId');
       }
+      final currentPhase = SessionPhase.fromString(
+        sessionData['phase'] as String? ?? SessionPhase.live.value,
+      );
 
       final participants =
           (sessionData['participants'] as List<dynamic>?)
@@ -478,16 +494,13 @@ class SessionService {
           const <String>[];
 
       final userPlanSnapshot = await transaction.get(userPlanRef);
-      if (userPlanSnapshot.exists) {
-        transaction.update(userPlanRef, {'isReady': isReady});
-      } else {
-        transaction.set(userPlanRef, {
-          'userId': userId,
-          'source': GymSessionPlanSource.personal.value,
-          'isReady': isReady,
-          'exercises': const [],
-        });
+      final userPlanData = userPlanSnapshot.data();
+      if (!userPlanSnapshot.exists || userPlanData == null) {
+        throw StateError(
+          'Gym plan must exist before readiness can be updated.',
+        );
       }
+      transaction.update(userPlanRef, {'isReady': isReady});
 
       final planReadiness = <String, bool>{userId: isReady};
       for (final participantId in participants) {
@@ -511,7 +524,8 @@ class SessionService {
         planReadiness[participantId] = GymSessionPlan.fromMap(planData).isReady;
       }
 
-      if (participants.isNotEmpty &&
+      if (currentPhase == SessionPhase.setup &&
+          participants.isNotEmpty &&
           participants.every((participantId) => planReadiness[participantId] == true)) {
         transaction.update(sessionRef, {'phase': SessionPhase.live.value});
       }
