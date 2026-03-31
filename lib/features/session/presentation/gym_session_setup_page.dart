@@ -206,7 +206,7 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
     final sessionAsync = ref.watch(currentSessionProvider(widget.sessionId));
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: AppColors.sessionNavy900,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -245,7 +245,7 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
         Text(
           'Preparing your gym session',
           style: TextStyle(
-            color: AppColors.textDark,
+            color: AppColors.sessionText,
             fontSize: 18,
             fontWeight: FontWeight.w600,
           ),
@@ -255,7 +255,7 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
         Text(
           'We are loading the setup details now.',
           style: TextStyle(
-            color: AppColors.textSecondaryDark,
+            color: AppColors.sessionMutedText,
             fontSize: 14,
           ),
           textAlign: TextAlign.center,
@@ -274,12 +274,12 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.12),
+              color: AppColors.sessionNeonGreen.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(20),
             ),
             child: const Icon(
               Icons.fitness_center_rounded,
-              color: AppColors.primary,
+              color: AppColors.sessionNeonGreen,
               size: 32,
             ),
           ),
@@ -287,7 +287,7 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
           const Text(
             'Gym session setup',
             style: TextStyle(
-              color: AppColors.textDark,
+              color: AppColors.sessionText,
               fontSize: 24,
               fontWeight: FontWeight.bold,
               letterSpacing: -0.4,
@@ -298,7 +298,7 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
           Text(
             'Prepare your plan before jumping into the live room.',
             style: TextStyle(
-              color: AppColors.textSecondaryDark,
+              color: AppColors.sessionMutedText,
               fontSize: 15,
             ),
             textAlign: TextAlign.center,
@@ -307,7 +307,7 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
           Text(
             session.title,
             style: const TextStyle(
-              color: AppColors.textDark,
+              color: AppColors.sessionText,
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
@@ -322,18 +322,28 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
               ),
             )
           else if (_isReady)
-            Card(
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: AppColors.sessionNavy800,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: AppColors.sessionNavy700),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [
-                    const Icon(Icons.schedule_rounded, size: 32),
+                    const Icon(
+                      Icons.schedule_rounded,
+                      size: 32,
+                      color: AppColors.sessionNeonGreen,
+                    ),
                     const SizedBox(height: 12),
                     const Text(
                       'Waiting for everyone to get ready',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
+                        color: AppColors.sessionText,
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -341,7 +351,7 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
                     Text(
                       'Your plan is saved. We will open the live room as soon as every participant is ready.',
                       style: TextStyle(
-                        color: AppColors.textSecondaryDark,
+                        color: AppColors.sessionMutedText,
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -358,6 +368,12 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
             ),
             const SizedBox(height: 16),
             FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.sessionNeonGreen,
+                foregroundColor: AppColors.sessionNavy900,
+                disabledBackgroundColor: AppColors.sessionNavy700,
+                disabledForegroundColor: AppColors.sessionGray400,
+              ),
               onPressed: _isPlanValid && !_isSavingReady
                   ? () => _markReady(session)
                   : null,
@@ -386,7 +402,7 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
         Text(
           title,
           style: const TextStyle(
-            color: AppColors.textDark,
+            color: AppColors.sessionText,
             fontSize: 18,
             fontWeight: FontWeight.w600,
           ),
@@ -396,7 +412,7 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
         Text(
           message,
           style: const TextStyle(
-            color: AppColors.textSecondaryDark,
+            color: AppColors.sessionMutedText,
             fontSize: 14,
           ),
           textAlign: TextAlign.center,

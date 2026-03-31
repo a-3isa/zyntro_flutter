@@ -13,7 +13,6 @@ import '../../auth/auth_providers.dart';
 import '../../../services/session_service.dart';
 import '../../../services/follow_service.dart';
 import '../../../core/models/models.dart';
-import '../../../widgets/zyntro_button.dart';
 import '../../../widgets/zyntro_card.dart';
 import '../../../widgets/premium_effects.dart';
 import '../../../utils/haptic_manager.dart';
@@ -171,18 +170,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
   }
 
   List<Color> _getCategoryGradient(String category) {
-    switch (category) {
-      case 'cardio':
-        return AppColors.secondaryGradient;
-      case 'strength':
-        return AppColors.primaryGradient;
-      case 'flexibility':
-        return AppColors.successGradient;
-      case 'mixed':
-        return AppColors.premiumGradient;
-      default:
-        return [AppColors.textSecondaryDark, AppColors.textTertiaryDark];
-    }
+    return AppColors.sessionAccentGradient;
   }
 
   @override
@@ -190,7 +178,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
     final selectedGradient = _getCategoryGradient(_selectedType.category);
     
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: AppColors.sessionNavy900,
       body: Column(
         children: [
           // Custom Header with Premium Styling
@@ -202,7 +190,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
               right: 16,
             ),
             decoration: BoxDecoration(
-              color: AppColors.surfaceDark,
+              color: AppColors.sessionNavy800,
               border: Border(
                 bottom: BorderSide(
                   color: selectedGradient.first.withValues(alpha: 0.2),
@@ -227,15 +215,15 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                   child: Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceSecondaryDark,
+                      color: AppColors.sessionNavy700,
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.05),
+                        color: AppColors.sessionGray400.withValues(alpha: 0.2),
                       ),
                     ),
                     child: const Icon(
                       Icons.close_rounded,
-                      color: AppColors.textDark,
+                      color: AppColors.sessionText,
                       size: 20,
                     ),
                   ),
@@ -249,7 +237,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                       fontWeight: FontWeight.bold,
                       letterSpacing: -0.5,
                     ),
-                    colors: [AppColors.textDark, AppColors.textSecondaryDark],
+                    colors: [AppColors.sessionText, AppColors.sessionMutedText],
                   ),
                 ),
               ],
@@ -329,7 +317,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                             child: Icon(
                               Icons.info_outline_rounded,
                               size: 16,
-                              color: AppColors.textTertiaryDark,
+                              color: AppColors.sessionGray400,
                             ),
                           ),
                         ],
@@ -356,12 +344,12 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                                 ),
                                 decoration: BoxDecoration(
                                   gradient: const LinearGradient(
-                                    colors: AppColors.primaryGradient,
+                                    colors: AppColors.sessionAccentGradient,
                                   ),
                                   borderRadius: BorderRadius.circular(20),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: AppColors.primary.withValues(alpha: 0.3),
+                                      color: AppColors.sessionNeonGreen.withValues(alpha: 0.3),
                                       blurRadius: 8,
                                       offset: const Offset(0, 2),
                                     ),
@@ -383,7 +371,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                       Text(
                         'Start solo or train together with mutual follows',
                         style: TextStyle(
-                          color: AppColors.textTertiaryDark,
+                          color: AppColors.sessionGray400,
                           fontSize: 13,
                         ),
                       ),
@@ -393,22 +381,25 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                       if (_mutualFollows.isNotEmpty || _isLoadingFollows)
                         GlassContainer(
                           blur: 10,
-                          backgroundColor: AppColors.surfaceSecondaryDark.withValues(alpha: 0.4),
+                          backgroundColor: AppColors.sessionNavy700.withValues(alpha: 0.7),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.05),
+                            color: AppColors.sessionGray400.withValues(alpha: 0.12),
                           ),
                           child: TextField(
                             controller: _searchController,
-                            style: const TextStyle(color: AppColors.textDark, fontSize: 14),
+                            style: const TextStyle(
+                              color: AppColors.sessionText,
+                              fontSize: 14,
+                            ),
                             decoration: InputDecoration(
                               hintText: 'Search friends...',
                               hintStyle: TextStyle(
-                                color: AppColors.textTertiaryDark,
+                                color: AppColors.sessionGray400,
                               ),
                               prefixIcon: Icon(
                                 Icons.search_rounded,
-                                color: AppColors.textSecondaryDark,
+                                color: AppColors.sessionMutedText,
                                 size: 20,
                               ),
                               border: InputBorder.none,
@@ -435,7 +426,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                               Icon(
                                 Icons.person_add_outlined,
                                 size: 48,
-                                color: AppColors.textTertiaryDark,
+                                color: AppColors.sessionGray400,
                               ),
                               const SizedBox(height: 16),
                               const Text(
@@ -443,14 +434,14 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 16,
-                                  color: AppColors.textDark,
+                                  color: AppColors.sessionText,
                                 ),
                               ),
                               const SizedBox(height: 4),
                               Text(
                                 'Start a solo session or find friends first!',
                                 style: TextStyle(
-                                  color: AppColors.textSecondaryDark,
+                                  color: AppColors.sessionMutedText,
                                   fontSize: 14,
                                 ),
                                 textAlign: TextAlign.center,
@@ -468,20 +459,37 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
 
                       // Start button
                       PulsingGlow(
-                        glowColor: AppColors.primary.withValues(alpha: 0.3),
-                        child: ZyntroButton(
-                          title: _selectedFriends.isEmpty
-                              ? 'Start ${_selectedType.displayName} Session'
-                              : 'Start with ${_selectedFriends.length + 1} athletes',
-                          fullWidth: true,
-                          size: ZyntroButtonSize.lg,
-                          variant: ZyntroButtonVariant.premium,
-                          loading: _isLoading,
-                          rightIcon: const Icon(Icons.bolt_rounded),
-                          onPressed: _isLoading ? null : () {
-                            HapticManager.heavy();
-                            _handleStartSession();
-                          },
+                        glowColor: AppColors.sessionNeonGreen.withValues(alpha: 0.35),
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppColors.sessionNeonGreen,
+                              foregroundColor: AppColors.sessionNavy900,
+                              padding: const EdgeInsets.symmetric(vertical: 18),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                            ),
+                            icon: _isLoading
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : const Icon(Icons.bolt_rounded),
+                            label: Text(
+                              _selectedFriends.isEmpty
+                                  ? 'Start ${_selectedType.displayName} Session'
+                                  : 'Start with ${_selectedFriends.length + 1} athletes',
+                            ),
+                            onPressed: _isLoading
+                                ? null
+                                : () {
+                                    HapticManager.heavy();
+                                    _handleStartSession();
+                                  },
+                          ),
                         ),
                       ),
 
@@ -520,10 +528,12 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                     end: Alignment.bottomRight,
                   )
                 : null,
-            color: isSelected ? null : AppColors.surfaceSecondaryDark.withValues(alpha: 0.4),
+            color: isSelected ? null : AppColors.sessionNavy800,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: isSelected ? Colors.white.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.05),
+              color: isSelected
+                  ? AppColors.sessionNeonGreen.withValues(alpha: 0.25)
+                  : AppColors.sessionNavy700,
               width: isSelected ? 2 : 1,
             ),
             boxShadow: isSelected
@@ -543,14 +553,16 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: isSelected
-                      ? Colors.white.withValues(alpha: 0.2)
+                      ? AppColors.sessionNavy900.withValues(alpha: 0.18)
                       : gradientColors.first.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Icon(
                   icon,
                   size: 32,
-                  color: isSelected ? Colors.white : gradientColors.first,
+                  color: isSelected
+                      ? AppColors.sessionNavy900
+                      : gradientColors.first,
                 ),
               ),
               const SizedBox(height: 12),
@@ -559,7 +571,9 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                 style: TextStyle(
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
                   fontSize: 14,
-                  color: isSelected ? Colors.white : AppColors.textDark,
+                  color: isSelected
+                      ? AppColors.sessionNavy900
+                      : AppColors.sessionText,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -570,7 +584,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                     width: 4,
                     height: 4,
                     decoration: const BoxDecoration(
-                      color: Colors.white,
+                      color: AppColors.sessionNavy900,
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -599,11 +613,13 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: isSelected
-                ? AppColors.primary.withValues(alpha: 0.1)
-                : AppColors.surfaceSecondaryDark.withValues(alpha: 0.4),
+                ? AppColors.sessionNeonGreen.withValues(alpha: 0.12)
+                : AppColors.sessionNavy800,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: isSelected ? AppColors.primary.withValues(alpha: 0.5) : Colors.white.withValues(alpha: 0.05),
+              color: isSelected
+                  ? AppColors.sessionNeonGreen.withValues(alpha: 0.5)
+                  : AppColors.sessionNavy700,
               width: isSelected ? 2 : 1,
             ),
           ),
@@ -613,8 +629,8 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: isSelected
-                      ? AppColors.primary.withValues(alpha: 0.15)
-                      : AppColors.surfaceDark.withValues(alpha: 0.5),
+                      ? AppColors.sessionNeonGreen.withValues(alpha: 0.18)
+                      : AppColors.sessionNavy700,
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Icon(
@@ -622,8 +638,8 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                       ? Icons.sync_alt_rounded
                       : Icons.compare_arrows_rounded,
                   color: isSelected
-                      ? AppColors.primary
-                      : AppColors.textSecondaryDark,
+                      ? AppColors.sessionNeonGreen
+                      : AppColors.sessionMutedText,
                   size: 24,
                 ),
               ),
@@ -638,8 +654,8 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
                         color: isSelected
-                            ? AppColors.primary
-                            : AppColors.textDark,
+                            ? AppColors.sessionNeonGreen
+                            : AppColors.sessionText,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -649,7 +665,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                           : 'Everyone logs simultaneously',
                       style: TextStyle(
                         fontSize: 13,
-                        color: AppColors.textSecondaryDark,
+                        color: AppColors.sessionMutedText,
                       ),
                     ),
                   ],
@@ -658,7 +674,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
               if (isSelected)
                 const Icon(
                   Icons.check_circle_rounded,
-                  color: AppColors.primary,
+                  color: AppColors.sessionNeonGreen,
                   size: 24,
                 )
               else
@@ -668,7 +684,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: AppColors.textTertiaryDark.withValues(alpha: 0.3),
+                      color: AppColors.sessionGray400.withValues(alpha: 0.4),
                       width: 2,
                     ),
                   ),
@@ -702,11 +718,13 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: isSelected
-                ? AppColors.primary.withValues(alpha: 0.1)
-                : AppColors.surfaceSecondaryDark.withValues(alpha: 0.4),
+                ? AppColors.sessionNeonGreen.withValues(alpha: 0.12)
+                : AppColors.sessionNavy800,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: isSelected ? AppColors.primary.withValues(alpha: 0.4) : Colors.white.withValues(alpha: 0.05),
+              color: isSelected
+                  ? AppColors.sessionNeonGreen.withValues(alpha: 0.45)
+                  : AppColors.sessionNavy700,
             ),
           ),
           child: Row(
@@ -717,7 +735,9 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: isSelected ? AppColors.primary : Colors.white.withValues(alpha: 0.1),
+                    color: isSelected
+                        ? AppColors.sessionNeonGreen
+                        : AppColors.sessionGray400.withValues(alpha: 0.25),
                     width: 2,
                   ),
                 ),
@@ -725,7 +745,8 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                   child: user.photoURL != null
                       ? CachedNetworkImage(
                           imageUrl: user.photoURL!,
-                          placeholder: (context, url) => Container(color: AppColors.surfaceDark),
+                          placeholder: (context, url) =>
+                              Container(color: AppColors.sessionNavy700),
                           errorWidget: (context, url, error) => _buildAvatarPlaceholder(user),
                           fit: BoxFit.cover,
                         )
@@ -742,14 +763,14 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 15,
-                        color: AppColors.textDark,
+                        color: AppColors.sessionText,
                       ),
                     ),
                     Text(
                       '@${user.id.substring(0, 8)}',
                       style: TextStyle(
                         fontSize: 12,
-                        color: AppColors.textTertiaryDark,
+                        color: AppColors.sessionGray400,
                       ),
                     ),
                   ],
@@ -760,7 +781,9 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                 child: Icon(
                   isSelected ? Icons.check_circle_rounded : Icons.add_circle_outline_rounded,
                   key: ValueKey(isSelected),
-                  color: isSelected ? AppColors.primary : AppColors.textTertiaryDark,
+                  color: isSelected
+                      ? AppColors.sessionNeonGreen
+                      : AppColors.sessionGray400,
                   size: 26,
                 ),
               ),
@@ -773,7 +796,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
 
   Widget _buildAvatarPlaceholder(User user) {
     return Container(
-      color: AppColors.surfaceDark,
+      color: AppColors.sessionNavy700,
       child: Center(
         child: Text(
           user.displayName.isNotEmpty ? user.displayName[0].toUpperCase() : '?',
@@ -795,7 +818,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
           padding: const EdgeInsets.only(bottom: 8),
           child: GlassContainer(
             blur: 5,
-            backgroundColor: AppColors.surfaceSecondaryDark.withValues(alpha: 0.3),
+            backgroundColor: AppColors.sessionNavy800.withValues(alpha: 0.75),
             borderRadius: BorderRadius.circular(16),
             padding: const EdgeInsets.all(12),
             child: Row(
@@ -837,7 +860,7 @@ class SectionHeader extends StatelessWidget {
         fontSize: 18,
         fontWeight: FontWeight.bold,
         letterSpacing: -0.3,
-        color: AppColors.textDark,
+        color: AppColors.sessionText,
       ),
     );
   }

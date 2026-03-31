@@ -33,7 +33,7 @@ class GymLiveSessionPanel extends StatelessWidget {
     if (!isUsersTurn) {
       return _GymLiveCard(
         icon: Icons.visibility_rounded,
-        accentColor: AppColors.secondary,
+        accentColor: AppColors.sessionGray400,
         title: 'Partner turn',
         subtitle: 'Cheer them on while they finish this set.',
         child: Column(
@@ -44,21 +44,21 @@ class GymLiveSessionPanel extends StatelessWidget {
               style: const TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
-                color: AppColors.textDark,
+                color: AppColors.sessionText,
               ),
             ),
             const SizedBox(height: 8),
             Text(
               setLabel,
               style: const TextStyle(
-                color: AppColors.textSecondaryDark,
+                color: AppColors.sessionMutedText,
                 fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(height: 8),
             Text(
               completedLabel,
-              style: const TextStyle(color: AppColors.textSecondaryDark),
+              style: const TextStyle(color: AppColors.sessionMutedText),
             ),
           ],
         ),
@@ -67,7 +67,9 @@ class GymLiveSessionPanel extends StatelessWidget {
 
     return _GymLiveCard(
       icon: isWorkoutComplete ? Icons.verified_rounded : Icons.fitness_center,
-      accentColor: isWorkoutComplete ? AppColors.success : AppColors.primary,
+      accentColor: isWorkoutComplete
+          ? AppColors.sessionNeonGreen
+          : AppColors.sessionNeonGreen,
       title: isWorkoutComplete ? 'Planned workout complete' : 'Your next set',
       subtitle: isWorkoutComplete
           ? 'You finished every planned set for this exercise.'
@@ -80,7 +82,7 @@ class GymLiveSessionPanel extends StatelessWidget {
             style: const TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
-              color: AppColors.textDark,
+              color: AppColors.sessionText,
             ),
           ),
           const SizedBox(height: 12),
@@ -90,11 +92,11 @@ class GymLiveSessionPanel extends StatelessWidget {
             children: [
               _MetricPill(
                 label: setLabel,
-                accentColor: AppColors.primary,
+                accentColor: AppColors.sessionNeonGreen,
               ),
               _MetricPill(
                 label: completedLabel,
-                accentColor: AppColors.success,
+                accentColor: AppColors.sessionGray400,
               ),
             ],
           ),
@@ -104,6 +106,10 @@ class GymLiveSessionPanel extends StatelessWidget {
               width: double.infinity,
               child: FilledButton.icon(
                 onPressed: isSetRunning ? onFinishSet : onStartSet,
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.sessionNeonGreen,
+                  foregroundColor: AppColors.sessionNavy900,
+                ),
                 icon: Icon(
                   isSetRunning ? Icons.flag_rounded : Icons.play_arrow_rounded,
                 ),
@@ -135,9 +141,9 @@ class _GymLiveCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+        color: AppColors.sessionNavy800,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: accentColor.withValues(alpha: 0.18)),
+        border: Border.all(color: accentColor.withValues(alpha: 0.24)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -164,14 +170,14 @@ class _GymLiveCard extends StatelessWidget {
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.textDark,
+                          color: AppColors.sessionText,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         subtitle,
                         style: const TextStyle(
-                          color: AppColors.textSecondaryDark,
+                          color: AppColors.sessionMutedText,
                         ),
                       ),
                     ],

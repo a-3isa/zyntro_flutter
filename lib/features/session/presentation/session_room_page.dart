@@ -1629,21 +1629,21 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   }) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+        color: AppColors.sessionNavy800,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.12)),
+        border: Border.all(color: AppColors.sessionNavy700),
       ),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: AppColors.primary, size: 28),
+            Icon(icon, color: AppColors.sessionNeonGreen, size: 28),
             const SizedBox(height: 12),
             Text(
               title,
               style: const TextStyle(
-                color: AppColors.textDark,
+                color: AppColors.sessionText,
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
               ),
@@ -1652,7 +1652,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
             const SizedBox(height: 8),
             Text(
               message,
-              style: const TextStyle(color: AppColors.textSecondaryDark),
+              style: const TextStyle(color: AppColors.sessionMutedText),
               textAlign: TextAlign.center,
             ),
           ],
@@ -2797,6 +2797,20 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   }
 
   Widget _buildAnimatedBackground() {
+    final isGymSession = _workoutType == WorkoutType.gym;
+    final backgroundStart = isGymSession
+        ? AppColors.sessionNavy900
+        : const Color(0xFF0F172A);
+    final backgroundMiddle = isGymSession
+        ? AppColors.sessionNavy800
+        : const Color(0xFF1E293B);
+    final primaryGlow = isGymSession
+        ? AppColors.sessionNeonGreen.withValues(alpha: 0.14)
+        : AppColors.primary.withValues(alpha: 0.1);
+    final secondaryGlow = isGymSession
+        ? AppColors.sessionNavy700.withValues(alpha: 0.4)
+        : AppColors.secondary.withValues(alpha: 0.15);
+
     return Stack(
       children: [
         // Base gradient
@@ -2806,9 +2820,9 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                const Color(0xFF0F172A), // Slate 900
-                const Color(0xFF1E293B), // Slate 800
-                AppColors.primary.withValues(alpha: 0.1),
+                backgroundStart,
+                backgroundMiddle,
+                primaryGlow,
               ],
               stops: const [0.0, 0.5, 1.0],
             ),
@@ -2828,7 +2842,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    AppColors.primary.withValues(alpha: 0.2),
+                    primaryGlow,
                     Colors.transparent,
                   ],
                 ),
@@ -2849,7 +2863,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    AppColors.secondary.withValues(alpha: 0.15),
+                    secondaryGlow,
                     Colors.transparent,
                   ],
                 ),

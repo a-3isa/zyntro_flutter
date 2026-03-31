@@ -9,6 +9,16 @@ class AppFonts {
 
 /// Premium color scheme for Zyntro - VIP fitness aesthetic.
 class AppColors {
+  // Session palette from approved Figma prototypes.
+  static const Color sessionNavy900 = Color(0xFF0A0E27);
+  static const Color sessionNavy800 = Color(0xFF151B3D);
+  static const Color sessionNavy700 = Color(0xFF1E2749);
+  static const Color sessionNeonGreen = Color(0xFF39FF14);
+  static const Color sessionNeonGreenHover = Color(0xFF2EE00F);
+  static const Color sessionGray400 = Color(0xFF8B8B98);
+  static const Color sessionMutedText = Color(0xFFA0A0AC);
+  static const Color sessionText = Color(0xFFF6F8FF);
+
   // Primary colors - Neon Cyan
   static const Color primary = Color(0xFF00D9FF);
   static const Color primaryDark = Color(0xFF00A8CC);
@@ -140,6 +150,11 @@ class AppColors {
     Color(0xFFFF6B6B),
     Color(0xFFFF8E53),
     Color(0xFFFFD93D),
+  ];
+
+  static const List<Color> sessionAccentGradient = [
+    sessionNeonGreen,
+    sessionNeonGreenHover,
   ];
 }
 
