@@ -221,5 +221,21 @@ enum SessionMode {
   }
 }
 
+/// Session phase enum for gym session flow.
+enum SessionPhase {
+  setup('setup'),
+  live('live');
+
+  final String value;
+  const SessionPhase(this.value);
+
+  static SessionPhase fromString(String value) {
+    return SessionPhase.values.firstWhere(
+      (e) => e.value == value,
+      orElse: () => SessionPhase.live,
+    );
+  }
+}
+
 /// App name constant.
 const String appName = 'Zyntro';

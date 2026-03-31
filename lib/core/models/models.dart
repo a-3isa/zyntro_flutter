@@ -109,6 +109,7 @@ class Session {
   final String hostId;
   final List<String> participants;
   final SessionStatus status;
+  final SessionPhase phase;
   final String? buddyPairId;
   final SessionMode mode;
   final String? activeUserId;
@@ -124,6 +125,7 @@ class Session {
     required this.hostId,
     required this.participants,
     required this.status,
+    this.phase = SessionPhase.live,
     this.buddyPairId,
     required this.mode,
     this.activeUserId,
@@ -143,6 +145,7 @@ class Session {
       participants:
           (data['participants'] as List<dynamic>?)?.cast<String>() ?? [],
       status: SessionStatus.fromString(data['status'] ?? 'active'),
+      phase: SessionPhase.fromString(data['phase'] ?? 'live'),
       buddyPairId: data['buddyPairId'],
       mode: SessionMode.fromString(data['mode'] ?? 'turn_based'),
       activeUserId: data['activeUserId'],
