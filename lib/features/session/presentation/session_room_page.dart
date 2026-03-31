@@ -9,8 +9,8 @@ import 'dart:ui';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/models/models.dart';
 import '../../../core/constants/constants.dart';
+import '../../auth/auth_providers.dart';
 import '../../../services/session_service.dart';
-import '../../../services/auth_service.dart';
 import '../../../services/voice_recording_service.dart';
 
 import '../../../services/presence_service.dart';
@@ -255,8 +255,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   }
 
   Future<void> _loadNotificationPreferences() async {
-    final authState = ref.read(authStateProvider);
-    final uid = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final uid = authState.valueOrNull?.id;
     if (uid != null) {
       final prefs = await ref
           .read(notificationServiceProvider)
@@ -270,8 +270,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   }
 
   Future<void> _loadRecentExercises() async {
-    final authState = ref.read(authStateProvider);
-    final uid = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final uid = authState.valueOrNull?.id;
     if (uid != null) {
       final exercises = await ref
           .read(sessionAnalyticsServiceProvider)
@@ -310,8 +310,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   }
 
   Future<void> _initPresence() async {
-    final authState = ref.read(authStateProvider);
-    final uid = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final uid = authState.valueOrNull?.id;
     if (uid != null) {
       // Set initial status
       await ref.read(presenceServiceProvider).setOnline(widget.sessionId, uid);
@@ -477,8 +477,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    final authState = ref.read(authStateProvider);
-    final uid = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final uid = authState.valueOrNull?.id;
     if (uid == null) return;
 
     final presenceService = ref.read(presenceServiceProvider);
@@ -525,8 +525,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   }
 
   Future<void> _setOfflinePresence() async {
-    final authState = ref.read(authStateProvider);
-    final uid = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final uid = authState.valueOrNull?.id;
     if (uid != null) {
       await ref.read(presenceServiceProvider).setOffline(widget.sessionId, uid);
     }
@@ -534,8 +534,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
 
   // Monitor events for voice notes
   void _monitorVoiceNotes(List<TimelineEvent> events) async {
-    final authState = ref.read(authStateProvider);
-    final uid = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final uid = authState.valueOrNull?.id;
     if (uid == null) return;
 
     // Get perfs inside method or cache them
@@ -675,8 +675,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     final session = ref
         .read(currentSessionProvider(widget.sessionId))
         .valueOrNull;
-    final authState = ref.read(authStateProvider);
-    final uid = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final uid = authState.valueOrNull?.id;
 
     if (session != null &&
         session.mode == SessionMode.turnBased &&
@@ -697,8 +697,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     setState(() => _isLogging = true);
 
     try {
-      final authState = ref.read(authStateProvider);
-      final uid = authState.valueOrNull?.uid;
+      final authState = ref.read(authSessionProvider);
+      final uid = authState.valueOrNull?.id;
       if (uid == null) return;
 
       // Add to local exercises
@@ -869,8 +869,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     final session = ref
         .read(currentSessionProvider(widget.sessionId))
         .valueOrNull;
-    final authState = ref.read(authStateProvider);
-    final uid = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final uid = authState.valueOrNull?.id;
 
     if (session != null &&
         session.mode == SessionMode.turnBased &&
@@ -1092,8 +1092,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     });
 
     try {
-      final authState = ref.read(authStateProvider);
-      final uid = authState.valueOrNull?.uid;
+      final authState = ref.read(authSessionProvider);
+      final uid = authState.valueOrNull?.id;
       if (uid == null) return;
 
       // Calculate duration in seconds for storage
@@ -1153,7 +1153,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         final session = await sessionService.getSession(widget.sessionId);
         if (session != null) {
           final userDoc = await ref
-              .read(firestoreProvider)
+              .read(authFirestoreProvider)
               .collection('users')
               .doc(uid)
               .get();
@@ -1199,8 +1199,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   // Send cheer emoji
   Future<void> _sendCheer(String emoji) async {
     try {
-      final authState = ref.read(authStateProvider);
-      final uid = authState.valueOrNull?.uid;
+      final authState = ref.read(authSessionProvider);
+      final uid = authState.valueOrNull?.id;
       if (uid == null) return;
 
       HapticFeedback.lightImpact();
@@ -1252,8 +1252,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   // Handle Pass Turn
   Future<void> _handlePassTurn() async {
     try {
-      final authState = ref.read(authStateProvider);
-      final uid = authState.valueOrNull?.uid;
+      final authState = ref.read(authSessionProvider);
+      final uid = authState.valueOrNull?.id;
       if (uid == null) return;
 
       if (_isOffline) {
@@ -1445,8 +1445,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
 
     setState(() => _isLogging = true);
     try {
-      final authState = ref.read(authStateProvider);
-      final uid = authState.valueOrNull?.uid;
+      final authState = ref.read(authSessionProvider);
+      final uid = authState.valueOrNull?.id;
       if (uid == null) return;
 
       final eventText = '${_workoutType.displayName}: ${duration}min session';
@@ -2298,8 +2298,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     double totalVolume = 0.0;
     double totalDistance = 0.0;
 
-    final authState = ref.read(authStateProvider);
-    final uid = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final uid = authState.valueOrNull?.id;
     if (uid == null) return;
 
     final myProgress = _participantProgress[uid];
@@ -2354,8 +2354,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         .fold<double>(0.0, (a, b) => a > b ? a : b);
 
     return _participantProgress.entries.map((entry) {
-      final authState = ref.read(authStateProvider);
-      final isCurrentUser = entry.key == authState.valueOrNull?.uid;
+      final authState = ref.read(authSessionProvider);
+      final isCurrentUser = entry.key == authState.valueOrNull?.id;
       final progress = entry.value;
 
       // Determine if leader in each category
@@ -2611,8 +2611,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       next.whenData((session) async {
         if (session == null) return;
         final previousSession = previous?.valueOrNull;
-        final authState = ref.read(authStateProvider);
-        final currentUserId = authState.valueOrNull?.uid;
+        final authState = ref.read(authSessionProvider);
+        final currentUserId = authState.valueOrNull?.id;
 
         // Check if turn changed to me
         if (session.mode == SessionMode.turnBased &&
@@ -2800,8 +2800,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                     return const SizedBox.shrink();
                   }
 
-                  final authState = ref.read(authStateProvider);
-                  final uid = authState.valueOrNull?.uid;
+                  final authState = ref.read(authSessionProvider);
+                  final uid = authState.valueOrNull?.id;
                   final isMyTurn = session.activeUserId == uid;
 
                   return Container(
@@ -3116,8 +3116,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                     return const SizedBox.shrink();
                   }
 
-                  final authState = ref.read(authStateProvider);
-                  final uid = authState.valueOrNull?.uid;
+                  final authState = ref.read(authSessionProvider);
+                  final uid = authState.valueOrNull?.id;
                   final isMyTurn = session.activeUserId == uid;
 
                   if (!isMyTurn) return const SizedBox.shrink();
@@ -3280,9 +3280,9 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                         else
                           // Buddy mode: Show all users
                           ..._participantProgress.entries.map((entry) {
-                            final authState = ref.read(authStateProvider);
+                            final authState = ref.read(authSessionProvider);
                             final isCurrentUser =
-                                entry.key == authState.valueOrNull?.uid;
+                                entry.key == authState.valueOrNull?.id;
                             final label = isCurrentUser ? 'You' : 'Partner';
 
                             if (_workoutType.isCardio ||
