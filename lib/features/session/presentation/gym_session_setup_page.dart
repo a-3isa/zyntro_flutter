@@ -7,6 +7,9 @@ import '../../../core/constants/constants.dart';
 import '../../../core/models/models.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../services/session_service.dart';
+import '../domain/gym_session_plan.dart';
+import 'widgets/gym_exercise_picker_sheet.dart';
+import 'widgets/gym_plan_editor.dart';
 
 /// Minimal shell for gym setup sessions.
 class GymSessionSetupPage extends ConsumerStatefulWidget {
@@ -21,6 +24,85 @@ class GymSessionSetupPage extends ConsumerStatefulWidget {
 
 class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
   bool _didRedirect = false;
+  List<PlannedExercise> _draftExercises = const [];
+
+  Future<void> _openExercisePicker() async {
+    final selected = await showModalBottomSheet<PlannedExercise>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return GymExercisePickerSheet(
+          onExerciseSelected: (exercise) => Navigator.of(context).pop(exercise),
+        );
+      },
+    );
+
+    if (!mounted || selected == null) return;
+    setState(() {
+      _draftExercises = [
+        ..._draftExercises,
+        _withOrderAndSets(
+          exercise: selected,
+          order: _draftExercises.length,
+          plannedSets: selected.plannedSets,
+        ),
+      ];
+    });
+  }
+
+  void _removeExercise(int index) {
+    setState(() {
+      final updated = [..._draftExercises]..removeAt(index);
+      _draftExercises = _reindexExercises(updated);
+    });
+  }
+
+  void _updatePlannedSets(int index, int plannedSets) {
+    final updated = [..._draftExercises];
+    updated[index] = _withOrderAndSets(
+      exercise: updated[index],
+      order: index,
+      plannedSets: plannedSets,
+    );
+    setState(() => _draftExercises = updated);
+  }
+
+  List<PlannedExercise> _reindexExercises(List<PlannedExercise> exercises) {
+    return exercises.asMap().entries.map((entry) {
+      return _withOrderAndSets(
+        exercise: entry.value,
+        order: entry.key,
+        plannedSets: entry.value.plannedSets,
+      );
+    }).toList();
+  }
+
+  PlannedExercise _withOrderAndSets({
+    required PlannedExercise exercise,
+    required int order,
+    required int plannedSets,
+  }) {
+    if (exercise.source == PlannedExerciseSource.catalog) {
+      return PlannedExercise.catalog(
+        id: exercise.id,
+        exerciseId: exercise.exerciseId!,
+        name: exercise.name,
+        plannedSets: plannedSets,
+        order: order,
+        muscleGroup: exercise.muscleGroup,
+        equipment: exercise.equipment,
+      );
+    }
+
+    return PlannedExercise.custom(
+      id: exercise.id,
+      name: exercise.name,
+      plannedSets: plannedSets,
+      order: order,
+      muscleGroup: exercise.muscleGroup,
+      equipment: exercise.equipment,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -100,54 +182,63 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
   }
 
   Widget _buildSetupShell(Session session) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(20),
+    return SingleChildScrollView(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Icon(
+              Icons.fitness_center_rounded,
+              color: AppColors.primary,
+              size: 32,
+            ),
           ),
-          child: const Icon(
-            Icons.fitness_center_rounded,
-            color: AppColors.primary,
-            size: 32,
+          const SizedBox(height: 20),
+          const Text(
+            'Gym session setup',
+            style: TextStyle(
+              color: AppColors.textDark,
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              letterSpacing: -0.4,
+            ),
+            textAlign: TextAlign.center,
           ),
-        ),
-        const SizedBox(height: 20),
-        const Text(
-          'Gym session setup',
-          style: TextStyle(
-            color: AppColors.textDark,
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            letterSpacing: -0.4,
+          const SizedBox(height: 10),
+          Text(
+            'Prepare your plan before jumping into the live room.',
+            style: TextStyle(
+              color: AppColors.textSecondaryDark,
+              fontSize: 15,
+            ),
+            textAlign: TextAlign.center,
           ),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 10),
-        Text(
-          'Prepare your plan before jumping into the live room.',
-          style: TextStyle(
-            color: AppColors.textSecondaryDark,
-            fontSize: 15,
+          const SizedBox(height: 20),
+          Text(
+            session.title,
+            style: const TextStyle(
+              color: AppColors.textDark,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.center,
           ),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 20),
-        Text(
-          session.title,
-          style: const TextStyle(
-            color: AppColors.textDark,
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
+          const SizedBox(height: 24),
+          GymPlanEditor(
+            exercises: _draftExercises,
+            onAddExercise: _openExercisePicker,
+            onRemoveExercise: _removeExercise,
+            onSetsChanged: _updatePlannedSets,
           ),
-          textAlign: TextAlign.center,
-        ),
-      ],
+        ],
+      ),
     );
   }
 

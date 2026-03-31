@@ -11,11 +11,25 @@ import 'package:zyntro_flutter/core/models/models.dart';
 import 'package:zyntro_flutter/features/auth/auth_providers.dart';
 import 'package:zyntro_flutter/features/auth/domain/entities/auth_user_entity.dart';
 import 'package:zyntro_flutter/features/session/presentation/gym_session_setup_page.dart';
+import 'package:zyntro_flutter/features/session/presentation/widgets/gym_plan_editor.dart';
 import 'package:zyntro_flutter/services/user_cache_service.dart';
 import 'package:zyntro_flutter/services/session_service.dart';
 
 class MockSessionService extends Mock implements SessionService {}
 class MockUserCacheService extends Mock implements UserCacheService {}
+
+Widget _buildApp({
+  required List<Override> overrides,
+}) {
+  return ProviderScope(
+    overrides: overrides,
+    child: const MaterialApp(
+      home: Scaffold(
+        body: GymSessionSetupPage(sessionId: 'session-1'),
+      ),
+    ),
+  );
+}
 
 void main() {
   testWidgets('shows loading shell before the session loads', (tester) async {
@@ -146,6 +160,7 @@ void main() {
         ),
         findsOneWidget,
       );
+      expect(find.byType(GymPlanEditor), findsOneWidget);
 
       controller.add(
         Session(
@@ -169,4 +184,73 @@ void main() {
       await controller.close();
     },
   );
+
+  testWidgets('can add and remove an exercise from the selected plan', (
+    tester,
+  ) async {
+    final sessionService = MockSessionService();
+    final userCacheService = MockUserCacheService();
+    final controller = StreamController<Session?>();
+
+    when(() => sessionService.listenToSession('session-1')).thenAnswer(
+      (_) => controller.stream,
+    );
+    when(() => userCacheService.warmSessionParticipants(any())).thenAnswer(
+      (_) async {},
+    );
+
+    await tester.pumpWidget(
+      _buildApp(
+        overrides: [
+          sessionServiceProvider.overrideWithValue(sessionService),
+          userCacheServiceProvider.overrideWithValue(userCacheService),
+          authSessionProvider.overrideWith(
+            (ref) => Stream.value(
+              const AuthUserEntity(
+                id: 'user-1',
+                email: 'user@example.com',
+                displayName: 'Athlete',
+                photoUrl: null,
+                emailVerified: true,
+                providerIds: ['password'],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    controller.add(
+      Session(
+        id: 'session-1',
+        type: 'gym',
+        title: 'Gym Setup',
+        hostId: 'user-1',
+        participants: const ['user-1'],
+        status: SessionStatus.active,
+        phase: SessionPhase.setup,
+        mode: SessionMode.turnBased,
+        createdAt: DateTime(2026),
+        startedAt: DateTime(2026),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Add exercise'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, 'bench');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Bench Press'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Bench Press'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Remove exercise'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Bench Press'), findsNothing);
+
+    await controller.close();
+  });
 }
