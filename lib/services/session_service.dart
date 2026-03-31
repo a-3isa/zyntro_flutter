@@ -823,6 +823,17 @@ final currentSessionProvider = StreamProvider.family<Session?, String>((
   return ref.watch(sessionServiceProvider).listenToSession(sessionId);
 });
 
+/// Stream provider for a participant's gym session plan.
+final gymSessionPlanProvider =
+    StreamProvider.family<GymSessionPlan?, ({String sessionId, String userId})>((
+      ref,
+      params,
+    ) {
+      return ref
+          .watch(sessionServiceProvider)
+          .listenToGymPlan(params.sessionId, params.userId);
+    });
+
 /// Stream provider for session events.
 final sessionEventsProvider =
     StreamProvider.family<List<TimelineEvent>, String>((ref, sessionId) {

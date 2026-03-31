@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +11,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/models/models.dart';
 import '../../../core/constants/constants.dart';
 import '../../auth/auth_providers.dart';
+import '../domain/gym_session_plan.dart';
 import '../../../services/session_service.dart';
 import '../../../services/voice_recording_service.dart';
 
@@ -28,6 +30,8 @@ import '../../../utils/session_error_handler.dart';
 import '../../../utils/responsive_utils.dart';
 import '../../../utils/haptic_manager.dart';
 import '../../../widgets/premium_animations.dart';
+import 'widgets/gym_live_session_panel.dart';
+import 'widgets/post_set_log_sheet.dart';
 
 /// Tracks real-time progress for a participant in a session.
 class ParticipantProgress {
@@ -81,6 +85,20 @@ class ParticipantProgress {
   }
 }
 
+class _GymLiveProgress {
+  const _GymLiveProgress({
+    required this.exercise,
+    required this.completedSets,
+    required this.currentSetNumber,
+    required this.isWorkoutComplete,
+  });
+
+  final PlannedExercise exercise;
+  final int completedSets;
+  final int currentSetNumber;
+  final bool isWorkoutComplete;
+}
+
 /// Session room page for active workout sessions.
 /// Matches React Native SessionRoomScreen behavior.
 class SessionRoomPage extends ConsumerStatefulWidget {
@@ -129,6 +147,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   final List<Exercise> _exercises = [];
   String? _currentExercise;
   bool _isLogging = false;
+  String? _activeGymExerciseKey;
+  bool _isGymSetRunning = false;
 
   // Voice recording state
   bool _isRecording = false;
@@ -694,54 +714,100 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       if (_recentExercises.length > 10) _recentExercises.removeLast();
     }
 
-    setState(() => _isLogging = true);
+    final didLog = await _logStrengthSet(
+      exerciseId: _currentExercise!,
+      exerciseName: _currentExercise!,
+      reps: reps,
+      weight: weight,
+    );
 
-    try {
-      final authState = ref.read(authSessionProvider);
-      final uid = authState.valueOrNull?.id;
-      if (uid == null) return;
+    if (didLog) {
+      _weightController.clear();
+      _repsController.clear();
+    }
+  }
 
-      // Add to local exercises
-      final existingIndex = _exercises.indexWhere(
-        (e) => e.name == _currentExercise,
-      );
+  String _plannedExerciseStableId(PlannedExercise exercise) {
+    return exercise.exerciseId ?? exercise.id;
+  }
+
+  String _buildStrengthEventText({
+    required String exerciseName,
+    required int reps,
+    double? weight,
+  }) {
+    if (weight == null) {
+      return '$exerciseName: $reps reps';
+    }
+
+    final weightText = weight == weight.roundToDouble()
+        ? weight.toStringAsFixed(0)
+        : weight.toStringAsFixed(1);
+    return '$exerciseName: ${weightText}kg x $reps reps';
+  }
+
+  Future<bool> _logStrengthSet({
+    required String exerciseId,
+    required String exerciseName,
+    required int reps,
+    double? weight,
+  }) async {
+    final authState = ref.read(authSessionProvider);
+    final uid = authState.valueOrNull?.id;
+    if (uid == null) return false;
+
+    final loggedWeight = weight ?? 0;
+    final eventText = _buildStrengthEventText(
+      exerciseName: exerciseName,
+      reps: reps,
+      weight: weight,
+    );
+    final eventData = <String, dynamic>{
+      'exercise': exerciseName,
+      'exerciseId': exerciseId,
+      'reps': reps,
+      if (weight != null) 'weight': weight,
+    };
+
+    setState(() {
+      _isLogging = true;
+      final existingIndex = _exercises.indexWhere((e) => e.id == exerciseId);
       if (existingIndex >= 0) {
         _exercises[existingIndex] = _exercises[existingIndex].copyWith(
           sets: [
             ..._exercises[existingIndex].sets,
-            SetData(weight: weight, reps: reps),
+            SetData(weight: loggedWeight, reps: reps),
           ],
         );
       } else {
         _exercises.add(
           Exercise(
-            id: DateTime.now().millisecondsSinceEpoch.toString(),
-            name: _currentExercise!,
-            sets: [SetData(weight: weight, reps: reps)],
+            id: exerciseId,
+            name: exerciseName,
+            sets: [SetData(weight: loggedWeight, reps: reps)],
           ),
         );
       }
+    });
 
-      // Log to Firestore or Queue
+    try {
       if (_isOffline) {
-        // Optimistic update
         final currentProgress = _participantProgress[uid];
         final newTotalSets = (currentProgress?.totalSets ?? 0) + 1;
-        final newVolume = (currentProgress?.totalVolume ?? 0) + (weight * reps);
+        final newVolume = (currentProgress?.totalVolume ?? 0) + (loggedWeight * reps);
 
-        // Create local event for timeline
         final localEvent = TimelineEvent(
           id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
           type: SessionEventType.setLogged,
           userId: uid,
-          text: '$_currentExercise: ${weight}kg x $reps reps',
+          text: eventText,
           timestamp: DateTime.now(),
-          data: {'exercise': _currentExercise, 'weight': weight, 'reps': reps},
+          data: eventData,
         );
 
         setState(() {
           _participantProgress[uid] = ParticipantProgress(
-            currentExercise: _currentExercise!,
+            currentExercise: exerciseName,
             totalSets: newTotalSets,
             totalVolume: newVolume,
             lastActivity: DateTime.now(),
@@ -753,67 +819,174 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           'sessionId': widget.sessionId,
           'type': SessionEventType.setLogged.value,
           'userId': uid,
-          'text': '$_currentExercise: ${weight}kg x $reps reps',
-          'data': {
-            'exercise': _currentExercise,
-            'weight': weight,
-            'reps': reps,
-          },
+          'text': eventText,
+          'data': eventData,
         });
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Logged locally (Offline)')),
           );
         }
-      } else {
-        try {
-          await ref
-              .read(sessionServiceProvider)
-              .addSessionEvent(
-                sessionId: widget.sessionId,
-                type: SessionEventType.setLogged,
-                userId: uid,
-                text: '$_currentExercise: ${weight}kg x $reps reps',
-                data: {
-                  'exercise': _currentExercise,
-                  'weight': weight,
-                  'reps': reps,
-                },
-              );
-          // Highlight effect
-          await HapticFeedback.mediumImpact();
-        } catch (e) {
-          // Queue on failure
-          await ref.read(offlineManagerProvider).queueOperation(
-            'session_event',
-            {
-              'sessionId': widget.sessionId,
-              'type': SessionEventType.setLogged.value,
-              'userId': uid,
-              'text': '$_currentExercise: ${weight}kg x $reps reps',
-              'data': {
-                'exercise': _currentExercise,
-                'weight': weight,
-                'reps': reps,
-              },
-            },
-          );
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Saved offline (Sync pending)')),
-            );
-          }
-        }
+        return true;
       }
 
-      // Clear inputs but keep exercise name for convenience? No, usually clear reps/weight
-      _weightController.clear();
-      _repsController.clear();
-
-      setState(() {});
+      try {
+        await ref
+            .read(sessionServiceProvider)
+            .addSessionEvent(
+              sessionId: widget.sessionId,
+              type: SessionEventType.setLogged,
+              userId: uid,
+              text: eventText,
+              data: eventData,
+            );
+        await HapticFeedback.mediumImpact();
+        return true;
+      } catch (_) {
+        await ref.read(offlineManagerProvider).queueOperation('session_event', {
+          'sessionId': widget.sessionId,
+          'type': SessionEventType.setLogged.value,
+          'userId': uid,
+          'text': eventText,
+          'data': eventData,
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Saved offline (Sync pending)')),
+          );
+        }
+        return true;
+      }
     } finally {
-      setState(() => _isLogging = false);
+      if (mounted) {
+        setState(() => _isLogging = false);
+      }
     }
+  }
+
+  int _completedGymSetsForExercise({
+    required PlannedExercise exercise,
+    required List<TimelineEvent> timelineEvents,
+    required String currentUserId,
+  }) {
+    final stableId = _plannedExerciseStableId(exercise);
+    var countedFromEvents = 0;
+
+    for (final event in timelineEvents) {
+      if (event.type != SessionEventType.setLogged || event.userId != currentUserId) {
+        continue;
+      }
+
+      final eventExerciseId = (event.data?['exerciseId'] as String?)?.trim();
+      final eventExerciseName = (event.data?['exercise'] as String?)?.trim();
+      if (eventExerciseId == stableId || eventExerciseName == exercise.name) {
+        countedFromEvents += 1;
+      }
+    }
+
+    final localById = _exercises
+        .where((loggedExercise) => loggedExercise.id == stableId)
+        .fold<int>(0, (sum, loggedExercise) => sum + loggedExercise.sets.length);
+    final localByName = _exercises
+        .where((loggedExercise) => loggedExercise.name == exercise.name)
+        .fold<int>(0, (sum, loggedExercise) => sum + loggedExercise.sets.length);
+
+    return math.max(countedFromEvents, math.max(localById, localByName));
+  }
+
+  _GymLiveProgress? _resolveGymLiveProgress({
+    required GymSessionPlan plan,
+    required List<TimelineEvent> timelineEvents,
+    required String currentUserId,
+  }) {
+    if (plan.exercises.isEmpty) return null;
+
+    final orderedExercises = [...plan.exercises]
+      ..sort((left, right) => left.order.compareTo(right.order));
+
+    for (final exercise in orderedExercises) {
+      final completedSets = _completedGymSetsForExercise(
+        exercise: exercise,
+        timelineEvents: timelineEvents,
+        currentUserId: currentUserId,
+      );
+
+      if (completedSets < exercise.plannedSets) {
+        return _GymLiveProgress(
+          exercise: exercise,
+          completedSets: completedSets,
+          currentSetNumber: completedSets + 1,
+          isWorkoutComplete: false,
+        );
+      }
+    }
+
+    final lastExercise = orderedExercises.last;
+    final completedSets = math.min(
+      _completedGymSetsForExercise(
+        exercise: lastExercise,
+        timelineEvents: timelineEvents,
+        currentUserId: currentUserId,
+      ),
+      lastExercise.plannedSets,
+    );
+
+    return _GymLiveProgress(
+      exercise: lastExercise,
+      completedSets: completedSets,
+      currentSetNumber: lastExercise.plannedSets,
+      isWorkoutComplete: true,
+    );
+  }
+
+  void _handleStartGymSet(PlannedExercise exercise) {
+    setState(() {
+      _activeGymExerciseKey = _plannedExerciseStableId(exercise);
+      _isGymSetRunning = true;
+    });
+  }
+
+  Future<void> _handleFinishGymSet(
+    PlannedExercise exercise,
+    int currentSetNumber,
+  ) async {
+    if (!_isGymSetRunning) return;
+
+    final session = ref
+        .read(currentSessionProvider(widget.sessionId))
+        .valueOrNull;
+    final authState = ref.read(authSessionProvider);
+    final uid = authState.valueOrNull?.id;
+
+    if (session != null &&
+        session.mode == SessionMode.turnBased &&
+        !_isSoloSession &&
+        session.activeUserId != uid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("It's not your turn yet!")),
+      );
+      return;
+    }
+
+    final result = await showPostSetLogSheet(
+      context,
+      exerciseName: exercise.name,
+      setNumber: currentSetNumber,
+    );
+    if (result == null) return;
+
+    final didLog = await _logStrengthSet(
+      exerciseId: _plannedExerciseStableId(exercise),
+      exerciseName: exercise.name,
+      reps: result.reps,
+      weight: result.weight,
+    );
+
+    if (!mounted || !didLog) return;
+    setState(() {
+      _isGymSetRunning = false;
+      _activeGymExerciseKey = null;
+    });
   }
 
   void _undoLastSet() {
@@ -1340,10 +1513,22 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   }
 
   /// Build input section based on workout type category.
-  Widget _buildInputSection() {
+  Widget _buildInputSection({
+    required Session? session,
+    required String? currentUserId,
+    required List<TimelineEvent> timelineEvents,
+    AsyncValue<GymSessionPlan?>? gymPlanAsync,
+  }) {
     // Route to appropriate input widget based on workout type
     Widget child;
-    if (_workoutType.requiresDistanceTracking) {
+    if (_workoutType == WorkoutType.gym) {
+      child = _buildGymInputSection(
+        session: session,
+        currentUserId: currentUserId,
+        timelineEvents: timelineEvents,
+        gymPlanAsync: gymPlanAsync,
+      );
+    } else if (_workoutType.requiresDistanceTracking) {
       // Cardio activities: running, cycling, swimming, walking
       child = _buildCardioInputSection();
     } else if (_workoutType.requiresSetTracking || _workoutType.isStrength) {
@@ -1362,6 +1547,117 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       switchInCurve: AppCurves.premium,
       switchOutCurve: AppCurves.premium,
       child: KeyedSubtree(key: ValueKey(_workoutType), child: child),
+    );
+  }
+
+  Widget _buildGymInputSection({
+    required Session? session,
+    required String? currentUserId,
+    required List<TimelineEvent> timelineEvents,
+    AsyncValue<GymSessionPlan?>? gymPlanAsync,
+  }) {
+    if (session == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (currentUserId == null || gymPlanAsync == null) {
+      return _buildGymLiveState(
+        title: 'Sign in to continue',
+        message: 'We need your session account before we can load the workout plan.',
+        icon: Icons.lock_outline_rounded,
+      );
+    }
+
+    return gymPlanAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (_, _) => _buildGymLiveState(
+        title: 'Unable to load your plan',
+        message: 'Please reopen the room or head back to setup and try again.',
+        icon: Icons.error_outline_rounded,
+      ),
+      data: (plan) {
+        if (plan == null || plan.exercises.isEmpty) {
+          return _buildGymLiveState(
+            title: 'No workout plan yet',
+            message: 'Go back to setup to choose exercises and planned sets first.',
+            icon: Icons.playlist_add_check_circle_outlined,
+          );
+        }
+
+        final progress = _resolveGymLiveProgress(
+          plan: plan,
+          timelineEvents: timelineEvents,
+          currentUserId: currentUserId,
+        );
+        if (progress == null) {
+          return _buildGymLiveState(
+            title: 'No workout plan yet',
+            message: 'Go back to setup to choose exercises and planned sets first.',
+            icon: Icons.playlist_add_check_circle_outlined,
+          );
+        }
+
+        final isUsersTurn =
+            session.mode != SessionMode.turnBased ||
+            _isSoloSession ||
+            session.activeUserId == currentUserId;
+        final activeExerciseKey = _plannedExerciseStableId(progress.exercise);
+        final isSetRunning =
+            _isGymSetRunning && _activeGymExerciseKey == activeExerciseKey;
+
+        return GymLiveSessionPanel(
+          exercise: progress.exercise,
+          currentSetNumber: progress.currentSetNumber,
+          completedSets: progress.completedSets,
+          isUsersTurn: isUsersTurn,
+          isSetRunning: isSetRunning,
+          isWorkoutComplete: progress.isWorkoutComplete,
+          onStartSet: () => _handleStartGymSet(progress.exercise),
+          onFinishSet: () => _handleFinishGymSet(
+            progress.exercise,
+            progress.currentSetNumber,
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildGymLiveState({
+    required String title,
+    required String message,
+    required IconData icon,
+  }) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceDark,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.12)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: AppColors.primary, size: 28),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              style: const TextStyle(
+                color: AppColors.textDark,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              style: const TextStyle(color: AppColors.textSecondaryDark),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -2584,6 +2880,17 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         limit: _eventLimit,
       )),
     );
+    final authState = ref.watch(authSessionProvider);
+    final currentUserId = authState.valueOrNull?.id;
+    final gymPlanAsync =
+        _workoutType == WorkoutType.gym && currentUserId != null
+        ? ref.watch(
+            gymSessionPlanProvider((
+              sessionId: widget.sessionId,
+              userId: currentUserId,
+            )),
+          )
+        : null;
 
     // Show skeleton if critical data is still loading and has no data
     final shouldShowSkeleton =
@@ -3431,7 +3738,12 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                     ),
                   ],
                 ),
-                child: _buildInputSection(),
+                child: _buildInputSection(
+                  session: sessionAsync.valueOrNull,
+                  currentUserId: currentUserId,
+                  timelineEvents: eventsAsync.valueOrNull ?? const [],
+                  gymPlanAsync: gymPlanAsync,
+                ),
               ),
 
               // Cheers bar
