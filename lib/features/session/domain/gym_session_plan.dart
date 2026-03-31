@@ -29,30 +29,147 @@ enum PlannedExerciseSource {
 }
 
 class PlannedExercise {
+  final String id;
   final PlannedExerciseSource source;
   final String? exerciseId;
-  final String? customName;
+  final String name;
+  final int plannedSets;
+  final int order;
+  final String? muscleGroup;
+  final String? equipment;
 
-  const PlannedExercise({
+  const PlannedExercise._({
+    required this.id,
     required this.source,
+    required this.name,
+    required this.plannedSets,
+    required this.order,
     this.exerciseId,
-    this.customName,
+    this.muscleGroup,
+    this.equipment,
   });
 
+  factory PlannedExercise.catalog({
+    required String id,
+    required String exerciseId,
+    required String name,
+    required int plannedSets,
+    required int order,
+    String? muscleGroup,
+    String? equipment,
+  }) {
+    _validateCommonFields(
+      id: id,
+      name: name,
+      plannedSets: plannedSets,
+      order: order,
+    );
+    if (exerciseId.trim().isEmpty) {
+      throw ArgumentError(
+        'Catalog exercise must include a non-empty exerciseId',
+      );
+    }
+
+    return PlannedExercise._(
+      id: id,
+      source: PlannedExerciseSource.catalog,
+      exerciseId: exerciseId,
+      name: name,
+      plannedSets: plannedSets,
+      order: order,
+      muscleGroup: muscleGroup,
+      equipment: equipment,
+    );
+  }
+
+  factory PlannedExercise.custom({
+    required String id,
+    required String name,
+    required int plannedSets,
+    required int order,
+    String? muscleGroup,
+    String? equipment,
+  }) {
+    _validateCommonFields(
+      id: id,
+      name: name,
+      plannedSets: plannedSets,
+      order: order,
+    );
+
+    return PlannedExercise._(
+      id: id,
+      source: PlannedExerciseSource.custom,
+      name: name,
+      plannedSets: plannedSets,
+      order: order,
+      muscleGroup: muscleGroup,
+      equipment: equipment,
+    );
+  }
+
   factory PlannedExercise.fromMap(Map<String, dynamic> data) {
-    return PlannedExercise(
-      source: PlannedExerciseSource.fromString(data['source'] ?? 'custom'),
-      exerciseId: data['exerciseId'],
-      customName: data['customName'],
+    final source = PlannedExerciseSource.fromString(data['source'] ?? 'custom');
+    final id = (data['id'] ?? '').toString();
+    final name = (data['name'] ?? data['customName'] ?? '').toString();
+    final plannedSets = (data['plannedSets'] as num?)?.toInt() ?? 0;
+    final order = (data['order'] as num?)?.toInt() ?? 0;
+    final muscleGroup = data['muscleGroup']?.toString();
+    final equipment = data['equipment']?.toString();
+
+    if (source == PlannedExerciseSource.catalog) {
+      return PlannedExercise.catalog(
+        id: id,
+        exerciseId: (data['exerciseId'] ?? '').toString(),
+        name: name,
+        plannedSets: plannedSets,
+        order: order,
+        muscleGroup: muscleGroup,
+        equipment: equipment,
+      );
+    }
+
+    return PlannedExercise.custom(
+      id: id,
+      name: name,
+      plannedSets: plannedSets,
+      order: order,
+      muscleGroup: muscleGroup,
+      equipment: equipment,
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
+      'id': id,
       'source': source.value,
+      'name': name,
+      'plannedSets': plannedSets,
+      'order': order,
       if (exerciseId != null) 'exerciseId': exerciseId,
-      if (customName != null) 'customName': customName,
+      if (muscleGroup != null) 'muscleGroup': muscleGroup,
+      if (equipment != null) 'equipment': equipment,
     };
+  }
+
+  static void _validateCommonFields({
+    required String id,
+    required String name,
+    required int plannedSets,
+    required int order,
+  }) {
+    if (id.trim().isEmpty) {
+      throw ArgumentError('Planned exercise id must be non-empty');
+    }
+    if (name.trim().isEmpty) {
+      throw ArgumentError('Planned exercise name must be non-empty');
+    }
+    if (plannedSets <= 0) {
+      throw ArgumentError('plannedSets must be greater than 0');
+    }
+    if (order < 0) {
+      throw ArgumentError('order must be 0 or greater');
+    }
   }
 }
 
