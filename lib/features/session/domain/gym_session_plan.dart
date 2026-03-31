@@ -109,7 +109,9 @@ class PlannedExercise {
   }
 
   factory PlannedExercise.fromMap(Map<String, dynamic> data) {
-    final source = PlannedExerciseSource.fromString(data['source'] ?? 'custom');
+    final source = PlannedExerciseSource.fromString(
+      data['sourceType'] ?? data['source'] ?? 'custom',
+    );
     final id = (data['id'] ?? '').toString();
     final name = (data['name'] ?? data['customName'] ?? '').toString();
     final plannedSets = (data['plannedSets'] as num?)?.toInt() ?? 0;
@@ -142,7 +144,7 @@ class PlannedExercise {
   Map<String, dynamic> toMap() {
     return {
       'id': id,
-      'source': source.value,
+      'sourceType': source.value,
       'name': name,
       'plannedSets': plannedSets,
       'order': order,

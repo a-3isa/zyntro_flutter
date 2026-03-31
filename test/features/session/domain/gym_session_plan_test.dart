@@ -11,6 +11,34 @@ class MockDocumentSnapshot extends Mock
 
 void main() {
   group('GymSessionPlan', () {
+    test('serializes planned exercise with sourceType key', () {
+      final exercise = PlannedExercise.catalog(
+        id: 'plan-ex-1',
+        exerciseId: 'catalog-123',
+        name: 'Bench Press',
+        plannedSets: 4,
+        order: 0,
+      );
+
+      final map = exercise.toMap();
+
+      expect(map['sourceType'], 'catalog');
+      expect(map.containsKey('source'), isFalse);
+    });
+
+    test('deserializes legacy source key for backward compatibility', () {
+      final exercise = PlannedExercise.fromMap({
+        'id': 'plan-ex-legacy',
+        'source': 'custom',
+        'name': 'Cable Fly',
+        'plannedSets': 3,
+        'order': 2,
+      });
+
+      expect(exercise.source, PlannedExerciseSource.custom);
+      expect(exercise.name, 'Cable Fly');
+    });
+
     test('round-trips a catalog exercise and a custom exercise', () {
       final plan = GymSessionPlan(
         userId: 'user-1',
