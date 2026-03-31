@@ -6,6 +6,7 @@ import '../../../app/navigation/app_router.dart';
 import '../../../core/constants/constants.dart';
 import '../../../core/models/models.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../auth/auth_providers.dart';
 import '../../../services/session_service.dart';
 import '../domain/gym_session_plan.dart';
 import 'widgets/gym_exercise_picker_sheet.dart';
@@ -25,8 +26,18 @@ class GymSessionSetupPage extends ConsumerStatefulWidget {
 class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
   bool _didRedirect = false;
   List<PlannedExercise> _draftExercises = const [];
+  bool _isLoadingPlan = true;
+  bool _isSavingReady = false;
+  bool _isReady = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(_loadInitialPlan);
+  }
 
   Future<void> _openExercisePicker() async {
+    if (_isReady) return;
     final selected = await showModalBottomSheet<PlannedExercise>(
       context: context,
       isScrollControlled: true,
@@ -51,6 +62,7 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
   }
 
   void _removeExercise(int index) {
+    if (_isReady) return;
     setState(() {
       final updated = [..._draftExercises]..removeAt(index);
       _draftExercises = _reindexExercises(updated);
@@ -58,6 +70,7 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
   }
 
   void _updatePlannedSets(int index, int plannedSets) {
+    if (_isReady) return;
     final updated = [..._draftExercises];
     updated[index] = _withOrderAndSets(
       exercise: updated[index],
@@ -65,6 +78,76 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
       plannedSets: plannedSets,
     );
     setState(() => _draftExercises = updated);
+  }
+
+  Future<void> _loadInitialPlan() async {
+    final authUser = await ref.read(authSessionProvider.future);
+    final session = await ref.read(currentSessionProvider(widget.sessionId).future);
+    if (!mounted || authUser == null || session == null) {
+      if (mounted) {
+        setState(() => _isLoadingPlan = false);
+      }
+      return;
+    }
+
+    final sessionService = ref.read(sessionServiceProvider);
+    if (!session.participants.contains(authUser.id)) {
+      await sessionService.joinSession(widget.sessionId, authUser.id);
+    }
+
+    final plan = await sessionService.ensureGymPlan(
+      sessionId: widget.sessionId,
+      hostId: session.hostId,
+      userId: authUser.id,
+    );
+
+    if (!mounted) return;
+    setState(() {
+      _draftExercises = _reindexExercises(plan.exercises);
+      _isReady = plan.isReady;
+      _isLoadingPlan = false;
+    });
+  }
+
+  bool get _isPlanValid {
+    return _draftExercises.isNotEmpty &&
+        _draftExercises.every((exercise) => exercise.plannedSets > 0);
+  }
+
+  Future<void> _markReady(Session session) async {
+    if (_isSavingReady || !_isPlanValid) return;
+
+    final authUser = ref.read(authSessionProvider).valueOrNull;
+    if (authUser == null) return;
+
+    setState(() => _isSavingReady = true);
+    final sessionService = ref.read(sessionServiceProvider);
+    final plan = GymSessionPlan(
+      userId: authUser.id,
+      source: authUser.id == session.hostId
+          ? GymSessionPlanSource.hostTemplate
+          : GymSessionPlanSource.personal,
+      isReady: true,
+      exercises: _draftExercises,
+    );
+
+    try {
+      await sessionService.saveGymPlan(sessionId: widget.sessionId, plan: plan);
+      await sessionService.setGymPlanReady(
+        sessionId: widget.sessionId,
+        userId: authUser.id,
+        isReady: true,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _isReady = true;
+        _isSavingReady = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isSavingReady = false);
+    }
   }
 
   List<PlannedExercise> _reindexExercises(List<PlannedExercise> exercises) {
@@ -231,12 +314,56 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),
-          GymPlanEditor(
-            exercises: _draftExercises,
-            onAddExercise: _openExercisePicker,
-            onRemoveExercise: _removeExercise,
-            onSetsChanged: _updatePlannedSets,
-          ),
+          if (_isLoadingPlan)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 32),
+                child: CircularProgressIndicator(),
+              ),
+            )
+          else if (_isReady)
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    const Icon(Icons.schedule_rounded, size: 32),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Waiting for everyone to get ready',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Your plan is saved. We will open the live room as soon as every participant is ready.',
+                      style: TextStyle(
+                        color: AppColors.textSecondaryDark,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else ...[
+            GymPlanEditor(
+              exercises: _draftExercises,
+              onAddExercise: _openExercisePicker,
+              onRemoveExercise: _removeExercise,
+              onSetsChanged: _updatePlannedSets,
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: _isPlanValid && !_isSavingReady
+                  ? () => _markReady(session)
+                  : null,
+              child: Text(_isSavingReady ? 'Saving...' : 'Ready'),
+            ),
+          ],
         ],
       ),
     );

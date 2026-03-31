@@ -10,6 +10,7 @@ import 'package:zyntro_flutter/core/constants/constants.dart';
 import 'package:zyntro_flutter/core/models/models.dart';
 import 'package:zyntro_flutter/features/auth/auth_providers.dart';
 import 'package:zyntro_flutter/features/auth/domain/entities/auth_user_entity.dart';
+import 'package:zyntro_flutter/features/session/domain/gym_session_plan.dart';
 import 'package:zyntro_flutter/features/session/presentation/gym_session_setup_page.dart';
 import 'package:zyntro_flutter/features/session/presentation/widgets/gym_plan_editor.dart';
 import 'package:zyntro_flutter/services/user_cache_service.dart';
@@ -32,6 +33,17 @@ Widget _buildApp({
 }
 
 void main() {
+  setUpAll(() {
+    registerFallbackValue(
+      const GymSessionPlan(
+        userId: 'fallback-user',
+        source: GymSessionPlanSource.personal,
+        isReady: false,
+        exercises: [],
+      ),
+    );
+  });
+
   testWidgets('shows loading shell before the session loads', (tester) async {
     final sessionService = MockSessionService();
     final userCacheService = MockUserCacheService();
@@ -39,6 +51,20 @@ void main() {
 
     when(() => sessionService.listenToSession('session-1')).thenAnswer(
       (_) => controller.stream,
+    );
+    when(
+      () => sessionService.ensureGymPlan(
+        sessionId: 'session-1',
+        hostId: 'user-1',
+        userId: 'user-1',
+      ),
+    ).thenAnswer(
+      (_) async => const GymSessionPlan(
+        userId: 'user-1',
+        source: GymSessionPlanSource.hostTemplate,
+        isReady: false,
+        exercises: [],
+      ),
     );
     when(() => userCacheService.warmSessionParticipants(any())).thenAnswer(
       (_) async {},
@@ -74,6 +100,36 @@ void main() {
     expect(find.text('Preparing your gym session'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
+    when(
+      () => sessionService.ensureGymPlan(
+        sessionId: 'session-1',
+        hostId: 'user-1',
+        userId: 'user-1',
+      ),
+    ).thenAnswer(
+      (_) async => const GymSessionPlan(
+        userId: 'user-1',
+        source: GymSessionPlanSource.hostTemplate,
+        isReady: false,
+        exercises: [],
+      ),
+    );
+    controller.add(
+      Session(
+        id: 'session-1',
+        type: 'gym',
+        title: 'Gym Setup',
+        hostId: 'user-1',
+        participants: const ['user-1'],
+        status: SessionStatus.active,
+        phase: SessionPhase.setup,
+        mode: SessionMode.turnBased,
+        createdAt: DateTime(2026),
+        startedAt: DateTime(2026),
+      ),
+    );
+    await tester.pump();
+
     await controller.close();
   });
 
@@ -108,6 +164,20 @@ void main() {
 
     when(() => sessionService.listenToSession('session-1')).thenAnswer(
       (_) => controller.stream,
+    );
+    when(
+      () => sessionService.ensureGymPlan(
+        sessionId: 'session-1',
+        hostId: 'user-1',
+        userId: 'user-1',
+      ),
+    ).thenAnswer(
+      (_) async => const GymSessionPlan(
+        userId: 'user-1',
+        source: GymSessionPlanSource.hostTemplate,
+        isReady: false,
+        exercises: [],
+      ),
     );
     when(() => userCacheService.warmSessionParticipants(any())).thenAnswer(
       (_) async {},
@@ -195,6 +265,20 @@ void main() {
     when(() => sessionService.listenToSession('session-1')).thenAnswer(
       (_) => controller.stream,
     );
+    when(
+      () => sessionService.ensureGymPlan(
+        sessionId: 'session-1',
+        hostId: 'user-1',
+        userId: 'user-1',
+      ),
+    ).thenAnswer(
+      (_) async => const GymSessionPlan(
+        userId: 'user-1',
+        source: GymSessionPlanSource.hostTemplate,
+        isReady: false,
+        exercises: [],
+      ),
+    );
     when(() => userCacheService.warmSessionParticipants(any())).thenAnswer(
       (_) async {},
     );
@@ -250,6 +334,189 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Bench Press'), findsNothing);
+
+    await controller.close();
+  });
+
+  testWidgets('ready stays disabled until the plan is valid', (tester) async {
+    final sessionService = MockSessionService();
+    final userCacheService = MockUserCacheService();
+    final controller = StreamController<Session?>();
+
+    when(() => sessionService.listenToSession('session-1')).thenAnswer(
+      (_) => controller.stream,
+    );
+    when(
+      () => sessionService.ensureGymPlan(
+        sessionId: 'session-1',
+        hostId: 'user-1',
+        userId: 'user-1',
+      ),
+    ).thenAnswer(
+      (_) async => const GymSessionPlan(
+        userId: 'user-1',
+        source: GymSessionPlanSource.hostTemplate,
+        isReady: false,
+        exercises: [],
+      ),
+    );
+    when(() => userCacheService.warmSessionParticipants(any())).thenAnswer(
+      (_) async {},
+    );
+
+    await tester.pumpWidget(
+      _buildApp(
+        overrides: [
+          sessionServiceProvider.overrideWithValue(sessionService),
+          userCacheServiceProvider.overrideWithValue(userCacheService),
+          authSessionProvider.overrideWith(
+            (ref) => Stream.value(
+              const AuthUserEntity(
+                id: 'user-1',
+                email: 'user@example.com',
+                displayName: 'Athlete',
+                photoUrl: null,
+                emailVerified: true,
+                providerIds: ['password'],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    controller.add(
+      Session(
+        id: 'session-1',
+        type: 'gym',
+        title: 'Gym Setup',
+        hostId: 'user-1',
+        participants: const ['user-1'],
+        status: SessionStatus.active,
+        phase: SessionPhase.setup,
+        mode: SessionMode.turnBased,
+        createdAt: DateTime(2026),
+        startedAt: DateTime(2026),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    final readyButton = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Ready'),
+    );
+    expect(readyButton.onPressed, isNull);
+
+    await controller.close();
+  });
+
+  testWidgets('participant sees waiting state after tapping ready', (
+    tester,
+  ) async {
+    final sessionService = MockSessionService();
+    final userCacheService = MockUserCacheService();
+    final controller = StreamController<Session?>();
+
+    when(() => sessionService.listenToSession('session-1')).thenAnswer(
+      (_) => controller.stream,
+    );
+    when(
+      () => sessionService.ensureGymPlan(
+        sessionId: 'session-1',
+        hostId: 'user-1',
+        userId: 'user-1',
+      ),
+    ).thenAnswer(
+      (_) async => GymSessionPlan(
+        userId: 'user-1',
+        source: GymSessionPlanSource.hostTemplate,
+        isReady: false,
+        exercises: [
+          PlannedExercise.custom(
+            id: 'custom_1',
+            name: 'JM Press',
+            plannedSets: 3,
+            order: 0,
+          ),
+        ],
+      ),
+    );
+    when(
+      () => sessionService.saveGymPlan(
+        sessionId: 'session-1',
+        plan: any(named: 'plan'),
+      ),
+    ).thenAnswer((_) async {});
+    when(
+      () => sessionService.setGymPlanReady(
+        sessionId: 'session-1',
+        userId: 'user-1',
+        isReady: true,
+      ),
+    ).thenAnswer((_) async {});
+    when(() => userCacheService.warmSessionParticipants(any())).thenAnswer(
+      (_) async {},
+    );
+
+    await tester.pumpWidget(
+      _buildApp(
+        overrides: [
+          sessionServiceProvider.overrideWithValue(sessionService),
+          userCacheServiceProvider.overrideWithValue(userCacheService),
+          authSessionProvider.overrideWith(
+            (ref) => Stream.value(
+              const AuthUserEntity(
+                id: 'user-1',
+                email: 'user@example.com',
+                displayName: 'Athlete',
+                photoUrl: null,
+                emailVerified: true,
+                providerIds: ['password'],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    controller.add(
+      Session(
+        id: 'session-1',
+        type: 'gym',
+        title: 'Gym Setup',
+        hostId: 'user-1',
+        participants: const ['user-1'],
+        status: SessionStatus.active,
+        phase: SessionPhase.setup,
+        mode: SessionMode.turnBased,
+        createdAt: DateTime(2026),
+        startedAt: DateTime(2026),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+    final readyButton = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Ready'),
+    );
+    expect(readyButton.onPressed, isNotNull);
+    await tester.tap(find.widgetWithText(FilledButton, 'Ready'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('Waiting for everyone to get ready'), findsOneWidget);
+    verify(
+      () => sessionService.saveGymPlan(
+        sessionId: 'session-1',
+        plan: any(named: 'plan'),
+      ),
+    ).called(1);
+    verify(
+      () => sessionService.setGymPlanReady(
+        sessionId: 'session-1',
+        userId: 'user-1',
+        isReady: true,
+      ),
+    ).called(1);
 
     await controller.close();
   });
