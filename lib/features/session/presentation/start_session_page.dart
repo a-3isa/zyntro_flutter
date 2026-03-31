@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
+import '../../../app/navigation/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/constants.dart';
 import '../../auth/auth_providers.dart';
@@ -97,12 +100,23 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
             invitedUserIds: _selectedFriends.isNotEmpty
                 ? _selectedFriends.toList()
                 : null,
+            phase: _selectedType == WorkoutType.gym
+                ? SessionPhase.setup
+                : SessionPhase.live,
           );
 
-      await HapticFeedback.mediumImpact();
+      unawaited(HapticFeedback.mediumImpact());
 
       if (mounted) {
-        context.push('/session/room/$sessionId?type=${_selectedType.value}');
+        if (_selectedType == WorkoutType.gym) {
+          context.go(
+            AppRoutes.gymSessionSetup.replaceFirst(':sessionId', sessionId),
+          );
+        } else {
+          context.go(
+            '${AppRoutes.sessionRoom.replaceFirst(':sessionId', sessionId)}?type=${_selectedType.value}',
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -112,7 +126,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
           errorMessage = 'Check your internet connection and try again.';
         }
         _showError(errorMessage);
-        await HapticFeedback.vibrate();
+        unawaited(HapticFeedback.vibrate());
       }
     } finally {
       if (mounted) {

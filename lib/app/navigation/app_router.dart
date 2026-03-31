@@ -11,6 +11,7 @@ import '../../features/auth/presentation/profile_setup_page.dart';
 import '../../features/auth/presentation/forgot_password_page.dart';
 import '../../features/main/presentation/main_shell.dart';
 import '../../features/session/presentation/start_session_page.dart';
+import '../../features/session/presentation/gym_session_setup_page.dart';
 import '../../features/session/presentation/session_room_page.dart';
 import '../../features/session/presentation/recap_page.dart';
 import '../../features/notifications/presentation/notifications_page.dart';
@@ -44,6 +45,7 @@ class AppRoutes {
   static const forgotPassword = '/forgot-password';
   static const main = '/';
   static const startSession = '/session/start';
+  static const gymSessionSetup = '/session/setup/:sessionId';
   static const sessionRoom = '/session/room/:sessionId';
   static const recap = '/session/recap/:sessionId';
   static const settings = '/settings';
@@ -319,7 +321,19 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(
-        path: '/session/room/:sessionId',
+        path: AppRoutes.gymSessionSetup,
+        pageBuilder: (context, state) {
+          final sessionId = state.pathParameters['sessionId']!;
+
+          return buildPremiumPageTransition(
+            context: context,
+            state: state,
+            child: GymSessionSetupPage(sessionId: sessionId),
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.sessionRoom,
         pageBuilder: (context, state) {
           final sessionId = state.pathParameters['sessionId']!;
           final type = state.uri.queryParameters['type'] ?? 'strength';
