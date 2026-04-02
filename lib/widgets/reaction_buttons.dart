@@ -188,7 +188,6 @@ class _ReactionButtonsState extends State<ReactionButtons>
     final isSelected = widget.currentReaction == type;
     final count = widget.reactionCounts[type] ?? 0;
     final isAnimating = _animatingType == type;
-    final gradientColors = _getGradientColors(type);
 
     Widget button = GestureDetector(
       onTap: () => _handleTap(type),
@@ -205,8 +204,8 @@ class _ReactionButtonsState extends State<ReactionButtons>
             gradient: isSelected
                 ? LinearGradient(
                     colors: [
-                      gradientColors[0].withValues(alpha: isDark ? 0.4 : 0.25),
-                      gradientColors[1].withValues(alpha: isDark ? 0.3 : 0.15),
+                      AppColors.neonGreen.withValues(alpha: 0.14),
+                      AppColors.neonGreen.withValues(alpha: 0.05),
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -215,18 +214,11 @@ class _ReactionButtonsState extends State<ReactionButtons>
             color: isSelected ? null : Colors.transparent,
             borderRadius: BorderRadius.circular(AppBorderRadius.lg),
             border: Border.all(
-              color: isSelected ? color : Colors.grey.withValues(alpha: 0.3),
+              color: isSelected
+                  ? AppColors.neonGreen
+                  : AppColors.gray400.withValues(alpha: 0.3),
               width: isSelected ? 2 : 1,
             ),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: color.withValues(alpha: 0.3),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ]
-                : null,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -260,17 +252,6 @@ class _ReactionButtonsState extends State<ReactionButtons>
         ),
       ),
     );
-
-    // Wrap selected reaction with pulsing glow
-    if (isSelected) {
-      button = PulsingGlow(
-        glowColor: color.withValues(alpha: 0.3),
-        minRadius: 5,
-        maxRadius: 12,
-        duration: const Duration(milliseconds: 2000),
-        child: button,
-      );
-    }
 
     return Semantics(
       label: '$label reaction${count > 0 ? ', $count reactions' : ''}',

@@ -2,8 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import '../../../app/navigation/app_router.dart';
+import '../../../app/navigation/app_route_locations.dart';
 import '../../../core/theme/app_theme.dart';
 
 import '../../feed/presentation/feed_page.dart';
@@ -16,28 +15,31 @@ final navBarVisibleProvider = StateProvider<bool>((ref) => true);
 
 /// Premium Main shell with floating bottom navigation that hides on scroll.
 class MainShell extends ConsumerStatefulWidget {
-  const MainShell({super.key});
+  const MainShell({
+    super.key,
+    this.initialTab = MainShellTab.feed,
+    this.initialSocialTab = SocialTab.buddies,
+  });
+
+  final MainShellTab initialTab;
+  final SocialTab initialSocialTab;
 
   @override
   ConsumerState<MainShell> createState() => _MainShellState();
 }
 
 class _MainShellState extends ConsumerState<MainShell>
-    with SingleTickerProviderStateMixin {
-  int _currentIndex = 0;
+    with TickerProviderStateMixin {
+  late int _currentIndex;
   late AnimationController _fabController;
   late Animation<double> _fabScale;
-
-  final List<Widget> _pages = const [
-    FeedPage(),
-    SessionPage(),
-    SocialPage(),
-    ProfilePage(),
-  ];
+  late AnimationController _pulseController;
+  late Animation<double> _pulseScale;
 
   @override
   void initState() {
     super.initState();
+    _currentIndex = widget.initialTab.index;
     _fabController = AnimationController(
       duration: const Duration(milliseconds: 200),
       vsync: this,
@@ -46,11 +48,30 @@ class _MainShellState extends ConsumerState<MainShell>
       begin: 1.0,
       end: 0.92,
     ).animate(CurvedAnimation(parent: _fabController, curve: Curves.easeInOut));
+
+    _pulseController = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    )..repeat(reverse: true);
+
+    _pulseScale = Tween<double>(
+      begin: 1.0,
+      end: 1.08,
+    ).animate(CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut));
+  }
+
+  @override
+  void didUpdateWidget(covariant MainShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialTab != widget.initialTab) {
+      _currentIndex = widget.initialTab.index;
+    }
   }
 
   @override
   void dispose() {
     _fabController.dispose();
+    _pulseController.dispose();
     super.dispose();
   }
 
@@ -72,6 +93,12 @@ class _MainShellState extends ConsumerState<MainShell>
   @override
   Widget build(BuildContext context) {
     final isNavBarVisible = ref.watch(navBarVisibleProvider);
+    final pages = [
+      const FeedPage(),
+      const SessionPage(),
+      SocialPage(initialTab: widget.initialSocialTab),
+      const ProfilePage(),
+    ];
 
     return Scaffold(
       backgroundColor: AppColors.backgroundDark,
@@ -81,7 +108,7 @@ class _MainShellState extends ConsumerState<MainShell>
         child: Column(
           children: [
             Expanded(
-              child: IndexedStack(index: _currentIndex, children: _pages),
+              child: IndexedStack(index: _currentIndex, children: pages),
             ),
           ],
         ),
@@ -157,22 +184,23 @@ class _MainShellState extends ConsumerState<MainShell>
         children: [
           // Background Layer (The Blurred Pill)
           ClipRRect(
-            borderRadius: BorderRadius.circular(28),
+            borderRadius: BorderRadius.circular(36),
             child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+              filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
               child: Container(
                 height: 72,
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceDark.withValues(alpha: 0.85),
-                  borderRadius: BorderRadius.circular(28),
+                  color: AppColors.surfaceDark.withValues(alpha: 0.65),
+                  borderRadius: BorderRadius.circular(36),
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.1),
+                    color: Colors.white.withValues(alpha: 0.08),
+                    width: 0.5,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.primaryGlow.withValues(alpha: 0.3),
-                      blurRadius: 24,
-                      offset: const Offset(0, 8),
+                      color: Colors.black.withValues(alpha: 0.2),
+                      blurRadius: 30,
+                      offset: const Offset(0, 10),
                     ),
                   ],
                 ),
@@ -219,9 +247,7 @@ class _MainShellState extends ConsumerState<MainShell>
               duration: AppDurations.fast,
               child: Icon(
                 isActive ? activeIcon : icon,
-                color: isActive
-                    ? AppColors.primary
-                    : AppColors.textTertiaryDark,
+                color: isActive ? AppColors.neonGreen : AppColors.gray400,
                 size: 24,
               ),
             ),
@@ -231,9 +257,7 @@ class _MainShellState extends ConsumerState<MainShell>
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-                color: isActive
-                    ? AppColors.primary
-                    : AppColors.textTertiaryDark,
+                color: isActive ? AppColors.neonGreen : AppColors.gray400,
               ),
               child: Text(label),
             ),
@@ -250,13 +274,17 @@ class _MainShellState extends ConsumerState<MainShell>
       onTapDown: (_) => _fabController.forward(),
       onTapUp: (_) {
         _fabController.reverse();
-        context.push(AppRoutes.startSession);
+        setState(() => _currentIndex = MainShellTab.session.index);
       },
       onTapCancel: () => _fabController.reverse(),
       child: AnimatedBuilder(
-        animation: _fabScale,
+        animation: Listenable.merge([_fabScale, _pulseScale]),
         builder: (context, child) {
-          return Transform.scale(scale: _fabScale.value, child: child);
+          final scale =
+              _fabController.isAnimating || _fabController.isCompleted
+              ? _fabScale.value
+              : _pulseScale.value;
+          return Transform.scale(scale: scale, child: child);
         },
         child: Container(
           width: 56,
@@ -270,12 +298,11 @@ class _MainShellState extends ConsumerState<MainShell>
               end: Alignment.bottomRight,
             ),
             shape: BoxShape.circle,
-            boxShadow: [
+            boxShadow: const [
               BoxShadow(
-                color: (isActive ? AppColors.secondary : AppColors.primary)
-                    .withValues(alpha: 0.5),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
+                color: Color(0x24000000),
+                blurRadius: 12,
+                offset: Offset(0, 6),
               ),
             ],
           ),
