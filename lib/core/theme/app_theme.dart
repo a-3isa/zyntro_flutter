@@ -9,34 +9,43 @@ class AppFonts {
 
 /// Premium color scheme for Zyntro - VIP fitness aesthetic.
 class AppColors {
-  // Primary colors - Neon Cyan
-  static const Color primary = Color(0xFF00D9FF);
-  static const Color primaryDark = Color(0xFF00A8CC);
-  static const Color primaryLight = Color(0xFF5CE1FF);
-  static const Color primaryMuted = Color(0xFF0A2A33);
-  static const Color primaryGlow = Color(0x4000D9FF);
+  // Figma navy / neon palette
+  static const Color navy900 = Color(0xFF0A0E27);
+  static const Color navy800 = Color(0xFF151B3D);
+  static const Color navy700 = Color(0xFF1E2749);
+  static const Color neonGreen = Color(0xFF39FF14);
+  static const Color neonGreenHover = Color(0xFF2EE00F);
+  static const Color gray400 = Color(0xFF8B8B98);
+  static const Color gray300 = Color(0xFFA0A0AC);
 
-  // Secondary colors - Coral Red
-  static const Color secondary = Color(0xFFFF6B6B);
-  static const Color secondaryDark = Color(0xFFE85555);
-  static const Color secondaryLight = Color(0xFFFF8E8E);
-  static const Color secondaryGlow = Color(0x40FF6B6B);
+  // Primary colors
+  static const Color primary = neonGreen;
+  static const Color primaryDark = neonGreenHover;
+  static const Color primaryLight = Color(0xFF6CFF52);
+  static const Color primaryMuted = navy700;
+  static const Color primaryGlow = Colors.transparent;
+
+  // Secondary colors
+  static const Color secondary = gray400;
+  static const Color secondaryDark = gray300;
+  static const Color secondaryLight = Color(0xFFC7C7D1);
+  static const Color secondaryGlow = Colors.transparent;
 
   // Accent colors
-  static const Color accent = Color(0xFFFFD93D);
-  static const Color accentDark = Color(0xFFE5C235);
-  static const Color accentLight = Color(0xFFFFE566);
+  static const Color accent = navy700;
+  static const Color accentDark = navy800;
+  static const Color accentLight = gray300;
 
-  // Premium purple
-  static const Color premium = Color(0xFF9D4EDD);
-  static const Color premiumDark = Color(0xFF7B2CBF);
-  static const Color premiumLight = Color(0xFFB76EF0);
-  static const Color premiumGlow = Color(0x409D4EDD);
+  // Premium color
+  static const Color premium = navy800;
+  static const Color premiumDark = navy900;
+  static const Color premiumLight = navy700;
+  static const Color premiumGlow = Colors.transparent;
 
   // Semantic colors
-  static const Color success = Color(0xFF00E676);
-  static const Color successDark = Color(0xFF00C853);
-  static const Color successGlow = Color(0x4000E676);
+  static const Color success = neonGreen;
+  static const Color successDark = neonGreenHover;
+  static const Color successGlow = Colors.transparent;
   static const Color warning = Color(0xFFFFAB00);
   static const Color error = Color(0xFFFF5252);
   static const Color errorGlow = Color(0x40FF5252);
@@ -59,25 +68,25 @@ class AppColors {
   static const Color borderLightSecondary = Color(0xFFF1F5F9);
 
   // Dark mode surface colors - Deep premium dark
-  static const Color backgroundDark = Color(0xFF0A0E1A);
-  static const Color surfaceDark = Color(0xFF141B2D);
-  static const Color surfaceSecondaryDark = Color(0xFF1F2940);
-  static const Color surfaceElevatedDark = Color(0xFF2A3654);
+  static const Color backgroundDark = navy900;
+  static const Color surfaceDark = navy800;
+  static const Color surfaceSecondaryDark = navy700;
+  static const Color surfaceElevatedDark = Color(0xFF22305B);
 
   // Dark mode text colors
-  static const Color textDark = Color(0xFFF1F5F9);
-  static const Color textSecondaryDark = Color(0xFFB0BFCE); // Improved contrast
-  static const Color textTertiaryDark = Color(0xFF8B9AAF); // Improved contrast
-  static const Color textInverseDark = Color(0xFF0A0E1A);
+  static const Color textDark = Colors.white;
+  static const Color textSecondaryDark = gray300;
+  static const Color textTertiaryDark = gray400;
+  static const Color textInverseDark = navy900;
 
   // Dark mode border colors
-  static const Color borderDark = Color(0xFF2A3654);
+  static const Color borderDark = navy700;
   static const Color borderDarkSecondary = Color(0xFF3D4F6F);
 
   // Action color
-  static const Color action = Color(0xFFFF6B6B);
-  static const Color actionLight = Color(0xFFFF8E8E);
-  static const Color actionDark = Color(0xFFE85555);
+  static const Color action = neonGreen;
+  static const Color actionLight = primaryLight;
+  static const Color actionDark = neonGreenHover;
 
   // Warm accent colors for streak cards
   static const Color warmBackground = Color(0xFF1A0A0A);
@@ -85,9 +94,9 @@ class AppColors {
   static const Color warmAccent = Color(0xFFFF6B6B);
 
   // Gradient colors for splash
-  static const Color gradientStart = Color(0xFF00D9FF);
-  static const Color gradientMiddle = Color(0xFF9D4EDD);
-  static const Color gradientEnd = Color(0xFFFF6B6B);
+  static const Color gradientStart = navy900;
+  static const Color gradientMiddle = navy800;
+  static const Color gradientEnd = neonGreen;
 
   // Common colors
   static const Color white = Colors.white;
@@ -95,51 +104,51 @@ class AppColors {
 
   // Gradient presets
   static const List<Color> primaryGradient = [
-    Color(0xFF00D9FF),
-    Color(0xFF0099FF),
+    neonGreen,
+    neonGreenHover,
   ];
 
   static const List<Color> secondaryGradient = [
-    Color(0xFFFF6B6B),
-    Color(0xFFFF8E53),
+    navy700,
+    navy800,
   ];
 
   static const List<Color> premiumGradient = [
-    Color(0xFF9D4EDD),
-    Color(0xFF667EEA),
+    navy800,
+    navy700,
   ];
 
   static const List<Color> splashGradient = [
-    Color(0xFF0A0E1A),
-    Color(0xFF141B2D),
-    Color(0xFF1F2940),
+    navy900,
+    navy800,
+    navy700,
   ];
 
   static const List<Color> cardGradient = [
-    Color(0xFF1F2940),
-    Color(0xFF141B2D),
+    navy800,
+    navy700,
   ];
 
   static const List<Color> successGradient = [
-    Color(0xFF00E676),
-    Color(0xFF00C853),
+    neonGreen,
+    neonGreenHover,
   ];
 
   // Additional premium gradients
   static const List<Color> motivationalGradient = [
-    Color(0xFFFF6B6B),
-    Color(0xFFFFD93D),
+    navy700,
+    neonGreen,
   ];
 
   static const List<Color> achievementGradient = [
-    Color(0xFF00E676),
-    Color(0xFF00D9FF),
+    navy800,
+    neonGreen,
   ];
 
   static const List<Color> streakGradient = [
-    Color(0xFFFF6B6B),
-    Color(0xFFFF8E53),
-    Color(0xFFFFD93D),
+    navy700,
+    navy800,
+    neonGreenHover,
   ];
 }
 
@@ -495,17 +504,17 @@ class AppTheme {
       brightness: Brightness.dark,
       fontFamily: AppFonts.primary,
       colorScheme: ColorScheme.dark(
-        primary: AppColors.primary,
-        secondary: AppColors.secondary,
-        tertiary: AppColors.accent,
-        surface: AppColors.surfaceDark,
+        primary: AppColors.neonGreen,
+        secondary: AppColors.gray400,
+        tertiary: AppColors.navy700,
+        surface: AppColors.navy800,
         error: AppColors.error,
-        onPrimary: AppColors.textInverseDark,
-        onSecondary: AppColors.textInverseLight,
+        onPrimary: AppColors.navy900,
+        onSecondary: AppColors.textDark,
         onSurface: AppColors.textDark,
-        onError: AppColors.textInverseLight,
+        onError: AppColors.textDark,
       ),
-      scaffoldBackgroundColor: AppColors.backgroundDark,
+      scaffoldBackgroundColor: AppColors.navy900,
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
         foregroundColor: AppColors.textDark,
@@ -570,9 +579,9 @@ class AppTheme {
         ),
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-        backgroundColor: Colors.transparent,
-        selectedItemColor: AppColors.primary,
-        unselectedItemColor: AppColors.textTertiaryDark,
+        backgroundColor: AppColors.navy800,
+        selectedItemColor: AppColors.neonGreen,
+        unselectedItemColor: AppColors.gray400,
       ),
       dividerTheme: const DividerThemeData(
         color: AppColors.borderDark,
