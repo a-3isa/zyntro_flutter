@@ -48,7 +48,7 @@ class AppColors {
   static const Color successGlow = Colors.transparent;
   static const Color warning = Color(0xFFFFAB00);
   static const Color error = Color(0xFFFF5252);
-  static const Color errorGlow = Color(0x40FF5252);
+  static const Color errorGlow = Colors.transparent;
   static const Color info = gray400;
 
   // Light mode surface colors

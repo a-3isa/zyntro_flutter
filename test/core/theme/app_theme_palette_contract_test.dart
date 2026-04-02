@@ -18,6 +18,7 @@ void main() {
     expect(AppColors.primaryGlow, Colors.transparent);
     expect(AppColors.secondaryGlow, Colors.transparent);
     expect(AppColors.premiumGlow, Colors.transparent);
+    expect(AppColors.errorGlow, Colors.transparent);
   });
 
   test('semantic aliases stay mapped to the figma palette', () {
@@ -76,11 +77,11 @@ void main() {
     expect(theme.inputDecorationTheme.fillColor, AppColors.navy700);
     expect(theme.dividerTheme.color, AppColors.navy700);
     expect(
-      theme.elevatedButtonTheme.style?.backgroundColor?.resolve(<MaterialState>{}),
+      theme.elevatedButtonTheme.style?.backgroundColor?.resolve(<WidgetState>{}),
       AppColors.neonGreen,
     );
     expect(
-      theme.elevatedButtonTheme.style?.foregroundColor?.resolve(<MaterialState>{}),
+      theme.elevatedButtonTheme.style?.foregroundColor?.resolve(<WidgetState>{}),
       AppColors.navy900,
     );
   });
