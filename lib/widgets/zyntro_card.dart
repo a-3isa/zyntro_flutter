@@ -121,11 +121,9 @@ class _ZyntroCardState extends State<ZyntroCard>
     if (widget.showGlow) {
       boxShadow = [
         BoxShadow(
-          color: (widget.glowColor ?? AppColors.primaryGlow).withValues(
-            alpha: _isPressed ? 0.15 : 0.25,
-          ),
-          blurRadius: 20 * _elevationAnimation.value,
-          offset: Offset(0, 8 * _elevationAnimation.value),
+          color: const Color(0x22000000),
+          blurRadius: 14 * _elevationAnimation.value,
+          offset: Offset(0, 6 * _elevationAnimation.value),
         ),
       ];
     }
