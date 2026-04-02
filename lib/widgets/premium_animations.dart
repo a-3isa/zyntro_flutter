@@ -338,7 +338,7 @@ class GradientBorderAnimation extends StatefulWidget {
   const GradientBorderAnimation({
     super.key,
     required this.child,
-    this.gradientColors = const [Color(0xFF00D9FF), Color(0xFF9D4EDD)],
+    this.gradientColors = AppColors.primaryGradient,
     this.borderWidth = 2,
     this.borderRadius = const BorderRadius.all(Radius.circular(16)),
     this.duration = const Duration(seconds: 3),

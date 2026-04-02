@@ -16,8 +16,8 @@ class GlowContainer extends StatelessWidget {
   const GlowContainer({
     super.key,
     required this.child,
-    this.glowColor = const Color(0x4000D9FF),
-    this.blurRadius = 20,
+    this.glowColor = Colors.transparent,
+    this.blurRadius = 0,
     this.spreadRadius = 0,
     this.borderRadius,
     this.padding,
@@ -26,18 +26,22 @@ class GlowContainer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final boxShadows = glowColor == Colors.transparent || blurRadius == 0
+        ? const <BoxShadow>[]
+        : [
+            BoxShadow(
+              color: glowColor,
+              blurRadius: blurRadius,
+              spreadRadius: spreadRadius,
+            ),
+          ];
+
     return Container(
       margin: margin,
       padding: padding,
       decoration: BoxDecoration(
         borderRadius: borderRadius ?? BorderRadius.circular(AppBorderRadius.xl),
-        boxShadow: [
-          BoxShadow(
-            color: glowColor,
-            blurRadius: blurRadius,
-            spreadRadius: spreadRadius,
-          ),
-        ],
+        boxShadow: boxShadows,
       ),
       child: child,
     );
@@ -252,7 +256,7 @@ class GradientBorder extends StatelessWidget {
   const GradientBorder({
     super.key,
     required this.child,
-    this.gradientColors = const [Color(0xFF00D9FF), Color(0xFF9D4EDD)],
+    this.gradientColors = AppColors.primaryGradient,
     this.borderWidth = 2,
     this.borderRadius,
     this.padding,
@@ -295,9 +299,9 @@ class PulsingGlow extends StatefulWidget {
   const PulsingGlow({
     super.key,
     required this.child,
-    this.glowColor = const Color(0x4000D9FF),
-    this.minRadius = 10,
-    this.maxRadius = 25,
+    this.glowColor = Colors.transparent,
+    this.minRadius = 0,
+    this.maxRadius = 0,
     this.duration = const Duration(milliseconds: 1500),
   });
 
@@ -360,7 +364,7 @@ class GradientText extends StatelessWidget {
     super.key,
     required this.text,
     this.style,
-    this.colors = const [Color(0xFF00D9FF), Color(0xFF9D4EDD)],
+    this.colors = const [AppColors.textDark, AppColors.neonGreen],
     this.textAlign,
   });
 
