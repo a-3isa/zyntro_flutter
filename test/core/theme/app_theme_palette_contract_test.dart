@@ -24,8 +24,23 @@ void main() {
     expect(AppColors.primaryLight, AppColors.neonGreenHover);
     expect(AppColors.action, AppColors.neonGreen);
     expect(AppColors.actionLight, AppColors.neonGreenHover);
+    expect(AppColors.secondary, AppColors.gray400);
+    expect(AppColors.secondaryDark, AppColors.gray300);
+    expect(AppColors.accent, AppColors.navy700);
+    expect(AppColors.premium, AppColors.navy800);
+    expect(AppColors.success, AppColors.neonGreen);
+    expect(AppColors.successDark, AppColors.neonGreenHover);
     expect(AppColors.secondaryLight, AppColors.gray300);
     expect(AppColors.info, AppColors.gray400);
+    expect(AppColors.backgroundDark, AppColors.navy900);
+    expect(AppColors.surfaceDark, AppColors.navy800);
+    expect(AppColors.surfaceSecondaryDark, AppColors.navy700);
+    expect(AppColors.textSecondaryDark, AppColors.gray300);
+    expect(AppColors.textTertiaryDark, AppColors.gray400);
+    expect(AppColors.borderDark, AppColors.navy700);
+    expect(AppColors.gradientStart, AppColors.navy900);
+    expect(AppColors.gradientMiddle, AppColors.navy800);
+    expect(AppColors.gradientEnd, AppColors.neonGreen);
     expect(AppColors.warmBackground, AppColors.navy900);
     expect(AppColors.warmBorder, AppColors.neonGreenHover);
     expect(AppColors.warmAccent, AppColors.neonGreen);
@@ -37,6 +52,11 @@ void main() {
     expect(AppColors.primaryGradient, [AppColors.neonGreen, AppColors.neonGreenHover]);
     expect(AppColors.secondaryGradient, [AppColors.navy700, AppColors.navy800]);
     expect(AppColors.premiumGradient, [AppColors.navy800, AppColors.navy700]);
+    expect(AppColors.splashGradient, [AppColors.navy900, AppColors.navy800, AppColors.navy700]);
+    expect(AppColors.successGradient, [AppColors.neonGreen, AppColors.neonGreenHover]);
+    expect(AppColors.motivationalGradient, [AppColors.navy700, AppColors.neonGreen]);
+    expect(AppColors.achievementGradient, [AppColors.navy800, AppColors.neonGreen]);
+    expect(AppColors.streakGradient, [AppColors.navy700, AppColors.navy800, AppColors.neonGreenHover]);
     expect(AppColors.cardGradient, [AppColors.navy800, AppColors.navy700]);
   });
 
@@ -50,5 +70,16 @@ void main() {
     expect(theme.colorScheme.tertiary, AppColors.navy700);
     expect(theme.bottomNavigationBarTheme.selectedItemColor, AppColors.neonGreen);
     expect(theme.bottomNavigationBarTheme.unselectedItemColor, AppColors.gray400);
+    expect(theme.cardTheme.color, AppColors.navy800);
+    expect(theme.inputDecorationTheme.fillColor, AppColors.navy700);
+    expect(theme.dividerTheme.color, AppColors.navy700);
+    expect(
+      theme.elevatedButtonTheme.style?.backgroundColor?.resolve(<MaterialState>{}),
+      AppColors.neonGreen,
+    );
+    expect(
+      theme.elevatedButtonTheme.style?.foregroundColor?.resolve(<MaterialState>{}),
+      AppColors.navy900,
+    );
   });
 }
