@@ -21,14 +21,14 @@ class AppColors {
   // Primary colors
   static const Color primary = neonGreen;
   static const Color primaryDark = neonGreenHover;
-  static const Color primaryLight = Color(0xFF6CFF52);
+  static const Color primaryLight = neonGreenHover;
   static const Color primaryMuted = navy700;
   static const Color primaryGlow = Colors.transparent;
 
   // Secondary colors
   static const Color secondary = gray400;
   static const Color secondaryDark = gray300;
-  static const Color secondaryLight = Color(0xFFC7C7D1);
+  static const Color secondaryLight = gray300;
   static const Color secondaryGlow = Colors.transparent;
 
   // Accent colors
@@ -49,7 +49,7 @@ class AppColors {
   static const Color warning = Color(0xFFFFAB00);
   static const Color error = Color(0xFFFF5252);
   static const Color errorGlow = Color(0x40FF5252);
-  static const Color info = Color(0xFF00B0FF);
+  static const Color info = gray400;
 
   // Light mode surface colors
   static const Color backgroundLight = Color(0xFFF8FAFC);
@@ -71,7 +71,7 @@ class AppColors {
   static const Color backgroundDark = navy900;
   static const Color surfaceDark = navy800;
   static const Color surfaceSecondaryDark = navy700;
-  static const Color surfaceElevatedDark = Color(0xFF22305B);
+  static const Color surfaceElevatedDark = navy800;
 
   // Dark mode text colors
   static const Color textDark = Colors.white;
@@ -81,7 +81,7 @@ class AppColors {
 
   // Dark mode border colors
   static const Color borderDark = navy700;
-  static const Color borderDarkSecondary = Color(0xFF3D4F6F);
+  static const Color borderDarkSecondary = navy800;
 
   // Action color
   static const Color action = neonGreen;
@@ -89,9 +89,9 @@ class AppColors {
   static const Color actionDark = neonGreenHover;
 
   // Warm accent colors for streak cards
-  static const Color warmBackground = Color(0xFF1A0A0A);
-  static const Color warmBorder = Color(0xFFFF6B6B);
-  static const Color warmAccent = Color(0xFFFF6B6B);
+  static const Color warmBackground = navy900;
+  static const Color warmBorder = neonGreenHover;
+  static const Color warmAccent = neonGreen;
 
   // Gradient colors for splash
   static const Color gradientStart = navy900;
