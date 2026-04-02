@@ -52,9 +52,9 @@ class AppColors {
   static const Color info = gray400;
 
   // Light mode surface colors
-  static const Color backgroundLight = Color(0xFFF8FAFC);
+  static const Color backgroundLight = Color(0xFFF5F7FA);
   static const Color surfaceLight = Color(0xFFFFFFFF);
-  static const Color surfaceSecondaryLight = Color(0xFFF1F5F9);
+  static const Color surfaceSecondaryLight = Color(0xFFEAEEF5);
   static const Color surfaceElevatedLight = Color(0xFFFFFFFF);
 
   // Light mode text colors

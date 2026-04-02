@@ -13,6 +13,8 @@ void main() {
     expect(AppColors.neonGreenHover, const Color(0xFF2EE00F));
     expect(AppColors.gray400, const Color(0xFF8B8B98));
     expect(AppColors.gray300, const Color(0xFFA0A0AC));
+    expect(AppColors.backgroundLight, const Color(0xFFF5F7FA));
+    expect(AppColors.surfaceSecondaryLight, const Color(0xFFEAEEF5));
     expect(AppColors.primaryGlow, Colors.transparent);
     expect(AppColors.secondaryGlow, Colors.transparent);
     expect(AppColors.premiumGlow, Colors.transparent);
