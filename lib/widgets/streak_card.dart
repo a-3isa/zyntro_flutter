@@ -162,12 +162,7 @@ class _StreakCardState extends State<StreakCard>
                   ),
                 ),
                 // Animated flame icon with pulsing glow
-                PulsingGlow(
-                  glowColor: AppColors.secondaryGlow,
-                  minRadius: 8,
-                  maxRadius: 20,
-                  duration: const Duration(milliseconds: 1800),
-                  child: AnimatedBuilder(
+                AnimatedBuilder(
                     animation: _scaleAnimation,
                     builder: (context, child) {
                       return Transform.scale(
@@ -197,7 +192,6 @@ class _StreakCardState extends State<StreakCard>
                       ),
                     ),
                   ),
-                ),
               ],
             ),
             const SizedBox(height: AppSpacing.sm),

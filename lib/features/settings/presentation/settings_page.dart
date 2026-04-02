@@ -496,10 +496,7 @@ class SettingsPage extends ConsumerWidget {
   }
 
   Widget _buildSignOutCard(BuildContext context, WidgetRef ref) {
-    return GlowContainer(
-      glowColor: AppColors.error.withValues(alpha: 0.3),
-      blurRadius: 15,
-      child: GlassContainer(
+    return GlassContainer(
         blur: 10,
         backgroundColor: AppColors.error.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(AppBorderRadius.lg),
@@ -597,7 +594,6 @@ class SettingsPage extends ConsumerWidget {
             trailing: const Icon(Icons.chevron_right, color: AppColors.error),
           ),
         ),
-      ),
     );
   }
 

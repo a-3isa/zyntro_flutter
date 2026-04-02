@@ -307,10 +307,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage>
                 minScale: 1.0,
                 maxScale: 1.05,
                 duration: const Duration(milliseconds: 2000),
-                child: GlowContainer(
-                  glowColor: AppColors.primary.withValues(alpha: 0.4),
-                  blurRadius: 25,
-                  child: Container(
+                child: Container(
                     width: 100,
                     height: 100,
                     decoration: BoxDecoration(
@@ -334,7 +331,6 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage>
                       color: Colors.white,
                     ),
                   ),
-                ),
               ),
             ),
           ),
@@ -486,10 +482,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage>
               minScale: 1.0,
               maxScale: 1.1,
               duration: const Duration(milliseconds: 1500),
-              child: GlowContainer(
-                glowColor: AppColors.success.withValues(alpha: 0.5),
-                blurRadius: 30,
-                child: Container(
+              child: Container(
                   width: 120,
                   height: 120,
                   decoration: BoxDecoration(
@@ -516,7 +509,6 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage>
                     color: Colors.white,
                   ),
                 ),
-              ),
             ),
           ),
         ),

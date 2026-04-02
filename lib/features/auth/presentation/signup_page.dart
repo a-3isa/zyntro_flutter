@@ -534,7 +534,7 @@ class _SignUpPageState extends ConsumerState<SignUpPage>
                                     height: 72,
                                     decoration: BoxDecoration(
                                       gradient: const LinearGradient(
-                                        colors: AppColors.premiumGradient,
+                                        colors: AppColors.cardGradient,
                                         begin: Alignment.topLeft,
                                         end: Alignment.bottomRight,
                                       ),
@@ -814,12 +814,7 @@ class _SignUpPageState extends ConsumerState<SignUpPage>
                           index: 7,
                           child: ScaleOnTap(
                             onTap: _isLoading ? null : _handleGoogleSignIn,
-                            child: GlowContainer(
-                              glowColor: AppColors.primary.withValues(
-                                alpha: 0.2,
-                              ),
-                              blurRadius: 15,
-                              child: GlassContainer(
+                            child: GlassContainer(
                                 blur: 10,
                                 backgroundColor: AppColors.surfaceSecondaryDark
                                     .withValues(alpha: 0.5),
@@ -864,7 +859,6 @@ class _SignUpPageState extends ConsumerState<SignUpPage>
                                     ],
                                   ),
                                 ),
-                              ),
                             ),
                           ),
                         ),
@@ -876,12 +870,7 @@ class _SignUpPageState extends ConsumerState<SignUpPage>
                           index: 8,
                           child: ScaleOnTap(
                             onTap: _isLoading ? null : _handleFacebookSignUp,
-                            child: GlowContainer(
-                              glowColor: const Color(
-                                0xFF1877F2,
-                              ).withValues(alpha: 0.2),
-                              blurRadius: 15,
-                              child: GlassContainer(
+                            child: GlassContainer(
                                 blur: 10,
                                 backgroundColor: AppColors.surfaceSecondaryDark
                                     .withValues(alpha: 0.5),
@@ -926,7 +915,6 @@ class _SignUpPageState extends ConsumerState<SignUpPage>
                                     ],
                                   ),
                                 ),
-                              ),
                             ),
                           ),
                         ),

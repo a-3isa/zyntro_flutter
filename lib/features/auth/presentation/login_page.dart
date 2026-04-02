@@ -599,17 +599,12 @@ class _LoginPageState extends ConsumerState<LoginPage>
 
                         const SizedBox(height: AppSpacing.xl),
 
-                        // Google Sign In with ScaleOnTap and GlowContainer
+                        // Google Sign In with ScaleOnTap
                         SlideInAnimation.fromBottom(
                           index: 7,
                           child: ScaleOnTap(
                             onTap: _isLoading ? null : _handleGoogleSignIn,
-                            child: GlowContainer(
-                              glowColor: AppColors.primary.withValues(
-                                alpha: 0.2,
-                              ),
-                              blurRadius: 15,
-                              child: GlassContainer(
+                            child: GlassContainer(
                                 blur: 10,
                                 backgroundColor: AppColors.surfaceSecondaryDark
                                     .withValues(alpha: 0.5),
@@ -654,7 +649,6 @@ class _LoginPageState extends ConsumerState<LoginPage>
                                     ],
                                   ),
                                 ),
-                              ),
                             ),
                           ),
                         ),
@@ -666,12 +660,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
                           index: 8,
                           child: ScaleOnTap(
                             onTap: _isLoading ? null : _handleFacebookSignIn,
-                            child: GlowContainer(
-                              glowColor: const Color(
-                                0xFF1877F2,
-                              ).withValues(alpha: 0.2),
-                              blurRadius: 15,
-                              child: GlassContainer(
+                            child: GlassContainer(
                                 blur: 10,
                                 backgroundColor: AppColors.surfaceSecondaryDark
                                     .withValues(alpha: 0.5),
@@ -716,7 +705,6 @@ class _LoginPageState extends ConsumerState<LoginPage>
                                     ],
                                   ),
                                 ),
-                              ),
                             ),
                           ),
                         ),

@@ -449,12 +449,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                                               onTap: _pickImage,
                                               child: Stack(
                                                 children: [
-                                                  PulsingGlow(
-                                                    glowColor: AppColors.primary
-                                                        .withValues(alpha: 0.4),
-                                                    minRadius: 15,
-                                                    maxRadius: 25,
-                                                    child: Container(
+                                                  Container(
                                                       width: 130,
                                                       height: 130,
                                                       decoration: BoxDecoration(
@@ -564,7 +559,6 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                                                               ),
                                                       ),
                                                     ),
-                                                  ),
                                                   Positioned(
                                                     bottom: 0,
                                                     right: 0,

@@ -584,10 +584,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
                       // Celebration header with glow and fade animation
                       FadeInAnimation(
                         delay: const Duration(milliseconds: 200),
-                        child: GlowContainer(
-                          glowColor: AppColors.secondaryGlow,
-                          blurRadius: 40,
-                          child: Column(
+                        child: Column(
                             children: [
                               Container(
                                 padding: const EdgeInsets.all(20),
@@ -614,7 +611,6 @@ class _RecapPageState extends ConsumerState<RecapPage> {
                               ),
                             ],
                           ),
-                        ),
                       ),
                       const SizedBox(height: AppSpacing.sm),
                       SlideInAnimation.fromBottom(

@@ -127,7 +127,7 @@ class _ZyntroButtonState extends State<ZyntroButton>
       case ZyntroButtonVariant.premium:
         return _isPressed
             ? [AppColors.premiumDark, AppColors.premium]
-            : AppColors.premiumGradient;
+            : AppColors.cardGradient;
       case ZyntroButtonVariant.destructive:
         return _isPressed
             ? [AppColors.error.withValues(alpha: 0.7), AppColors.error]
