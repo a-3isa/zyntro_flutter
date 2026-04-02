@@ -21,16 +21,16 @@ void main() {
   test('semantic aliases stay mapped to the figma palette', () {
     expect(AppColors.primary, AppColors.neonGreen);
     expect(AppColors.primaryDark, AppColors.neonGreenHover);
-    expect(AppColors.primaryLight, AppColors.neonGreenHover);
+    expect(AppColors.primaryLight, const Color(0xFF6CFF52));
     expect(AppColors.action, AppColors.neonGreen);
-    expect(AppColors.actionLight, AppColors.neonGreenHover);
+    expect(AppColors.actionLight, const Color(0xFF6CFF52));
     expect(AppColors.secondary, AppColors.gray400);
     expect(AppColors.secondaryDark, AppColors.gray300);
     expect(AppColors.accent, AppColors.navy700);
     expect(AppColors.premium, AppColors.navy800);
     expect(AppColors.success, AppColors.neonGreen);
     expect(AppColors.successDark, AppColors.neonGreenHover);
-    expect(AppColors.secondaryLight, AppColors.gray300);
+    expect(AppColors.secondaryLight, const Color(0xFFC7C7D1));
     expect(AppColors.info, AppColors.gray400);
     expect(AppColors.backgroundDark, AppColors.navy900);
     expect(AppColors.surfaceDark, AppColors.navy800);
@@ -44,8 +44,8 @@ void main() {
     expect(AppColors.warmBackground, AppColors.navy900);
     expect(AppColors.warmBorder, AppColors.neonGreenHover);
     expect(AppColors.warmAccent, AppColors.neonGreen);
-    expect(AppColors.borderDarkSecondary, AppColors.navy800);
-    expect(AppColors.surfaceElevatedDark, AppColors.navy800);
+    expect(AppColors.borderDarkSecondary, const Color(0xFF263156));
+    expect(AppColors.surfaceElevatedDark, const Color(0xFF22305B));
   });
 
   test('key gradients stay on the figma palette', () {

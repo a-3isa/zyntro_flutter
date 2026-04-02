@@ -21,14 +21,14 @@ class AppColors {
   // Primary colors
   static const Color primary = neonGreen;
   static const Color primaryDark = neonGreenHover;
-  static const Color primaryLight = neonGreenHover;
+  static const Color primaryLight = Color(0xFF6CFF52);
   static const Color primaryMuted = navy700;
   static const Color primaryGlow = Colors.transparent;
 
   // Secondary colors
   static const Color secondary = gray400;
   static const Color secondaryDark = gray300;
-  static const Color secondaryLight = gray300;
+  static const Color secondaryLight = Color(0xFFC7C7D1);
   static const Color secondaryGlow = Colors.transparent;
 
   // Accent colors
@@ -71,7 +71,7 @@ class AppColors {
   static const Color backgroundDark = navy900;
   static const Color surfaceDark = navy800;
   static const Color surfaceSecondaryDark = navy700;
-  static const Color surfaceElevatedDark = navy800;
+  static const Color surfaceElevatedDark = Color(0xFF22305B);
 
   // Dark mode text colors
   static const Color textDark = Colors.white;
@@ -81,7 +81,7 @@ class AppColors {
 
   // Dark mode border colors
   static const Color borderDark = navy700;
-  static const Color borderDarkSecondary = navy800;
+  static const Color borderDarkSecondary = Color(0xFF263156);
 
   // Action color
   static const Color action = neonGreen;
