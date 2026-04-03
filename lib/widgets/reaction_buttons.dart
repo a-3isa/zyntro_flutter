@@ -120,7 +120,6 @@ class _ReactionButtonsState extends State<ReactionButtons>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
     // Responsive sizing
     final isSmallScreen =
@@ -145,9 +144,7 @@ class _ReactionButtonsState extends State<ReactionButtons>
           _buildReactionButton(
             type: ReactionType.fire,
             emoji: '🔥',
-            color: Colors.orange,
             label: 'Fire',
-            isDark: isDark,
             buttonPadding: buttonPadding,
             emojiSize: emojiSize,
           ),
@@ -155,9 +152,7 @@ class _ReactionButtonsState extends State<ReactionButtons>
           _buildReactionButton(
             type: ReactionType.strong,
             emoji: '💪',
-            color: Colors.purple,
             label: 'Strong',
-            isDark: isDark,
             buttonPadding: buttonPadding,
             emojiSize: emojiSize,
           ),
@@ -165,9 +160,7 @@ class _ReactionButtonsState extends State<ReactionButtons>
           _buildReactionButton(
             type: ReactionType.clap,
             emoji: '👏',
-            color: Colors.amber,
             label: 'Clap',
-            isDark: isDark,
             buttonPadding: buttonPadding,
             emojiSize: emojiSize,
           ),
@@ -179,16 +172,13 @@ class _ReactionButtonsState extends State<ReactionButtons>
   Widget _buildReactionButton({
     required ReactionType type,
     required String emoji,
-    required Color color,
     required String label,
-    required bool isDark,
     required EdgeInsets buttonPadding,
     required double emojiSize,
   }) {
     final isSelected = widget.currentReaction == type;
     final count = widget.reactionCounts[type] ?? 0;
     final isAnimating = _animatingType == type;
-    final gradientColors = _getGradientColors(type);
 
     Widget button = GestureDetector(
       onTap: () => _handleTap(type),
@@ -205,24 +195,29 @@ class _ReactionButtonsState extends State<ReactionButtons>
             gradient: isSelected
                 ? LinearGradient(
                     colors: [
-                      gradientColors[0].withValues(alpha: isDark ? 0.4 : 0.25),
-                      gradientColors[1].withValues(alpha: isDark ? 0.3 : 0.15),
+                      AppColors.navy800.withValues(alpha: 0.96),
+                      AppColors.navy700.withValues(alpha: 0.92),
+                      AppColors.neonGreen.withValues(alpha: 0.08),
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   )
                 : null,
-            color: isSelected ? null : Colors.transparent,
+            color: isSelected
+                ? AppColors.navy800.withValues(alpha: 0.88)
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(AppBorderRadius.lg),
             border: Border.all(
-              color: isSelected ? color : Colors.grey.withValues(alpha: 0.3),
-              width: isSelected ? 2 : 1,
+              color: isSelected
+                  ? AppColors.neonGreen.withValues(alpha: 0.55)
+                  : AppColors.gray400.withValues(alpha: 0.3),
+              width: isSelected ? 1.5 : 1,
             ),
             boxShadow: isSelected
                 ? [
                     BoxShadow(
-                      color: color.withValues(alpha: 0.3),
-                      blurRadius: 12,
+                      color: Colors.black.withValues(alpha: 0.25),
+                      blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
                   ]
@@ -235,7 +230,7 @@ class _ReactionButtonsState extends State<ReactionButtons>
                 emoji,
                 style: TextStyle(
                   fontSize: emojiSize,
-                  color: isSelected ? color : null,
+                  color: isSelected ? AppColors.neonGreen : null,
                 ),
               ),
               if (count > 0) ...[
@@ -248,7 +243,7 @@ class _ReactionButtonsState extends State<ReactionButtons>
                         ? FontWeight.bold
                         : FontWeight.normal,
                     color: isSelected
-                        ? color
+                        ? AppColors.neonGreen
                         : Theme.of(
                             context,
                           ).colorScheme.onSurface.withValues(alpha: 0.7),
@@ -260,17 +255,6 @@ class _ReactionButtonsState extends State<ReactionButtons>
         ),
       ),
     );
-
-    // Wrap selected reaction with pulsing glow
-    if (isSelected) {
-      button = PulsingGlow(
-        glowColor: color.withValues(alpha: 0.3),
-        minRadius: 5,
-        maxRadius: 12,
-        duration: const Duration(milliseconds: 2000),
-        child: button,
-      );
-    }
 
     return Semantics(
       label: '$label reaction${count > 0 ? ', $count reactions' : ''}',

@@ -163,15 +163,13 @@ class _MainShellState extends ConsumerState<MainShell>
               child: Container(
                 height: 72,
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceDark.withValues(alpha: 0.85),
+                  color: AppColors.navy800.withValues(alpha: 0.85),
                   borderRadius: BorderRadius.circular(28),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.1),
-                  ),
+                  border: Border.all(color: AppColors.navy700),
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.primaryGlow.withValues(alpha: 0.3),
-                      blurRadius: 24,
+                      color: Colors.black.withValues(alpha: 0.32),
+                      blurRadius: 26,
                       offset: const Offset(0, 8),
                     ),
                   ],
@@ -219,9 +217,7 @@ class _MainShellState extends ConsumerState<MainShell>
               duration: AppDurations.fast,
               child: Icon(
                 isActive ? activeIcon : icon,
-                color: isActive
-                    ? AppColors.primary
-                    : AppColors.textTertiaryDark,
+                color: isActive ? AppColors.neonGreen : AppColors.gray400,
                 size: 24,
               ),
             ),
@@ -231,9 +227,7 @@ class _MainShellState extends ConsumerState<MainShell>
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-                color: isActive
-                    ? AppColors.primary
-                    : AppColors.textTertiaryDark,
+                color: isActive ? AppColors.neonGreen : AppColors.gray400,
               ),
               child: Text(label),
             ),
@@ -244,8 +238,6 @@ class _MainShellState extends ConsumerState<MainShell>
   }
 
   Widget _buildSessionFab() {
-    final isActive = _currentIndex == 1;
-
     return GestureDetector(
       onTapDown: (_) => _fabController.forward(),
       onTapUp: (_) {
@@ -262,26 +254,23 @@ class _MainShellState extends ConsumerState<MainShell>
           width: 56,
           height: 56,
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: isActive
-                  ? AppColors.secondaryGradient
-                  : AppColors.primaryGradient,
+            gradient: const LinearGradient(
+              colors: AppColors.primaryGradient,
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: (isActive ? AppColors.secondary : AppColors.primary)
-                    .withValues(alpha: 0.5),
-                blurRadius: 16,
+                color: Colors.black.withValues(alpha: 0.35),
+                blurRadius: 18,
                 offset: const Offset(0, 6),
               ),
             ],
           ),
           child: const Icon(
             Icons.fitness_center,
-            color: Colors.white,
+            color: AppColors.navy900,
             size: 26,
           ),
         ),
