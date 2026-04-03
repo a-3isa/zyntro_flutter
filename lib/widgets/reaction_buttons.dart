@@ -119,8 +119,6 @@ class _ReactionButtonsState extends State<ReactionButtons>
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     // Responsive sizing
     final isSmallScreen =
         MediaQuery.of(context).size.width < ResponsiveBreakpoints.mobile;

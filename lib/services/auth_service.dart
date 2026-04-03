@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 import '../features/auth/auth_providers.dart';
 import '../features/auth/domain/entities/auth_user_entity.dart';
 

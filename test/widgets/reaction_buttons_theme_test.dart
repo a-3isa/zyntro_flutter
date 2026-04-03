@@ -49,6 +49,6 @@ void main() {
       contains(AppColors.neonGreen.withValues(alpha: 0.08)),
     );
     expect(decoration.boxShadow, isNotNull);
-    expect(decoration.boxShadow!.single.color.opacity, closeTo(0.25, 0.01));
+    expect((decoration.boxShadow!.single.color.a * 255.0).round(), 64);
   });
 }

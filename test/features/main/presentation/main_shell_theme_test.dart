@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:zyntro_flutter/core/models/models.dart';
 import 'package:zyntro_flutter/core/theme/app_theme.dart';
 import 'package:zyntro_flutter/features/auth/auth_providers.dart';
 import 'package:zyntro_flutter/features/auth/domain/entities/auth_user_entity.dart';
@@ -67,6 +66,35 @@ void main() {
     );
     expect(
       navIcons.firstWhere((icon) => icon.icon == Icons.people_outline).color,
+      AppColors.gray400,
+    );
+
+    final navLabels = tester.widgetList<AnimatedDefaultTextStyle>(
+      find.descendant(
+        of: find.byType(BackdropFilter),
+        matching: find.byType(AnimatedDefaultTextStyle),
+      ),
+    );
+
+    expect(
+      (navLabels
+              .firstWhere(
+                (label) =>
+                    label.child is Text && (label.child as Text).data == 'Feed',
+              )
+              .style)
+          .color,
+      AppColors.neonGreen,
+    );
+    expect(
+      (navLabels
+              .firstWhere(
+                (label) =>
+                    label.child is Text &&
+                    (label.child as Text).data == 'Social',
+              )
+              .style)
+          .color,
       AppColors.gray400,
     );
 
