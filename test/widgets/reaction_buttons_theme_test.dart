@@ -11,7 +11,7 @@ void main() {
   ) async {
     await tester.pumpWidget(
       MaterialApp(
-        theme: AppTheme.darkTheme,
+        theme: ThemeData.dark(),
         home: Scaffold(
           body: ReactionButtons(
             postId: 'post-1',
