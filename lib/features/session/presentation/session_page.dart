@@ -116,7 +116,9 @@ class SessionPage extends ConsumerWidget {
                           height: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation(AppColors.primary),
+                            valueColor: AlwaysStoppedAnimation(
+                              AppColors.primary,
+                            ),
                           ),
                         ),
                       ),
@@ -272,78 +274,74 @@ class SessionPage extends ConsumerWidget {
   }
 
   Widget _buildHeroSection(BuildContext context) {
-    return GlowContainer(
-      glowColor: AppColors.primaryGlow.withValues(alpha: 0.3),
-      blurRadius: 40,
-      child: GlassContainer(
-        blur: 15,
-        backgroundColor: AppColors.surfaceSecondaryDark.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(
-          color: AppColors.primary.withValues(alpha: 0.2),
-        ),
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          children: [
-            // Animated icon circle
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: AppColors.primaryGradient,
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+    return GlassContainer(
+      blur: 15,
+      backgroundColor: AppColors.surfaceSecondaryDark.withValues(alpha: 0.5),
+      borderRadius: BorderRadius.circular(30),
+      border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+      padding: const EdgeInsets.all(28),
+      child: Column(
+        children: [
+          // Animated icon circle
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: AppColors.primaryGradient,
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: 0.22),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
                 ),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.4),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: const PulseAnimation(
-                child: Icon(
-                  Icons.fitness_center_rounded,
-                  size: 38,
-                  color: Colors.white,
+                const BoxShadow(
+                  color: Color(0x33000000),
+                  blurRadius: 16,
+                  offset: Offset(0, 10),
                 ),
+              ],
+            ),
+            child: const PulseAnimation(
+              child: Icon(
+                Icons.fitness_center_rounded,
+                size: 38,
+                color: Colors.white,
               ),
             ),
-            const SizedBox(height: 24),
-            const GradientText(
-              text: 'Ready to Train?',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                letterSpacing: -0.5,
-              ),
-              colors: [AppColors.textDark, AppColors.primaryLight],
+          ),
+          const SizedBox(height: 24),
+          const GradientText(
+            text: 'Ready to Train?',
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              letterSpacing: -0.5,
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Start a solo or buddy session',
-              style: TextStyle(
-                fontSize: 16,
-                color: AppColors.textSecondaryDark,
-              ),
-            ),
-            const SizedBox(height: 32),
-            ZyntroButton(
-              title: 'Start Session',
-              fullWidth: true,
-              size: ZyntroButtonSize.lg,
-              variant: ZyntroButtonVariant.premium,
-              rightIcon: const Icon(Icons.arrow_forward_rounded, size: 20),
-              onPressed: () {
-                HapticManager.medium();
-                context.push(AppRoutes.startSession);
-              },
-            ),
-          ],
-        ),
+            colors: [AppColors.textDark, AppColors.primaryLight],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Start a solo or buddy session',
+            style: TextStyle(fontSize: 16, color: AppColors.textSecondaryDark),
+          ),
+          const SizedBox(height: 32),
+          ZyntroButton(
+            title: 'Start Session',
+            fullWidth: true,
+            size: ZyntroButtonSize.lg,
+            variant: ZyntroButtonVariant.premium,
+            rightIcon: const Icon(Icons.arrow_forward_rounded, size: 20),
+            onPressed: () {
+              HapticManager.medium();
+              context.push(AppRoutes.startSession);
+            },
+          ),
+        ],
       ),
     );
   }
@@ -366,7 +364,11 @@ class SessionPage extends ConsumerWidget {
               ),
               borderRadius: BorderRadius.circular(16),
             ),
-            child: const Icon(Icons.people_rounded, color: Colors.white, size: 24),
+            child: const Icon(
+              Icons.people_rounded,
+              color: Colors.white,
+              size: 24,
+            ),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -484,9 +486,7 @@ class SessionPage extends ConsumerWidget {
         blur: 10,
         backgroundColor: AppColors.surfaceSecondaryDark.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.05),
-        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
@@ -544,11 +544,11 @@ class SessionPage extends ConsumerWidget {
         },
         child: GlassContainer(
           blur: 10,
-          backgroundColor: AppColors.surfaceSecondaryDark.withValues(alpha: 0.4),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.05),
+          backgroundColor: AppColors.surfaceSecondaryDark.withValues(
+            alpha: 0.4,
           ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
           padding: const EdgeInsets.all(20),
           child: Column(
             children: [
@@ -558,9 +558,7 @@ class SessionPage extends ConsumerWidget {
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                    color: color.withValues(alpha: 0.2),
-                  ),
+                  border: Border.all(color: color.withValues(alpha: 0.2)),
                 ),
                 child: Icon(icon, size: 28, color: color),
               ),

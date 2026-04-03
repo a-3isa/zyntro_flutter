@@ -51,7 +51,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage>
       title: 'Celebrate Wins',
       description:
           'Share your progress, earn badges, and celebrate achievements together.',
-      gradientColors: AppColors.premiumGradient,
+      gradientColors: AppColors.achievementGradient,
     ),
   ];
 
@@ -196,7 +196,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage>
                             borderRadius: BorderRadius.circular(
                               AppBorderRadius.lg,
                             ),
-                            gradientColors: AppColors.premiumGradient,
+                            gradientColors: AppColors.achievementGradient,
                             child: BounceAnimation(
                               onTap: () {
                                 HapticFeedback.heavyImpact();
@@ -323,31 +323,30 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage>
                   ),
                 );
               },
-              child: GlowContainer(
-                glowColor: slide.gradientColors.first.withValues(alpha: 0.5),
-                blurRadius: 40,
-                child: Container(
-                  width: 140,
-                  height: 140,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: slide.gradientColors,
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(40),
-                    boxShadow: [
-                      BoxShadow(
-                        color: slide.gradientColors.first.withValues(
-                          alpha: 0.4,
-                        ),
-                        blurRadius: 30,
-                        offset: const Offset(0, 15),
-                      ),
-                    ],
+              child: Container(
+                width: 140,
+                height: 140,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: slide.gradientColors,
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                  child: Icon(slide.icon, size: 64, color: Colors.white),
+                  borderRadius: BorderRadius.circular(40),
+                  boxShadow: [
+                    BoxShadow(
+                      color: slide.gradientColors.first.withValues(alpha: 0.28),
+                      blurRadius: 26,
+                      offset: const Offset(0, 15),
+                    ),
+                    const BoxShadow(
+                      color: Color(0x33000000),
+                      blurRadius: 18,
+                      offset: Offset(0, 10),
+                    ),
+                  ],
                 ),
+                child: Icon(slide.icon, size: 64, color: Colors.white),
               ),
             ),
           ),

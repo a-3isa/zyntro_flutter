@@ -430,76 +430,71 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   Widget _buildProfileHeader(User user, bool isCurrentUser) {
     return Column(
       children: [
-        // Avatar with pulsing glow
-        PulsingGlow(
-          glowColor: AppColors.primary.withValues(alpha: 0.5),
-          minRadius: 20,
-          maxRadius: 30,
-          child: GlowContainer(
-            glowColor: AppColors.primaryGlow,
-            blurRadius: 25,
-            child: Container(
-              width: 110,
-              height: 110,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: const LinearGradient(
-                  colors: AppColors.primaryGradient,
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.4),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
+        Container(
+          width: 110,
+          height: 110,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: const LinearGradient(
+              colors: AppColors.primaryGradient,
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primary.withValues(alpha: 0.22),
+                blurRadius: 24,
+                offset: const Offset(0, 10),
               ),
-              padding: const EdgeInsets.all(3),
-              child: Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.surfaceDark,
-                ),
-                padding: const EdgeInsets.all(3),
-                child: Hero(
-                  tag: 'avatar_${user.id}',
-                  child: ClipOval(
-                    child: user.photoURL != null && user.photoURL!.isNotEmpty
-                        ? CachedNetworkImage(
-                            imageUrl: user.photoURL!,
-                            fit: BoxFit.cover,
-                            width: 100,
-                            height: 100,
-                          )
-                        : (user.avatarConfig != null &&
-                              user.avatarConfig!.isNotEmpty)
-                        ? AvatarPlus(
-                            user.avatarConfig!,
-                            width: 100,
-                            height: 100,
-                            fit: BoxFit.cover,
-                          )
-                        : Container(
-                            width: 100,
-                            height: 100,
-                            color: AppColors.surfaceSecondaryDark,
-                            child: Center(
-                              child: Text(
-                                user.displayName.isNotEmpty
-                                    ? user.displayName[0].toUpperCase()
-                                    : 'U',
-                                style: const TextStyle(
-                                  fontSize: 36,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.primary,
-                                ),
-                              ),
+              const BoxShadow(
+                color: Color(0x33000000),
+                blurRadius: 18,
+                offset: Offset(0, 10),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.all(3),
+          child: Container(
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.surfaceDark,
+            ),
+            padding: const EdgeInsets.all(3),
+            child: Hero(
+              tag: 'avatar_${user.id}',
+              child: ClipOval(
+                child: user.photoURL != null && user.photoURL!.isNotEmpty
+                    ? CachedNetworkImage(
+                        imageUrl: user.photoURL!,
+                        fit: BoxFit.cover,
+                        width: 100,
+                        height: 100,
+                      )
+                    : (user.avatarConfig != null &&
+                          user.avatarConfig!.isNotEmpty)
+                    ? AvatarPlus(
+                        user.avatarConfig!,
+                        width: 100,
+                        height: 100,
+                        fit: BoxFit.cover,
+                      )
+                    : Container(
+                        width: 100,
+                        height: 100,
+                        color: AppColors.surfaceSecondaryDark,
+                        child: Center(
+                          child: Text(
+                            user.displayName.isNotEmpty
+                                ? user.displayName[0].toUpperCase()
+                                : 'U',
+                            style: const TextStyle(
+                              fontSize: 36,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primary,
                             ),
                           ),
-                  ),
-                ),
+                        ),
+                      ),
               ),
             ),
           ),
@@ -769,15 +764,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       padding: const EdgeInsets.symmetric(
                         horizontal: AppSpacing.md,
                       ),
-                      child: GlowContainer(
-                        glowColor: AppColors.warning.withValues(alpha: 0.3),
-                        blurRadius: 20,
-                        child: StreakCard(
-                          days: stats.currentStreak,
-                          comparisons: displayComparisons,
-                          showComparison: true,
-                          onTap: () => context.push('/leaderboard?tab=streak'),
-                        ),
+                      child: StreakCard(
+                        days: stats.currentStreak,
+                        comparisons: displayComparisons,
+                        showComparison: true,
+                        onTap: () => context.push('/leaderboard?tab=streak'),
                       ),
                     );
                   },
@@ -1160,11 +1151,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                           HapticFeedback.lightImpact();
                           // Show badge details
                         },
-                        child: GlowContainer(
-                          glowColor: AppColors.warning.withValues(alpha: 0.3),
-                          blurRadius: 10,
-                          child: _buildBadge(badge.icon, badge.name),
-                        ),
+                        child: _buildBadge(badge.icon, badge.name),
                       ),
                     );
                   },

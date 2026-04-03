@@ -496,106 +496,102 @@ class SettingsPage extends ConsumerWidget {
   }
 
   Widget _buildSignOutCard(BuildContext context, WidgetRef ref) {
-    return GlowContainer(
-      glowColor: AppColors.error.withValues(alpha: 0.3),
-      blurRadius: 15,
-      child: GlassContainer(
-        blur: 10,
-        backgroundColor: AppColors.error.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-        border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
-        child: BounceAnimation(
-          onTap: () async {
-            HapticFeedback.mediumImpact();
-            final confirmed = await showDialog<bool>(
-              context: context,
-              builder: (context) => FadeInAnimation(
-                child: AlertDialog(
-                  backgroundColor: AppColors.surfaceDark,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppBorderRadius.xl),
-                  ),
-                  title: const Row(
-                    children: [
-                      Icon(Icons.logout, color: AppColors.error),
-                      SizedBox(width: 8),
-                      Text(
-                        'Sign Out',
-                        style: TextStyle(color: AppColors.textDark),
-                      ),
-                    ],
-                  ),
-                  content: const Text(
-                    'Are you sure you want to sign out?',
-                    style: TextStyle(color: AppColors.textSecondaryDark),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: Text(
-                        'Cancel',
-                        style: TextStyle(color: AppColors.textSecondaryDark),
-                      ),
-                    ),
-                    BounceAnimation(
-                      onTap: () => Navigator.pop(context, true),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.error,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Text(
-                          'Sign Out',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
+    return GlassContainer(
+      blur: 10,
+      backgroundColor: AppColors.error.withValues(alpha: 0.08),
+      borderRadius: BorderRadius.circular(AppBorderRadius.lg),
+      border: Border.all(color: AppColors.error.withValues(alpha: 0.28)),
+      child: BounceAnimation(
+        onTap: () async {
+          HapticFeedback.mediumImpact();
+          final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (context) => FadeInAnimation(
+              child: AlertDialog(
+                backgroundColor: AppColors.surfaceDark,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppBorderRadius.xl),
+                ),
+                title: const Row(
+                  children: [
+                    Icon(Icons.logout, color: AppColors.error),
+                    SizedBox(width: 8),
+                    Text(
+                      'Sign Out',
+                      style: TextStyle(color: AppColors.textDark),
                     ),
                   ],
                 ),
+                content: const Text(
+                  'Are you sure you want to sign out?',
+                  style: TextStyle(color: AppColors.textSecondaryDark),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: Text(
+                      'Cancel',
+                      style: TextStyle(color: AppColors.textSecondaryDark),
+                    ),
+                  ),
+                  BounceAnimation(
+                    onTap: () => Navigator.pop(context, true),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.error,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        'Sign Out',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            );
+            ),
+          );
 
-            if (confirmed == true && context.mounted) {
-              HapticFeedback.heavyImpact();
-              await ref.read(authControllerProvider).signOut();
-              if (context.mounted) {
-                context.go(AppRoutes.login);
-              }
+          if (confirmed == true && context.mounted) {
+            HapticFeedback.heavyImpact();
+            await ref.read(authControllerProvider).signOut();
+            if (context.mounted) {
+              context.go(AppRoutes.login);
             }
-          },
-          child: ListTile(
-            leading: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.error.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(Icons.logout, color: AppColors.error, size: 24),
+          }
+        },
+        child: ListTile(
+          leading: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.error.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(10),
             ),
-            title: const Text(
-              'Sign Out',
-              style: TextStyle(
-                color: AppColors.error,
-                fontWeight: FontWeight.w600,
-                fontSize: AppFontSize.md,
-              ),
-            ),
-            subtitle: Text(
-              'Sign out of your account',
-              style: TextStyle(
-                color: AppColors.error.withValues(alpha: 0.7),
-                fontSize: AppFontSize.sm,
-              ),
-            ),
-            trailing: const Icon(Icons.chevron_right, color: AppColors.error),
+            child: const Icon(Icons.logout, color: AppColors.error, size: 24),
           ),
+          title: const Text(
+            'Sign Out',
+            style: TextStyle(
+              color: AppColors.error,
+              fontWeight: FontWeight.w600,
+              fontSize: AppFontSize.md,
+            ),
+          ),
+          subtitle: Text(
+            'Sign out of your account',
+            style: TextStyle(
+              color: AppColors.error.withValues(alpha: 0.7),
+              fontSize: AppFontSize.sm,
+            ),
+          ),
+          trailing: const Icon(Icons.chevron_right, color: AppColors.error),
         ),
       ),
     );

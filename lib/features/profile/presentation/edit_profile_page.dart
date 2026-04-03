@@ -449,120 +449,134 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                                               onTap: _pickImage,
                                               child: Stack(
                                                 children: [
-                                                  PulsingGlow(
-                                                    glowColor: AppColors.primary
-                                                        .withValues(alpha: 0.4),
-                                                    minRadius: 15,
-                                                    maxRadius: 25,
+                                                  Container(
+                                                    width: 130,
+                                                    height: 130,
+                                                    decoration: BoxDecoration(
+                                                      shape: BoxShape.circle,
+                                                      gradient:
+                                                          const LinearGradient(
+                                                            colors: AppColors
+                                                                .primaryGradient,
+                                                            begin: Alignment
+                                                                .topLeft,
+                                                            end: Alignment
+                                                                .bottomRight,
+                                                          ),
+                                                      boxShadow: [
+                                                        BoxShadow(
+                                                          color: AppColors
+                                                              .primary
+                                                              .withValues(
+                                                                alpha: 0.22,
+                                                              ),
+                                                          blurRadius: 24,
+                                                          offset: const Offset(
+                                                            0,
+                                                            10,
+                                                          ),
+                                                        ),
+                                                        const BoxShadow(
+                                                          color: Color(
+                                                            0x33000000,
+                                                          ),
+                                                          blurRadius: 18,
+                                                          offset: Offset(0, 10),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                    padding:
+                                                        const EdgeInsets.all(3),
                                                     child: Container(
-                                                      width: 130,
-                                                      height: 130,
-                                                      decoration: BoxDecoration(
-                                                        shape: BoxShape.circle,
-                                                        gradient:
-                                                            const LinearGradient(
-                                                              colors: AppColors
-                                                                  .primaryGradient,
-                                                              begin: Alignment
-                                                                  .topLeft,
-                                                              end: Alignment
-                                                                  .bottomRight,
-                                                            ),
-                                                      ),
+                                                      decoration:
+                                                          const BoxDecoration(
+                                                            shape:
+                                                                BoxShape.circle,
+                                                            color: AppColors
+                                                                .surfaceDark,
+                                                          ),
                                                       padding:
                                                           const EdgeInsets.all(
                                                             3,
                                                           ),
-                                                      child: Container(
-                                                        decoration:
-                                                            BoxDecoration(
-                                                              shape: BoxShape
-                                                                  .circle,
-                                                              color: AppColors
-                                                                  .surfaceDark,
-                                                            ),
-                                                        padding:
-                                                            const EdgeInsets.all(
-                                                              3,
-                                                            ),
-                                                        child: _isUploading
-                                                            ? ShimmerLoading(
-                                                                child: CircleAvatar(
-                                                                  radius: 57,
-                                                                  backgroundColor:
-                                                                      AppColors
-                                                                          .surfaceSecondaryDark,
-                                                                ),
-                                                              )
-                                                            : Hero(
-                                                                tag:
-                                                                    'avatar_${user.id}',
-                                                                child: ClipOval(
-                                                                  child:
-                                                                      (_photoPath !=
-                                                                          null)
-                                                                      ? Image.file(
-                                                                          File(
-                                                                            _photoPath!,
-                                                                          ),
-                                                                          width:
-                                                                              114,
-                                                                          height:
-                                                                              114,
-                                                                          fit: BoxFit
-                                                                              .cover,
-                                                                        )
-                                                                      : (_existingPhotoUrl !=
-                                                                                null &&
-                                                                            _existingPhotoUrl!.isNotEmpty)
-                                                                      ? CachedNetworkImage(
-                                                                          imageUrl:
-                                                                              _existingPhotoUrl!,
-                                                                          width:
-                                                                              114,
-                                                                          height:
-                                                                              114,
-                                                                          fit: BoxFit
-                                                                              .cover,
-                                                                          placeholder:
-                                                                              (
-                                                                                context,
-                                                                                url,
-                                                                              ) => Container(
-                                                                                color: AppColors.surfaceSecondaryDark,
-                                                                              ),
-                                                                          errorWidget:
-                                                                              (
-                                                                                context,
-                                                                                url,
-                                                                                error,
-                                                                              ) => const Icon(
-                                                                                Icons.error,
-                                                                              ),
-                                                                        )
-                                                                      : Container(
-                                                                          width:
-                                                                              114,
-                                                                          height:
-                                                                              114,
-                                                                          color:
-                                                                              AppColors.surfaceSecondaryDark,
-                                                                          child: Center(
-                                                                            child: Text(
-                                                                              user.displayName.isNotEmpty
-                                                                                  ? user.displayName[0].toUpperCase()
-                                                                                  : 'U',
-                                                                              style: const TextStyle(
-                                                                                fontSize: 40,
-                                                                                fontWeight: FontWeight.bold,
-                                                                                color: AppColors.primary,
-                                                                              ),
+                                                      child: _isUploading
+                                                          ? ShimmerLoading(
+                                                              child: CircleAvatar(
+                                                                radius: 57,
+                                                                backgroundColor:
+                                                                    AppColors
+                                                                        .surfaceSecondaryDark,
+                                                              ),
+                                                            )
+                                                          : Hero(
+                                                              tag:
+                                                                  'avatar_${user.id}',
+                                                              child: ClipOval(
+                                                                child:
+                                                                    (_photoPath !=
+                                                                        null)
+                                                                    ? Image.file(
+                                                                        File(
+                                                                          _photoPath!,
+                                                                        ),
+                                                                        width:
+                                                                            114,
+                                                                        height:
+                                                                            114,
+                                                                        fit: BoxFit
+                                                                            .cover,
+                                                                      )
+                                                                    : (_existingPhotoUrl !=
+                                                                              null &&
+                                                                          _existingPhotoUrl!
+                                                                              .isNotEmpty)
+                                                                    ? CachedNetworkImage(
+                                                                        imageUrl:
+                                                                            _existingPhotoUrl!,
+                                                                        width:
+                                                                            114,
+                                                                        height:
+                                                                            114,
+                                                                        fit: BoxFit
+                                                                            .cover,
+                                                                        placeholder:
+                                                                            (
+                                                                              context,
+                                                                              url,
+                                                                            ) => Container(
+                                                                              color: AppColors.surfaceSecondaryDark,
+                                                                            ),
+                                                                        errorWidget:
+                                                                            (
+                                                                              context,
+                                                                              url,
+                                                                              error,
+                                                                            ) => const Icon(
+                                                                              Icons.error,
+                                                                            ),
+                                                                      )
+                                                                    : Container(
+                                                                        width:
+                                                                            114,
+                                                                        height:
+                                                                            114,
+                                                                        color: AppColors
+                                                                            .surfaceSecondaryDark,
+                                                                        child: Center(
+                                                                          child: Text(
+                                                                            user.displayName.isNotEmpty
+                                                                                ? user.displayName[0].toUpperCase()
+                                                                                : 'U',
+                                                                            style: const TextStyle(
+                                                                              fontSize: 40,
+                                                                              fontWeight: FontWeight.bold,
+                                                                              color: AppColors.primary,
                                                                             ),
                                                                           ),
                                                                         ),
-                                                                ),
+                                                                      ),
                                                               ),
-                                                      ),
+                                                            ),
                                                     ),
                                                   ),
                                                   Positioned(

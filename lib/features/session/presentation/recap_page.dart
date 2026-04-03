@@ -584,36 +584,39 @@ class _RecapPageState extends ConsumerState<RecapPage> {
                       // Celebration header with glow and fade animation
                       FadeInAnimation(
                         delay: const Duration(milliseconds: 200),
-                        child: GlowContainer(
-                          glowColor: AppColors.secondaryGlow,
-                          blurRadius: 40,
-                          child: Column(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(20),
-                                decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    colors: AppColors.secondaryGradient,
+                        child: Column(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(20),
+                              decoration: const BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: AppColors.secondaryGradient,
+                                ),
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Color(0x33000000),
+                                    blurRadius: 18,
+                                    offset: Offset(0, 10),
                                   ),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.celebration,
-                                  size: 48,
-                                  color: Colors.white,
-                                ),
+                                ],
                               ),
-                              const SizedBox(height: AppSpacing.lg),
-                              const GradientText(
-                                text: 'Great Workout! 💪',
-                                style: TextStyle(
-                                  fontSize: AppFontSize.xxl,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                colors: AppColors.secondaryGradient,
+                              child: const Icon(
+                                Icons.celebration,
+                                size: 48,
+                                color: Colors.white,
                               ),
-                            ],
-                          ),
+                            ),
+                            const SizedBox(height: AppSpacing.lg),
+                            const GradientText(
+                              text: 'Great Workout! 💪',
+                              style: TextStyle(
+                                fontSize: AppFontSize.xxl,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              colors: AppColors.secondaryGradient,
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(height: AppSpacing.sm),
