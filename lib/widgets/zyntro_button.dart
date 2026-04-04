@@ -126,8 +126,8 @@ class _ZyntroButtonState extends State<ZyntroButton>
             : AppColors.secondaryGradient;
       case ZyntroButtonVariant.premium:
         return _isPressed
-            ? [AppColors.primaryDark, AppColors.primary]
-            : AppColors.primaryGradient;
+            ? [AppColors.premiumDark, AppColors.premium]
+            : AppColors.premiumGradient;
       case ZyntroButtonVariant.destructive:
         return _isPressed
             ? [AppColors.error, AppColors.error.withValues(alpha: 0.85)]
@@ -142,9 +142,10 @@ class _ZyntroButtonState extends State<ZyntroButton>
     switch (widget.variant) {
       case ZyntroButtonVariant.primary:
       case ZyntroButtonVariant.secondary:
-      case ZyntroButtonVariant.premium:
       case ZyntroButtonVariant.destructive:
         return AppColors.backgroundDark;
+      case ZyntroButtonVariant.premium:
+        return AppColors.textDark;
       case ZyntroButtonVariant.outline:
         return AppColors.primary;
       case ZyntroButtonVariant.ghost:

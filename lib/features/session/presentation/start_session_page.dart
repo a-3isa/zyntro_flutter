@@ -481,7 +481,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                               : 'Start with ${_selectedFriends.length + 1} athletes',
                           fullWidth: true,
                           size: ZyntroButtonSize.lg,
-                          variant: ZyntroButtonVariant.premium,
+                          variant: ZyntroButtonVariant.primary,
                           loading: _isLoading,
                           rightIcon: const Icon(Icons.bolt_rounded),
                           onPressed: _isLoading

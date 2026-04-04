@@ -334,7 +334,7 @@ class SessionPage extends ConsumerWidget {
             title: 'Start Session',
             fullWidth: true,
             size: ZyntroButtonSize.lg,
-            variant: ZyntroButtonVariant.premium,
+            variant: ZyntroButtonVariant.primary,
             rightIcon: const Icon(Icons.arrow_forward_rounded, size: 20),
             onPressed: () {
               HapticManager.medium();

@@ -66,6 +66,13 @@ void main() {
         'lib/widgets/premium_animations.dart',
       ).readAsStringSync();
       final button = File('lib/widgets/zyntro_button.dart').readAsStringSync();
+      final streakCard = File('lib/widgets/streak_card.dart').readAsStringSync();
+      final startSessionPage =
+          File('lib/features/session/presentation/start_session_page.dart')
+              .readAsStringSync();
+      final sessionPage =
+          File('lib/features/session/presentation/session_page.dart')
+              .readAsStringSync();
 
       expect(effects.contains('0xFF00D9FF'), isFalse);
       expect(effects.contains('0xFF9D4EDD'), isFalse);
@@ -74,6 +81,21 @@ void main() {
       expect(button.contains('AppColors.primaryGlow.withValues'), isFalse);
       expect(button.contains('AppColors.secondaryGlow.withValues'), isFalse);
       expect(button.contains('AppColors.premiumGlow.withValues'), isFalse);
+      expect(button.contains('AppColors.cardGradient'), isFalse);
+      expect(button.contains('AppColors.premiumGradient'), isTrue);
+      expect(button.contains('AppColors.textDark'), isTrue);
+      expect(streakCard.contains('AppColors.secondaryGlow'), isFalse);
+      expect(streakCard.contains('AppColors.warmBorder'), isTrue);
+      expect(
+        startSessionPage.contains('ZyntroButtonVariant.premium'),
+        isFalse,
+      );
+      expect(
+        startSessionPage.contains('ZyntroButtonVariant.primary'),
+        isTrue,
+      );
+      expect(sessionPage.contains('ZyntroButtonVariant.premium'), isFalse);
+      expect(sessionPage.contains('ZyntroButtonVariant.primary'), isTrue);
     },
   );
 }

@@ -109,11 +109,11 @@ class _ReactionButtonsState extends State<ReactionButtons>
   List<Color> _getGradientColors(ReactionType type) {
     switch (type) {
       case ReactionType.fire:
-        return [Colors.orange, Colors.deepOrange];
+        return [AppColors.neonGreen, AppColors.navy800];
       case ReactionType.strong:
-        return [Colors.purple, Colors.deepPurple];
+        return [AppColors.navy700, AppColors.neonGreen];
       case ReactionType.clap:
-        return [Colors.amber, Colors.orange];
+        return [AppColors.navy800, AppColors.neonGreenHover];
     }
   }
 

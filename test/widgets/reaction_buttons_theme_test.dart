@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zyntro_flutter/core/models/models.dart';
@@ -50,5 +52,16 @@ void main() {
     );
     expect(decoration.boxShadow, isNotNull);
     expect((decoration.boxShadow!.single.color.a * 255.0).round(), 64);
+  });
+
+  test('reaction burst palette stays on the navy and neon system', () {
+    final source = File('lib/widgets/reaction_buttons.dart').readAsStringSync();
+
+    expect(source.contains('Colors.orange'), isFalse);
+    expect(source.contains('Colors.purple'), isFalse);
+    expect(source.contains('Colors.amber'), isFalse);
+    expect(source.contains('AppColors.navy700'), isTrue);
+    expect(source.contains('AppColors.navy800'), isTrue);
+    expect(source.contains('AppColors.neonGreen'), isTrue);
   });
 }
