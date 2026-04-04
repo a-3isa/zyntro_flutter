@@ -130,8 +130,8 @@ class _ZyntroButtonState extends State<ZyntroButton>
             : AppColors.premiumGradient;
       case ZyntroButtonVariant.destructive:
         return _isPressed
-            ? [AppColors.error.withValues(alpha: 0.7), AppColors.error]
-            : [AppColors.error, AppColors.error.withValues(alpha: 0.8)];
+            ? [AppColors.error, AppColors.error.withValues(alpha: 0.85)]
+            : [AppColors.error, AppColors.error.withValues(alpha: 0.85)];
       case ZyntroButtonVariant.outline:
       case ZyntroButtonVariant.ghost:
         return [Colors.transparent, Colors.transparent];
@@ -142,9 +142,10 @@ class _ZyntroButtonState extends State<ZyntroButton>
     switch (widget.variant) {
       case ZyntroButtonVariant.primary:
       case ZyntroButtonVariant.secondary:
-      case ZyntroButtonVariant.premium:
       case ZyntroButtonVariant.destructive:
         return AppColors.backgroundDark;
+      case ZyntroButtonVariant.premium:
+        return AppColors.textDark;
       case ZyntroButtonVariant.outline:
         return AppColors.primary;
       case ZyntroButtonVariant.ghost:
@@ -158,38 +159,16 @@ class _ZyntroButtonState extends State<ZyntroButton>
       return null;
     }
 
-    // Reduce shadow intensity when pressed
-    final intensity = _isPressed ? 0.5 : 1.0;
+    final blurRadius = _isPressed ? 8.0 : 12.0;
+    final offsetY = _isPressed ? 2.0 : 4.0;
 
-    switch (widget.variant) {
-      case ZyntroButtonVariant.primary:
-        return [
-          BoxShadow(
-            color: AppColors.primaryGlow.withValues(alpha: 0.25 * intensity),
-            blurRadius: 20 * intensity,
-            offset: Offset(0, 8 * intensity),
-          ),
-        ];
-      case ZyntroButtonVariant.secondary:
-      case ZyntroButtonVariant.destructive:
-        return [
-          BoxShadow(
-            color: AppColors.secondaryGlow.withValues(alpha: 0.25 * intensity),
-            blurRadius: 20 * intensity,
-            offset: Offset(0, 8 * intensity),
-          ),
-        ];
-      case ZyntroButtonVariant.premium:
-        return [
-          BoxShadow(
-            color: AppColors.premiumGlow.withValues(alpha: 0.25 * intensity),
-            blurRadius: 20 * intensity,
-            offset: Offset(0, 8 * intensity),
-          ),
-        ];
-      default:
-        return null;
-    }
+    return [
+      BoxShadow(
+        color: const Color(0x24000000),
+        blurRadius: blurRadius,
+        offset: Offset(0, offsetY),
+      ),
+    ];
   }
 
   Border? _getBorder() {

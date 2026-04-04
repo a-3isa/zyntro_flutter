@@ -604,55 +604,47 @@ class _LoginPageState extends ConsumerState<LoginPage>
                           index: 7,
                           child: ScaleOnTap(
                             onTap: _isLoading ? null : _handleGoogleSignIn,
-                            child: GlowContainer(
-                              glowColor: AppColors.primary.withValues(
-                                alpha: 0.2,
+                            child: GlassContainer(
+                              blur: 10,
+                              backgroundColor: AppColors.surfaceSecondaryDark
+                                  .withValues(alpha: 0.5),
+                              borderRadius: BorderRadius.circular(
+                                AppBorderRadius.lg,
                               ),
-                              blurRadius: 15,
-                              child: GlassContainer(
-                                blur: 10,
-                                backgroundColor: AppColors.surfaceSecondaryDark
-                                    .withValues(alpha: 0.5),
-                                borderRadius: BorderRadius.circular(
-                                  AppBorderRadius.lg,
+                              border: Border.all(
+                                color: AppColors.borderDark.withValues(
+                                  alpha: 0.5,
                                 ),
-                                border: Border.all(
-                                  color: AppColors.borderDark.withValues(
-                                    alpha: 0.5,
-                                  ),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: AppSpacing.lg,
                                 ),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: AppSpacing.lg,
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.all(6),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                        ),
-                                        child: const Icon(
-                                          Icons.g_mobiledata,
-                                          size: 24,
-                                          color: Colors.black87,
-                                        ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(6),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(8),
                                       ),
-                                      const SizedBox(width: AppSpacing.md),
-                                      const Text(
-                                        'Continue with Google',
-                                        style: TextStyle(
-                                          fontSize: AppFontSize.md,
-                                          fontWeight: FontWeight.w600,
-                                          color: AppColors.textDark,
-                                        ),
+                                      child: const Icon(
+                                        Icons.g_mobiledata,
+                                        size: 24,
+                                        color: Colors.black87,
                                       ),
-                                    ],
-                                  ),
+                                    ),
+                                    const SizedBox(width: AppSpacing.md),
+                                    const Text(
+                                      'Continue with Google',
+                                      style: TextStyle(
+                                        fontSize: AppFontSize.md,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.textDark,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
@@ -666,55 +658,47 @@ class _LoginPageState extends ConsumerState<LoginPage>
                           index: 8,
                           child: ScaleOnTap(
                             onTap: _isLoading ? null : _handleFacebookSignIn,
-                            child: GlowContainer(
-                              glowColor: const Color(
-                                0xFF1877F2,
-                              ).withValues(alpha: 0.2),
-                              blurRadius: 15,
-                              child: GlassContainer(
-                                blur: 10,
-                                backgroundColor: AppColors.surfaceSecondaryDark
-                                    .withValues(alpha: 0.5),
-                                borderRadius: BorderRadius.circular(
-                                  AppBorderRadius.lg,
+                            child: GlassContainer(
+                              blur: 10,
+                              backgroundColor: AppColors.surfaceSecondaryDark
+                                  .withValues(alpha: 0.5),
+                              borderRadius: BorderRadius.circular(
+                                AppBorderRadius.lg,
+                              ),
+                              border: Border.all(
+                                color: AppColors.borderDark.withValues(
+                                  alpha: 0.5,
                                 ),
-                                border: Border.all(
-                                  color: AppColors.borderDark.withValues(
-                                    alpha: 0.5,
-                                  ),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: AppSpacing.lg,
                                 ),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: AppSpacing.lg,
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.all(6),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFF1877F2),
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                        ),
-                                        child: const Icon(
-                                          Icons.facebook,
-                                          size: 24,
-                                          color: Colors.white,
-                                        ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(6),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF1877F2),
+                                        borderRadius: BorderRadius.circular(8),
                                       ),
-                                      const SizedBox(width: AppSpacing.md),
-                                      const Text(
-                                        'Continue with Facebook',
-                                        style: TextStyle(
-                                          fontSize: AppFontSize.md,
-                                          fontWeight: FontWeight.w600,
-                                          color: AppColors.textDark,
-                                        ),
+                                      child: const Icon(
+                                        Icons.facebook,
+                                        size: 24,
+                                        color: Colors.white,
                                       ),
-                                    ],
-                                  ),
+                                    ),
+                                    const SizedBox(width: AppSpacing.md),
+                                    const Text(
+                                      'Continue with Facebook',
+                                      style: TextStyle(
+                                        fontSize: AppFontSize.md,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.textDark,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),

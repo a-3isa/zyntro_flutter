@@ -103,7 +103,7 @@ class _StreakCardState extends State<StreakCard>
           border: Border.all(color: AppColors.warmBorder),
           boxShadow: [
             BoxShadow(
-              color: AppColors.secondaryGlow.withValues(alpha: 0.3),
+              color: const Color(0x22000000),
               blurRadius: 16,
               offset: const Offset(0, 6),
             ),
@@ -161,39 +161,42 @@ class _StreakCardState extends State<StreakCard>
                     ],
                   ),
                 ),
-                // Animated flame icon with pulsing glow
-                PulsingGlow(
-                  glowColor: AppColors.secondaryGlow,
-                  minRadius: 8,
-                  maxRadius: 20,
-                  duration: const Duration(milliseconds: 1800),
-                  child: AnimatedBuilder(
-                    animation: _scaleAnimation,
-                    builder: (context, child) {
-                      return Transform.scale(
-                        scale: _scaleAnimation.value,
-                        child: child,
-                      );
-                    },
-                    child: Container(
-                      width: isSmallScreen ? 48 : 56,
-                      height: isSmallScreen ? 48 : 56,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            AppColors.action.withValues(alpha: 0.2),
-                            AppColors.action.withValues(alpha: 0.1),
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        shape: BoxShape.circle,
+                AnimatedBuilder(
+                  animation: _scaleAnimation,
+                  builder: (context, child) {
+                    return Transform.scale(
+                      scale: _scaleAnimation.value,
+                      child: child,
+                    );
+                  },
+                  child: Container(
+                    width: isSmallScreen ? 48 : 56,
+                    height: isSmallScreen ? 48 : 56,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          AppColors.action.withValues(alpha: 0.2),
+                          AppColors.action.withValues(alpha: 0.08),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
-                      child: Center(
-                        child: Text(
-                          '🔥',
-                          style: TextStyle(fontSize: isSmallScreen ? 28 : 32),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: AppColors.action.withValues(alpha: 0.35),
+                      ),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x33000000),
+                          blurRadius: 12,
+                          offset: Offset(0, 6),
                         ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Text(
+                        '🔥',
+                        style: TextStyle(fontSize: isSmallScreen ? 28 : 32),
                       ),
                     ),
                   ),

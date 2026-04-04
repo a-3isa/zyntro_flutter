@@ -165,7 +165,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
       case 'flexibility':
         return AppColors.successGradient;
       case 'mixed':
-        return AppColors.premiumGradient;
+        return AppColors.achievementGradient;
       default:
         return [AppColors.textSecondaryDark, AppColors.textTertiaryDark];
     }
@@ -174,7 +174,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
   @override
   Widget build(BuildContext context) {
     final selectedGradient = _getCategoryGradient(_selectedType.category);
-    
+
     return Scaffold(
       backgroundColor: AppColors.backgroundDark,
       body: Column(
@@ -231,7 +231,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                   child: GradientText(
                     text: 'Start Session',
                     style: TextStyle(
-                      fontSize: 22, 
+                      fontSize: 22,
                       fontWeight: FontWeight.bold,
                       letterSpacing: -0.5,
                     ),
@@ -323,7 +323,8 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                       const SizedBox(height: 16),
 
                       ...SessionMode.values.asMap().entries.map(
-                        (entry) => _buildModeCard(entry.value, index: entry.key),
+                        (entry) =>
+                            _buildModeCard(entry.value, index: entry.key),
                       ),
 
                       const SizedBox(height: 32),
@@ -347,7 +348,9 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                                   borderRadius: BorderRadius.circular(20),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: AppColors.primary.withValues(alpha: 0.3),
+                                      color: AppColors.primary.withValues(
+                                        alpha: 0.3,
+                                      ),
                                       blurRadius: 8,
                                       offset: const Offset(0, 2),
                                     ),
@@ -379,14 +382,18 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                       if (_mutualFollows.isNotEmpty || _isLoadingFollows)
                         GlassContainer(
                           blur: 10,
-                          backgroundColor: AppColors.surfaceSecondaryDark.withValues(alpha: 0.4),
+                          backgroundColor: AppColors.surfaceSecondaryDark
+                              .withValues(alpha: 0.4),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
                             color: Colors.white.withValues(alpha: 0.05),
                           ),
                           child: TextField(
                             controller: _searchController,
-                            style: const TextStyle(color: AppColors.textDark, fontSize: 14),
+                            style: const TextStyle(
+                              color: AppColors.textDark,
+                              fontSize: 14,
+                            ),
                             decoration: InputDecoration(
                               hintText: 'Search friends...',
                               hintStyle: TextStyle(
@@ -453,21 +460,36 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                       const SizedBox(height: 40),
 
                       // Start button
-                      PulsingGlow(
-                        glowColor: AppColors.primary.withValues(alpha: 0.3),
+                      Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(
+                            AppBorderRadius.lg,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: selectedGradient.first.withValues(
+                                alpha: 0.16,
+                              ),
+                              blurRadius: 24,
+                              offset: const Offset(0, 12),
+                            ),
+                          ],
+                        ),
                         child: ZyntroButton(
                           title: _selectedFriends.isEmpty
                               ? 'Start ${_selectedType.displayName} Session'
                               : 'Start with ${_selectedFriends.length + 1} athletes',
                           fullWidth: true,
                           size: ZyntroButtonSize.lg,
-                          variant: ZyntroButtonVariant.premium,
+                          variant: ZyntroButtonVariant.primary,
                           loading: _isLoading,
                           rightIcon: const Icon(Icons.bolt_rounded),
-                          onPressed: _isLoading ? null : () {
-                            HapticManager.heavy();
-                            _handleStartSession();
-                          },
+                          onPressed: _isLoading
+                              ? null
+                              : () {
+                                  HapticManager.heavy();
+                                  _handleStartSession();
+                                },
                         ),
                       ),
 
@@ -506,10 +528,14 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                     end: Alignment.bottomRight,
                   )
                 : null,
-            color: isSelected ? null : AppColors.surfaceSecondaryDark.withValues(alpha: 0.4),
+            color: isSelected
+                ? null
+                : AppColors.surfaceSecondaryDark.withValues(alpha: 0.4),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: isSelected ? Colors.white.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.05),
+              color: isSelected
+                  ? Colors.white.withValues(alpha: 0.2)
+                  : Colors.white.withValues(alpha: 0.05),
               width: isSelected ? 2 : 1,
             ),
             boxShadow: isSelected
@@ -589,7 +615,9 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                 : AppColors.surfaceSecondaryDark.withValues(alpha: 0.4),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: isSelected ? AppColors.primary.withValues(alpha: 0.5) : Colors.white.withValues(alpha: 0.05),
+              color: isSelected
+                  ? AppColors.primary.withValues(alpha: 0.5)
+                  : Colors.white.withValues(alpha: 0.05),
               width: isSelected ? 2 : 1,
             ),
           ),
@@ -692,7 +720,9 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                 : AppColors.surfaceSecondaryDark.withValues(alpha: 0.4),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: isSelected ? AppColors.primary.withValues(alpha: 0.4) : Colors.white.withValues(alpha: 0.05),
+              color: isSelected
+                  ? AppColors.primary.withValues(alpha: 0.4)
+                  : Colors.white.withValues(alpha: 0.05),
             ),
           ),
           child: Row(
@@ -703,7 +733,9 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: isSelected ? AppColors.primary : Colors.white.withValues(alpha: 0.1),
+                    color: isSelected
+                        ? AppColors.primary
+                        : Colors.white.withValues(alpha: 0.1),
                     width: 2,
                   ),
                 ),
@@ -711,8 +743,10 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                   child: user.photoURL != null
                       ? CachedNetworkImage(
                           imageUrl: user.photoURL!,
-                          placeholder: (context, url) => Container(color: AppColors.surfaceDark),
-                          errorWidget: (context, url, error) => _buildAvatarPlaceholder(user),
+                          placeholder: (context, url) =>
+                              Container(color: AppColors.surfaceDark),
+                          errorWidget: (context, url, error) =>
+                              _buildAvatarPlaceholder(user),
                           fit: BoxFit.cover,
                         )
                       : _buildAvatarPlaceholder(user),
@@ -744,9 +778,13 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 200),
                 child: Icon(
-                  isSelected ? Icons.check_circle_rounded : Icons.add_circle_outline_rounded,
+                  isSelected
+                      ? Icons.check_circle_rounded
+                      : Icons.add_circle_outline_rounded,
                   key: ValueKey(isSelected),
-                  color: isSelected ? AppColors.primary : AppColors.textTertiaryDark,
+                  color: isSelected
+                      ? AppColors.primary
+                      : AppColors.textTertiaryDark,
                   size: 26,
                 ),
               ),
@@ -781,7 +819,9 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
           padding: const EdgeInsets.only(bottom: 8),
           child: GlassContainer(
             blur: 5,
-            backgroundColor: AppColors.surfaceSecondaryDark.withValues(alpha: 0.3),
+            backgroundColor: AppColors.surfaceSecondaryDark.withValues(
+              alpha: 0.3,
+            ),
             borderRadius: BorderRadius.circular(16),
             padding: const EdgeInsets.all(12),
             child: Row(

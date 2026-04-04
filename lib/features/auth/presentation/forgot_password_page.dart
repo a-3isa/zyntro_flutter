@@ -307,32 +307,33 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage>
                 minScale: 1.0,
                 maxScale: 1.05,
                 duration: const Duration(milliseconds: 2000),
-                child: GlowContainer(
-                  glowColor: AppColors.primary.withValues(alpha: 0.4),
-                  blurRadius: 25,
-                  child: Container(
-                    width: 100,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: AppColors.primaryGradient,
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
+                child: Container(
+                  width: 100,
+                  height: 100,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: AppColors.primaryGradient,
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primary.withValues(alpha: 0.24),
+                        blurRadius: 20,
+                        offset: const Offset(0, 8),
                       ),
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.primary.withValues(alpha: 0.4),
-                          blurRadius: 20,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.lock_reset_rounded,
-                      size: 48,
-                      color: Colors.white,
-                    ),
+                      const BoxShadow(
+                        color: Color(0x33000000),
+                        blurRadius: 16,
+                        offset: Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.lock_reset_rounded,
+                    size: 48,
+                    color: Colors.white,
                   ),
                 ),
               ),
@@ -486,35 +487,36 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage>
               minScale: 1.0,
               maxScale: 1.1,
               duration: const Duration(milliseconds: 1500),
-              child: GlowContainer(
-                glowColor: AppColors.success.withValues(alpha: 0.5),
-                blurRadius: 30,
-                child: Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        AppColors.success,
-                        AppColors.success.withValues(alpha: 0.8),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.success.withValues(alpha: 0.4),
-                        blurRadius: 20,
-                        offset: const Offset(0, 8),
-                      ),
+              child: Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      AppColors.success,
+                      AppColors.success.withValues(alpha: 0.8),
                     ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                  child: const Icon(
-                    Icons.mark_email_read_rounded,
-                    size: 56,
-                    color: Colors.white,
-                  ),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.success.withValues(alpha: 0.24),
+                      blurRadius: 22,
+                      offset: const Offset(0, 10),
+                    ),
+                    const BoxShadow(
+                      color: Color(0x33000000),
+                      blurRadius: 16,
+                      offset: Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.mark_email_read_rounded,
+                  size: 56,
+                  color: Colors.white,
                 ),
               ),
             ),
