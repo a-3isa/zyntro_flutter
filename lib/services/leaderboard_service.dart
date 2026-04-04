@@ -233,17 +233,18 @@ class LeaderboardService {
   /// Join an event.
   Future<void> joinEvent(String eventId, String userId) async {
     try {
-      await _firestore
+      final batch = _firestore.batch();
+      final joinedEventRef = _firestore
           .collection('users')
           .doc(userId)
           .collection('joinedEvents')
-          .doc(eventId)
-          .set({'joinedAt': FieldValue.serverTimestamp()});
+          .doc(eventId);
+      final eventRef = _firestore.collection('events').doc(eventId);
 
-      // Increment participant count
-      await _firestore.collection('events').doc(eventId).update({
-        'participantCount': FieldValue.increment(1),
-      });
+      batch.set(joinedEventRef, {'joinedAt': FieldValue.serverTimestamp()});
+      batch.update(eventRef, {'participantCount': FieldValue.increment(1)});
+
+      await batch.commit();
     } catch (e) {
       debugPrint('Error joining event: $e');
       rethrow;
@@ -337,4 +338,6 @@ final eventsProvider = FutureProvider<List<LeaderboardEvent>>((ref) async {
   final leaderboardService = ref.watch(leaderboardServiceProvider);
   return leaderboardService.getEvents();
 });
+
+
 

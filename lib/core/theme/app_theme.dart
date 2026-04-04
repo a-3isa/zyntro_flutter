@@ -3,44 +3,57 @@ import 'package:google_fonts/google_fonts.dart';
 
 /// Font family constants for premium typography.
 class AppFonts {
-  static const String primary = 'Outfit';
-  static String get display => 'Montserrat';
+  static const String primary = 'Inter';
+  static String get display => 'Outfit';
 }
 
-/// Premium color scheme for Zyntro - VIP fitness aesthetic.
+/// Premium color scheme for Zyntro - Figma navy and neon-green palette.
 class AppColors {
-  // Primary colors - Neon Cyan
-  static const Color primary = Color(0xFF00D9FF);
-  static const Color primaryDark = Color(0xFF00A8CC);
-  static const Color primaryLight = Color(0xFF5CE1FF);
-  static const Color primaryMuted = Color(0xFF0A2A33);
-  static const Color primaryGlow = Color(0x4000D9FF);
+  // Figma navy scale
+  static const Color navy900 = Color(0xFF0A0E27);
+  static const Color navy800 = Color(0xFF151B3D);
+  static const Color navy700 = Color(0xFF1E2749);
 
-  // Secondary colors - Coral Red
-  static const Color secondary = Color(0xFFFF6B6B);
-  static const Color secondaryDark = Color(0xFFE85555);
-  static const Color secondaryLight = Color(0xFFFF8E8E);
-  static const Color secondaryGlow = Color(0x40FF6B6B);
+  // Figma neon green
+  static const Color neonGreen = Color(0xFF39FF14);
+  static const Color neonGreenHover = Color(0xFF2EE00F);
+
+  // Figma gray scale
+  static const Color gray400 = Color(0xFF8B8B98);
+  static const Color gray300 = Color(0xFFA0A0AC);
+
+  // Primary colors - Neon Green
+  static const Color primary = neonGreen;
+  static const Color primaryDark = neonGreenHover;
+  static const Color primaryLight = Color(0xFF6CFF52);
+  static const Color primaryMuted = navy700;
+  static const Color primaryGlow = Colors.transparent;
+
+  // Secondary colors - Gray
+  static const Color secondary = gray400;
+  static const Color secondaryDark = gray300;
+  static const Color secondaryLight = Color(0xFFC7C7D1);
+  static const Color secondaryGlow = Colors.transparent;
 
   // Accent colors
-  static const Color accent = Color(0xFFFFD93D);
-  static const Color accentDark = Color(0xFFE5C235);
-  static const Color accentLight = Color(0xFFFFE566);
+  static const Color accent = navy700;
+  static const Color accentDark = navy800;
+  static const Color accentLight = gray300;
 
-  // Premium purple
-  static const Color premium = Color(0xFF9D4EDD);
-  static const Color premiumDark = Color(0xFF7B2CBF);
-  static const Color premiumLight = Color(0xFFB76EF0);
-  static const Color premiumGlow = Color(0x409D4EDD);
+  // Premium navy
+  static const Color premium = navy800;
+  static const Color premiumDark = navy900;
+  static const Color premiumLight = navy700;
+  static const Color premiumGlow = Colors.transparent;
 
   // Semantic colors
-  static const Color success = Color(0xFF00E676);
-  static const Color successDark = Color(0xFF00C853);
-  static const Color successGlow = Color(0x4000E676);
-  static const Color warning = Color(0xFFFFAB00);
-  static const Color error = Color(0xFFFF5252);
-  static const Color errorGlow = Color(0x40FF5252);
-  static const Color info = Color(0xFF00B0FF);
+  static const Color success = Color(0xFF10B981);
+  static const Color successDark = Color(0xFF059669);
+  static const Color successGlow = Color(0x4010B981);
+  static const Color warning = Color(0xFFF59E0B);
+  static const Color error = Color(0xFFEF4444);
+  static const Color errorGlow = Color(0x40EF4444);
+  static const Color info = Color(0xFF3B82F6);
 
   // Light mode surface colors
   static const Color backgroundLight = Color(0xFFF8FAFC);
@@ -49,8 +62,8 @@ class AppColors {
   static const Color surfaceElevatedLight = Color(0xFFFFFFFF);
 
   // Light mode text colors
-  static const Color textLight = Color(0xFF1E293B);
-  static const Color textSecondaryLight = Color(0xFF64748B);
+  static const Color textLight = Color(0xFF0F172A);
+  static const Color textSecondaryLight = Color(0xFF475569);
   static const Color textTertiaryLight = Color(0xFF94A3B8);
   static const Color textInverseLight = Color(0xFFFFFFFF);
 
@@ -58,89 +71,57 @@ class AppColors {
   static const Color borderLight = Color(0xFFE2E8F0);
   static const Color borderLightSecondary = Color(0xFFF1F5F9);
 
-  // Dark mode surface colors - Deep premium dark
-  static const Color backgroundDark = Color(0xFF0A0E1A);
-  static const Color surfaceDark = Color(0xFF141B2D);
-  static const Color surfaceSecondaryDark = Color(0xFF1F2940);
-  static const Color surfaceElevatedDark = Color(0xFF2A3654);
+  // Dark mode surface colors - Figma navy
+  static const Color backgroundDark = navy900;
+  static const Color surfaceDark = navy800;
+  static const Color surfaceSecondaryDark = navy700;
+  static const Color surfaceElevatedDark = Color(0xFF22305B);
 
   // Dark mode text colors
-  static const Color textDark = Color(0xFFF1F5F9);
-  static const Color textSecondaryDark = Color(0xFFB0BFCE); // Improved contrast
-  static const Color textTertiaryDark = Color(0xFF8B9AAF); // Improved contrast
-  static const Color textInverseDark = Color(0xFF0A0E1A);
+  static const Color textDark = Colors.white;
+  static const Color textSecondaryDark = gray300;
+  static const Color textTertiaryDark = gray400;
+  static const Color textInverseDark = navy900;
 
   // Dark mode border colors
-  static const Color borderDark = Color(0xFF2A3654);
-  static const Color borderDarkSecondary = Color(0xFF3D4F6F);
+  static const Color borderDark = navy700;
+  static const Color borderDarkSecondary = Color(0xFF263156);
 
   // Action color
-  static const Color action = Color(0xFFFF6B6B);
-  static const Color actionLight = Color(0xFFFF8E8E);
-  static const Color actionDark = Color(0xFFE85555);
+  static const Color action = neonGreen;
+  static const Color actionLight = primaryLight;
+  static const Color actionDark = neonGreenHover;
 
   // Warm accent colors for streak cards
-  static const Color warmBackground = Color(0xFF1A0A0A);
-  static const Color warmBorder = Color(0xFFFF6B6B);
-  static const Color warmAccent = Color(0xFFFF6B6B);
+  static const Color warmBackground = navy700;
+  static const Color warmBorder = neonGreen;
+  static const Color warmAccent = gray300;
 
   // Gradient colors for splash
-  static const Color gradientStart = Color(0xFF00D9FF);
-  static const Color gradientMiddle = Color(0xFF9D4EDD);
-  static const Color gradientEnd = Color(0xFFFF6B6B);
+  static const Color gradientStart = navy900;
+  static const Color gradientMiddle = navy800;
+  static const Color gradientEnd = navy700;
 
   // Common colors
   static const Color white = Colors.white;
   static const Color text = textLight;
 
   // Gradient presets
-  static const List<Color> primaryGradient = [
-    Color(0xFF00D9FF),
-    Color(0xFF0099FF),
-  ];
-
-  static const List<Color> secondaryGradient = [
-    Color(0xFFFF6B6B),
-    Color(0xFFFF8E53),
-  ];
-
-  static const List<Color> premiumGradient = [
-    Color(0xFF9D4EDD),
-    Color(0xFF667EEA),
-  ];
-
-  static const List<Color> splashGradient = [
-    Color(0xFF0A0E1A),
-    Color(0xFF141B2D),
-    Color(0xFF1F2940),
-  ];
-
-  static const List<Color> cardGradient = [
-    Color(0xFF1F2940),
-    Color(0xFF141B2D),
-  ];
+  static const List<Color> primaryGradient = [neonGreen, neonGreenHover];
+  static const List<Color> secondaryGradient = [navy700, navy800];
+  static const List<Color> premiumGradient = [navy800, navy700];
+  static const List<Color> splashGradient = [navy900, navy800, navy700];
+  static const List<Color> cardGradient = [navy800, navy700];
 
   static const List<Color> successGradient = [
-    Color(0xFF00E676),
-    Color(0xFF00C853),
+    Color(0xFF10B981),
+    Color(0xFF34D399),
   ];
 
-  // Additional premium gradients
-  static const List<Color> motivationalGradient = [
-    Color(0xFFFF6B6B),
-    Color(0xFFFFD93D),
-  ];
-
-  static const List<Color> achievementGradient = [
-    Color(0xFF00E676),
-    Color(0xFF00D9FF),
-  ];
-
-  static const List<Color> streakGradient = [
-    Color(0xFFFF6B6B),
-    Color(0xFFFF8E53),
-    Color(0xFFFFD93D),
-  ];
+  // Additional gradients
+  static const List<Color> motivationalGradient = [navy700, neonGreen];
+  static const List<Color> achievementGradient = [navy800, neonGreen];
+  static const List<Color> streakGradient = [navy700, navy800, neonGreenHover];
 }
 
 /// Helper class for creating gradients with common configurations.
@@ -381,7 +362,7 @@ class AppTheme {
         foregroundColor: AppColors.textLight,
         elevation: 0,
         centerTitle: true,
-        titleTextStyle: GoogleFonts.montserrat(
+        titleTextStyle: GoogleFonts.outfit(
           fontSize: AppFontSize.lg,
           fontWeight: FontWeight.w600,
           color: AppColors.textLight,
@@ -405,7 +386,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppBorderRadius.lg),
           ),
-          textStyle: GoogleFonts.montserrat(
+          textStyle: GoogleFonts.outfit(
             fontSize: AppFontSize.md,
             fontWeight: FontWeight.w600,
           ),
@@ -432,7 +413,7 @@ class AppTheme {
         ),
         prefixIconColor: AppColors.textSecondaryLight,
         hintStyle: const TextStyle(
-          fontFamily: 'Outfit',
+          fontFamily: 'Inter',
           color: AppColors.textTertiaryLight,
         ),
       ),
@@ -446,42 +427,42 @@ class AppTheme {
         thickness: 1,
       ),
       textTheme: TextTheme(
-        displayLarge: GoogleFonts.montserrat(
+        displayLarge: GoogleFonts.outfit(
           fontSize: AppFontSize.hero,
           fontWeight: FontWeight.bold,
         ),
-        displayMedium: GoogleFonts.montserrat(
+        displayMedium: GoogleFonts.outfit(
           fontSize: AppFontSize.display,
           fontWeight: FontWeight.bold,
         ),
-        headlineLarge: GoogleFonts.montserrat(
+        headlineLarge: GoogleFonts.outfit(
           fontSize: AppFontSize.xxxl,
           fontWeight: FontWeight.bold,
         ),
-        headlineMedium: GoogleFonts.montserrat(
+        headlineMedium: GoogleFonts.outfit(
           fontSize: AppFontSize.xxl,
           fontWeight: FontWeight.w600,
         ),
         titleLarge: const TextStyle(
-          fontFamily: 'Outfit',
+          fontFamily: 'Inter',
           fontSize: AppFontSize.xl,
           fontWeight: FontWeight.w600,
         ),
         titleMedium: const TextStyle(
-          fontFamily: 'Outfit',
+          fontFamily: 'Inter',
           fontSize: AppFontSize.lg,
           fontWeight: FontWeight.w500,
         ),
         bodyLarge: const TextStyle(
-          fontFamily: 'Outfit',
+          fontFamily: 'Inter',
           fontSize: AppFontSize.md,
         ),
         bodyMedium: const TextStyle(
-          fontFamily: 'Outfit',
+          fontFamily: 'Inter',
           fontSize: AppFontSize.sm,
         ),
         labelLarge: const TextStyle(
-          fontFamily: 'Outfit',
+          fontFamily: 'Inter',
           fontSize: AppFontSize.md,
           fontWeight: FontWeight.w600,
         ),
@@ -494,24 +475,24 @@ class AppTheme {
       useMaterial3: true,
       brightness: Brightness.dark,
       fontFamily: AppFonts.primary,
-      colorScheme: ColorScheme.dark(
-        primary: AppColors.primary,
-        secondary: AppColors.secondary,
-        tertiary: AppColors.accent,
-        surface: AppColors.surfaceDark,
+      colorScheme: const ColorScheme.dark(
+        primary: AppColors.neonGreen,
+        secondary: AppColors.gray400,
+        tertiary: AppColors.navy700,
+        surface: AppColors.navy800,
         error: AppColors.error,
-        onPrimary: AppColors.textInverseDark,
-        onSecondary: AppColors.textInverseLight,
+        onPrimary: AppColors.navy900,
+        onSecondary: AppColors.textDark,
         onSurface: AppColors.textDark,
-        onError: AppColors.textInverseLight,
+        onError: AppColors.textDark,
       ),
-      scaffoldBackgroundColor: AppColors.backgroundDark,
+      scaffoldBackgroundColor: AppColors.navy900,
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
         foregroundColor: AppColors.textDark,
         elevation: 0,
         centerTitle: true,
-        titleTextStyle: GoogleFonts.montserrat(
+        titleTextStyle: GoogleFonts.outfit(
           fontSize: AppFontSize.lg,
           fontWeight: FontWeight.w600,
           color: AppColors.textDark,
@@ -536,7 +517,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppBorderRadius.lg),
           ),
-          textStyle: GoogleFonts.montserrat(
+          textStyle: GoogleFonts.outfit(
             fontSize: AppFontSize.md,
             fontWeight: FontWeight.w600,
           ),
@@ -565,56 +546,56 @@ class AppTheme {
         ),
         prefixIconColor: AppColors.textSecondaryDark,
         hintStyle: const TextStyle(
-          fontFamily: 'Outfit',
+          fontFamily: 'Inter',
           color: AppColors.textTertiaryDark,
         ),
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: Colors.transparent,
-        selectedItemColor: AppColors.primary,
-        unselectedItemColor: AppColors.textTertiaryDark,
+        selectedItemColor: AppColors.neonGreen,
+        unselectedItemColor: AppColors.gray400,
       ),
       dividerTheme: const DividerThemeData(
         color: AppColors.borderDark,
         thickness: 1,
       ),
       textTheme: TextTheme(
-        displayLarge: GoogleFonts.montserrat(
+        displayLarge: GoogleFonts.outfit(
           fontSize: AppFontSize.hero,
           fontWeight: FontWeight.bold,
         ),
-        displayMedium: GoogleFonts.montserrat(
+        displayMedium: GoogleFonts.outfit(
           fontSize: AppFontSize.display,
           fontWeight: FontWeight.bold,
         ),
-        headlineLarge: GoogleFonts.montserrat(
+        headlineLarge: GoogleFonts.outfit(
           fontSize: AppFontSize.xxxl,
           fontWeight: FontWeight.bold,
         ),
-        headlineMedium: GoogleFonts.montserrat(
+        headlineMedium: GoogleFonts.outfit(
           fontSize: AppFontSize.xxl,
           fontWeight: FontWeight.w600,
         ),
         titleLarge: const TextStyle(
-          fontFamily: 'Outfit',
+          fontFamily: 'Inter',
           fontSize: AppFontSize.xl,
           fontWeight: FontWeight.w600,
         ),
         titleMedium: const TextStyle(
-          fontFamily: 'Outfit',
+          fontFamily: 'Inter',
           fontSize: AppFontSize.lg,
           fontWeight: FontWeight.w500,
         ),
         bodyLarge: const TextStyle(
-          fontFamily: 'Outfit',
+          fontFamily: 'Inter',
           fontSize: AppFontSize.md,
         ),
         bodyMedium: const TextStyle(
-          fontFamily: 'Outfit',
+          fontFamily: 'Inter',
           fontSize: AppFontSize.sm,
         ),
         labelLarge: const TextStyle(
-          fontFamily: 'Outfit',
+          fontFamily: 'Inter',
           fontSize: AppFontSize.md,
           fontWeight: FontWeight.w600,
         ),
@@ -645,15 +626,15 @@ class AppTheme {
 /// Glassmorphism decoration helper.
 class GlassDecoration {
   static BoxDecoration get card => BoxDecoration(
-    color: AppColors.surfaceDark.withValues(alpha: 0.7),
+    color: AppColors.surfaceDark.withValues(alpha: 0.35),
     borderRadius: BorderRadius.circular(AppBorderRadius.xl),
-    border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+    border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
   );
 
   static BoxDecoration get elevated => BoxDecoration(
-    color: AppColors.surfaceElevatedDark.withValues(alpha: 0.8),
+    color: AppColors.surfaceElevatedDark.withValues(alpha: 0.5),
     borderRadius: BorderRadius.circular(AppBorderRadius.xl),
-    border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+    border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
     boxShadow: AppShadows.lg,
   );
 
@@ -662,12 +643,15 @@ class GlassDecoration {
         borderRadius: BorderRadius.circular(radius),
         gradient: LinearGradient(
           colors: [
-            AppColors.primary.withValues(alpha: 0.3),
-            AppColors.primary.withValues(alpha: 0.1),
+            AppColors.primary.withValues(alpha: 0.2),
+            AppColors.primary.withValues(alpha: 0.05),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.4)),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
       );
+      
+  /// To apply a blur effect properly, wrap this container with
+  /// ClipRRect and BackdropFilter(filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20))
 }

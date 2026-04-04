@@ -547,9 +547,6 @@ class _FeedTabState extends ConsumerState<_FeedTab>
     );
   }
 
-  // ... _buildPostCard and other helpers copied and adapted from original ...
-  // Need to ensure _buildPostCard includes the new IMAGE logic I just added.
-
   Widget _buildHeaderWidgets() {
     return Column(
       children: const [
@@ -593,128 +590,19 @@ class _FeedTabState extends ConsumerState<_FeedTab>
         .watch(userCacheServiceProvider)
         .getUserSync(post.authorId);
     final authorName = author?.displayName ?? 'User';
+    final hasImage = post.mediaURLs != null && post.mediaURLs!.isNotEmpty;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: AppSpacing.lg),
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
-        borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-        border: Border.all(color: AppColors.borderDark),
+      margin: const EdgeInsets.only(bottom: AppSpacing.xl),
+      decoration: GlassDecoration.card.copyWith(
+        borderRadius: BorderRadius.circular(AppBorderRadius.xxl),
       ),
+      clipBehavior: Clip.antiAlias,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Author row with overflow menu
-          Row(
-            children: [
-              GestureDetector(
-                onTap: () {
-                  if (author != null) {
-                    context.push('/user/${author.id}');
-                  }
-                },
-                child: Semantics(
-                  button: true,
-                  label: 'View profile of $authorName',
-                  child: Row(
-                    children: [
-                      FluttermojiAvatar(
-                        avatarConfig: author?.avatarConfig,
-                        photoUrl: author?.photoURL,
-                        displayName: authorName,
-                        size: 40,
-                        showGradientBorder: true,
-                      ),
-                      const SizedBox(width: AppSpacing.md),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            authorName,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textDark,
-                            ),
-                          ),
-                          Text(
-                            timeago.format(post.createdAt),
-                            style: TextStyle(
-                              fontSize: AppFontSize.sm,
-                              color: AppColors.textSecondaryDark,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const Spacer(),
-              // Overflow menu for Report/Block
-              if (!isOwnPost)
-                PopupMenuButton<String>(
-                  icon: const Icon(
-                    Icons.more_vert,
-                    color: AppColors.textSecondaryDark,
-                  ),
-                  onSelected: (value) => _handlePostAction(
-                    action: value,
-                    post: post,
-                    authorName: authorName,
-                  ),
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(
-                      value: 'report_post',
-                      child: Row(
-                        children: [
-                          Icon(Icons.flag_outlined, size: 20),
-                          SizedBox(width: 8),
-                          Text('Report Post'),
-                        ],
-                      ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'report_user',
-                      child: Row(
-                        children: [
-                          Icon(Icons.person_off_outlined, size: 20),
-                          SizedBox(width: 8),
-                          Text('Report User'),
-                        ],
-                      ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'block_user',
-                      child: Row(
-                        children: [
-                          Icon(Icons.block, size: 20, color: Colors.red),
-                          SizedBox(width: 8),
-                          Text(
-                            'Block User',
-                            style: TextStyle(color: Colors.red),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-
-          // Title
-          Text(
-            post.title,
-            style: const TextStyle(
-              fontSize: AppFontSize.lg,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-
-          // Post Image (tappable for full-screen view) with Hero animation
-          if (post.mediaURLs != null && post.mediaURLs!.isNotEmpty)
+          // If hasImage, put the image FIRST, edge to edge at the top
+          if (hasImage)
             GestureDetector(
               onTap: () {
                 HapticManager.light();
@@ -728,244 +616,212 @@ class _FeedTabState extends ConsumerState<_FeedTab>
                   ),
                 );
               },
-              child: Semantics(
-                button: true,
-                label: 'View full image',
-                hint: 'Double tap to zoom',
-                child: Hero(
-                  tag: 'post-card-${post.id}',
-                  createRectTween: (begin, end) {
-                    return MaterialRectCenterArcTween(begin: begin, end: end);
-                  },
-                  child: Material(
-                    color: Colors.transparent,
-                    child: Container(
-                      height: 200,
-                      margin: const EdgeInsets.only(bottom: AppSpacing.md),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(AppBorderRadius.md),
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          CachedNetworkImage(
-                            cacheManager: ZyntroImageCacheManager(),
-                            imageUrl: post.mediaURLs!.first,
-                            fit: BoxFit.cover,
-                            placeholder: (context, url) => Container(
-                              color: AppColors.surfaceSecondaryDark,
-                              child: const Center(
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: AppColors.primary,
-                                ),
-                              ),
-                            ),
-                            errorWidget: (context, url, error) => Container(
-                              color: AppColors.surfaceSecondaryDark,
-                              child: const Icon(
-                                Icons.broken_image,
-                                color: AppColors.textSecondaryDark,
-                              ),
-                            ),
-                          ),
-                          // Gradient overlay at bottom
-                          Positioned(
-                            bottom: 0,
-                            left: 0,
-                            right: 0,
-                            height: 60,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.bottomCenter,
-                                  end: Alignment.topCenter,
-                                  colors: [
-                                    Colors.black.withValues(alpha: 0.5),
-                                    Colors.transparent,
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                          // Fullscreen icon overlay
-                          Positioned(
-                            bottom: 8,
-                            right: 8,
-                            child: Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.5),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: const Icon(
-                                Icons.fullscreen,
-                                color: Colors.white,
-                                size: 16,
-                              ),
-                            ),
-                          ),
-                          // Multiple photos indicator
-                          if (post.mediaURLs!.length > 1)
-                            Positioned(
-                              bottom: 8,
-                              left: 8,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.5),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(
-                                      Icons.photo_library,
-                                      color: Colors.white,
-                                      size: 14,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      '${post.mediaURLs!.length}',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-          // Stats
-          if (post.summary.totalExercises != null ||
-              post.summary.totalSets != null ||
-              post.summary.duration != null)
-            Container(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                borderRadius: BorderRadius.circular(AppBorderRadius.md),
-                border: Border.all(color: Theme.of(context).dividerColor),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+              child: Hero(
+                tag: 'post-card-${post.id}',
+                child: Container(
+                  constraints: const BoxConstraints(maxHeight: 400, minHeight: 250),
+                  child: Stack(
+                    fit: StackFit.expand,
                     children: [
-                      _buildStat(
-                        'Exercises',
-                        '${post.summary.totalExercises ?? 0}',
+                      CachedNetworkImage(
+                        cacheManager: ZyntroImageCacheManager(),
+                        imageUrl: post.mediaURLs!.first,
+                        fit: BoxFit.cover,
                       ),
-                      _buildStat('Sets', '${post.summary.totalSets ?? 0}'),
-                      if (post.summary.duration != null)
-                        _buildStat('Duration', post.summary.duration!)
-                      else
-                        _buildStat('Type', post.type.toUpperCase()),
-                    ],
-                  ),
-                  // Exercise list (top 3)
-                  if (post.summary.exercises != null &&
-                      post.summary.exercises!.isNotEmpty) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    const Divider(height: 1),
-                    const SizedBox(height: AppSpacing.sm),
-                    ...post.summary.exercises!
-                        .take(3)
-                        .map(
-                          (exercise) => Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: AppSpacing.xs,
+                      // Gradient overlay for author row contrast
+                      Positioned(
+                        top: 0, left: 0, right: 0,
+                        height: 120,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.black.withValues(alpha: 0.7),
+                                Colors.transparent,
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Author Row overlaid on top of image
+                      Positioned(
+                        top: AppSpacing.lg,
+                        left: AppSpacing.lg,
+                        right: AppSpacing.md,
+                        child: _buildAuthorRow(post, author, authorName, isOwnPost, true),
+                      ),
+                      if (post.mediaURLs!.length > 1)
+                        Positioned(
+                          bottom: AppSpacing.md,
+                          right: AppSpacing.md,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: GlassDecoration.card.copyWith(
+                              borderRadius: BorderRadius.circular(20),
                             ),
                             child: Row(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(
-                                  Icons.fitness_center,
-                                  size: 14,
-                                  color: AppColors.primary,
-                                ),
+                                const Icon(Icons.photo_library, color: Colors.white, size: 16),
                                 const SizedBox(width: AppSpacing.xs),
-                                Expanded(
-                                  child: Text(
-                                    exercise.name,
-                                    style: const TextStyle(
-                                      fontSize: AppFontSize.sm,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
                                 Text(
-                                  '${exercise.sets} sets',
-                                  style: TextStyle(
-                                    fontSize: AppFontSize.sm,
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurface
-                                        .withValues(alpha: 0.6),
-                                  ),
+                                  '${post.mediaURLs!.length}',
+                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                                 ),
                               ],
                             ),
                           ),
                         ),
-                    if (post.summary.exercises!.length > 3)
-                      Padding(
-                        padding: const EdgeInsets.only(top: AppSpacing.xs),
-                        child: Text(
-                          '+${post.summary.exercises!.length - 3} more',
-                          style: TextStyle(
-                            fontSize: AppFontSize.xs,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurface.withValues(alpha: 0.5),
-                          ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+          Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (!hasImage)
+                  _buildAuthorRow(post, author, authorName, isOwnPost, false),
+                  
+                if (!hasImage) const SizedBox(height: AppSpacing.md),
+                
+                // Title
+                Text(
+                  post.title,
+                  style: const TextStyle(
+                    fontSize: AppFontSize.xl,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+
+                // Stats area with glass effect
+                if (post.summary.totalExercises != null ||
+                    post.summary.totalSets != null ||
+                    post.summary.duration != null)
+                  Container(
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    decoration: GlassDecoration.elevated.copyWith(
+                      color: AppColors.surfaceSecondaryDark.withValues(alpha: 0.3),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: [
+                            _buildStat('Exercises', '${post.summary.totalExercises ?? 0}'),
+                            _buildStat('Sets', '${post.summary.totalSets ?? 0}'),
+                            if (post.summary.duration != null)
+                              _buildStat('Duration', post.summary.duration!)
+                            else
+                              _buildStat('Type', post.type.toUpperCase()),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: AppSpacing.md),
+
+                // Actions area below everything
+                Row(
+                  children: [
+                    Expanded(
+                      child: ReactionButtons(
+                        postId: post.id,
+                        currentReaction: _userReactions[post.id],
+                        reactionCounts: _reactionCounts[post.id] ?? {},
+                        onReactionTap: (type) => _handleReaction(post, type),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    if (FeatureFlags.isCommentsEnabled)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceSecondaryDark,
+                          borderRadius: BorderRadius.circular(AppBorderRadius.full),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            GestureDetector(
+                               onTap: () => context.push('/post/${post.id}'),
+                               child: const Icon(Icons.mode_comment_outlined, size: 20, color: AppColors.textSecondaryDark)),
+                            const SizedBox(width: AppSpacing.xs),
+                            Text('${post.commentsCount}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textSecondaryDark)),
+                          ],
                         ),
                       ),
                   ],
-                ],
-              ),
+                ),
+              ],
             ),
-          const SizedBox(height: AppSpacing.md),
-
-          // Actions - Reaction buttons
-          Row(
-            children: [
-              Expanded(
-                child: ReactionButtons(
-                  postId: post.id,
-                  currentReaction: _userReactions[post.id],
-                  reactionCounts: _reactionCounts[post.id] ?? {},
-                  onReactionTap: (type) => _handleReaction(post, type),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              if (FeatureFlags.isCommentsEnabled)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.comment_outlined),
-                      onPressed: () => context.push('/post/${post.id}'),
-                    ),
-                    Text('${post.commentsCount}'),
-                  ],
-                ),
-            ],
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildAuthorRow(Post post, dynamic author, String authorName, bool isOwnPost, bool overlaid) {
+    final textColor = overlaid ? Colors.white : AppColors.textDark;
+    final secondaryTextColor = overlaid ? Colors.white70 : AppColors.textSecondaryDark;
+    
+    return Row(
+      children: [
+        GestureDetector(
+          onTap: () {
+            if (author != null) context.push('/user/${author.id}');
+          },
+          child: Row(
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.primary, width: 2),
+                ),
+                child: FluttermojiAvatar(
+                  avatarConfig: author?.avatarConfig,
+                  photoUrl: author?.photoURL,
+                  displayName: authorName,
+                  size: 40,
+                  showGradientBorder: false,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    authorName,
+                    style: TextStyle(fontWeight: FontWeight.w600, color: textColor, fontSize: AppFontSize.md),
+                  ),
+                  Text(
+                    timeago.format(post.createdAt),
+                    style: TextStyle(fontSize: AppFontSize.sm, color: secondaryTextColor),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const Spacer(),
+        if (!isOwnPost)
+          PopupMenuButton<String>(
+            icon: Icon(Icons.more_horiz, color: textColor),
+            onSelected: (value) => _handlePostAction(action: value, post: post, authorName: authorName),
+            itemBuilder: (context) => [
+              const PopupMenuItem(value: 'report_post', child: Text('Report Post')),
+              const PopupMenuItem(value: 'report_user', child: Text('Report User')),
+              const PopupMenuItem(value: 'block_user', child: Text('Block User', style: TextStyle(color: Colors.red))),
+            ],
+          ),
+      ],
     );
   }
 

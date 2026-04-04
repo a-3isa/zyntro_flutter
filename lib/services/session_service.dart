@@ -6,6 +6,7 @@ import 'package:rxdart/rxdart.dart';
 
 import '../core/models/models.dart';
 import '../core/constants/constants.dart';
+import '../features/session/domain/gym_session_plan.dart';
 import '../utils/retry_helper.dart';
 import '../utils/offline_manager.dart';
 import '../features/auth/auth_providers.dart';
@@ -49,6 +50,7 @@ class SessionService {
     String? buddyPairId,
     List<String>? invitedUserIds,
     SessionMode mode = SessionMode.turnBased,
+    SessionPhase phase = SessionPhase.live,
   }) async {
     // Check for existing active session
     final existingSessionId = await checkActiveSession(hostId);
@@ -73,13 +75,28 @@ class SessionService {
       'title': title,
       'hostId': hostId,
       'participants': [hostId],
+      'invitedUserIds': invitedUserIds ?? [],
       'status': 'active',
       'createdAt': FieldValue.serverTimestamp(),
       'startedAt': FieldValue.serverTimestamp(),
       'buddyPairId': buddyPairId,
       'mode': mode.value,
       'activeUserId': mode == SessionMode.turnBased ? hostId : null,
+      'phase': phase.value,
     });
+
+    if (phase == SessionPhase.setup) {
+      final hostPlanRef = sessionRef.collection('plans').doc(hostId);
+      batch.set(
+        hostPlanRef,
+        const GymSessionPlan(
+          userId: '',
+          source: GymSessionPlanSource.hostTemplate,
+          isReady: false,
+          exercises: [],
+        ).toMap()..['userId'] = hostId,
+      );
+    }
 
     final startEventRef = sessionRef
         .collection('events')
@@ -402,6 +419,126 @@ class SessionService {
         .map((doc) => doc.exists ? Session.fromFirestore(doc) : null);
   }
 
+  /// Save a user's gym setup plan for a session.
+  Future<void> saveGymPlan({
+    required String sessionId,
+    required GymSessionPlan plan,
+  }) async {
+    await _firestore
+        .collection('sessions')
+        .doc(sessionId)
+        .collection('plans')
+        .doc(plan.userId)
+        .set(plan.toMap());
+  }
+
+  /// Ensure a participant has a personal gym plan for the setup flow.
+  Future<GymSessionPlan> ensureGymPlan({
+    required String sessionId,
+    required String hostId,
+    required String userId,
+  }) async {
+    final plansCollection = _firestore
+        .collection('sessions')
+        .doc(sessionId)
+        .collection('plans');
+
+    final userPlanRef = plansCollection.doc(userId);
+    final existingUserPlan = await userPlanRef.get();
+    if (existingUserPlan.exists && existingUserPlan.data() != null) {
+      return GymSessionPlan.fromMap(existingUserPlan.data()!);
+    }
+
+    final hostPlanSnapshot = await plansCollection.doc(hostId).get();
+    if (!hostPlanSnapshot.exists || hostPlanSnapshot.data() == null) {
+      throw Exception('Host gym plan not found for session: $sessionId');
+    }
+
+    final hostPlan = GymSessionPlan.fromMap(hostPlanSnapshot.data()!);
+    final clonedPlan = GymSessionPlan(
+      userId: userId,
+      source: userId == hostId
+          ? GymSessionPlanSource.hostTemplate
+          : GymSessionPlanSource.personal,
+      isReady: false,
+      exercises: hostPlan.exercises
+          .map((exercise) => PlannedExercise.fromMap(exercise.toMap()))
+          .toList(),
+    );
+
+    await userPlanRef.set(clonedPlan.toMap());
+    return clonedPlan;
+  }
+
+  /// Update readiness and move setup sessions into the live phase once everyone is ready.
+  Future<void> setGymPlanReady({
+    required String sessionId,
+    required String userId,
+    required bool isReady,
+  }) async {
+    final sessionRef = _firestore.collection('sessions').doc(sessionId);
+    final plansCollection = sessionRef.collection('plans');
+    final userPlanRef = plansCollection.doc(userId);
+
+    await _firestore.runTransaction<void>((transaction) async {
+      final sessionSnapshot = await transaction.get(sessionRef);
+      final sessionData = sessionSnapshot.data();
+      if (sessionData == null) {
+        throw Exception('Session not found: $sessionId');
+      }
+
+      final participants =
+          (sessionData['participants'] as List<dynamic>?)?.cast<String>() ??
+          const <String>[];
+      final currentPhase = SessionPhase.fromString(
+        sessionData['phase'] as String? ?? SessionPhase.live.value,
+      );
+
+      final userPlanSnapshot = await transaction.get(userPlanRef);
+      final userPlanData = userPlanSnapshot.data();
+      if (!userPlanSnapshot.exists || userPlanData == null) {
+        throw StateError('Gym plan must exist before readiness can be updated.');
+      }
+      transaction.update(userPlanRef, {'isReady': isReady});
+
+      final planReadiness = <String, bool>{userId: isReady};
+      for (final participantId in participants) {
+        if (participantId == userId) continue;
+        final participantPlanSnapshot = await transaction.get(
+          plansCollection.doc(participantId),
+        );
+        final participantPlanData = participantPlanSnapshot.data();
+        planReadiness[participantId] =
+            participantPlanSnapshot.exists && participantPlanData != null
+            ? GymSessionPlan.fromMap(participantPlanData).isReady
+            : false;
+      }
+
+      if (currentPhase == SessionPhase.setup &&
+          participants.isNotEmpty &&
+          participants.every(
+            (participantId) => planReadiness[participantId] == true,
+          )) {
+        transaction.update(sessionRef, {'phase': SessionPhase.live.value});
+      }
+    });
+  }
+
+  /// Listen to a user's gym setup plan.
+  Stream<GymSessionPlan?> listenToGymPlan(String sessionId, String userId) {
+    return _firestore
+        .collection('sessions')
+        .doc(sessionId)
+        .collection('plans')
+        .doc(userId)
+        .snapshots()
+        .map((snapshot) {
+          final data = snapshot.data();
+          if (!snapshot.exists || data == null) return null;
+          return GymSessionPlan.fromMap(data);
+        });
+  }
+
   /// Listen to session events in real-time.
   /// Matches RN listenToSessionEvents.
   Stream<List<TimelineEvent>> listenToSessionEvents(String sessionId) {
@@ -678,6 +815,17 @@ final currentSessionProvider = StreamProvider.family<Session?, String>((
   return ref.watch(sessionServiceProvider).listenToSession(sessionId);
 });
 
+/// Stream provider for a participant's gym setup plan.
+final gymSessionPlanProvider =
+    StreamProvider.family<GymSessionPlan?, ({String sessionId, String userId})>((
+      ref,
+      params,
+    ) {
+      return ref
+          .watch(sessionServiceProvider)
+          .listenToGymPlan(params.sessionId, params.userId);
+    });
+
 /// Stream provider for session events.
 final sessionEventsProvider =
     StreamProvider.family<List<TimelineEvent>, String>((ref, sessionId) {
@@ -808,4 +956,3 @@ final configurableDebouncedSessionEventsProvider =
           .listenToSessionEvents(params.sessionId)
           .debounceTime(params.debounce);
     });
-

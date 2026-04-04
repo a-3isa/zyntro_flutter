@@ -113,7 +113,7 @@ The app supports multiple environments:
 |-------------|-------------|-----------------|
 | Development | `.env` / `.env.dev` | `gym-avatar-dev` |
 | Staging | `.env.staging` | `gym-avatar-staging` |
-| Production | `.env.prod` | `gym-avatar` |
+| Production | `.env.prod` | `zynrto` |
 
 ### Build Commands
 
@@ -172,3 +172,24 @@ flutter pub run flutter_native_splash:create
 - [Community Guidelines](docs/community-guidelines.md)
 - [Clean Architecture Feature Workflow](docs/clean-architecture-feature-workflow.md)
 
+
+## Push Delivery Backend
+
+Background push now routes through `functions/deliverNotificationPush` instead of a client-writable Firestore queue.
+
+### Deploy the backend
+
+```bash
+cd functions
+npm install
+cd ..
+firebase deploy --only functions:deliverNotificationPush
+```
+
+The checked-in mobile Firebase config currently targets the `zynrto` project. On March 30, 2026 the required Functions APIs were enabled successfully, but the first deploy still failed because the build service account is missing the permissions needed to finish the Cloud Build step.
+
+### Delivery contract
+
+- The Flutter app creates the in-app notification under `users/{userId}/notifications`.
+- `NotificationService` then POSTs to the HTTPS Cloud Function with the current Firebase ID token in the `Authorization` header.
+- The function validates the caller against Firestore state, reads `users/{userId}/devices`, sends FCM with the Admin SDK, and prunes invalid tokens.

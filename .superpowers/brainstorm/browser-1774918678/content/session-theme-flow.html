@@ -1,0 +1,319 @@
+<style>
+  .vision-grid {
+    display: grid;
+    gap: 24px;
+  }
+
+  .palette-panel {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    padding: 20px;
+  }
+
+  .palette-comparison {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+  }
+
+  .swatches {
+    display: grid;
+    gap: 10px;
+    margin-top: 14px;
+  }
+
+  .swatch {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #dfe4ff;
+    font-size: 14px;
+  }
+
+  .chip {
+    width: 44px;
+    height: 18px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    flex: 0 0 auto;
+  }
+
+  .phone-strip {
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 20px;
+  }
+
+  .phone {
+    background: #0a0e27;
+    border: 1px solid #1e2749;
+    border-radius: 28px;
+    min-height: 420px;
+    padding: 18px;
+    box-shadow: 0 28px 60px rgba(10, 14, 39, 0.45);
+    color: #eef2ff;
+  }
+
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(57, 255, 20, 0.12);
+    color: #39ff14;
+    border: 1px solid rgba(57, 255, 20, 0.25);
+    border-radius: 999px;
+    padding: 8px 12px;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .session-card {
+    background: #151b3d;
+    border: 1px solid #1e2749;
+    border-radius: 22px;
+    padding: 16px;
+    margin-top: 14px;
+  }
+
+  .exercise-row,
+  .ready-row,
+  .set-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(160, 160, 172, 0.12);
+    font-size: 14px;
+  }
+
+  .exercise-row:last-child,
+  .ready-row:last-child,
+  .set-row:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+
+  .muted {
+    color: #a0a0ac;
+  }
+
+  .neon-button {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    margin-top: 18px;
+    padding: 14px 18px;
+    border-radius: 16px;
+    background: #39ff14;
+    color: #09101f;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+
+  .outline-button {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    margin-top: 12px;
+    padding: 13px 18px;
+    border-radius: 16px;
+    border: 1px solid #1e2749;
+    color: #dfe4ff;
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .flow-track {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 14px;
+  }
+
+  .flow-step {
+    padding: 10px 14px;
+    border-radius: 999px;
+    background: #151b3d;
+    border: 1px solid #1e2749;
+    color: #dfe4ff;
+    font-size: 13px;
+  }
+
+  .notes {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+  }
+
+  .note {
+    background: rgba(21, 27, 61, 0.7);
+    border: 1px solid rgba(30, 39, 73, 0.9);
+    border-radius: 18px;
+    padding: 18px;
+  }
+
+  .note h4 {
+    margin: 0 0 8px;
+    font-size: 16px;
+  }
+
+  .note p {
+    margin: 0;
+    color: #a0a0ac;
+    line-height: 1.5;
+    font-size: 14px;
+  }
+
+  @media (max-width: 900px) {
+    .palette-comparison,
+    .phone-strip,
+    .notes {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<h2>Gym Session Visual Direction</h2>
+<p class="subtitle">Merging the prototype flow into the app while switching sessions to the navy + neon palette from Figma.</p>
+
+<div class="vision-grid">
+  <div class="section">
+    <div class="label">Theme Shift</div>
+    <div class="palette-comparison">
+      <div class="palette-panel">
+        <h3 style="margin:0;">Current App Lean</h3>
+        <p class="muted" style="margin:8px 0 0;">Dark zinc surfaces, lime primary, purple-heavy accents.</p>
+        <div class="swatches">
+          <div class="swatch"><span class="chip" style="background:#09090B;"></span><span>Near-black base</span></div>
+          <div class="swatch"><span class="chip" style="background:#18181B;"></span><span>Zinc surfaces</span></div>
+          <div class="swatch"><span class="chip" style="background:#CCFF00;"></span><span>Lime primary</span></div>
+          <div class="swatch"><span class="chip" style="background:#8B5CF6;"></span><span>Purple highlight</span></div>
+        </div>
+      </div>
+
+      <div class="palette-panel" data-choice="figma-theme" onclick="toggleSelect(this)">
+        <h3 style="margin:0;">Target Figma Direction</h3>
+        <p class="muted" style="margin:8px 0 0;">Deep navy performance UI with neon green action moments and cleaner contrast.</p>
+        <div class="swatches">
+          <div class="swatch"><span class="chip" style="background:#0A0E27;"></span><span>`#0A0E27` app background</span></div>
+          <div class="swatch"><span class="chip" style="background:#151B3D;"></span><span>`#151B3D` cards and surfaces</span></div>
+          <div class="swatch"><span class="chip" style="background:#1E2749;"></span><span>`#1E2749` borders and elevation</span></div>
+          <div class="swatch"><span class="chip" style="background:#39FF14;"></span><span>`#39FF14` primary actions</span></div>
+          <div class="swatch"><span class="chip" style="background:#A0A0AC;"></span><span>`#A0A0AC` secondary text</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="label">Prototype-Inspired Gym Flow</div>
+    <div class="flow-track">
+      <div class="flow-step">1. Start Session</div>
+      <div class="flow-step">2. Host Plans Exercises</div>
+      <div class="flow-step">3. Partner Gets Private Copy</div>
+      <div class="flow-step">4. Everyone Taps Ready</div>
+      <div class="flow-step">5. Live Set Execution</div>
+      <div class="flow-step">6. Reps + Weight After Each Set</div>
+      <div class="flow-step">7. Partner Turn / Hype</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="label">Screen Feel</div>
+    <div class="phone-strip">
+      <div class="phone">
+        <div class="status-pill">Setup Phase</div>
+        <div style="margin-top:16px;font-size:28px;font-weight:700;">Build your gym plan</div>
+        <div class="muted" style="margin-top:8px;">The host creates the shared starting structure. Everyone can personalize their own copy before going live.</div>
+        <div class="session-card">
+          <div class="exercise-row">
+            <div>
+              <div style="font-weight:600;">Bench Press</div>
+              <div class="muted">Chest</div>
+            </div>
+            <div style="font-weight:700;">4 sets</div>
+          </div>
+          <div class="exercise-row">
+            <div>
+              <div style="font-weight:600;">Lat Pulldown</div>
+              <div class="muted">Back</div>
+            </div>
+            <div style="font-weight:700;">3 sets</div>
+          </div>
+          <div class="exercise-row">
+            <div>
+              <div style="font-weight:600;">Leg Press</div>
+              <div class="muted">Legs</div>
+            </div>
+            <div style="font-weight:700;">4 sets</div>
+          </div>
+        </div>
+        <div class="session-card">
+          <div class="ready-row">
+            <span>You</span>
+            <span style="color:#39FF14;font-weight:700;">Ready</span>
+          </div>
+          <div class="ready-row">
+            <span>Omar</span>
+            <span class="muted">Editing plan</span>
+          </div>
+        </div>
+        <div class="neon-button">Ready to Start</div>
+      </div>
+
+      <div class="phone">
+        <div class="status-pill">Live Phase</div>
+        <div style="margin-top:16px;font-size:28px;font-weight:700;">Bench Press</div>
+        <div class="muted" style="margin-top:8px;">Set 2 of 4. Finish the set first, then log what actually happened.</div>
+        <div class="session-card">
+          <div class="set-row">
+            <span class="muted">Current athlete</span>
+            <span style="font-weight:700;">You</span>
+          </div>
+          <div class="set-row">
+            <span class="muted">Timer</span>
+            <span style="font-weight:700;">00:38</span>
+          </div>
+          <div class="set-row">
+            <span class="muted">After finish</span>
+            <span style="font-weight:700;">12 reps • 55 kg</span>
+          </div>
+        </div>
+        <div class="neon-button">Finish Set</div>
+        <div class="outline-button">Partner Turn After Log</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note">
+      <h4>What changes in the app</h4>
+      <p>`StartSessionPage` sends gym sessions into a setup phase first, instead of jumping directly into a generic live room.</p>
+    </div>
+    <div class="note">
+      <h4>What stays realistic</h4>
+      <p>We still reuse the existing session backend and live room structure. The upgrade is focused on gym behavior, planning, readiness, and logging timing.</p>
+    </div>
+  </div>
+
+  <div class="options">
+    <div class="option" data-choice="looks-right" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Looks Right</h3>
+        <p>Use this palette and flow as the direction for the gym migration.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="needs-adjustment" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>Needs Adjustment</h3>
+        <p>The direction is close, but parts of the flow or theme should still shift.</p>
+      </div>
+    </div>
+  </div>
+</div>

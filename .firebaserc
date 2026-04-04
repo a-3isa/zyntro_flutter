@@ -1,8 +1,8 @@
 {
   "projects": {
-    "default": "gym-avatar",
+    "default": "zynrto",
     "dev": "gym-avatar-dev",
     "staging": "gym-avatar-staging",
-    "prod": "gym-avatar"
+    "prod": "zynrto"
   }
 }

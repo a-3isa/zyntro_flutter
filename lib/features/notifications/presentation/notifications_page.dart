@@ -3,9 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
+import '../../../app/navigation/app_route_locations.dart';
+import '../../../core/constants/constants.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/auth_providers.dart';
 import '../../../services/notification_service.dart';
+import '../../../services/session_service.dart';
 import '../../../utils/haptic_manager.dart';
 import '../../../widgets/premium_animations.dart';
 import '../../../widgets/premium_effects.dart';
@@ -20,6 +23,24 @@ class NotificationsPage extends ConsumerStatefulWidget {
 }
 
 class _NotificationsPageState extends ConsumerState<NotificationsPage> {
+  Future<void> _openSessionNotification(
+    String sessionId, {
+    required String fallbackType,
+  }) async {
+    final session = await ref.read(sessionServiceProvider).getSession(sessionId);
+    if (!mounted) return;
+
+    final location = session == null
+        ? AppRouteLocations.sessionRoom(sessionId, type: fallbackType)
+        : AppRouteLocations.sessionEntry(
+            sessionId: session.id,
+            type: session.type,
+            phase: session.phase,
+          );
+
+    context.push(location);
+  }
+
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authSessionProvider);
@@ -290,7 +311,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         final deletedNotification = notification;
         await ref
             .read(notificationServiceProvider)
-            .deleteNotification(notification.id);
+            .deleteNotification(notification);
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -427,7 +448,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     if (!notification.read) {
       await ref
           .read(notificationServiceProvider)
-          .markNotificationAsRead(notification.id);
+          .markNotificationAsRead(notification);
     }
 
     if (!mounted) return;
@@ -435,24 +456,35 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     final data = notification.data;
 
     switch (notification.type) {
+      case NotificationType.unknown:
+        break;
       case NotificationType.sessionInvite:
       case NotificationType.buddySession:
         final sessionId = data?['sessionId'] as String?;
-        final sessionType = data?['sessionType'] as String? ?? 'strength';
+        final sessionType =
+            data?['sessionType'] as String? ?? WorkoutType.gym.value;
         if (sessionId != null) {
-          context.push('/session/room/$sessionId?type=$sessionType');
+          await _openSessionNotification(
+            sessionId,
+            fallbackType: sessionType,
+          );
         }
         break;
 
       case NotificationType.voiceNote:
         final sessionId = data?['sessionId'] as String?;
+        final sessionType =
+            data?['sessionType'] as String? ?? WorkoutType.gym.value;
         if (sessionId != null) {
-          context.push('/session/room/$sessionId?type=strength');
+          await _openSessionNotification(
+            sessionId,
+            fallbackType: sessionType,
+          );
         }
         break;
 
       case NotificationType.followRequest:
-        context.push('/follow-requests');
+        context.push('/profile/follow-requests');
         break;
 
       case NotificationType.followAccepted:
@@ -464,7 +496,12 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
 
       case NotificationType.buddyInvite:
       case NotificationType.buddyAccepted:
-        context.push('/buddies');
+        context.go(
+          AppRouteLocations.mainTab(
+            MainShellTab.social,
+            socialTab: SocialTab.buddies,
+          ),
+        );
         break;
 
       case NotificationType.postLike:
@@ -477,7 +514,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       case NotificationType.sessionMilestone:
         break;
       case NotificationType.streakMilestone:
-        context.push('/profile');
+        context.go(AppRouteLocations.mainTab(MainShellTab.profile));
         break;
       case NotificationType.friendStreakBroken:
       case NotificationType.friendStreakExtended:
@@ -485,14 +522,23 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         if (friendId != null) {
           context.push('/user/$friendId');
         } else {
-          context.push('/leaderboard?tab=friends');
+          context.go(
+            AppRouteLocations.mainTab(
+              MainShellTab.social,
+              socialTab: SocialTab.leaderboard,
+            ),
+          );
         }
         break;
       case NotificationType.turnChange:
         final sessionId = data?['sessionId'] as String?;
-        final sessionType = data?['sessionType'] as String? ?? 'strength';
+        final sessionType =
+            data?['sessionType'] as String? ?? WorkoutType.gym.value;
         if (sessionId != null) {
-          context.push('/session/room/$sessionId?type=$sessionType');
+          await _openSessionNotification(
+            sessionId,
+            fallbackType: sessionType,
+          );
         }
         break;
     }
@@ -500,6 +546,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
 
   IconData _getIconForType(NotificationType type) {
     switch (type) {
+      case NotificationType.unknown:
+        return Icons.notifications_none_rounded;
       case NotificationType.sessionInvite:
         return Icons.fitness_center_rounded;
       case NotificationType.voiceNote:
@@ -530,6 +578,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
 
   Color _getColorForType(NotificationType type) {
     switch (type) {
+      case NotificationType.unknown:
+        return AppColors.textSecondaryDark;
       case NotificationType.sessionInvite:
       case NotificationType.buddySession:
         return AppColors.primary;
@@ -556,4 +606,3 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     }
   }
 }
-

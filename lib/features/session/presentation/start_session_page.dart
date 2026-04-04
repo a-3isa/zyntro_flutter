@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
+import '../../../app/navigation/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/constants.dart';
 import '../../auth/auth_providers.dart';
@@ -18,14 +19,19 @@ import '../../../widgets/premium_animations.dart';
 
 /// Premium Start session screen for configuring workout type and inviting friends.
 class StartSessionPage extends ConsumerStatefulWidget {
-  const StartSessionPage({super.key});
+  const StartSessionPage({
+    super.key,
+    this.initialType = WorkoutType.gym,
+  });
+
+  final WorkoutType initialType;
 
   @override
   ConsumerState<StartSessionPage> createState() => _StartSessionPageState();
 }
 
 class _StartSessionPageState extends ConsumerState<StartSessionPage> {
-  WorkoutType _selectedType = WorkoutType.gym;
+  late WorkoutType _selectedType;
   SessionMode _selectedMode = SessionMode.turnBased;
   final Set<String> _selectedFriends = {};
   bool _isLoading = false;
@@ -37,6 +43,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
   @override
   void initState() {
     super.initState();
+    _selectedType = widget.initialType;
     _loadMutualFollows();
   }
 
@@ -87,9 +94,52 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
       final uid = authState.valueOrNull?.id;
       if (uid == null) throw Exception('Not authenticated');
 
-      final sessionId = await ref
-          .read(sessionServiceProvider)
-          .createSession(
+      final sessionService = ref.read(sessionServiceProvider);
+      final existingSessionId = await sessionService.checkActiveSession(uid);
+
+      if (existingSessionId != null && mounted) {
+        setState(() => _isLoading = false); // Pause loading for dialog
+        final action = await showDialog<String>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: AppColors.surfaceSecondaryDark,
+            title: const Text('Active Session Found', style: TextStyle(color: AppColors.textDark, fontWeight: FontWeight.bold)),
+            content: const Text(
+              'You already have an active workout in progress. Would you like to resume it, or end it to start this new one?',
+              style: TextStyle(color: AppColors.textSecondaryDark),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, 'cancel'),
+                child: const Text('Cancel', style: TextStyle(color: AppColors.textTertiaryDark)),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, 'resume'),
+                child: const Text('Resume Active', style: TextStyle(color: AppColors.primary)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+                onPressed: () => Navigator.pop(ctx, 'end'),
+                child: const Text('End Old & Start New', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        );
+
+        if (!mounted) return;
+        
+        if (action == 'resume') {
+          context.push('${AppRoutes.sessionRoom.replaceFirst(':sessionId', existingSessionId)}?type=gym');
+          return;
+        } else if (action == 'end') {
+          setState(() => _isLoading = true);
+          await sessionService.endSession(existingSessionId, uid, null);
+        } else {
+          return; // Cancelled
+        }
+      }
+
+      final sessionId = await sessionService.createSession(
             hostId: uid,
             type: _selectedType.value,
             title: '${_selectedType.displayName} Session',
@@ -97,21 +147,28 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
             invitedUserIds: _selectedFriends.isNotEmpty
                 ? _selectedFriends.toList()
                 : null,
+            phase: _selectedType == WorkoutType.gym
+                ? SessionPhase.setup
+                : SessionPhase.live,
           );
 
       await HapticFeedback.mediumImpact();
 
       if (mounted) {
-        context.push('/session/room/$sessionId?type=${_selectedType.value}');
+        if (_selectedType == WorkoutType.gym) {
+          context.push(
+            AppRoutes.gymSessionSetup.replaceFirst(':sessionId', sessionId),
+          );
+        } else {
+          context.push(
+            '${AppRoutes.sessionRoom.replaceFirst(':sessionId', sessionId)}?type=${_selectedType.value}',
+          );
+        }
       }
     } catch (e) {
+      debugPrint('[StartSessionPage] Failed to start session: $e');
       if (mounted) {
-        String errorMessage = 'Failed to start session. Please try again.';
-        if (e.toString().contains('network') ||
-            e.toString().contains('connection')) {
-          errorMessage = 'Check your internet connection and try again.';
-        }
-        _showError(errorMessage);
+        _showError(_mapStartSessionError(e));
         await HapticFeedback.vibrate();
       }
     } finally {
@@ -130,6 +187,25 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
+  }
+
+  String _mapStartSessionError(Object error) {
+    final normalizedError = error.toString().toLowerCase();
+
+    if (normalizedError.contains('permission-denied') ||
+        normalizedError.contains('insufficient permissions') ||
+        normalizedError.contains('app attestation failed') ||
+        normalizedError.contains('app check') ||
+        normalizedError.contains('appcheck')) {
+      return 'Firebase blocked session creation for this build. Check Firestore permissions or App Check allowlisting.';
+    }
+
+    if (normalizedError.contains('network') ||
+        normalizedError.contains('connection')) {
+      return 'Check your internet connection and try again.';
+    }
+
+    return 'Failed to start session. Please try again.';
   }
 
   IconData _getIconData(String iconName) {
@@ -165,7 +241,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
       case 'flexibility':
         return AppColors.successGradient;
       case 'mixed':
-        return AppColors.premiumGradient;
+        return AppColors.cardGradient;
       default:
         return [AppColors.textSecondaryDark, AppColors.textTertiaryDark];
     }
@@ -453,22 +529,19 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                       const SizedBox(height: 40),
 
                       // Start button
-                      PulsingGlow(
-                        glowColor: AppColors.primary.withValues(alpha: 0.3),
-                        child: ZyntroButton(
-                          title: _selectedFriends.isEmpty
-                              ? 'Start ${_selectedType.displayName} Session'
-                              : 'Start with ${_selectedFriends.length + 1} athletes',
-                          fullWidth: true,
-                          size: ZyntroButtonSize.lg,
-                          variant: ZyntroButtonVariant.premium,
-                          loading: _isLoading,
-                          rightIcon: const Icon(Icons.bolt_rounded),
-                          onPressed: _isLoading ? null : () {
-                            HapticManager.heavy();
-                            _handleStartSession();
-                          },
-                        ),
+                      ZyntroButton(
+                        title: _selectedFriends.isEmpty
+                            ? 'Start ${_selectedType.displayName} Session'
+                            : 'Start with ${_selectedFriends.length + 1} athletes',
+                        fullWidth: true,
+                        size: ZyntroButtonSize.lg,
+                        variant: ZyntroButtonVariant.primary,
+                        loading: _isLoading,
+                        rightIcon: const Icon(Icons.bolt_rounded),
+                        onPressed: _isLoading ? null : () {
+                          HapticManager.heavy();
+                          _handleStartSession();
+                        },
                       ),
 
                       const SizedBox(height: 40),

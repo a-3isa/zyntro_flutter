@@ -1,7 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'app_route_locations.dart';
+import '../app_runtime_config.dart';
+import '../../core/constants/constants.dart';
 import '../../core/theme/app_theme.dart';
 import '../../features/auth/presentation/splash_page.dart';
 import '../../features/auth/presentation/login_page.dart';
@@ -11,6 +15,7 @@ import '../../features/auth/presentation/profile_setup_page.dart';
 import '../../features/auth/presentation/forgot_password_page.dart';
 import '../../features/main/presentation/main_shell.dart';
 import '../../features/session/presentation/start_session_page.dart';
+import '../../features/session/presentation/gym_session_setup_page.dart';
 import '../../features/session/presentation/session_room_page.dart';
 import '../../features/session/presentation/recap_page.dart';
 import '../../features/notifications/presentation/notifications_page.dart';
@@ -25,6 +30,7 @@ import '../../features/settings/presentation/change_password_page.dart';
 import '../../features/settings/presentation/change_email_page.dart';
 import '../../features/settings/presentation/delete_account_page.dart';
 import '../../features/profile/presentation/follow_requests_page.dart';
+import '../../features/profile/presentation/connections_list_page.dart';
 import '../../features/profile/presentation/user_posts_page.dart';
 import '../../features/profile/presentation/profile_page.dart';
 import '../../features/profile/presentation/workout_history_page.dart';
@@ -44,6 +50,7 @@ class AppRoutes {
   static const forgotPassword = '/forgot-password';
   static const main = '/';
   static const startSession = '/session/start';
+  static const gymSessionSetup = '/session/setup/:sessionId';
   static const sessionRoom = '/session/room/:sessionId';
   static const recap = '/session/recap/:sessionId';
   static const settings = '/settings';
@@ -68,6 +75,8 @@ class AppRoutes {
 
   // Profile routes
   static const userPosts = '/user/:userId/posts';
+  static const userFollowers = '/user/:userId/followers';
+  static const userFollowing = '/user/:userId/following';
   static const editProfile = '/profile/edit';
   static const workoutHistory = '/profile/workout-history';
 }
@@ -170,7 +179,9 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     navigatorKey: rootNavigatorKey,
     initialLocation: AppRoutes.splash,
-    debugLogDiagnostics: true,
+    debugLogDiagnostics: shouldEnableRouterDiagnostics(
+      isDebugMode: kDebugMode,
+    ),
     redirect: (context, state) {
       final isLoggedIn = authState.valueOrNull != null;
       final isLoading = authState.isLoading;
@@ -288,7 +299,19 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Main app with bottom navigation
       GoRoute(
         path: AppRoutes.main,
-        builder: (context, state) => const MainShell(),
+        builder: (context, state) {
+          final initialTab = MainShellTab.fromString(
+            state.uri.queryParameters['tab'],
+          );
+          final initialSocialTab = SocialTab.fromString(
+            state.uri.queryParameters['socialTab'],
+          );
+
+          return MainShell(
+            initialTab: initialTab,
+            initialSocialTab: initialSocialTab,
+          );
+        },
       ),
 
       // Notifications
@@ -312,14 +335,32 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Session flow
       GoRoute(
         path: AppRoutes.startSession,
-        pageBuilder: (context, state) => buildModalPageTransition(
-          context: context,
-          state: state,
-          child: const StartSessionPage(),
-        ),
+        pageBuilder: (context, state) {
+          final initialType = WorkoutType.fromString(
+            state.uri.queryParameters['type'] ?? WorkoutType.gym.value,
+          );
+
+          return buildModalPageTransition(
+            context: context,
+            state: state,
+            child: StartSessionPage(initialType: initialType),
+          );
+        },
       ),
       GoRoute(
-        path: '/session/room/:sessionId',
+        path: AppRoutes.gymSessionSetup,
+        pageBuilder: (context, state) {
+          final sessionId = state.pathParameters['sessionId']!;
+
+          return buildPremiumPageTransition(
+            context: context,
+            state: state,
+            child: GymSessionSetupPage(sessionId: sessionId),
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.sessionRoom,
         pageBuilder: (context, state) {
           final sessionId = state.pathParameters['sessionId']!;
           final type = state.uri.queryParameters['type'] ?? 'strength';
@@ -478,6 +519,34 @@ final routerProvider = Provider<GoRouter>((ref) {
             context: context,
             state: state,
             child: UserPostsPage(userId: userId),
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.userFollowers,
+        pageBuilder: (context, state) {
+          final userId = state.pathParameters['userId']!;
+          return buildPremiumPageTransition(
+            context: context,
+            state: state,
+            child: ConnectionsListPage(
+              userId: userId,
+              kind: ConnectionsListKind.followers,
+            ),
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.userFollowing,
+        pageBuilder: (context, state) {
+          final userId = state.pathParameters['userId']!;
+          return buildPremiumPageTransition(
+            context: context,
+            state: state,
+            child: ConnectionsListPage(
+              userId: userId,
+              kind: ConnectionsListKind.following,
+            ),
           );
         },
       ),

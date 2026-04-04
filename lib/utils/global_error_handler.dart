@@ -26,7 +26,7 @@ class GlobalErrorHandler {
     // Handle async errors
     PlatformDispatcher.instance.onError = (error, stack) {
       handleError(error, stack);
-      return true;
+      return false;
     };
   }
 
@@ -50,7 +50,7 @@ class GlobalErrorHandler {
   void _logError(Object error, StackTrace? stack, bool fatal) {
     if (kDebugMode) {
       debugPrint(
-        '🛑 [GlobalErrorHandler] ${fatal ? 'FATAL ' : ''}Error: $error',
+        '[GlobalErrorHandler] ${fatal ? 'FATAL ' : ''}Error: $error',
       );
       if (stack != null) {
         debugPrint('Stack trace:\n$stack');

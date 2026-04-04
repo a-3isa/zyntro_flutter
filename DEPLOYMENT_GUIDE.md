@@ -9,7 +9,7 @@ You need to download the configuration files for each environment (Dev, Staging,
 ### Android (`google-services.json`)
 
 1.  Go to the [Firebase Console](https://console.firebase.google.com/).
-2.  Select your project (e.g., `gym-avatar` for Prod).
+2.  Select your project (the checked-in production app config currently points to `zynrto`).
 3.  Click the **Gear icon** (Project Settings) > **General**.
 4.  Scroll down to **Your apps** and select the **Android** app (`com.zyntro.app`).
 5.  Click **Download google-services.json**.
@@ -73,3 +73,23 @@ To regenerate icons in the future (if you change the files in `assets/`), run:
 flutter pub run flutter_launcher_icons
 flutter pub run flutter_native_splash:create
 ```
+
+## 4. Deploy Push Delivery Function
+
+Background push delivery now depends on the authenticated HTTPS function in `functions/index.js`.
+
+1. Install the Functions dependencies:
+   ```bash
+   cd functions
+   npm install
+   cd ..
+   ```
+2. Deploy the push endpoint:
+   ```bash
+   firebase deploy --only functions:deliverNotificationPush --project zynrto
+   ```
+3. Verify the deployed Firebase project matches the app's `projectId` so the mobile client posts to the correct endpoint.
+4. Confirm at least one signed-in test device has a token stored under `users/{userId}/devices/{deviceId}` before doing end-to-end push checks.
+5. If the deploy reaches Cloud Build but fails with a message about a missing permission on the build service account, fix IAM before retrying. Google’s Cloud Functions troubleshooting guide recommends either:
+   - granting `roles/cloudbuild.builds.builder` to the default Compute Engine service account `146147804221-compute@developer.gserviceaccount.com`, or
+   - configuring a custom build service account for function deployments.

@@ -663,7 +663,9 @@ class PostService {
     await withRetry(() => batch.commit());
 
     // Notify (unawaited)
-    unawaited(_notifyPostComment(postId, userId, userName, text));
+    unawaited(
+      _notifyPostComment(postId, userId, userName, text, commentRef.id),
+    );
 
     return commentRef.id;
   }
@@ -673,6 +675,7 @@ class PostService {
     String userId,
     String userName,
     String text,
+    String commentId,
   ) async {
     try {
       final post = await getPost(postId);
@@ -684,6 +687,7 @@ class PostService {
               commenterId: userId,
               commenterName: userName,
               postId: postId,
+              commentId: commentId,
               commentText: text,
             );
       }
@@ -767,4 +771,3 @@ final commentsProvider = StreamProvider.family<List<Comment>, String>((
   // ignore: deprecated_member_use_from_same_package
   return ref.watch(postServiceProvider).subscribeToComments(postId);
 });
-

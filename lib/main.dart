@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
@@ -7,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 
 import 'app/app.dart';
+import 'app/app_runtime_config.dart';
 import 'utils/offline_handlers.dart';
 import 'services/notification_service.dart';
 import 'services/storage_service.dart';
@@ -14,14 +17,23 @@ import 'services/storage_service.dart';
 import 'utils/global_error_handler.dart';
 import 'widgets/error_boundary_widget.dart';
 
+const _appCheckDebugChannelName = 'zyntro/debug';
+const _appCheckDebugSecretMethodName = 'getAppCheckDebugSecret';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
 
   // Load environment-specific .env file
   // Use: flutter run --dart-define=ENV=dev|staging|prod
-  const environment = String.fromEnvironment('ENV', defaultValue: 'dev');
-  final envFile = environment == 'dev' ? '.env' : '.env.$environment';
+  final environment = AppRuntimeEnvironment.fromName(
+    const String.fromEnvironment('ENV', defaultValue: 'dev'),
+  );
+  final envFile = environment.envFileName;
+
+  debugPrint(
+    '[AppCheck] ENV=${environment.name}, androidProvider=${environment.androidProvider}, appleProvider=${environment.appleProvider}',
+  );
 
   try {
     await dotenv.load(fileName: envFile);
@@ -38,9 +50,10 @@ void main() async {
 
   // Initialize App Check
   await FirebaseAppCheck.instance.activate(
-    androidProvider: AndroidProvider.debug,
-    appleProvider: AppleProvider.debug,
+    androidProvider: environment.androidProvider,
+    appleProvider: environment.appleProvider,
   );
+  await _logAndroidAppCheckDebugSecretIfNeeded(environment);
 
   // Register FCM background message handler
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
@@ -62,4 +75,44 @@ void main() async {
       child: const ErrorBoundaryWidget(child: ZyntroApp()),
     ),
   );
+}
+
+Future<void> _logAndroidAppCheckDebugSecretIfNeeded(
+  AppRuntimeEnvironment environment,
+) async {
+  if (!kDebugMode || defaultTargetPlatform != TargetPlatform.android) {
+    return;
+  }
+  if (environment.androidProvider != AndroidProvider.debug) {
+    return;
+  }
+
+  try {
+    await FirebaseAppCheck.instance.getToken(true);
+  } catch (error) {
+    debugPrint(
+      '[AppCheck] Debug token exchange failed before allowlisting, reading local secret next: $error',
+    );
+  }
+
+  try {
+    final secret = await const MethodChannel(
+      _appCheckDebugChannelName,
+    ).invokeMethod<String>(_appCheckDebugSecretMethodName);
+
+    if (secret == null || secret.isEmpty) {
+      debugPrint(
+        '[AppCheck] Android debug secret is not available yet. Trigger a Firebase request and try again.',
+      );
+      return;
+    }
+
+    debugPrint('[AppCheck] Android debug secret: $secret');
+  } on MissingPluginException {
+    debugPrint(
+      '[AppCheck] Android debug secret channel is unavailable in this build.',
+    );
+  } catch (error) {
+    debugPrint('[AppCheck] Unable to read Android debug secret: $error');
+  }
 }

@@ -3,20 +3,26 @@ import 'dart:convert';
 import 'dart:io' show Platform;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
+import '../app/navigation/app_route_locations.dart';
 import '../app/navigation/app_router.dart';
+import '../core/constants/constants.dart';
 import '../features/auth/auth_providers.dart';
 import '../core/models/models.dart';
 
 /// Notification types matching React Native.
 enum NotificationType {
+  unknown,
   sessionInvite,
   voiceNote,
   followRequest,
@@ -36,6 +42,8 @@ enum NotificationType {
 extension NotificationTypeExtension on NotificationType {
   String get value {
     switch (this) {
+      case NotificationType.unknown:
+        return 'unknown';
       case NotificationType.sessionInvite:
         return 'session_invite';
       case NotificationType.voiceNote:
@@ -69,6 +77,8 @@ extension NotificationTypeExtension on NotificationType {
 
   static NotificationType fromString(String value) {
     switch (value) {
+      case 'unknown':
+        return NotificationType.unknown;
       case 'session_invite':
         return NotificationType.sessionInvite;
       case 'voice_note':
@@ -95,8 +105,10 @@ extension NotificationTypeExtension on NotificationType {
         return NotificationType.friendStreakBroken;
       case 'friend_streak_extended':
         return NotificationType.friendStreakExtended;
+      case 'turn_change':
+        return NotificationType.turnChange;
       default:
-        return NotificationType.sessionInvite;
+        return NotificationType.unknown;
     }
   }
 }
@@ -225,12 +237,40 @@ class NotificationPreferences {
 /// Matches React Native notificationService.ts behavior.
 class NotificationService {
   final FirebaseFirestore _firestore;
+  final FirebaseAuth _auth;
+  final http.Client _httpClient;
   final FlutterLocalNotificationsPlugin _localNotifications;
   final FirebaseMessaging _messaging;
 
-  NotificationService(this._firestore)
-    : _localNotifications = FlutterLocalNotificationsPlugin(),
-      _messaging = FirebaseMessaging.instance;
+  NotificationService(
+    this._firestore, {
+    FirebaseAuth? auth,
+    http.Client? httpClient,
+  }) : _auth = auth ?? FirebaseAuth.instance,
+       _httpClient = httpClient ?? http.Client(),
+       _localNotifications = FlutterLocalNotificationsPlugin(),
+       _messaging = FirebaseMessaging.instance;
+
+  String get _pushDeliveryUrl {
+    final projectId = Firebase.app().options.projectId;
+    return 'https://us-central1-$projectId.cloudfunctions.net/deliverNotificationPush';
+  }
+
+  CollectionReference<Map<String, dynamic>> _userNotificationsRef(
+    String userId,
+  ) {
+    return _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('notifications');
+  }
+
+  DocumentReference<Map<String, dynamic>> _userNotificationRef(
+    String userId,
+    String notificationId,
+  ) {
+    return _userNotificationsRef(userId).doc(notificationId);
+  }
 
   // ==================== INITIALIZATION ====================
 
@@ -298,13 +338,13 @@ class NotificationService {
 
   void _handleNotificationOpen(RemoteMessage message) {
     debugPrint('[NotificationService] Notification opened: ${message.data}');
-    _navigateBasedOnData(message.data);
+    unawaited(_navigateBasedOnData(message.data));
   }
 
   /// Navigate based on notification data.
-  void _navigateBasedOnData(Map<String, dynamic> data) {
-    final context = rootNavigatorKey.currentContext;
-    if (context == null) {
+  Future<void> _navigateBasedOnData(Map<String, dynamic> data) async {
+    final navigatorContext = rootNavigatorKey.currentContext;
+    if (navigatorContext == null) {
       debugPrint('[NotificationService] No navigation context available');
       return;
     }
@@ -312,24 +352,55 @@ class NotificationService {
     // Navigate based on data contents
     if (data.containsKey('sessionId')) {
       final sessionId = data['sessionId'] as String;
-      final sessionType = data['sessionType'] as String? ?? 'strength';
+      final sessionType =
+          data['sessionType'] as String? ?? WorkoutType.gym.value;
+      final audioUrl = data['audioUrl'] as String?;
+
+      String location = AppRouteLocations.sessionRoom(
+        sessionId,
+        type: sessionType,
+        audioUrl: audioUrl,
+      );
+
+      try {
+        final sessionDoc = await _firestore.collection('sessions').doc(sessionId).get();
+        final sessionData = sessionDoc.data();
+        if (sessionDoc.exists && sessionData != null) {
+          location = AppRouteLocations.sessionEntry(
+            sessionId: sessionId,
+            type: sessionData['type'] as String? ?? sessionType,
+            phase: SessionPhase.fromString(
+              sessionData['phase'] as String? ?? SessionPhase.live.value,
+            ),
+            audioUrl: audioUrl,
+          );
+        }
+      } catch (error) {
+        debugPrint(
+          '[NotificationService] Failed to resolve session navigation: $error',
+        );
+      }
 
       // Auto-play data handled by SessionRoomPage if we passed extra, but deep link path params limited.
       // We can pass `extra` object to GoRouter if using context.push.
       // But _navigateBasedOnData might be called from terminated state where router not ready?
       // rootNavigatorKey usually works if app started.
 
-      context.push('/session/room/$sessionId?type=$sessionType', extra: data);
+      if (!navigatorContext.mounted) return;
+      navigatorContext.push(location, extra: data);
     } else if (data.containsKey('postId')) {
       final postId = data['postId'] as String;
-      context.push('/post/$postId');
+      if (!navigatorContext.mounted) return;
+      navigatorContext.push('/post/$postId');
     } else if (data.containsKey('buddyPairId') ||
         data.containsKey('fromUserId')) {
       // Navigate to notifications list for buddy/follow requests
-      context.push(AppRoutes.notifications);
+      if (!navigatorContext.mounted) return;
+      navigatorContext.push(AppRoutes.notifications);
     } else {
       // Default: go to notifications list
-      context.push(AppRoutes.notifications);
+      if (!navigatorContext.mounted) return;
+      navigatorContext.push(AppRoutes.notifications);
     }
   }
 
@@ -357,7 +428,6 @@ class NotificationService {
     );
   }
 
-  // Method to check permission settings, same as before
   Future<String?> registerForPushNotifications() async {
     try {
       final settings = await _messaging.requestPermission();
@@ -376,7 +446,6 @@ class NotificationService {
     String token,
     String deviceId,
   ) async {
-    // ... (same implementation)
     try {
       await _firestore
           .collection('users')
@@ -406,11 +475,6 @@ class NotificationService {
     }
   }
 
-  // ==================== NOTIFICATION CRUD ====================
-  // (Keeping CRUD methods same as original, omitted here for brevity if I could,
-  // but I must provide full file content or risk breaking it if I use overwrite.
-  // I will include full CRUD methods.)
-
   Future<String> createNotification({
     required String userId,
     required NotificationType type,
@@ -418,7 +482,7 @@ class NotificationService {
     required String message,
     Map<String, dynamic>? data,
   }) async {
-    final notificationRef = _firestore.collection('notifications').doc();
+    final notificationRef = _userNotificationsRef(userId).doc();
 
     await notificationRef.set({
       'userId': userId,
@@ -437,8 +501,7 @@ class NotificationService {
     String userId, {
     int limit = 50,
   }) async {
-    final snapshot = await _firestore
-        .collection('notifications')
+    final snapshot = await _userNotificationsRef(userId)
         .where('userId', isEqualTo: userId)
         .orderBy('createdAt', descending: true)
         .limit(limit)
@@ -450,26 +513,23 @@ class NotificationService {
   }
 
   Future<int> getUnreadNotificationCount(String userId) async {
-    final snapshot = await _firestore
-        .collection('notifications')
-        .where('userId', isEqualTo: userId)
-        .where('read', isEqualTo: false)
-        .get();
+    final snapshot = await _userNotificationsRef(
+      userId,
+    ).where('userId', isEqualTo: userId).where('read', isEqualTo: false).get();
     return snapshot.docs.length;
   }
 
-  Future<void> markNotificationAsRead(String notificationId) async {
-    await _firestore.collection('notifications').doc(notificationId).update({
-      'read': true,
-    });
+  Future<void> markNotificationAsRead(AppNotification notification) async {
+    await _userNotificationRef(
+      notification.userId,
+      notification.id,
+    ).update({'read': true});
   }
 
   Future<void> markAllNotificationsAsRead(String userId) async {
-    final snapshot = await _firestore
-        .collection('notifications')
-        .where('userId', isEqualTo: userId)
-        .where('read', isEqualTo: false)
-        .get();
+    final snapshot = await _userNotificationsRef(
+      userId,
+    ).where('userId', isEqualTo: userId).where('read', isEqualTo: false).get();
 
     if (snapshot.docs.isEmpty) return;
 
@@ -480,13 +540,12 @@ class NotificationService {
     await batch.commit();
   }
 
-  Future<void> deleteNotification(String notificationId) async {
-    await _firestore.collection('notifications').doc(notificationId).delete();
+  Future<void> deleteNotification(AppNotification notification) async {
+    await _userNotificationRef(notification.userId, notification.id).delete();
   }
 
   Stream<List<AppNotification>> listenToNotifications(String userId) {
-    return _firestore
-        .collection('notifications')
+    return _userNotificationsRef(userId)
         .where('userId', isEqualTo: userId)
         .orderBy('createdAt', descending: true)
         .limit(50)
@@ -499,8 +558,7 @@ class NotificationService {
   }
 
   Stream<int> listenToUnreadCount(String userId) {
-    return _firestore
-        .collection('notifications')
+    return _userNotificationsRef(userId)
         .where('userId', isEqualTo: userId)
         .where('read', isEqualTo: false)
         .snapshots()
@@ -509,23 +567,42 @@ class NotificationService {
 
   // ==================== PUSH NOTIFICATION SENDING ====================
 
-  Future<void> _queuePushNotification(
-    String userId,
-    String title,
-    String body,
+  Future<void> _deliverPushNotification({
+    required NotificationType type,
+    required String recipientId,
     Map<String, dynamic>? data,
-  ) async {
+  }) async {
     try {
-      await _firestore.collection('pushQueue').doc().set({
-        'userId': userId,
-        'title': title,
-        'body': body,
-        'data': data ?? {},
-        'createdAt': FieldValue.serverTimestamp(),
-        'processed': false,
-      });
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        debugPrint(
+          '[NotificationService] Skipping push delivery because no authenticated user is available.',
+        );
+        return;
+      }
+
+      final idToken = await currentUser.getIdToken();
+      final response = await _httpClient.post(
+        Uri.parse(_pushDeliveryUrl),
+        headers: <String, String>{
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $idToken',
+        },
+        body: jsonEncode(<String, dynamic>{
+          'type': type.value,
+          'recipientId': recipientId,
+          'data': data ?? <String, dynamic>{},
+        }),
+      );
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        debugPrint(
+          '[NotificationService] Push delivery failed '
+          '(${response.statusCode}): ${response.body}',
+        );
+      }
     } catch (e) {
-      debugPrint('[NotificationService] Error queueing push: $e');
+      debugPrint('[NotificationService] Error delivering push: $e');
     }
   }
 
@@ -571,6 +648,8 @@ class NotificationService {
     if (!preferences.pushEnabled) return false;
 
     switch (type) {
+      case NotificationType.unknown:
+        return false;
       case NotificationType.sessionInvite:
         return preferences.sessionInvites;
       case NotificationType.voiceNote:
@@ -594,8 +673,7 @@ class NotificationService {
       case NotificationType.friendStreakExtended:
         return preferences.streakNotifications;
       case NotificationType.turnChange:
-        return preferences
-            .sessionInvites; // Use session invites preference for turn notifications
+        return preferences.sessionInvites;
     }
   }
 
@@ -654,7 +732,11 @@ class NotificationService {
         message: message,
         data: data,
       ),
-      _queuePushNotification(recipientId, 'Session Invite', message, data),
+      _deliverPushNotification(
+        type: NotificationType.sessionInvite,
+        recipientId: recipientId,
+        data: data,
+      ),
     ]);
   }
 
@@ -684,11 +766,10 @@ class NotificationService {
         message: "It's your turn to log a set in the $sessionType session",
         data: data,
       ),
-      _queuePushNotification(
-        recipientId,
-        'Your Turn! 💪',
-        "It's your turn to log a set in the $sessionType session",
-        data,
+      _deliverPushNotification(
+        type: NotificationType.turnChange,
+        recipientId: recipientId,
+        data: data,
       ),
     ]);
   }
@@ -724,11 +805,10 @@ class NotificationService {
     );
 
     unawaited(
-      _queuePushNotification(
-        recipientId,
-        'Voice Note',
-        '$senderName sent you a voice note',
-        data,
+      _deliverPushNotification(
+        type: NotificationType.voiceNote,
+        recipientId: recipientId,
+        data: data,
       ),
     );
   }
@@ -755,11 +835,10 @@ class NotificationService {
         message: '$requesterName wants to follow you',
         data: data,
       ),
-      _queuePushNotification(
-        recipientId,
-        'New Follow Request',
-        '$requesterName wants to follow you',
-        data,
+      _deliverPushNotification(
+        type: NotificationType.followRequest,
+        recipientId: recipientId,
+        data: data,
       ),
     ]);
   }
@@ -786,11 +865,10 @@ class NotificationService {
         message: '$acceptorName accepted your follow request',
         data: data,
       ),
-      _queuePushNotification(
-        recipientId,
-        'Follow Request Accepted',
-        '$acceptorName accepted your follow request',
-        data,
+      _deliverPushNotification(
+        type: NotificationType.followAccepted,
+        recipientId: recipientId,
+        data: data,
       ),
     ]);
   }
@@ -822,16 +900,14 @@ class NotificationService {
         message: '$inviterName wants to be your workout buddy!',
         data: data,
       ),
-      _queuePushNotification(
-        recipientId,
-        'Buddy Invite',
-        '$inviterName wants to be your workout buddy!',
-        data,
+      _deliverPushNotification(
+        type: NotificationType.buddyInvite,
+        recipientId: recipientId,
+        data: data,
       ),
     ]);
   }
 
-  // (Buddy Accepted and Buddy Session omitted for brevity if I could, but wait, I must implement them to be safe or overwrite everything. I will copy provided logic.)
   Future<void> notifyBuddyAccepted({
     required String recipientId,
     required String acceptorId,
@@ -859,11 +935,10 @@ class NotificationService {
         message: '$acceptorName is now your workout buddy!',
         data: data,
       ),
-      _queuePushNotification(
-        recipientId,
-        'Buddy Request Accepted',
-        '$acceptorName is now your workout buddy!',
-        data,
+      _deliverPushNotification(
+        type: NotificationType.buddyAccepted,
+        recipientId: recipientId,
+        data: data,
       ),
     ]);
   }
@@ -894,11 +969,10 @@ class NotificationService {
         message: '$buddyName started a $sessionType session with you!',
         data: data,
       ),
-      _queuePushNotification(
-        recipientId,
-        'Buddy Session',
-        '$buddyName started a $sessionType session with you!',
-        data,
+      _deliverPushNotification(
+        type: NotificationType.buddySession,
+        recipientId: recipientId,
+        data: data,
       ),
     ]);
   }
@@ -948,7 +1022,11 @@ class NotificationService {
         message: message,
         data: data,
       ),
-      _queuePushNotification(recipientId, title, message, data),
+      _deliverPushNotification(
+        type: NotificationType.postLike,
+        recipientId: recipientId,
+        data: data,
+      ),
     ]);
   }
 
@@ -958,6 +1036,7 @@ class NotificationService {
     required String commenterId,
     required String commenterName,
     required String postId,
+    required String commentId,
     required String commentText,
   }) async {
     final shouldSend = await shouldSendNotification(
@@ -972,6 +1051,7 @@ class NotificationService {
 
     final data = {
       'postId': postId,
+      'commentId': commentId,
       'byUserId': commenterId,
       'byUserName': commenterName,
     };
@@ -984,11 +1064,10 @@ class NotificationService {
         message: '$commenterName: "$truncatedComment"',
         data: data,
       ),
-      _queuePushNotification(
-        recipientId,
-        'New Comment',
-        '$commenterName: "$truncatedComment"',
-        data,
+      _deliverPushNotification(
+        type: NotificationType.postComment,
+        recipientId: recipientId,
+        data: data,
       ),
     ]);
   }
@@ -1012,7 +1091,10 @@ class NotificationService {
         title: title,
         message: message,
       ),
-      _queuePushNotification(userId, title, message, null),
+      _deliverPushNotification(
+        type: NotificationType.sessionMilestone,
+        recipientId: userId,
+      ),
     ]);
   }
 
@@ -1038,7 +1120,11 @@ class NotificationService {
         message: message,
         data: {'streak': streakDays},
       ),
-      _queuePushNotification(userId, title, message, {'streak': streakDays}),
+      _deliverPushNotification(
+        type: NotificationType.streakMilestone,
+        recipientId: userId,
+        data: {'streak': streakDays},
+      ),
     ]);
   }
 
@@ -1073,7 +1159,11 @@ class NotificationService {
         message: message,
         data: data,
       ),
-      _queuePushNotification(recipientId, title, message, data),
+      _deliverPushNotification(
+        type: NotificationType.friendStreakBroken,
+        recipientId: recipientId,
+        data: data,
+      ),
     ]);
   }
 
@@ -1107,13 +1197,14 @@ class NotificationService {
         message: message,
         data: data,
       ),
-      _queuePushNotification(recipientId, title, message, data),
+      _deliverPushNotification(
+        type: NotificationType.friendStreakExtended,
+        recipientId: recipientId,
+        data: data,
+      ),
     ]);
   }
 }
-
-// ... (getDeviceId and background handler - assuming they are global and I shouldn't delete them.
-// I will include them to be safe since I'm overwriting.)
 
 Future<String> getDeviceId() async {
   final prefs = await SharedPreferences.getInstance();
@@ -1155,4 +1246,3 @@ final notificationPreferencesProvider =
           .watch(notificationServiceProvider)
           .getNotificationPreferences(userId);
     });
-

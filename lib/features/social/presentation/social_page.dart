@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../app/navigation/app_route_locations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/models/models.dart';
 import '../../auth/auth_providers.dart';
@@ -20,7 +21,12 @@ import '../../../utils/image_cache_manager.dart';
 /// Social page with buddies, challenges, and leaderboard tabs.
 /// Matches React Native SocialScreen behavior.
 class SocialPage extends ConsumerStatefulWidget {
-  const SocialPage({super.key});
+  const SocialPage({
+    super.key,
+    this.initialTab = SocialTab.buddies,
+  });
+
+  final SocialTab initialTab;
 
   @override
   ConsumerState<SocialPage> createState() => _SocialPageState();
@@ -42,13 +48,26 @@ class _SocialPageState extends ConsumerState<SocialPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(
+      length: 3,
+      vsync: this,
+      initialIndex: widget.initialTab.index,
+    );
     _activityController = PageController(viewportFraction: 0.9);
 
     _buddiesScrollController.addListener(_onBuddiesScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadBuddies(refresh: true);
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant SocialPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialTab != widget.initialTab &&
+        _tabController.index != widget.initialTab.index) {
+      _tabController.animateTo(widget.initialTab.index);
+    }
   }
 
   void _onBuddiesScroll() {

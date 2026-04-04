@@ -260,8 +260,8 @@ class ParticipantRowSkeleton extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
         itemCount: 4,
-        separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.md),
-        itemBuilder: (_, __) => Column(
+        separatorBuilder: (_, index) => const SizedBox(width: AppSpacing.md),
+        itemBuilder: (_, index) => Column(
           children: [
             const ShimmerItem(
               width: 64,
@@ -384,7 +384,7 @@ class SessionRoomSkeleton extends StatelessWidget {
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
               itemCount: 5,
-              itemBuilder: (_, __) => const TimelineItemSkeleton(),
+              itemBuilder: (_, index) => const TimelineItemSkeleton(),
             ),
           ),
 
@@ -417,3 +417,4 @@ class SessionRoomSkeleton extends StatelessWidget {
     );
   }
 }
+

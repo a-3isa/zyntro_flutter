@@ -1,53 +1,107 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Helper functions
     function isAuthenticated() {
       return request.auth != null;
     }
-    
+
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
-    
+
+    function hasParticipant(participants, userId) {
+      return participants != null && participants.hasAny([userId]);
+    }
+
     function isModerator() {
-      return isAuthenticated() && 
+      return isAuthenticated() &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isModerator == true;
     }
-    
-    // Check if request is trying to modify moderation-sensitive fields
+
     function isModerationFieldChange() {
       return request.resource.data.diff(resource.data).affectedKeys()
         .hasAny(['isModerator', 'isBanned', 'bannedUntil', 'banReason']);
     }
 
-    // Users collection
-    // Users can update their own profile data including streak cache and notification preferences
+    function isSessionMember(sessionId) {
+      let path = /databases/$(database)/documents/sessions/$(sessionId);
+      return existsAfter(path) && hasParticipant(getAfter(path).data.participants, request.auth.uid);
+    }
+
+    function isApprovedEventJoinUpdate(eventId) {
+      return request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['participantCount']) &&
+        request.resource.data.participantCount == resource.data.participantCount + 1 &&
+        !exists(/databases/$(database)/documents/users/$(request.auth.uid)/joinedEvents/$(eventId)) &&
+        getAfter(/databases/$(database)/documents/users/$(request.auth.uid)/joinedEvents/$(eventId)) != null;
+    }
+
     match /users/{userId} {
       allow read: if isAuthenticated();
       allow create: if isOwner(userId);
-      // Owners can update their profile, but only moderators can change moderation fields
       allow update: if (isOwner(userId) && !isModerationFieldChange()) || isModerator();
       allow delete: if false;
-    }
 
-    // Sessions collection
-    match /sessions/{sessionId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if false;
+      match /settings/{settingId} {
+        allow read, create, update, delete: if isOwner(userId);
+      }
 
-      match /timeline/{eventId} {
+      match /devices/{deviceId} {
+        allow read, create, update, delete: if isOwner(userId);
+      }
+
+      match /notifications/{notificationId} {
+        allow read, update, delete: if isOwner(userId);
+        allow create: if isAuthenticated() && request.resource.data.userId == userId;
+      }
+
+      match /stats/{statId} {
         allow read: if isAuthenticated();
-        allow create: if isAuthenticated();
-        allow update: if false;
-        allow delete: if false;
+        allow create, update, delete: if isOwner(userId);
+      }
+
+      match /joinedEvents/{eventId} {
+        allow read, create, update, delete: if isOwner(userId);
       }
     }
 
-    // Posts collection
+    match /sessions/{sessionId} {
+      allow read: if isAuthenticated() &&
+        hasParticipant(resource.data.participants, request.auth.uid);
+      allow create: if isAuthenticated() &&
+        request.resource.data.hostId == request.auth.uid &&
+        hasParticipant(request.resource.data.participants, request.auth.uid);
+      allow update: if isAuthenticated() && (
+        hasParticipant(resource.data.participants, request.auth.uid) ||
+        hasParticipant(request.resource.data.participants, request.auth.uid)
+      );
+      allow delete: if false;
+
+      match /events/{eventId} {
+        allow read: if isSessionMember(sessionId);
+        allow create: if isAuthenticated() &&
+          isSessionMember(sessionId) &&
+          request.resource.data.userId == request.auth.uid;
+        allow update, delete: if false;
+      }
+
+      match /plans/{planUserId} {
+        allow read: if isSessionMember(sessionId);
+        allow create: if isOwner(planUserId) &&
+          isSessionMember(sessionId) &&
+          request.resource.data.userId == planUserId;
+        allow update: if isOwner(planUserId) &&
+          isSessionMember(sessionId) &&
+          request.resource.data.userId == planUserId;
+        allow delete: if false;
+      }
+
+      match /presence/{presenceUserId} {
+        allow read: if isSessionMember(sessionId);
+        allow create, update, delete: if isOwner(presenceUserId) && isSessionMember(sessionId);
+      }
+    }
+
     match /posts/{postId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
@@ -69,7 +123,6 @@ service cloud.firestore {
       }
     }
 
-    // Follows collection
     match /follows/{followId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && request.resource.data.followerId == request.auth.uid;
@@ -83,58 +136,68 @@ service cloud.firestore {
       );
     }
 
-    // Notifications collection
-    match /notifications/{notificationId} {
-      // Allow read for authenticated users - app queries filter by userId
-      // Note: resource.data check fails for list queries, so we allow read broadly
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid;
-      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
-    }
-
-    // Reports collection - for user/post/comment reports
     match /reports/{reportId} {
-      // Users can read their own submitted reports; moderators can read all
       allow read: if isAuthenticated() && (
         resource.data.reporterId == request.auth.uid ||
         isModerator()
       );
-      // Only authenticated users can create reports, and only for themselves
       allow create: if isAuthenticated() && request.resource.data.reporterId == request.auth.uid;
-      // Only moderators can update report status
       allow update: if isModerator();
-      // Reports should never be deleted
       allow delete: if false;
     }
 
-    // Blocks collection - for blocking users
     match /blocks/{blockId} {
-      // Allow read for authenticated users - app queries filter by blockerId
-      // Note: resource.data check fails for list queries, so we allow read broadly
-      allow read: if isAuthenticated();
-      // Users can only create blocks for themselves
+      allow read: if isAuthenticated() && resource.data.blockerId == request.auth.uid;
       allow create: if isAuthenticated() && request.resource.data.blockerId == request.auth.uid;
-      // Blocks cannot be updated, only deleted
       allow update: if false;
-      // Users can only delete their own blocks (document lookup works for single doc)
       allow delete: if isAuthenticated() && resource.data.blockerId == request.auth.uid;
     }
 
-    // BuddyPairs collection
     match /buddyPairs/{pairId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
+      allow read: if isAuthenticated() &&
+        hasParticipant(resource.data.participants, request.auth.uid);
+      allow create: if isAuthenticated() &&
+        request.resource.data.initiatorId == request.auth.uid &&
+        request.resource.data.participants.size() == 1 &&
+        request.resource.data.participants[0] == request.auth.uid;
+      allow update: if isAuthenticated() &&
+        hasParticipant(request.resource.data.participants, request.auth.uid);
       allow delete: if false;
     }
 
-    // Push tokens collection
-    match /pushTokens/{tokenId} {
+    match /inviteCodes/{inviteCode} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if isAuthenticated();
+      allow create: if isAuthenticated() && request.resource.data.creatorId == request.auth.uid;
+      allow update: if isAuthenticated() && (
+        resource.data.creatorId == request.auth.uid ||
+        request.resource.data.usedBy == request.auth.uid
+      );
+      allow delete: if false;
+    }
+
+    match /events/{eventId} {
+      allow read: if isAuthenticated();
+      allow create: if false;
+      allow update: if isAuthenticated() && isApprovedEventJoinUpdate(eventId);
+      allow delete: if false;
+    }
+
+    match /workouts/{workoutId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+        request.resource.data.sessionId is string &&
+        isSessionMember(request.resource.data.sessionId);
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    match /pushQueue/{messageId} {
+      allow read, create, update, delete: if false;
+    }
+
+    match /pushTokens/{tokenId} {
+      allow read, create, update, delete: if false;
     }
   }
 }
+
+

@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,11 +6,12 @@ import 'package:go_router/go_router.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'dart:ui';
 
+import '../../../app/navigation/app_route_locations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/models/models.dart';
 import '../../../core/constants/constants.dart';
 import '../../../services/session_service.dart';
-import '../../../services/auth_service.dart';
+import '../../auth/auth_providers.dart';
 import '../../../services/voice_recording_service.dart';
 
 import '../../../services/presence_service.dart';
@@ -25,7 +26,6 @@ import '../../../widgets/connection_status_widget.dart';
 import '../../../services/storage_service.dart';
 import '../../../widgets/session_error_banner.dart';
 import '../../../utils/session_error_handler.dart';
-import '../../../utils/responsive_utils.dart';
 import '../../../utils/haptic_manager.dart';
 import '../../../widgets/premium_animations.dart';
 
@@ -176,7 +176,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   DateTime? _lastProcessedEventTime;
 
   // Cheers emojis
-  static const List<String> _cheersEmojis = ['🔥', '💪', '👍', '🎉', '⚡'];
+  static const List<String> _cheersEmojis = ['ðŸ”¥', 'ðŸ’ª', 'ðŸ‘', 'ðŸŽ‰', 'âš¡'];
 
   // Participant progress tracking
   final Map<String, ParticipantProgress> _participantProgress = {};
@@ -255,8 +255,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   }
 
   Future<void> _loadNotificationPreferences() async {
-    final authState = ref.read(authStateProvider);
-    final uid = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final uid = authState.valueOrNull?.id;
     if (uid != null) {
       final prefs = await ref
           .read(notificationServiceProvider)
@@ -270,8 +270,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   }
 
   Future<void> _loadRecentExercises() async {
-    final authState = ref.read(authStateProvider);
-    final uid = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final uid = authState.valueOrNull?.id;
     if (uid != null) {
       final exercises = await ref
           .read(sessionAnalyticsServiceProvider)
@@ -299,7 +299,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
-                  '${_elapsedTime.inMinutes} minutes completed! 💪',
+                  '${_elapsedTime.inMinutes} minutes completed! ðŸ’ª',
                 ),
               ),
             );
@@ -310,8 +310,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   }
 
   Future<void> _initPresence() async {
-    final authState = ref.read(authStateProvider);
-    final uid = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final uid = authState.valueOrNull?.id;
     if (uid != null) {
       // Set initial status
       await ref.read(presenceServiceProvider).setOnline(widget.sessionId, uid);
@@ -432,7 +432,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                       (op) => Padding(
                         padding: const EdgeInsets.only(left: 8, top: 4),
                         child: Text(
-                          '• ${op.type} (${_formatTimeAgo(op.timestamp)})',
+                          'â€¢ ${op.type} (${_formatTimeAgo(op.timestamp)})',
                           style: const TextStyle(fontSize: 12),
                         ),
                       ),
@@ -477,8 +477,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    final authState = ref.read(authStateProvider);
-    final uid = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final uid = authState.valueOrNull?.id;
     if (uid == null) return;
 
     final presenceService = ref.read(presenceServiceProvider);
@@ -525,8 +525,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   }
 
   Future<void> _setOfflinePresence() async {
-    final authState = ref.read(authStateProvider);
-    final uid = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final uid = authState.valueOrNull?.id;
     if (uid != null) {
       await ref.read(presenceServiceProvider).setOffline(widget.sessionId, uid);
     }
@@ -534,8 +534,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
 
   // Monitor events for voice notes
   void _monitorVoiceNotes(List<TimelineEvent> events) async {
-    final authState = ref.read(authStateProvider);
-    final uid = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final uid = authState.valueOrNull?.id;
     if (uid == null) return;
 
     // Get perfs inside method or cache them
@@ -625,7 +625,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('🎯 $milestone sets completed! Keep going!'),
+              content: Text('ðŸŽ¯ $milestone sets completed! Keep going!'),
               behavior: SnackBarBehavior.floating,
               backgroundColor: AppColors.success,
             ),
@@ -646,7 +646,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('🎤 Playing voice note from $senderName'),
+          content: Text('ðŸŽ¤ Playing voice note from $senderName'),
           duration: const Duration(seconds: 2),
           behavior: SnackBarBehavior.floating,
         ),
@@ -675,15 +675,15 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     final session = ref
         .read(currentSessionProvider(widget.sessionId))
         .valueOrNull;
-    final authState = ref.read(authStateProvider);
-    final uid = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final uid = authState.valueOrNull?.id;
 
     if (session != null &&
         session.mode == SessionMode.turnBased &&
         !_isSoloSession &&
         session.activeUserId != uid) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("It's not your turn yet! ⏳")),
+        const SnackBar(content: Text("It's not your turn yet! â³")),
       );
       return;
     }
@@ -697,8 +697,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     setState(() => _isLogging = true);
 
     try {
-      final authState = ref.read(authStateProvider);
-      final uid = authState.valueOrNull?.uid;
+      final authState = ref.read(authSessionProvider);
+      final uid = authState.valueOrNull?.id;
       if (uid == null) return;
 
       // Add to local exercises
@@ -869,15 +869,15 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     final session = ref
         .read(currentSessionProvider(widget.sessionId))
         .valueOrNull;
-    final authState = ref.read(authStateProvider);
-    final uid = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final uid = authState.valueOrNull?.id;
 
     if (session != null &&
         session.mode == SessionMode.turnBased &&
         !_isSoloSession &&
         session.activeUserId != uid) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("It's not your turn yet! ⏳")),
+        const SnackBar(content: Text("It's not your turn yet! â³")),
       );
       return;
     }
@@ -1092,8 +1092,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     });
 
     try {
-      final authState = ref.read(authStateProvider);
-      final uid = authState.valueOrNull?.uid;
+      final authState = ref.read(authSessionProvider);
+      final uid = authState.valueOrNull?.id;
       if (uid == null) return;
 
       // Calculate duration in seconds for storage
@@ -1153,7 +1153,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         final session = await sessionService.getSession(widget.sessionId);
         if (session != null) {
           final userDoc = await ref
-              .read(firestoreProvider)
+              .read(authFirestoreProvider)
               .collection('users')
               .doc(uid)
               .get();
@@ -1199,8 +1199,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   // Send cheer emoji
   Future<void> _sendCheer(String emoji) async {
     try {
-      final authState = ref.read(authStateProvider);
-      final uid = authState.valueOrNull?.uid;
+      final authState = ref.read(authSessionProvider);
+      final uid = authState.valueOrNull?.id;
       if (uid == null) return;
 
       HapticFeedback.lightImpact();
@@ -1252,8 +1252,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   // Handle Pass Turn
   Future<void> _handlePassTurn() async {
     try {
-      final authState = ref.read(authStateProvider);
-      final uid = authState.valueOrNull?.uid;
+      final authState = ref.read(authSessionProvider);
+      final uid = authState.valueOrNull?.id;
       if (uid == null) return;
 
       if (_isOffline) {
@@ -1445,8 +1445,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
 
     setState(() => _isLogging = true);
     try {
-      final authState = ref.read(authStateProvider);
-      final uid = authState.valueOrNull?.uid;
+      final authState = ref.read(authSessionProvider);
+      final uid = authState.valueOrNull?.id;
       if (uid == null) return;
 
       final eventText = '${_workoutType.displayName}: ${duration}min session';
@@ -1541,7 +1541,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           ),
           const SizedBox(height: AppSpacing.md),
 
-          // Log button row with voice
+          // Log button row with voice (Elite Brutalist)
           Row(
             children: [
               Expanded(
@@ -1549,33 +1549,65 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                   button: true,
                   label: 'Log Amount',
                   hint: 'Adds this set to your workout',
-                  child: ElevatedButton.icon(
-                    onPressed: _currentExercise != null && !_isLogging
-                        ? _handleLogSet
-                        : null,
-                    icon: _isLogging
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.add),
-                    label: const Text('Log Set'),
+                  child: BounceAnimation(
+                    onTap: (_currentExercise != null && !_isLogging) ? _handleLogSet : null,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      decoration: BoxDecoration(
+                        gradient: (_currentExercise != null && !_isLogging)
+                            ? LinearGradient(
+                                colors: [AppColors.primary, AppColors.primaryDark],
+                              )
+                            : null,
+                        color: (_currentExercise != null && !_isLogging)
+                            ? null
+                            : Colors.white.withValues(alpha: 0.05),
+                        border: Border.all(
+                          color: (_currentExercise != null && !_isLogging)
+                              ? AppColors.primary
+                              : Colors.white.withValues(alpha: 0.1),
+                          width: 2,
+                        ),
+                      ),
+                      child: Center(
+                        child: _isLogging
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text(
+                                'LOG SET',
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 14,
+                                  letterSpacing: 2,
+                                  color: Colors.white,
+                                ),
+                              ),
+                      ),
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(width: AppSpacing.sm),
+              const SizedBox(width: 12),
               // Voice recording button with states
               if (_isUploadingVoice)
-                // Upload progress indicator
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
+                    horizontal: 14,
+                    vertical: 10,
                   ),
                   decoration: BoxDecoration(
                     color: AppColors.warning.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: AppColors.warning.withValues(alpha: 0.4),
+                      width: 2,
+                    ),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -1593,18 +1625,19 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        'Uploading ${(_voiceUploadProgress * 100).toInt()}%',
+                        '${(_voiceUploadProgress * 100).toInt()}%',
                         style: const TextStyle(
+                          fontFamily: 'Outfit',
                           color: AppColors.warning,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1,
                         ),
                       ),
                     ],
                   ),
                 )
               else if (_isRecording)
-                // Recording state with waveform
                 GestureDetector(
                   onTap: _toggleRecording,
                   child: RecordingWaveform(
@@ -1615,21 +1648,24 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                   ),
                 )
               else
-                // Idle state - mic button
-                Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.primary,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Semantics(
-                    button: true,
-                    label: 'Record Voice Note',
-                    hint: 'Tap to start recording',
-                    child: TouchTarget(
-                      child: IconButton(
-                        onPressed: _toggleRecording,
-                        icon: const Icon(Icons.mic, color: Colors.white),
-                        tooltip: 'Record voice note',
+                BounceAnimation(
+                  onTap: _toggleRecording,
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.1),
+                      border: Border.all(
+                        color: AppColors.primary.withValues(alpha: 0.5),
+                        width: 2,
+                      ),
+                    ),
+                    child: Semantics(
+                      button: true,
+                      label: 'Record Voice Note',
+                      child: Icon(
+                        Icons.mic_rounded,
+                        color: AppColors.primary,
+                        size: 22,
                       ),
                     ),
                   ),
@@ -1884,43 +1920,78 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           ),
           const SizedBox(height: AppSpacing.md),
 
-          // Log button row with voice
+          // Log button row with voice (Elite Brutalist)
           Row(
             children: [
               Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: _cardioActivityType != null && !_isLogging
-                      ? _handleLogCardio
-                      : null,
-                  icon: _isLogging
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.add),
-                  label: const Text('Log Activity'),
+                child: BounceAnimation(
+                  onTap: (_cardioActivityType != null && !_isLogging) ? _handleLogCardio : null,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    decoration: BoxDecoration(
+                      gradient: (_cardioActivityType != null && !_isLogging)
+                          ? LinearGradient(
+                              colors: [AppColors.primary, AppColors.primaryDark],
+                            )
+                          : null,
+                      color: (_cardioActivityType != null && !_isLogging)
+                          ? null
+                          : Colors.white.withValues(alpha: 0.05),
+                      border: Border.all(
+                        color: (_cardioActivityType != null && !_isLogging)
+                            ? AppColors.primary
+                            : Colors.white.withValues(alpha: 0.1),
+                        width: 2,
+                      ),
+                    ),
+                    child: Center(
+                      child: _isLogging
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text(
+                              'LOG ACTIVITY',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontWeight: FontWeight.w900,
+                                fontSize: 14,
+                                letterSpacing: 2,
+                                color: Colors.white,
+                              ),
+                            ),
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(width: AppSpacing.sm),
-              // Voice recording button
-              Container(
-                decoration: BoxDecoration(
-                  color: _isRecording ? AppColors.error : AppColors.primary,
-                  shape: BoxShape.circle,
-                ),
-                child: Semantics(
-                  button: true,
-                  label: _isRecording ? 'Stop Recording' : 'Record Voice Note',
-                  child: IconButton(
-                    onPressed: _isUploadingVoice ? null : _toggleRecording,
-                    icon: Icon(
-                      _isRecording ? Icons.stop : Icons.mic,
-                      color: Colors.white,
+              const SizedBox(width: 12),
+              BounceAnimation(
+                onTap: _isUploadingVoice ? null : _toggleRecording,
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: _isRecording
+                        ? AppColors.error.withValues(alpha: 0.1)
+                        : AppColors.primary.withValues(alpha: 0.1),
+                    border: Border.all(
+                      color: _isRecording
+                          ? AppColors.error.withValues(alpha: 0.5)
+                          : AppColors.primary.withValues(alpha: 0.5),
+                      width: 2,
                     ),
-                    tooltip: _isRecording
-                        ? 'Stop recording'
-                        : 'Record voice note',
+                  ),
+                  child: Semantics(
+                    button: true,
+                    label: _isRecording ? 'Stop Recording' : 'Record Voice Note',
+                    child: Icon(
+                      _isRecording ? Icons.stop_rounded : Icons.mic_rounded,
+                      color: _isRecording ? AppColors.error : AppColors.primary,
+                      size: 22,
+                    ),
                   ),
                 ),
               ),
@@ -2106,7 +2177,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                                             ),
                                             if (progress != null)
                                               Text(
-                                                '${progress.totalSets} sets • ${progress.totalVolume.toInt()}kg',
+                                                '${progress.totalSets} sets â€¢ ${progress.totalVolume.toInt()}kg',
                                                 style: TextStyle(
                                                   color: AppColors
                                                       .textSecondaryLight,
@@ -2298,8 +2369,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     double totalVolume = 0.0;
     double totalDistance = 0.0;
 
-    final authState = ref.read(authStateProvider);
-    final uid = authState.valueOrNull?.uid;
+    final authState = ref.read(authSessionProvider);
+    final uid = authState.valueOrNull?.id;
     if (uid == null) return;
 
     final myProgress = _participantProgress[uid];
@@ -2330,7 +2401,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           .endSession(widget.sessionId, uid, summary);
 
       if (mounted) {
-        context.push('/session-recap', extra: summary);
+        context.push(AppRouteLocations.sessionRecap(widget.sessionId));
       }
     } catch (e) {
       if (mounted) {
@@ -2354,8 +2425,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         .fold<double>(0.0, (a, b) => a > b ? a : b);
 
     return _participantProgress.entries.map((entry) {
-      final authState = ref.read(authStateProvider);
-      final isCurrentUser = entry.key == authState.valueOrNull?.uid;
+      final authState = ref.read(authSessionProvider);
+      final isCurrentUser = entry.key == authState.valueOrNull?.id;
       final progress = entry.value;
 
       // Determine if leader in each category
@@ -2449,7 +2520,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                   children: [
                     // Sets metric
                     _buildMetricChip(
-                      emoji: '🏋️',
+                      emoji: 'ðŸ‹ï¸',
                       label: 'Sets',
                       value: '${progress.totalSets}',
                       progress: maxSets > 0
@@ -2461,7 +2532,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                     if (_workoutType.isCardio ||
                         _workoutType.requiresDistanceTracking)
                       _buildMetricChip(
-                        emoji: '📏',
+                        emoji: 'ðŸ“',
                         label: 'Distance',
                         value: '${progress.totalDistance.toStringAsFixed(2)}km',
                         progress: maxDistance > 0
@@ -2471,7 +2542,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                       )
                     else
                       _buildMetricChip(
-                        emoji: '⚖️',
+                        emoji: 'âš–ï¸',
                         label: 'Volume',
                         value: '${progress.totalVolume.toStringAsFixed(0)}kg',
                         progress: maxVolume > 0
@@ -2485,7 +2556,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                 if (progress.currentExercise.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Text(
-                    '• ${progress.currentExercise}',
+                    'â€¢ ${progress.currentExercise}',
                     style: TextStyle(
                       fontSize: 12,
                       color: AppColors.textSecondaryLight,
@@ -2503,36 +2574,40 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   Widget _buildAnimatedBackground() {
     return Stack(
       children: [
-        // Base gradient
+        // Deep obsidian base
+        Container(
+          color: const Color(0xFF020617),
+        ),
+
+        // Base gradient for depth
         Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                const Color(0xFF0F172A), // Slate 900
-                const Color(0xFF1E293B), // Slate 800
-                AppColors.primary.withValues(alpha: 0.1),
+                AppColors.primary.withValues(alpha: 0.05),
+                Colors.transparent,
+                AppColors.secondary.withValues(alpha: 0.03),
               ],
-              stops: const [0.0, 0.5, 1.0],
             ),
           ),
         ),
 
-        // Animated glowing orbs
+        // Primary glowing orb (top-right)
         Positioned(
-          top: -100,
-          right: -100,
+          top: -150,
+          right: -150,
           child: PulseAnimation(
-            duration: const Duration(seconds: 4),
+            duration: const Duration(seconds: 8),
             child: Container(
-              width: 300,
-              height: 300,
+              width: 500,
+              height: 500,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    AppColors.primary.withValues(alpha: 0.2),
+                    AppColors.primary.withValues(alpha: 0.15),
                     Colors.transparent,
                   ],
                 ),
@@ -2541,19 +2616,20 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           ),
         ),
 
+        // Secondary accent orb (bottom-left)
         Positioned(
-          bottom: -50,
-          left: -50,
+          bottom: -200,
+          left: -200,
           child: PulseAnimation(
-            duration: const Duration(seconds: 5),
+            duration: const Duration(seconds: 12),
             child: Container(
-              width: 200,
-              height: 200,
+              width: 600,
+              height: 600,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    AppColors.secondary.withValues(alpha: 0.15),
+                    AppColors.secondary.withValues(alpha: 0.08),
                     Colors.transparent,
                   ],
                 ),
@@ -2562,10 +2638,12 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           ),
         ),
 
-        // Glass overlay
+        // Fine glass texture overlay
         BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-          child: Container(color: Colors.black.withValues(alpha: 0.2)),
+          filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
+          child: Container(
+            color: Colors.black.withValues(alpha: 0.1),
+          ),
         ),
       ],
     );
@@ -2611,8 +2689,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       next.whenData((session) async {
         if (session == null) return;
         final previousSession = previous?.valueOrNull;
-        final authState = ref.read(authStateProvider);
-        final currentUserId = authState.valueOrNull?.uid;
+        final authState = ref.read(authSessionProvider);
+        final currentUserId = authState.valueOrNull?.id;
 
         // Check if turn changed to me
         if (session.mode == SessionMode.turnBased &&
@@ -2625,7 +2703,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
             ScaffoldMessenger.of(this.context).showSnackBar(
               SnackBar(
                 content: const Text(
-                  "It's your turn! 💪",
+                  "It's your turn! ðŸ’ª",
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
                 backgroundColor: AppColors.primary,
@@ -2675,100 +2753,130 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           backgroundColor: Colors.transparent, // Transparent to show background
           body: Column(
             children: [
-              // Custom Header
-              Container(
-                padding: EdgeInsets.only(
-                  top: MediaQuery.paddingOf(context).top + 8,
-                  bottom: 8,
-                  left: 16,
-                  right: 16,
-                ),
-                child: Row(
-                  children: [
-                    BounceAnimation(
-                      onTap: () {
-                        HapticManager.light();
-                        context.go('/active-sessions');
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceSecondaryDark,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.arrow_back,
-                          color: AppColors.textDark,
-                          size: 20,
+              // Custom Header (Elite Brutalist + Glassmorphic)
+              ClipRRect(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceDark.withValues(alpha: 0.6),
+                      border: Border(
+                        bottom: BorderSide(
+                          color: AppColors.primary.withValues(alpha: 0.2),
+                          width: 2,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _workoutType.displayName,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                          Text(
-                            'Session #${widget.sessionId.substring(0, 4)}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurface.withValues(alpha: 0.7),
-                            ),
-                          ),
-                        ],
-                      ),
+                    padding: EdgeInsets.only(
+                      top: MediaQuery.paddingOf(context).top + 16,
+                      bottom: 16,
+                      left: 20,
+                      right: 20,
                     ),
-                    Row(
+                    child: Row(
                       children: [
                         BounceAnimation(
                           onTap: () {
                             HapticManager.light();
-                            _handleFinishSession();
+                            context.go(
+                              AppRouteLocations.mainTab(MainShellTab.session),
+                            );
                           },
                           child: Container(
-                            padding: const EdgeInsets.all(8),
+                            padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: AppColors.surfaceSecondaryDark,
-                              borderRadius: BorderRadius.circular(12),
+                              color: Colors.white.withValues(alpha: 0.05),
+                              borderRadius: BorderRadius.circular(0),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.2),
+                                width: 2,
+                              ),
                             ),
                             child: const Icon(
-                              Icons.flag_outlined,
-                              color: AppColors.textDark,
-                              size: 20,
+                              Icons.arrow_back,
+                              color: Colors.white,
+                              size: 24,
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        BounceAnimation(
-                          onTap: () {
-                            HapticManager.light();
-                            _showParticipantsBottomSheet();
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: AppColors.surfaceSecondaryDark,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Icon(
-                              Icons.info_outline,
-                              color: AppColors.textDark,
-                              size: 20,
-                            ),
+                        const SizedBox(width: 20),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _workoutType.displayName.toUpperCase(),
+                                style: const TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 22,
+                                  letterSpacing: -0.5,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              Text(
+                                'SESSION #${widget.sessionId.substring(0, 4)}',
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 2,
+                                  color: AppColors.primary.withValues(alpha: 0.8),
+                                ),
+                              ),
+                            ],
                           ),
+                        ),
+                        Row(
+                          children: [
+                            BounceAnimation(
+                              onTap: () {
+                                HapticManager.heavy();
+                                _handleFinishSession();
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: AppColors.error.withValues(alpha: 0.1),
+                                  border: Border.all(
+                                    color: AppColors.error.withValues(alpha: 0.3),
+                                    width: 2,
+                                  ),
+                                ),
+                                child: const Icon(
+                                  Icons.stop_rounded,
+                                  color: AppColors.error,
+                                  size: 24,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            BounceAnimation(
+                              onTap: () {
+                                HapticManager.light();
+                                _showParticipantsBottomSheet();
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.05),
+                                  border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.2),
+                                    width: 2,
+                                  ),
+                                ),
+                                child: const Icon(
+                                  Icons.people_alt_rounded,
+                                  color: Colors.white,
+                                  size: 24,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                  ],
+                  ),
                 ),
               ),
               // Connection status banner (offline/syncing/online)
@@ -2800,8 +2908,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                     return const SizedBox.shrink();
                   }
 
-                  final authState = ref.read(authStateProvider);
-                  final uid = authState.valueOrNull?.uid;
+                  final authState = ref.read(authSessionProvider);
+                  final uid = authState.valueOrNull?.id;
                   final isMyTurn = session.activeUserId == uid;
 
                   return Container(
@@ -3116,8 +3224,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                     return const SizedBox.shrink();
                   }
 
-                  final authState = ref.read(authStateProvider);
-                  final uid = authState.valueOrNull?.uid;
+                  final authState = ref.read(authSessionProvider);
+                  final uid = authState.valueOrNull?.id;
                   final isMyTurn = session.activeUserId == uid;
 
                   if (!isMyTurn) return const SizedBox.shrink();
@@ -3154,74 +3262,90 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                   height: 4,
                 ),
 
-              // Shared Session Timer
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  vertical: AppSpacing.md,
-                  horizontal: AppSpacing.lg,
-                ),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      AppColors.primary.withValues(alpha: 0.1),
-                      AppColors.primary.withValues(alpha: 0.05),
-                    ],
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.timer_outlined,
-                      color: AppColors.primary,
-                      size: 24,
+              // Shared Session Timer (Elite Brutalist)
+              ClipRRect(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppSpacing.md,
+                      horizontal: AppSpacing.lg,
                     ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Text(
-                      _formatElapsedTime(_elapsedTime),
-                      style: const TextStyle(
-                        fontSize: AppFontSize.xxl,
-                        fontWeight: FontWeight.bold,
-                        fontFeatures: [FontFeature.tabularFigures()],
-                        color: AppColors.primary,
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceDark.withValues(alpha: 0.4),
+                      border: Border.symmetric(
+                        horizontal: BorderSide(
+                          color: AppColors.primary.withValues(alpha: 0.12),
+                          width: 1,
+                        ),
                       ),
                     ),
-                    const SizedBox(width: AppSpacing.md),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.sm,
-                        vertical: AppSpacing.xs,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _isPaused
-                            ? Colors.grey[300]
-                            : AppColors.success.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(AppBorderRadius.sm),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.circle,
-                            size: 8,
-                            color: _isPaused ? Colors.grey : AppColors.success,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.timer_outlined,
+                          color: AppColors.primary,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          _formatElapsedTime(_elapsedTime),
+                          style: const TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 36,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 2,
+                            fontFeatures: [FontFeature.tabularFigures()],
+                            color: AppColors.primary,
                           ),
-                          const SizedBox(width: 4),
-                          Text(
-                            _isPaused ? 'PAUSED' : 'LIVE',
-                            style: TextStyle(
-                              fontSize: AppFontSize.xs,
-                              fontWeight: FontWeight.bold,
+                        ),
+                        const SizedBox(width: 16),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _isPaused
+                                ? Colors.white.withValues(alpha: 0.05)
+                                : AppColors.success.withValues(alpha: 0.15),
+                            border: Border.all(
                               color: _isPaused
-                                  ? Colors.grey[700]
-                                  : AppColors.success,
+                                  ? Colors.white.withValues(alpha: 0.1)
+                                  : AppColors.success.withValues(alpha: 0.4),
+                              width: 1.5,
                             ),
                           ),
-                        ],
-                      ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              PulseAnimation(
+                                duration: const Duration(seconds: 1),
+                                child: Icon(
+                                  Icons.circle,
+                                  size: 6,
+                                  color: _isPaused ? Colors.grey : AppColors.success,
+                                ),
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                _isPaused ? 'PAUSED' : 'LIVE',
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 2,
+                                  color: _isPaused ? Colors.grey : AppColors.success,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
 
@@ -3280,9 +3404,9 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                         else
                           // Buddy mode: Show all users
                           ..._participantProgress.entries.map((entry) {
-                            final authState = ref.read(authStateProvider);
+                            final authState = ref.read(authSessionProvider);
                             final isCurrentUser =
-                                entry.key == authState.valueOrNull?.uid;
+                                entry.key == authState.valueOrNull?.id;
                             final label = isCurrentUser ? 'You' : 'Partner';
 
                             if (_workoutType.isCardio ||
@@ -3418,56 +3542,67 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                   ),
                 ),
 
-              // Exercise/Cardio input section - conditionally rendered based on session type
-              Container(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).cardColor,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: _buildInputSection(),
-              ),
-
-              // Cheers bar
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.lg,
-                  vertical: AppSpacing.sm,
-                ),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).cardColor,
-                  border: Border(
-                    bottom: BorderSide(
-                      color: Colors.grey.withValues(alpha: 0.2),
-                    ),
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: _cheersEmojis.map((emoji) {
-                    return GestureDetector(
-                      onTap: () => _sendCheer(emoji),
-                      child: Container(
-                        padding: const EdgeInsets.all(AppSpacing.sm),
-                        decoration: BoxDecoration(
-                          color: AppColors.primaryMuted.withValues(alpha: 0.5),
-                          borderRadius: BorderRadius.circular(
-                            AppBorderRadius.lg,
-                          ),
-                        ),
-                        child: Text(
-                          emoji,
-                          style: const TextStyle(fontSize: 24),
+              // Exercise/Cardio input section (Elite Brutalist Glass Card)
+              ClipRRect(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                  child: Container(
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.04),
+                      border: Border.symmetric(
+                        horizontal: BorderSide(
+                          color: AppColors.primary.withValues(alpha: 0.1),
+                          width: 1,
                         ),
                       ),
-                    );
-                  }).toList(),
+                    ),
+                    child: _buildInputSection(),
+                  ),
+                ),
+              ),
+
+              // Cheers bar (Elite Brutalist Style)
+              ClipRRect(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.lg,
+                      vertical: AppSpacing.sm,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.03),
+                      border: Border(
+                        bottom: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.07),
+                          width: 1,
+                        ),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: _cheersEmojis.map((emoji) {
+                        return BounceAnimation(
+                          onTap: () => _sendCheer(emoji),
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.06),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.12),
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Text(
+                              emoji,
+                              style: const TextStyle(fontSize: 22),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
                 ),
               ),
 
@@ -3476,7 +3611,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                 ExpansionTile(
                   title: const Row(
                     children: [
-                      Text('📊 '),
+                      Text('ðŸ“Š '),
                       Text(
                         'Progress Comparison',
                         style: TextStyle(fontWeight: FontWeight.w600),
@@ -3484,7 +3619,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                     ],
                   ),
                   subtitle: Text(
-                    '${_participantProgress.length} participants • ${_participantProgress.values.fold<int>(0, (sum, p) => sum + p.totalSets)} total sets',
+                    '${_participantProgress.length} participants â€¢ ${_participantProgress.values.fold<int>(0, (sum, p) => sum + p.totalSets)} total sets',
                   ),
                   initiallyExpanded: false,
                   backgroundColor: AppColors.primaryMuted.withValues(
@@ -3812,19 +3947,20 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
 
   Widget _buildTimelineItem(TimelineEvent event) {
     final iconData = switch (event.type) {
-      SessionEventType.start => Icons.play_arrow,
-      SessionEventType.join => Icons.person_add,
-      SessionEventType.setLogged => Icons.fitness_center,
-      SessionEventType.finish => Icons.flag,
-      SessionEventType.voiceNote => Icons.mic,
-      SessionEventType.cheer => Icons.celebration,
+      SessionEventType.start => Icons.play_arrow_rounded,
+      SessionEventType.join => Icons.person_add_rounded,
+      SessionEventType.setLogged => Icons.fitness_center_rounded,
+      SessionEventType.finish => Icons.flag_rounded,
+      SessionEventType.voiceNote => Icons.mic_rounded,
+      SessionEventType.cheer => Icons.celebration_rounded,
       _ => Icons.circle,
     };
 
     final iconColor = switch (event.type) {
       SessionEventType.cheer => AppColors.secondary,
-      SessionEventType.voiceNote => Colors.orange,
+      SessionEventType.voiceNote => const Color(0xFFFF9800),
       SessionEventType.finish => AppColors.success,
+      SessionEventType.start => AppColors.primary,
       _ => AppColors.primary,
     };
 
@@ -3836,60 +3972,93 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     final emoji = event.data?['emoji'] as String?;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.md),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Event icon or emoji
-          if (event.type == SessionEventType.cheer && emoji != null)
-            Container(
-              padding: const EdgeInsets.all(AppSpacing.sm),
-              child: Text(emoji, style: const TextStyle(fontSize: 20)),
-            )
-          else
-            Container(
-              padding: const EdgeInsets.all(AppSpacing.sm),
-              decoration: BoxDecoration(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: ClipRRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.04),
+              border: Border.all(
                 color: iconColor.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
+                width: 1.5,
               ),
-              child: Icon(iconData, size: 16, color: iconColor),
             ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Column(
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  event.text,
-                  style: const TextStyle(fontWeight: FontWeight.w500),
-                ),
-                // Voice note playback button
-                if (event.type == SessionEventType.voiceNote &&
-                    audioUrl != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: AppSpacing.xs),
-                    child: VoiceNoteWaveform(
-                      duration: event.data?['duration'],
-                      isPlaying: isPlaying,
-                      isLoading:
-                          _isLoadingAudio && _playingAudioUrl == audioUrl,
-                      onTap: () => _playAudio(audioUrl),
+                // Event icon or emoji
+                if (event.type == SessionEventType.cheer && emoji != null)
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.secondary.withValues(alpha: 0.1),
+                      border: Border.all(
+                        color: AppColors.secondary.withValues(alpha: 0.3),
+                        width: 1.5,
+                      ),
                     ),
+                    child: Text(emoji, style: const TextStyle(fontSize: 18)),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: iconColor.withValues(alpha: 0.1),
+                      border: Border.all(
+                        color: iconColor.withValues(alpha: 0.3),
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Icon(iconData, size: 16, color: iconColor),
                   ),
-                Text(
-                  _formatTime(event.timestamp),
-                  style: TextStyle(
-                    fontSize: AppFontSize.sm,
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.onSurface.withValues(alpha: 0.6),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        event.text,
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          color: Colors.white,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                      // Voice note playback button
+                      if (event.type == SessionEventType.voiceNote &&
+                          audioUrl != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: VoiceNoteWaveform(
+                            duration: event.data?['duration'],
+                            isPlaying: isPlaying,
+                            isLoading:
+                                _isLoadingAudio && _playingAudioUrl == audioUrl,
+                            onTap: () => _playAudio(audioUrl),
+                          ),
+                        ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _formatTime(event.timestamp),
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.5,
+                          color: iconColor.withValues(alpha: 0.6),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -4009,3 +4178,4 @@ class AnimatedProgressBar extends StatelessWidget {
     );
   }
 }
+
