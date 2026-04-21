@@ -32,7 +32,6 @@ class StartSessionPage extends ConsumerStatefulWidget {
 
 class _StartSessionPageState extends ConsumerState<StartSessionPage> {
   late WorkoutType _selectedType;
-  SessionMode _selectedMode = SessionMode.turnBased;
   final Set<String> _selectedFriends = {};
   bool _isLoading = false;
   bool _isLoadingFollows = true;
@@ -143,7 +142,6 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
             hostId: uid,
             type: _selectedType.value,
             title: '${_selectedType.displayName} Session',
-            mode: _selectedMode,
             invitedUserIds: _selectedFriends.isNotEmpty
                 ? _selectedFriends.toList()
                 : null,
@@ -379,31 +377,6 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
 
                       const SizedBox(height: 32),
 
-                      // Session mode
-                      Row(
-                        children: [
-                          const SectionHeader(title: 'Session Mode'),
-                          const SizedBox(width: 8),
-                          Tooltip(
-                            message:
-                                'Choose how you want to log sets with friends',
-                            triggerMode: TooltipTriggerMode.tap,
-                            child: Icon(
-                              Icons.info_outline_rounded,
-                              size: 16,
-                              color: AppColors.textTertiaryDark,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-
-                      ...SessionMode.values.asMap().entries.map(
-                        (entry) => _buildModeCard(entry.value, index: entry.key),
-                      ),
-
-                      const SizedBox(height: 32),
-
                       // Invite friends section
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -631,104 +604,6 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                     decoration: const BoxDecoration(
                       color: Colors.white,
                       shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildModeCard(SessionMode mode, {required int index}) {
-    final isSelected = _selectedMode == mode;
-    final isTurnBased = mode == SessionMode.turnBased;
-
-    return SlideInAnimation.fromRight(
-      index: index,
-      child: ScaleOnTap(
-        onTap: () {
-          setState(() => _selectedMode = mode);
-          HapticManager.selection();
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? AppColors.primary.withValues(alpha: 0.1)
-                : AppColors.surfaceSecondaryDark.withValues(alpha: 0.4),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: isSelected ? AppColors.primary.withValues(alpha: 0.5) : Colors.white.withValues(alpha: 0.05),
-              width: isSelected ? 2 : 1,
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? AppColors.primary.withValues(alpha: 0.15)
-                      : AppColors.surfaceDark.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(
-                  isTurnBased
-                      ? Icons.sync_alt_rounded
-                      : Icons.compare_arrows_rounded,
-                  color: isSelected
-                      ? AppColors.primary
-                      : AppColors.textSecondaryDark,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      isTurnBased ? 'Turn-Based' : 'Parallel',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                        color: isSelected
-                            ? AppColors.primary
-                            : AppColors.textDark,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      isTurnBased
-                          ? 'Take turns logging sets'
-                          : 'Everyone logs simultaneously',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: AppColors.textSecondaryDark,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (isSelected)
-                const Icon(
-                  Icons.check_circle_rounded,
-                  color: AppColors.primary,
-                  size: 24,
-                )
-              else
-                Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: AppColors.textTertiaryDark.withValues(alpha: 0.3),
-                      width: 2,
                     ),
                   ),
                 ),

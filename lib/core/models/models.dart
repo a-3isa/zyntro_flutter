@@ -111,12 +111,13 @@ class Session {
   final SessionStatus status;
   final SessionPhase phase;
   final String? buddyPairId;
-  final SessionMode mode;
   final String? activeUserId;
   final SessionSummary? summary;
   final DateTime createdAt;
   final DateTime startedAt;
   final DateTime? endedAt;
+  /// Per-participant workout type choice. {userId: workoutTypeValue}
+  final Map<String, String> participantTypes;
 
   Session({
     required this.id,
@@ -127,16 +128,26 @@ class Session {
     required this.status,
     this.phase = SessionPhase.live,
     this.buddyPairId,
-    required this.mode,
     this.activeUserId,
     this.summary,
     required this.createdAt,
     required this.startedAt,
     this.endedAt,
+    this.participantTypes = const {},
   });
+
+  /// Derive session mode from participant workout types.
+  /// Same type for all → turn-based; mixed types → parallel.
+  SessionMode get derivedMode {
+    if (participantTypes.isEmpty || participantTypes.values.toSet().length == 1) {
+      return SessionMode.turnBased;
+    }
+    return SessionMode.parallel;
+  }
 
   factory Session.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+    final rawTypes = data['participantTypes'] as Map<String, dynamic>?;
     return Session(
       id: doc.id,
       type: data['type'] ?? 'strength',
@@ -147,7 +158,6 @@ class Session {
       status: SessionStatus.fromString(data['status'] ?? 'active'),
       phase: SessionPhase.fromString(data['phase'] ?? 'live'),
       buddyPairId: data['buddyPairId'],
-      mode: SessionMode.fromString(data['mode'] ?? 'turn_based'),
       activeUserId: data['activeUserId'],
       summary: data['summary'] != null
           ? SessionSummary.fromMap(data['summary'] as Map<String, dynamic>)
@@ -155,6 +165,9 @@ class Session {
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       startedAt: (data['startedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       endedAt: (data['endedAt'] as Timestamp?)?.toDate(),
+      participantTypes: rawTypes != null
+          ? rawTypes.map((k, v) => MapEntry(k, v as String))
+          : const {},
     );
   }
 }

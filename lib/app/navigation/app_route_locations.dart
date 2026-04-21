@@ -84,6 +84,10 @@ class AppRouteLocations {
     return '/user/$userId/following';
   }
 
+  static String sessionAccept(String sessionId) {
+    return '/session/accept/$sessionId';
+  }
+
   static String sessionEntry({
     required String sessionId,
     required String type,

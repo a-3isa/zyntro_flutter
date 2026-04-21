@@ -12,12 +12,13 @@ void main() {
       participants: const ['host-1'],
       status: SessionStatus.active,
       phase: SessionPhase.setup,
-      mode: SessionMode.turnBased,
+      participantTypes: const {'host-1': 'gym'},
       createdAt: DateTime(2026),
       startedAt: DateTime(2026),
     );
 
     expect(session.phase, SessionPhase.setup);
+    expect(session.derivedMode, SessionMode.turnBased);
     expect(SessionPhase.fromString('setup'), SessionPhase.setup);
     expect(SessionPhase.fromString('unexpected'), SessionPhase.live);
   });
