@@ -118,7 +118,7 @@ void main() {
         title: 'Morning Workout',
         status: SessionStatus.active,
         participants: ['host-user-id'],
-        mode: SessionMode.turnBased,
+        participantTypes: const {'host-user-id': 'strength'},
         createdAt: DateTime.now(),
         startedAt: DateTime.now(),
       );
@@ -139,7 +139,7 @@ void main() {
         status: SessionStatus.active,
         participants: ['user-1', 'user-2'],
         buddyPairId: 'pair-123',
-        mode: SessionMode.parallel,
+        participantTypes: const {'user-1': 'cardio', 'user-2': 'gym'},
         createdAt: DateTime.now(),
         startedAt: DateTime.now(),
       );

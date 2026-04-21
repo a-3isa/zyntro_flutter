@@ -15,8 +15,15 @@ import 'widgets/gym_plan_editor.dart';
 /// Interactive gym setup flow before a session goes live.
 class GymSessionSetupPage extends ConsumerStatefulWidget {
   final String sessionId;
+  /// Pre-seeded exercises (e.g. cloned from host plan on invite acceptance).
+  /// When provided, skips the Firestore plan fetch and uses these directly.
+  final List<PlannedExercise>? seededExercises;
 
-  const GymSessionSetupPage({super.key, required this.sessionId});
+  const GymSessionSetupPage({
+    super.key,
+    required this.sessionId,
+    this.seededExercises,
+  });
 
   @override
   ConsumerState<GymSessionSetupPage> createState() =>
@@ -33,7 +40,13 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(_loadInitialPlan);
+    if (widget.seededExercises != null) {
+      // Pre-seeded by invite acceptance — no Firestore fetch needed
+      _draftExercises = _reindexExercises(widget.seededExercises!);
+      _isLoadingPlan = false;
+    } else {
+      Future.microtask(_loadInitialPlan);
+    }
   }
 
   Future<void> _loadInitialPlan() async {

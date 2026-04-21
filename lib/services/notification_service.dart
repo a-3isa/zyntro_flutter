@@ -352,9 +352,21 @@ class NotificationService {
     // Navigate based on data contents
     if (data.containsKey('sessionId')) {
       final sessionId = data['sessionId'] as String;
+      final notificationType = data['type'] as String?;
       final sessionType =
           data['sessionType'] as String? ?? WorkoutType.gym.value;
       final audioUrl = data['audioUrl'] as String?;
+
+      // Session invites go to the acceptance page so the friend can choose
+      // their workout type and plan before joining.
+      if (notificationType == 'session_invite') {
+        if (!navigatorContext.mounted) return;
+        navigatorContext.push(
+          AppRouteLocations.sessionAccept(sessionId),
+          extra: data,
+        );
+        return;
+      }
 
       String location = AppRouteLocations.sessionRoom(
         sessionId,
@@ -380,11 +392,6 @@ class NotificationService {
           '[NotificationService] Failed to resolve session navigation: $error',
         );
       }
-
-      // Auto-play data handled by SessionRoomPage if we passed extra, but deep link path params limited.
-      // We can pass `extra` object to GoRouter if using context.push.
-      // But _navigateBasedOnData might be called from terminated state where router not ready?
-      // rootNavigatorKey usually works if app started.
 
       if (!navigatorContext.mounted) return;
       navigatorContext.push(location, extra: data);
