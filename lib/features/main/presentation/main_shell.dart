@@ -6,7 +6,7 @@ import '../../../app/navigation/app_route_locations.dart';
 import '../../../core/theme/app_theme.dart';
 
 import '../../feed/presentation/feed_page.dart';
-import '../../session/presentation/session_page.dart';
+import '../../session/presentation/start_session_page.dart';
 import '../../social/presentation/social_page.dart';
 import '../../profile/presentation/profile_page.dart';
 
@@ -95,7 +95,7 @@ class _MainShellState extends ConsumerState<MainShell>
     final isNavBarVisible = ref.watch(navBarVisibleProvider);
     final pages = [
       const FeedPage(),
-      const SessionPage(),
+      const StartSessionPage(),
       SocialPage(initialTab: widget.initialSocialTab),
       const ProfilePage(),
     ];

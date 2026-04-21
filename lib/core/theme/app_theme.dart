@@ -14,9 +14,9 @@ class AppColors {
   static const Color navy800 = Color(0xFF151B3D);
   static const Color navy700 = Color(0xFF1E2749);
 
-  // Figma neon green
-  static const Color neonGreen = Color(0xFF39FF14);
-  static const Color neonGreenHover = Color(0xFF2EE00F);
+  // Eye-friendly green
+  static const Color neonGreen = Color(0xFF4ADE80);
+  static const Color neonGreenHover = Color(0xFF22C55E);
 
   // Figma gray scale
   static const Color gray400 = Color(0xFF8B8B98);
