@@ -49,7 +49,6 @@ class SessionService {
     required String title,
     String? buddyPairId,
     List<String>? invitedUserIds,
-    SessionMode mode = SessionMode.turnBased,
     SessionPhase phase = SessionPhase.live,
   }) async {
     // Check for existing active session
@@ -80,9 +79,9 @@ class SessionService {
       'createdAt': FieldValue.serverTimestamp(),
       'startedAt': FieldValue.serverTimestamp(),
       'buddyPairId': buddyPairId,
-      'mode': mode.value,
-      'activeUserId': mode == SessionMode.turnBased ? hostId : null,
+      'activeUserId': hostId,
       'phase': phase.value,
+      'participantTypes': {hostId: type},
     });
 
     if (phase == SessionPhase.setup) {
@@ -214,6 +213,64 @@ class SessionService {
     );
 
     // Warm cache with new participants
+    _ref.read(userCacheServiceProvider).warmSessionParticipants(sessionId);
+  }
+
+  /// Accept a session invite, choosing a workout type and optionally supplying a plan.
+  /// Adds the user to participants, records their workout type, and (for gym)
+  /// seeds their plan document so the setup phase can begin.
+  Future<void> acceptInvite({
+    required String sessionId,
+    required String userId,
+    required String chosenWorkoutType,
+    GymSessionPlan? plan,
+  }) async {
+    final user = await _ref.read(userCacheServiceProvider).getUser(userId);
+    final userName = user?.displayName ?? 'User';
+
+    final batch = _firestore.batch();
+    final sessionRef = _firestore.collection('sessions').doc(sessionId);
+
+    // Add to participants + record chosen type atomically
+    batch.update(sessionRef, {
+      'participants': FieldValue.arrayUnion([userId]),
+      'participantTypes.$userId': chosenWorkoutType,
+    });
+
+    final planRef = sessionRef.collection('plans').doc(userId);
+
+    if (plan != null) {
+      // Gym invite with a seeded plan — write the draft (not yet ready)
+      batch.set(planRef, plan.toMap());
+    } else {
+      // Non-gym or no plan supplied — create a stub plan and mark ready immediately
+      // so setGymPlanReady's "everyone ready?" check can pass
+      batch.set(planRef, GymSessionPlan(
+        userId: userId,
+        source: GymSessionPlanSource.personal,
+        isReady: true,
+        exercises: const [],
+      ).toMap());
+    }
+
+    // Join event
+    final joinEventRef = sessionRef
+        .collection('events')
+        .doc('join_${userId}_${DateTime.now().millisecondsSinceEpoch}');
+    batch.set(joinEventRef, {
+      'type': SessionEventType.join.value,
+      'userId': userId,
+      'text': '$userName joined the session',
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+
+    await withRetryCircuitBreakerVoid(
+      () => batch.commit(),
+      operationType: 'session_join',
+      maxFailures: 5,
+      cooldownDuration: const Duration(seconds: 30),
+    );
+
     _ref.read(userCacheServiceProvider).warmSessionParticipants(sessionId);
   }
 

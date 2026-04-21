@@ -28,6 +28,10 @@ import '../../../widgets/session_error_banner.dart';
 import '../../../utils/session_error_handler.dart';
 import '../../../utils/haptic_manager.dart';
 import '../../../widgets/premium_animations.dart';
+import 'widgets/active_turn_screen.dart';
+import 'widgets/waiting_turn_screen.dart';
+import 'widgets/parallel_gym_view.dart';
+import 'widgets/parallel_cardio_view.dart';
 
 /// Tracks real-time progress for a participant in a session.
 class ParticipantProgress {
@@ -129,6 +133,10 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   final List<Exercise> _exercises = [];
   String? _currentExercise;
   bool _isLogging = false;
+
+  // Turn-based active session state machine
+  String? _currentTurnExercise; // exercise name chosen for current set
+  int _currentSetNumber = 1; // which set the active user is on
 
   // Voice recording state
   bool _isRecording = false;
@@ -658,7 +666,21 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     _processAudioQueue(senderName); // Process next
   }
 
-  Future<void> _handleLogSet() async {
+  /// Wrapper that lets new turn-based/parallel widgets submit a set
+  /// with explicit parameters. Reuses the existing controller-based flow
+  /// by mutating the controllers and delegating to [_handleLogSetFromControllers].
+  Future<void> _handleLogSet({
+    required String exercise,
+    required double weight,
+    required int reps,
+  }) async {
+    _currentExercise = exercise;
+    _weightController.text = weight.toString();
+    _repsController.text = reps.toString();
+    await _handleLogSetFromControllers();
+  }
+
+  Future<void> _handleLogSetFromControllers() async {
     if (_currentExercise == null) return;
 
     final weight = double.tryParse(_weightController.text);
@@ -679,7 +701,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     final uid = authState.valueOrNull?.id;
 
     if (session != null &&
-        session.mode == SessionMode.turnBased &&
+        session.derivedMode == SessionMode.turnBased &&
         !_isSoloSession &&
         session.activeUserId != uid) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -838,8 +860,24 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     ).showSnackBar(const SnackBar(content: Text('Last set undone (Local)')));
   }
 
+  /// Parameterized cardio logger used by the new parallel-mode cardio view.
+  /// Delegates to [_handleLogCardioFromControllers] by mutating controllers.
+  Future<void> _handleLogCardio({
+    required double distance,
+    required int durationSeconds,
+    required String activityType,
+  }) async {
+    _cardioActivityType = activityType;
+    _distanceController.text = distance.toString();
+    // Existing flow expects minutes in the duration controller.
+    final minutes = (durationSeconds / 60).round();
+    _durationController.text = minutes.toString();
+    _paceController.clear();
+    await _handleLogCardioFromControllers();
+  }
+
   /// Handle logging a cardio activity entry.
-  Future<void> _handleLogCardio() async {
+  Future<void> _handleLogCardioFromControllers() async {
     if (_cardioActivityType == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select an activity type')),
@@ -873,7 +911,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     final uid = authState.valueOrNull?.id;
 
     if (session != null &&
-        session.mode == SessionMode.turnBased &&
+        session.derivedMode == SessionMode.turnBased &&
         !_isSoloSession &&
         session.activeUserId != uid) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1339,6 +1377,179 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     }
   }
 
+  /// Dispatches to turn-based or parallel UIs when we have a session,
+  /// otherwise falls back to the legacy monolithic [_buildInputSection].
+  Widget _buildDispatchedInputSection() {
+    final session = ref
+        .watch(currentSessionProvider(widget.sessionId))
+        .valueOrNull;
+    final uid = ref.watch(authSessionProvider).valueOrNull?.id;
+    if (session == null || uid == null) {
+      return _buildInputSection();
+    }
+    // Solo sessions keep the legacy monolithic form.
+    if (_isSoloSession) {
+      return _buildInputSection();
+    }
+    return _buildSessionBody(session, uid);
+  }
+
+  /// Main dispatch: switches on [Session.derivedMode] and the participant's
+  /// workout type to pick between the turn-based and parallel widget trees.
+  Widget _buildSessionBody(Session session, String currentUserId) {
+    switch (session.derivedMode) {
+      case SessionMode.turnBased:
+        final isMyTurn = session.activeUserId == currentUserId;
+        if (isMyTurn) {
+          return _buildActiveTurnView(session, currentUserId);
+        } else {
+          return _buildWaitingTurnView(session, currentUserId);
+        }
+      case SessionMode.parallel:
+        final myType =
+            session.participantTypes[currentUserId] ?? widget.type;
+        final workoutType = WorkoutType.fromString(myType);
+        if (workoutType.isCardio || workoutType.requiresDistanceTracking) {
+          return _buildParallelCardioView(session, currentUserId);
+        } else {
+          return _buildParallelGymView(session, currentUserId);
+        }
+    }
+  }
+
+  Widget _buildActiveTurnView(Session session, String currentUserId) {
+    final exerciseName = _currentTurnExercise ?? 'Workout';
+    return ActiveTurnScreen(
+      exerciseName: exerciseName,
+      setNumber: _currentSetNumber,
+      onSetSubmit: ({
+        required int reps,
+        required double weight,
+        required int durationSeconds,
+      }) {
+        _handleLogSet(exercise: exerciseName, weight: weight, reps: reps);
+        if (mounted) {
+          setState(() => _currentSetNumber += 1);
+        }
+      },
+      onTurnEnd: () {
+        ref
+            .read(sessionServiceProvider)
+            .switchTurn(widget.sessionId, currentUserId);
+      },
+    );
+  }
+
+  Widget _buildWaitingTurnView(Session session, String currentUserId) {
+    final partnerId = session.activeUserId;
+    final partnerProgress =
+        partnerId != null ? _participantProgress[partnerId] : null;
+    final partnerCurrentExercise = partnerProgress?.currentExercise ?? '';
+    final partnerSetNumber = (partnerProgress?.totalSets ?? 0) + 1;
+
+    return FutureBuilder<User?>(
+      future: partnerId != null
+          ? ref.read(userCacheServiceProvider).getUser(partnerId)
+          : Future<User?>.value(null),
+      builder: (context, snapshot) {
+        final partnerUser = snapshot.data;
+        final partnerName = partnerUser?.displayName ?? 'Partner';
+        final partnerPhotoUrl = partnerUser?.photoURL;
+
+        return WaitingTurnScreen(
+          partnerName: partnerName,
+          partnerPhotoUrl: partnerPhotoUrl,
+          partnerCurrentExercise: partnerCurrentExercise,
+          partnerSetNumber: partnerSetNumber,
+          partnerElapsedTime: _elapsedTime,
+          isPartnerVoicePlaying: _playingAudioUrl != null,
+          onRecordVoice: _toggleRecording,
+          isRecording: _isRecording,
+          recordingDuration: _recordingDuration,
+        );
+      },
+    );
+  }
+
+  Widget _buildParallelGymView(Session session, String currentUserId) {
+    final partnerId = session.participants.firstWhere(
+      (p) => p != currentUserId,
+      orElse: () => '',
+    );
+    final partnerProgress =
+        partnerId.isNotEmpty ? _participantProgress[partnerId] : null;
+    final partnerType =
+        session.participantTypes[partnerId] ?? 'gym';
+
+    final partner = ParallelPartnerData(
+      name: 'Partner',
+      workoutType: partnerType,
+      totalDistance: partnerProgress?.totalDistance ?? 0,
+      averagePace: partnerProgress?.averagePace,
+      elapsedTime: _elapsedTime,
+      currentExercise: partnerProgress?.currentExercise,
+      totalSets: partnerProgress?.totalSets ?? 0,
+      totalVolume: partnerProgress?.totalVolume ?? 0,
+    );
+
+    final exerciseName = _currentTurnExercise ?? 'Workout';
+    return ParallelGymView(
+      exerciseName: exerciseName,
+      setNumber: _currentSetNumber,
+      onSetSubmit: ({
+        required int reps,
+        required double weight,
+        required int durationSeconds,
+      }) {
+        _handleLogSet(exercise: exerciseName, weight: weight, reps: reps);
+        if (mounted) {
+          setState(() => _currentSetNumber += 1);
+        }
+      },
+      partner: partner,
+    );
+  }
+
+  Widget _buildParallelCardioView(Session session, String currentUserId) {
+    final partnerId = session.participants.firstWhere(
+      (p) => p != currentUserId,
+      orElse: () => '',
+    );
+    final partnerProgress =
+        partnerId.isNotEmpty ? _participantProgress[partnerId] : null;
+    final partnerType =
+        session.participantTypes[partnerId] ?? 'gym';
+    final myType =
+        session.participantTypes[currentUserId] ?? widget.type;
+
+    final partner = ParallelPartnerData(
+      name: 'Partner',
+      workoutType: partnerType,
+      totalDistance: partnerProgress?.totalDistance ?? 0,
+      averagePace: partnerProgress?.averagePace,
+      elapsedTime: _elapsedTime,
+      currentExercise: partnerProgress?.currentExercise,
+      totalSets: partnerProgress?.totalSets ?? 0,
+      totalVolume: partnerProgress?.totalVolume ?? 0,
+    );
+
+    return ParallelCardioView(
+      activityType: myType,
+      onCardioLog: ({
+        required double distanceKm,
+        required int durationSeconds,
+        required String activityType,
+      }) {
+        _handleLogCardio(
+          distance: distanceKm,
+          durationSeconds: durationSeconds,
+          activityType: activityType,
+        );
+      },
+      partner: partner,
+    );
+  }
+
   /// Build input section based on workout type category.
   Widget _buildInputSection() {
     // Route to appropriate input widget based on workout type
@@ -1550,7 +1761,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                   label: 'Log Amount',
                   hint: 'Adds this set to your workout',
                   child: BounceAnimation(
-                    onTap: (_currentExercise != null && !_isLogging) ? _handleLogSet : null,
+                    onTap: (_currentExercise != null && !_isLogging) ? _handleLogSetFromControllers : null,
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       decoration: BoxDecoration(
@@ -1925,7 +2136,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
             children: [
               Expanded(
                 child: BounceAnimation(
-                  onTap: (_cardioActivityType != null && !_isLogging) ? _handleLogCardio : null,
+                  onTap: (_cardioActivityType != null && !_isLogging) ? _handleLogCardioFromControllers : null,
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     decoration: BoxDecoration(
@@ -2075,7 +2286,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                                   final isOnline = onlineUserIds.contains(uid);
                                   final progress = _participantProgress[uid];
                                   final isActive =
-                                      session.mode == SessionMode.turnBased &&
+                                      session.derivedMode == SessionMode.turnBased &&
                                       session.activeUserId == uid;
 
                                   return FutureBuilder<User?>(
@@ -2242,7 +2453,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                                     itemBuilder: (context, index) {
                                       final uid = session.participants[index];
                                       final isActive =
-                                          session.mode ==
+                                          session.derivedMode ==
                                               SessionMode.turnBased &&
                                           session.activeUserId == uid;
 
@@ -2693,7 +2904,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         final currentUserId = authState.valueOrNull?.id;
 
         // Check if turn changed to me
-        if (session.mode == SessionMode.turnBased &&
+        if (session.derivedMode == SessionMode.turnBased &&
             session.activeUserId == currentUserId &&
             previousSession?.activeUserId != currentUserId) {
           // It's my turn!
@@ -2903,7 +3114,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                 data: (session) {
                   // Hide turn banner for solo sessions or parallel mode
                   if (session == null ||
-                      session.mode != SessionMode.turnBased ||
+                      session.derivedMode != SessionMode.turnBased ||
                       _isSoloSession) {
                     return const SizedBox.shrink();
                   }
@@ -2965,7 +3176,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                       data: (session) {
                         if (session == null) return const SizedBox.shrink();
                         final isTurnBased =
-                            session.mode == SessionMode.turnBased;
+                            session.derivedMode == SessionMode.turnBased;
 
                         return SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
@@ -3219,7 +3430,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
               sessionAsync.when(
                 data: (session) {
                   if (session == null ||
-                      session.mode != SessionMode.turnBased ||
+                      session.derivedMode != SessionMode.turnBased ||
                       _isSoloSession) {
                     return const SizedBox.shrink();
                   }
@@ -3557,7 +3768,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                         ),
                       ),
                     ),
-                    child: _buildInputSection(),
+                    child: _buildDispatchedInputSection(),
                   ),
                 ),
               ),

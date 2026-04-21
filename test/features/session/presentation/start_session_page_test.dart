@@ -89,7 +89,6 @@ void main() {
           title: any(named: 'title'),
           buddyPairId: any(named: 'buddyPairId'),
           invitedUserIds: any(named: 'invitedUserIds'),
-          mode: any(named: 'mode'),
           phase: any(named: 'phase'),
         ),
       ).thenAnswer((_) async => 'session-123');
@@ -132,7 +131,6 @@ void main() {
           type: 'gym',
           title: 'Gym Session',
           invitedUserIds: any(named: 'invitedUserIds', that: isNull),
-          mode: SessionMode.turnBased,
           phase: SessionPhase.setup,
           buddyPairId: any(named: 'buddyPairId', that: isNull),
         ),
@@ -156,7 +154,6 @@ void main() {
           title: any(named: 'title'),
           buddyPairId: any(named: 'buddyPairId'),
           invitedUserIds: any(named: 'invitedUserIds'),
-          mode: any(named: 'mode'),
           phase: any(named: 'phase'),
         ),
       ).thenAnswer((_) async => 'session-456');
@@ -201,7 +198,6 @@ void main() {
           type: 'running',
           title: 'Running Session',
           invitedUserIds: any(named: 'invitedUserIds', that: isNull),
-          mode: SessionMode.turnBased,
           phase: SessionPhase.live,
           buddyPairId: any(named: 'buddyPairId', that: isNull),
         ),
@@ -225,7 +221,6 @@ void main() {
           title: any(named: 'title'),
           buddyPairId: any(named: 'buddyPairId'),
           invitedUserIds: any(named: 'invitedUserIds'),
-          mode: any(named: 'mode'),
           phase: any(named: 'phase'),
         ),
       ).thenThrow(

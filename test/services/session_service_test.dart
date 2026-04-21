@@ -159,7 +159,6 @@ void main() {
         type: 'strength',
         title: 'Morning Workout',
         invitedUserIds: invitees,
-        mode: SessionMode.turnBased,
       );
 
       // Assert
