@@ -103,7 +103,7 @@ class _StreakCardState extends State<StreakCard>
           border: Border.all(color: AppColors.warmBorder),
           boxShadow: [
             BoxShadow(
-              color: AppColors.secondaryGlow.withValues(alpha: 0.3),
+              color: const Color(0x2E000000),
               blurRadius: 16,
               offset: const Offset(0, 6),
             ),

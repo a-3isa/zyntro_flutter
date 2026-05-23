@@ -1,7 +1,6 @@
 package com.zyntro.app
 
 import android.content.Context
-import com.google.firebase.FirebaseApp
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -22,13 +21,25 @@ class MainActivity : FlutterActivity() {
   }
 
   private fun getAppCheckDebugSecret(): String? {
+    val persistenceKey = getFirebasePersistenceKey() ?: return null
     val prefsName = APP_CHECK_DEBUG_PREFS_TEMPLATE.format(
-      FirebaseApp.getInstance().persistenceKey,
+      persistenceKey,
     )
 
     return applicationContext
       .getSharedPreferences(prefsName, Context.MODE_PRIVATE)
       .getString(APP_CHECK_DEBUG_SECRET_KEY, null)
+  }
+
+  private fun getFirebasePersistenceKey(): String? {
+    return runCatching {
+      val firebaseAppClass = Class.forName("com.google.firebase.FirebaseApp")
+      val firebaseApp = firebaseAppClass.getMethod("getInstance").invoke(null)
+
+      firebaseAppClass
+        .getMethod("getPersistenceKey")
+        .invoke(firebaseApp) as? String
+    }.getOrNull()
   }
 
   private companion object {

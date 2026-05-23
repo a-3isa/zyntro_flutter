@@ -120,8 +120,8 @@ void main() {
 
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
-      await tester.ensureVisible(find.text('Start Gym Session'));
-      await tester.tap(find.text('Start Gym Session'));
+      await tester.ensureVisible(find.text('Start Solo'));
+      await tester.tap(find.text('Start Solo'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
@@ -187,8 +187,8 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
       await tester.tap(find.text('Running'));
       await tester.pump();
-      await tester.ensureVisible(find.text('Start Running Session'));
-      await tester.tap(find.text('Start Running Session'));
+      await tester.ensureVisible(find.text('Start Solo'));
+      await tester.tap(find.text('Start Solo'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
@@ -256,8 +256,8 @@ void main() {
 
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
-      await tester.ensureVisible(find.text('Start Gym Session'));
-      await tester.tap(find.text('Start Gym Session'));
+      await tester.ensureVisible(find.text('Start Solo'));
+      await tester.tap(find.text('Start Solo'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
@@ -307,7 +307,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
 
-      expect(find.text('Start Running Session'), findsOneWidget);
+      expect(find.text('Start Solo'), findsOneWidget);
     },
   );
 }

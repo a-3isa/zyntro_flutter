@@ -11,6 +11,8 @@ void main() {
       expect(source, contains('onRequest'));
       expect(source, contains('deliverNotificationPush'));
       expect(source, contains('verifyIdToken'));
+      expect(source, contains('verifyToken'));
+      expect(source, contains('X-Firebase-AppCheck'));
       expect(source, contains('sendEachForMulticast'));
     },
   );

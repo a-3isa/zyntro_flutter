@@ -55,6 +55,13 @@ class AppRouteLocations {
     return '$main?${queryParts.join('&')}';
   }
 
+  static String matchmaking(WorkoutType type) {
+    return Uri(
+      path: '/session/matchmaking',
+      queryParameters: {'type': type.value},
+    ).toString();
+  }
+
   static String gymSessionSetup(String sessionId) {
     return '/session/setup/$sessionId';
   }
@@ -64,12 +71,15 @@ class AppRouteLocations {
     required String type,
     String? audioUrl,
   }) {
-    final queryParts = <String>['type=$type'];
+    final queryParameters = <String, String>{'type': type};
     if (audioUrl != null && audioUrl.isNotEmpty) {
-      queryParts.add('audioUrl=$audioUrl');
+      queryParameters['audioUrl'] = audioUrl;
     }
 
-    return '/session/room/$sessionId?${queryParts.join('&')}';
+    return Uri(
+      path: '/session/room/$sessionId',
+      queryParameters: queryParameters,
+    ).toString();
   }
 
   static String sessionRecap(String sessionId) {

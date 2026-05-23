@@ -57,6 +57,9 @@ ios/Runner/GoogleService-Info.plist
 ios/firebase_app_id_file.json
 
 # Environment files with secrets
+.env
+.env.*
+!.env.example
 .env.local
 .env.*.local
 

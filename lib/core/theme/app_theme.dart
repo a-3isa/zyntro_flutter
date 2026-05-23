@@ -14,9 +14,9 @@ class AppColors {
   static const Color navy800 = Color(0xFF151B3D);
   static const Color navy700 = Color(0xFF1E2749);
 
-  // Eye-friendly green
-  static const Color neonGreen = Color(0xFF4ADE80);
-  static const Color neonGreenHover = Color(0xFF22C55E);
+  // Figma neon green scale
+  static const Color neonGreen = Color(0xFF39FF14);
+  static const Color neonGreenHover = Color(0xFF2EE00F);
 
   // Figma gray scale
   static const Color gray400 = Color(0xFF8B8B98);
@@ -101,6 +101,10 @@ class AppColors {
   static const Color gradientStart = navy900;
   static const Color gradientMiddle = navy800;
   static const Color gradientEnd = navy700;
+  static const Color splashGradientBlue = Color(0xFF061953);
+  static const Color splashGradientNavy = Color(0xFF071E31);
+  static const Color splashGradientTeal = Color(0xFF06372E);
+  static const Color splashGradientGreen = Color(0xFF082F12);
 
   // Common colors
   static const Color white = Colors.white;
@@ -110,7 +114,12 @@ class AppColors {
   static const List<Color> primaryGradient = [neonGreen, neonGreenHover];
   static const List<Color> secondaryGradient = [navy700, navy800];
   static const List<Color> premiumGradient = [navy800, navy700];
-  static const List<Color> splashGradient = [navy900, navy800, navy700];
+  static const List<Color> splashGradient = [
+    splashGradientBlue,
+    splashGradientNavy,
+    splashGradientTeal,
+    splashGradientGreen,
+  ];
   static const List<Color> cardGradient = [navy800, navy700];
 
   static const List<Color> successGradient = [
@@ -176,6 +185,13 @@ class AppGradients {
     AlignmentGeometry end = Alignment.bottomRight,
   }) =>
       LinearGradient(colors: AppColors.successGradient, begin: begin, end: end);
+
+  static const LinearGradient splashBackground = LinearGradient(
+    colors: AppColors.splashGradient,
+    begin: Alignment.bottomLeft,
+    end: Alignment.topRight,
+    stops: [0.0, 0.34, 0.68, 1.0],
+  );
 
   static LinearGradient card({
     AlignmentGeometry begin = Alignment.topLeft,
@@ -651,7 +667,7 @@ class GlassDecoration {
         ),
         border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
       );
-      
+
   /// To apply a blur effect properly, wrap this container with
   /// ClipRRect and BackdropFilter(filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20))
 }

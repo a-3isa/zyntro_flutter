@@ -6,12 +6,12 @@ A Flutter workout buddy app migrated from React Native.
 
 1. Clone the repository
 2. Run `flutter pub get` to install dependencies
-3. Create a `.env` file with your Firebase and Stripe configuration
-4. Run `flutter run` to start the app
+3. Add Firebase platform config files for your environment
+4. Run `flutter run --dart-define=STRIPE_PUBLISHABLE_KEY="$STRIPE_PUBLISHABLE_KEY"` to start the app
 
 ## Environment Configuration
 
-Create a `.env` file in the project root with the following:
+Local `.env` files are ignored and are not bundled into release artifacts. If you want local fallback values, copy `.env.example` to `.env` and fill it in on your machine only:
 
 ```env
 # Firebase Configuration
@@ -73,7 +73,7 @@ The app includes a competitive leaderboard system:
 For payment integration:
 
 1. Get your Stripe publishable key from the [Stripe Dashboard](https://dashboard.stripe.com/test/apikeys)
-2. Add it to your `.env` file as `STRIPE_PUBLISHABLE_KEY`
+2. Pass it at build/run time as `--dart-define=STRIPE_PUBLISHABLE_KEY=...`
 3. For production, implement a Cloud Function to create PaymentIntents server-side
 
 The app includes a simulated purchase fallback for testing when Stripe is not fully configured.
@@ -109,27 +109,27 @@ See `firebase/firestore.indexes.json` for the index definitions.
 
 The app supports multiple environments:
 
-| Environment | Config File | Firebase Project |
+| Environment | Config Source | Firebase Project |
 |-------------|-------------|-----------------|
-| Development | `.env` / `.env.dev` | `gym-avatar-dev` |
-| Staging | `.env.staging` | `gym-avatar-staging` |
-| Production | `.env.prod` | `zynrto` |
+| Development | Firebase platform config + dart-defines | `gym-avatar-dev` |
+| Staging | Firebase platform config + dart-defines | `gym-avatar-staging` |
+| Production | Firebase platform config + dart-defines | `zynrto` |
 
 ### Build Commands
 
 ```bash
 # Development build
-flutter build apk --flavor dev --dart-define=ENV=dev
+flutter build apk --dart-define=ENV=dev --dart-define=STRIPE_PUBLISHABLE_KEY="$STRIPE_PUBLISHABLE_KEY"
 
 # Staging build
-flutter build apk --flavor staging --dart-define=ENV=staging --release
+flutter build apk --dart-define=ENV=staging --dart-define=STRIPE_PUBLISHABLE_KEY="$STRIPE_PUBLISHABLE_KEY" --release
 
 # Production build
-flutter build apk --flavor prod --dart-define=ENV=prod --release
-flutter build appbundle --flavor prod --dart-define=ENV=prod --release
+flutter build apk --dart-define=ENV=prod --dart-define=STRIPE_PUBLISHABLE_KEY="$STRIPE_PUBLISHABLE_KEY" --release
+flutter build appbundle --dart-define=ENV=prod --dart-define=STRIPE_PUBLISHABLE_KEY="$STRIPE_PUBLISHABLE_KEY" --release
 
 # iOS builds
-flutter build ios --flavor prod --dart-define=ENV=prod --release
+flutter build ios --dart-define=ENV=prod --dart-define=STRIPE_PUBLISHABLE_KEY="$STRIPE_PUBLISHABLE_KEY" --release
 ```
 
 ### Android Release Signing
@@ -142,7 +142,7 @@ flutter build ios --flavor prod --dart-define=ENV=prod --release
 
 1. Download `google-services.json` from Firebase Console → Add to `android/app/`
 2. Download `GoogleService-Info.plist` → Add to `ios/Runner/`
-3. Deploy Firestore rules: `firebase deploy --only firestore:rules`
+3. Deploy Firestore and Storage rules: `firebase deploy --only firestore:rules,storage`
 
 ### CI/CD
 

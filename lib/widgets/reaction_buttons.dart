@@ -109,11 +109,11 @@ class _ReactionButtonsState extends State<ReactionButtons>
   List<Color> _getGradientColors(ReactionType type) {
     switch (type) {
       case ReactionType.fire:
-        return [Colors.orange, Colors.deepOrange];
+        return [AppColors.neonGreen, AppColors.action];
       case ReactionType.strong:
-        return [Colors.purple, Colors.deepPurple];
+        return [AppColors.navy700, AppColors.navy800];
       case ReactionType.clap:
-        return [Colors.amber, Colors.orange];
+        return [AppColors.warmBorder, AppColors.neonGreenHover];
     }
   }
 
@@ -145,7 +145,7 @@ class _ReactionButtonsState extends State<ReactionButtons>
           _buildReactionButton(
             type: ReactionType.fire,
             emoji: '🔥',
-            color: Colors.orange,
+            color: AppColors.neonGreen,
             label: 'Fire',
             isDark: isDark,
             buttonPadding: buttonPadding,
@@ -155,7 +155,7 @@ class _ReactionButtonsState extends State<ReactionButtons>
           _buildReactionButton(
             type: ReactionType.strong,
             emoji: '💪',
-            color: Colors.purple,
+            color: AppColors.navy700,
             label: 'Strong',
             isDark: isDark,
             buttonPadding: buttonPadding,
@@ -165,7 +165,7 @@ class _ReactionButtonsState extends State<ReactionButtons>
           _buildReactionButton(
             type: ReactionType.clap,
             emoji: '👏',
-            color: Colors.amber,
+            color: AppColors.warmBorder,
             label: 'Clap',
             isDark: isDark,
             buttonPadding: buttonPadding,

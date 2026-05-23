@@ -13,6 +13,8 @@
 		<string>This app needs camera access to take photos for your workout posts.</string>
 		<key>NSPhotoLibraryUsageDescription</key>
 		<string>This app needs photo library access to select photos for your workout posts.</string>
+		<key>NSMicrophoneUsageDescription</key>
+		<string>This app needs microphone access to record voice notes during workout sessions.</string>
 		<key>CFBundleDevelopmentRegion</key>
 		<string>$(DEVELOPMENT_LANGUAGE)</string>
 		<key>CFBundleDisplayName</key>

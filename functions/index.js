@@ -348,6 +348,20 @@ async function requireHttpAuth(req) {
   }
 }
 
+async function requireHttpAppCheck(req) {
+  const token = req.get("X-Firebase-AppCheck") || "";
+  if (!token) {
+    throw new HttpsError("unauthenticated", "Missing App Check token.");
+  }
+
+  try {
+    await admin.appCheck().verifyToken(token);
+  } catch (error) {
+    logger.warn("Invalid App Check token for deliverNotificationPush.", error);
+    throw new HttpsError("unauthenticated", "Invalid App Check token.");
+  }
+}
+
 function getPayloadData(body) {
   if (body && typeof body.data === "object" && body.data !== null) {
     return body.data;
@@ -357,7 +371,7 @@ function getPayloadData(body) {
 
 exports.deliverNotificationPush = onRequest(async (req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
-  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Firebase-AppCheck");
   res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
 
   if (req.method === "OPTIONS") {
@@ -371,6 +385,7 @@ exports.deliverNotificationPush = onRequest(async (req, res) => {
   }
 
   try {
+    await requireHttpAppCheck(req);
     const callerId = await requireHttpAuth(req);
     const type = requireString(req.body && req.body.type, "type");
     const recipientId = requireString(req.body && req.body.recipientId, "recipientId");

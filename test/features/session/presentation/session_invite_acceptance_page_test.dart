@@ -10,6 +10,7 @@ import 'package:zyntro_flutter/app/navigation/app_router.dart';
 import 'package:zyntro_flutter/core/constants/constants.dart';
 import 'package:zyntro_flutter/core/models/models.dart';
 import 'package:zyntro_flutter/features/auth/auth_providers.dart';
+import 'package:zyntro_flutter/features/auth/domain/entities/auth_user_entity.dart';
 import 'package:zyntro_flutter/features/session/domain/gym_session_plan.dart';
 import 'package:zyntro_flutter/features/session/presentation/session_invite_acceptance_page.dart';
 import 'package:zyntro_flutter/services/session_service.dart';
@@ -26,7 +27,7 @@ void main() {
     registerFallbackValue(FakeGymSessionPlan());
   });
 
-  Session _makeSession({
+  Session makeSession({
     SessionPhase phase = SessionPhase.setup,
     List<String> participants = const ['host-1'],
   }) {
@@ -44,7 +45,7 @@ void main() {
     );
   }
 
-  Widget _buildSubject({
+  Widget buildSubject({
     required SessionService sessionService,
     required UserCacheService userCacheService,
     String sessionId = 'session-1',
@@ -122,14 +123,15 @@ void main() {
         .thenAnswer((_) async {});
 
     await tester.pumpWidget(
-      _buildSubject(
+      buildSubject(
         sessionService: sessionService,
         userCacheService: userCacheService,
       ),
     );
 
-    controller.add(_makeSession());
-    await tester.pumpAndSettle();
+    controller.add(makeSession());
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
 
     expect(find.textContaining('Coach Alex'), findsWidgets);
 
@@ -160,14 +162,15 @@ void main() {
           .thenAnswer((_) async {});
 
       await tester.pumpWidget(
-        _buildSubject(
+        buildSubject(
           sessionService: sessionService,
           userCacheService: userCacheService,
         ),
       );
 
-      controller.add(_makeSession());
-      await tester.pumpAndSettle();
+      controller.add(makeSession());
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
 
       // Gym is pre-selected since it's the host's type — plan editor should appear
       expect(find.byKey(const Key('gym_plan_editor')), findsAny);
@@ -200,18 +203,20 @@ void main() {
           .thenAnswer((_) async {});
 
       await tester.pumpWidget(
-        _buildSubject(
+        buildSubject(
           sessionService: sessionService,
           userCacheService: userCacheService,
         ),
       );
 
-      controller.add(_makeSession());
-      await tester.pumpAndSettle();
+      controller.add(makeSession());
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
 
       // Tap Running type
       await tester.tap(find.text('Running'));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
 
       expect(find.byKey(const Key('gym_plan_editor')), findsNothing);
       expect(find.textContaining('side-by-side'), findsAny);
@@ -244,7 +249,7 @@ void main() {
           .thenAnswer((_) async {});
 
       await tester.pumpWidget(
-        _buildSubject(
+        buildSubject(
           sessionService: sessionService,
           userCacheService: userCacheService,
         ),
@@ -252,9 +257,10 @@ void main() {
 
       // Session where invitee-1 is already a participant
       controller.add(
-        _makeSession(participants: ['host-1', 'invitee-1']),
+        makeSession(participants: ['host-1', 'invitee-1']),
       );
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
 
       // Should have navigated away (setup or room)
       expect(find.text('Join Session'), findsNothing);

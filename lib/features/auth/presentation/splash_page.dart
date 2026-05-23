@@ -30,20 +30,9 @@ class SplashPage extends ConsumerWidget {
     return Scaffold(
       body: Stack(
         children: [
-          // Background Gradient
+          // Background
           Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Color(0xFF0A0E1A),
-                  Color(0xFF141B2D),
-                  Color(0xFF0A0E1A),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                stops: [0.0, 0.5, 1.0],
-              ),
-            ),
+            decoration: const BoxDecoration(color: AppColors.backgroundDark),
           ),
 
           // Main Content

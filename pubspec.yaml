@@ -92,7 +92,7 @@ flutter_launcher_icons:
 
 # Splash screen configuration
 flutter_native_splash:
-  color: "#0A0E1A"
+  background_image: assets/splash_background.png
   image: assets/splash_z_v5.png
   android: true
   ios: true
@@ -105,8 +105,4 @@ flutter:
   uses-material-design: true
   
   assets:
-    - .env
-    - .env.dev
-    - .env.staging
-    - .env.prod
     - assets/

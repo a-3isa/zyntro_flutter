@@ -16,6 +16,7 @@ import '../../features/auth/presentation/forgot_password_page.dart';
 import '../../features/main/presentation/main_shell.dart';
 import '../../features/session/presentation/start_session_page.dart';
 import '../../features/session/presentation/gym_session_setup_page.dart';
+import '../../features/session/presentation/matchmaking_page.dart';
 import '../../features/session/presentation/session_room_page.dart';
 import '../../features/session/presentation/recap_page.dart';
 import '../../features/session/presentation/session_invite_acceptance_page.dart';
@@ -52,6 +53,7 @@ class AppRoutes {
   static const forgotPassword = '/forgot-password';
   static const main = '/';
   static const startSession = '/session/start';
+  static const matchmaking = '/session/matchmaking';
   static const sessionAccept = '/session/accept/:sessionId';
   static const gymSessionSetup = '/session/setup/:sessionId';
   static const sessionRoom = '/session/room/:sessionId';
@@ -182,9 +184,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     navigatorKey: rootNavigatorKey,
     initialLocation: AppRoutes.splash,
-    debugLogDiagnostics: shouldEnableRouterDiagnostics(
-      isDebugMode: kDebugMode,
-    ),
+    debugLogDiagnostics: shouldEnableRouterDiagnostics(isDebugMode: kDebugMode),
     redirect: (context, state) {
       final isLoggedIn = authState.valueOrNull != null;
       final isLoading = authState.isLoading;
@@ -222,6 +222,15 @@ final routerProvider = Provider<GoRouter>((ref) {
             return AppRoutes.onboarding;
           }
           return null;
+        }
+
+        if (profileCompleteAsync.hasError) {
+          debugPrint(
+            '[Router] Profile completion check failed; routing to profile setup.',
+          );
+          return state.matchedLocation == AppRoutes.profileSetup
+              ? null
+              : AppRoutes.profileSetup;
         }
 
         // If profile completion check is still loading, don't redirect yet
@@ -362,6 +371,19 @@ final routerProvider = Provider<GoRouter>((ref) {
             context: context,
             state: state,
             child: StartSessionPage(initialType: initialType),
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.matchmaking,
+        pageBuilder: (context, state) {
+          final type = WorkoutType.fromString(
+            state.uri.queryParameters['type'] ?? WorkoutType.gym.value,
+          );
+          return buildModalPageTransition(
+            context: context,
+            state: state,
+            child: MatchmakingPage(workoutType: type),
           );
         },
       ),

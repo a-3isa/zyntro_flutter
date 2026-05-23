@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
-import '../../../app/navigation/app_router.dart';
+import '../../../app/navigation/app_route_locations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/constants.dart';
 import '../../auth/auth_providers.dart';
@@ -128,7 +128,12 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
         if (!mounted) return;
         
         if (action == 'resume') {
-          context.push('${AppRoutes.sessionRoom.replaceFirst(':sessionId', existingSessionId)}?type=gym');
+          context.push(
+            AppRouteLocations.sessionRoom(
+              existingSessionId,
+              type: _selectedType.value,
+            ),
+          );
           return;
         } else if (action == 'end') {
           setState(() => _isLoading = true);
@@ -154,12 +159,13 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
 
       if (mounted) {
         if (_selectedType == WorkoutType.gym) {
-          context.push(
-            AppRoutes.gymSessionSetup.replaceFirst(':sessionId', sessionId),
-          );
+          context.push(AppRouteLocations.gymSessionSetup(sessionId));
         } else {
           context.push(
-            '${AppRoutes.sessionRoom.replaceFirst(':sessionId', sessionId)}?type=${_selectedType.value}',
+            AppRouteLocations.sessionRoom(
+              sessionId,
+              type: _selectedType.value,
+            ),
           );
         }
       }
@@ -348,6 +354,14 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                     children: [
                       // Workout type selection
                       const SectionHeader(title: 'Workout Type'),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Pick the session type that matches your workout and invite friends to join.',
+                        style: TextStyle(
+                          color: AppColors.textTertiaryDark,
+                          fontSize: 13,
+                        ),
+                      ),
                       const SizedBox(height: 16),
 
                       // Responsive grid for workout types
@@ -364,7 +378,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                                   crossAxisCount: crossAxisCount,
                                   crossAxisSpacing: 12,
                                   mainAxisSpacing: 12,
-                                  childAspectRatio: 0.95,
+                                  childAspectRatio: 1.0,
                                 ),
                             itemCount: WorkoutType.values.length,
                             itemBuilder: (context, index) {
@@ -435,7 +449,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                           ),
                           child: TextField(
                             controller: _searchController,
-                            style: const TextStyle(color: AppColors.textDark, fontSize: 14),
+                            style: const TextStyle(color: AppColors.textDark, fontSize: 13.5),
                             decoration: InputDecoration(
                               hintText: 'Search friends...',
                               hintStyle: TextStyle(
@@ -444,7 +458,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                               prefixIcon: Icon(
                                 Icons.search_rounded,
                                 color: AppColors.textSecondaryDark,
-                                size: 20,
+                                size: 18,
                               ),
                               border: InputBorder.none,
                               contentPadding: const EdgeInsets.symmetric(
@@ -469,7 +483,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                             children: [
                               Icon(
                                 Icons.person_add_outlined,
-                                size: 48,
+                                size: 40,
                                 color: AppColors.textTertiaryDark,
                               ),
                               const SizedBox(height: 16),
@@ -501,10 +515,10 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
 
                       const SizedBox(height: 40),
 
-                      // Start button
+                      // Start solo / with friends button
                       ZyntroButton(
                         title: _selectedFriends.isEmpty
-                            ? 'Start ${_selectedType.displayName} Session'
+                            ? 'Start Solo'
                             : 'Start with ${_selectedFriends.length + 1} athletes',
                         fullWidth: true,
                         size: ZyntroButtonSize.lg,
@@ -516,6 +530,65 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                           _handleStartSession();
                         },
                       ),
+
+                      // Random match option (only when no friends selected)
+                      if (_selectedFriends.isEmpty) ...[
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Divider(
+                                color: Colors.white.withValues(alpha: 0.08),
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              child: Text(
+                                'or',
+                                style: TextStyle(
+                                  color: AppColors.textTertiaryDark,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: Divider(
+                                color: Colors.white.withValues(alpha: 0.08),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: _isLoading
+                                ? null
+                                : () {
+                                    HapticManager.light();
+                                    context.push(
+                                      AppRouteLocations.matchmaking(
+                                        _selectedType,
+                                      ),
+                                    );
+                                  },
+                            icon: const Icon(Icons.shuffle_rounded, size: 20),
+                            label: Text(
+                              'Find a Random ${_selectedType.displayName} Partner',
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.textSecondaryDark,
+                              side: BorderSide(
+                                color: Colors.white.withValues(alpha: 0.12),
+                              ),
+                              minimumSize: const Size.fromHeight(52),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
 
                       const SizedBox(height: 40),
                     ],
@@ -571,26 +644,17 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? Colors.white.withValues(alpha: 0.2)
-                      : gradientColors.first.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(
-                  icon,
-                  size: 32,
-                  color: isSelected ? Colors.white : gradientColors.first,
-                ),
+              Icon(
+                icon,
+                size: 28,
+                color: isSelected ? Colors.white : gradientColors.first,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               Text(
                 type.displayName,
                 style: TextStyle(
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                  fontSize: 14,
+                  fontSize: 13,
                   color: isSelected ? Colors.white : AppColors.textDark,
                 ),
                 textAlign: TextAlign.center,
@@ -695,7 +759,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                   isSelected ? Icons.check_circle_rounded : Icons.add_circle_outline_rounded,
                   key: ValueKey(isSelected),
                   color: isSelected ? AppColors.primary : AppColors.textTertiaryDark,
-                  size: 26,
+                  size: 24,
                 ),
               ),
             ],
@@ -776,3 +840,4 @@ class SectionHeader extends StatelessWidget {
     );
   }
 }
+

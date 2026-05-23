@@ -669,6 +669,7 @@ class SessionPage extends ConsumerWidget {
     required Color color,
     required int index,
     required VoidCallback onTap,
+    ZyntroButtonVariant variant = ZyntroButtonVariant.primary,
   }) {
     return SlideInAnimation.fromRight(
       index: index,
@@ -686,7 +687,7 @@ class SessionPage extends ConsumerWidget {
                 color: color.withValues(alpha: 0.05),
                 border: Border.all(
                   color: color.withValues(alpha: 0.25),
-                  width: 2,
+                  width: variant == ZyntroButtonVariant.primary ? 2 : 1,
                 ),
               ),
               child: Column(

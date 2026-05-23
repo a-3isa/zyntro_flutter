@@ -4,6 +4,7 @@ import 'dart:io' show Platform;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -589,11 +590,20 @@ class NotificationService {
       }
 
       final idToken = await currentUser.getIdToken();
+      final appCheckToken = await FirebaseAppCheck.instance.getToken(false);
+      if (appCheckToken == null || appCheckToken.isEmpty) {
+        debugPrint(
+          '[NotificationService] Skipping push delivery because no App Check token is available.',
+        );
+        return;
+      }
+
       final response = await _httpClient.post(
         Uri.parse(_pushDeliveryUrl),
         headers: <String, String>{
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
+          'X-Firebase-AppCheck': appCheckToken,
         },
         body: jsonEncode(<String, dynamic>{
           'type': type.value,

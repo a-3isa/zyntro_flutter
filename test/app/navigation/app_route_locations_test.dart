@@ -42,5 +42,21 @@ void main() {
         '/session/room/session-1?type=strength',
       );
     });
+
+    test('encodes session room audio url query parameters', () {
+      final location = AppRouteLocations.sessionRoom(
+        'session-1',
+        type: WorkoutType.gym.value,
+        audioUrl: 'https://cdn.example.test/audio.mp3?token=a&b=c',
+      );
+
+      final uri = Uri.parse(location);
+      expect(uri.path, '/session/room/session-1');
+      expect(uri.queryParameters['type'], WorkoutType.gym.value);
+      expect(
+        uri.queryParameters['audioUrl'],
+        'https://cdn.example.test/audio.mp3?token=a&b=c',
+      );
+    });
   });
 }

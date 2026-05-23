@@ -1,0 +1,48 @@
+<h2>Choose a Background Direction</h2>
+<p class="subtitle">Each option shows the splash asset and app icon with the checkerboard removed and a real background added.</p>
+
+<div class="cards">
+  <div class="card" data-choice="a-navy" onclick="toggleSelect(this)">
+    <div class="card-image" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:center">
+      <img src="previews/splash-navy.png" style="width:100%;border-radius:18px;box-shadow:0 18px 50px rgba(0,0,0,.24)" alt="Splash on solid navy">
+      <img src="previews/icon-navy.png" style="width:100%;border-radius:28px;box-shadow:0 18px 50px rgba(0,0,0,.24)" alt="Icon on solid navy">
+    </div>
+    <div class="card-body">
+      <h3>A. Solid Brand Navy</h3>
+      <p>Matches the current splash config color exactly. Clean, safest, and consistent across Android/iOS generation.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b-glow" onclick="toggleSelect(this)">
+    <div class="card-image" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:center">
+      <img src="previews/splash-glow.png" style="width:100%;border-radius:18px;box-shadow:0 18px 50px rgba(0,0,0,.24)" alt="Splash on navy glow">
+      <img src="previews/icon-glow.png" style="width:100%;border-radius:28px;box-shadow:0 18px 50px rgba(0,0,0,.24)" alt="Icon on navy glow">
+    </div>
+    <div class="card-body">
+      <h3>B. Subtle Teal Glow</h3>
+      <p>Still dark and brand-safe, but gives the logo a bit more depth and premium polish.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c-electric" onclick="toggleSelect(this)">
+    <div class="card-image" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:center">
+      <img src="previews/splash-electric.png" style="width:100%;border-radius:18px;box-shadow:0 18px 50px rgba(0,0,0,.24)" alt="Splash on energetic dark gradient">
+      <img src="previews/icon-electric.png" style="width:100%;border-radius:28px;box-shadow:0 18px 50px rgba(0,0,0,.24)" alt="Icon on energetic dark gradient">
+    </div>
+    <div class="card-body">
+      <h3>C. Electric Gradient</h3>
+      <p>More motion and fitness energy. Stronger personality, but less restrained than the existing app theme.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="d-light" onclick="toggleSelect(this)">
+    <div class="card-image" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:center">
+      <img src="previews/splash-light.png" style="width:100%;border-radius:18px;box-shadow:0 18px 50px rgba(0,0,0,.18)" alt="Splash on light neutral">
+      <img src="previews/icon-light.png" style="width:100%;border-radius:28px;box-shadow:0 18px 50px rgba(0,0,0,.18)" alt="Icon on light neutral">
+    </div>
+    <div class="card-body">
+      <h3>D. Light Neutral</h3>
+      <p>High contrast and app-store friendly, but it departs from the current dark splash experience.</p>
+    </div>
+  </div>
+</div>

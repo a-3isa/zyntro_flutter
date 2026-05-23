@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zyntro_flutter/features/session/presentation/widgets/active_turn_screen.dart';
 
 void main() {
-  Widget _build({
+  Widget buildSubject({
     String exerciseName = 'Bench Press',
     int setNumber = 1,
     void Function({required int reps, required double weight, required int durationSeconds})? onSetSubmit,
@@ -21,7 +21,7 @@ void main() {
   }
 
   testWidgets('shows exercise name and START button in READY phase', (tester) async {
-    await tester.pumpWidget(_build(exerciseName: 'Squat', setNumber: 2));
+    await tester.pumpWidget(buildSubject(exerciseName: 'Squat', setNumber: 2));
 
     expect(find.text('Squat'), findsAny);
     expect(find.text('Set 2'), findsAny);
@@ -29,7 +29,7 @@ void main() {
   });
 
   testWidgets('tapping START transitions to TIMING phase showing stopwatch', (tester) async {
-    await tester.pumpWidget(_build());
+    await tester.pumpWidget(buildSubject());
 
     await tester.tap(find.text('START'));
     await tester.pump();
@@ -40,7 +40,7 @@ void main() {
   });
 
   testWidgets('tapping screen in TIMING phase transitions to REPS phase', (tester) async {
-    await tester.pumpWidget(_build());
+    await tester.pumpWidget(buildSubject());
 
     await tester.tap(find.text('START'));
     await tester.pump();
@@ -58,7 +58,7 @@ void main() {
     int? receivedReps;
     double? receivedWeight;
 
-    await tester.pumpWidget(_build(
+    await tester.pumpWidget(buildSubject(
       onSetSubmit: ({required reps, required weight, required durationSeconds}) {
         receivedReps = reps;
         receivedWeight = weight;
@@ -93,7 +93,7 @@ void main() {
   });
 
   testWidgets('after submit resets to READY phase', (tester) async {
-    await tester.pumpWidget(_build());
+    await tester.pumpWidget(buildSubject());
 
     await tester.tap(find.text('START'));
     await tester.pump();
@@ -117,7 +117,7 @@ void main() {
 
   testWidgets('shows Pass Turn button when onTurnEnd provided', (tester) async {
     bool called = false;
-    await tester.pumpWidget(_build(onTurnEnd: () => called = true));
+    await tester.pumpWidget(buildSubject(onTurnEnd: () => called = true));
 
     expect(find.text('Pass Turn'), findsAny);
     await tester.tap(find.text('Pass Turn'));

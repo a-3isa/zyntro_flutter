@@ -10,6 +10,7 @@ import 'package:flutter_stripe/flutter_stripe.dart';
 
 import 'app/app.dart';
 import 'app/app_runtime_config.dart';
+import 'app/runtime_environment_values.dart';
 import 'utils/offline_handlers.dart';
 import 'services/notification_service.dart';
 import 'services/storage_service.dart';
@@ -27,7 +28,10 @@ void main() async {
   // Load environment-specific .env file
   // Use: flutter run --dart-define=ENV=dev|staging|prod
   final environment = AppRuntimeEnvironment.fromName(
-    const String.fromEnvironment('ENV', defaultValue: 'dev'),
+    const String.fromEnvironment(
+      'ENV',
+      defaultValue: kReleaseMode ? 'prod' : 'dev',
+    ),
   );
   final envFile = environment.envFileName;
 
@@ -35,18 +39,13 @@ void main() async {
     '[AppCheck] ENV=${environment.name}, androidProvider=${environment.androidProvider}, appleProvider=${environment.appleProvider}',
   );
 
-  try {
-    await dotenv.load(fileName: envFile);
-  } catch (e) {
-    // Fallback to default .env
-    await dotenv.load(fileName: '.env');
-  }
+  await _loadLocalEnvironment(envFile);
 
   // Initialize Global Error Handler
   GlobalErrorHandler().init();
 
   // Initialize Stripe
-  Stripe.publishableKey = dotenv.env['STRIPE_PUBLISHABLE_KEY'] ?? '';
+  Stripe.publishableKey = RuntimeEnvironmentValues.stripePublishableKey;
 
   // Initialize App Check
   await FirebaseAppCheck.instance.activate(
@@ -75,6 +74,25 @@ void main() async {
       child: const ErrorBoundaryWidget(child: ZyntroApp()),
     ),
   );
+}
+
+Future<void> _loadLocalEnvironment(String envFile) async {
+  try {
+    await dotenv.load(fileName: envFile);
+    return;
+  } catch (_) {
+    // Local env files are intentionally not bundled in release artifacts.
+  }
+
+  if (envFile == '.env') {
+    return;
+  }
+
+  try {
+    await dotenv.load(fileName: '.env');
+  } catch (_) {
+    // Continue with dart-define values when no local env file is available.
+  }
 }
 
 Future<void> _logAndroidAppCheckDebugSecretIfNeeded(

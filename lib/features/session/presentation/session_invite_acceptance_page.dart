@@ -59,6 +59,9 @@ class _SessionInviteAcceptancePageState
     final session = sessionAsync.valueOrNull;
     if (session == null) {
       // Wait until session resolves; will be retried from build via _ensureInitialized.
+      if (mounted) {
+        setState(() => _isLoadingHost = false);
+      }
       return;
     }
     await _ensureHostAndDefaults(session);
@@ -533,6 +536,7 @@ class _SessionInviteAcceptancePageState
                     )
                   else
                     GymPlanEditor(
+                      key: const Key('gym_plan_editor'),
                       exercises: _exercises,
                       onAddExercise: _openExercisePicker,
                       onRemoveExercise: _removeExercise,

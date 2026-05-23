@@ -5,7 +5,7 @@ workflows:
     max_build_duration: 60
     instance_type: mac_mini_m1
     environment:
-      flutter: 3.24.0
+      flutter: 3.38.9
       java: 17
       groups:
         - firebase_credentials
@@ -18,33 +18,20 @@ workflows:
           echo "keyAlias=$KEY_ALIAS" >> android/key.properties
           echo "storeFile=$CM_KEYSTORE_PATH" >> android/key.properties
       
-      - name: Set up environment
-        script: |
-          echo "FIREBASE_API_KEY=$FIREBASE_API_KEY" > .env
-          echo "FIREBASE_AUTH_DOMAIN=$FIREBASE_AUTH_DOMAIN" >> .env
-          echo "FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID" >> .env
-          echo "FIREBASE_STORAGE_BUCKET=$FIREBASE_STORAGE_BUCKET" >> .env
-          echo "FIREBASE_MESSAGING_SENDER_ID=$FIREBASE_MESSAGING_SENDER_ID" >> .env
-          echo "FIREBASE_APP_ID=$FIREBASE_APP_ID" >> .env
-          echo "ENV=production" >> .env
-          echo "STRIPE_PUBLISHABLE_KEY=$STRIPE_PUBLISHABLE_KEY" >> .env
-      
       - name: Get Flutter packages
         script: flutter pub get
       
       - name: Run Flutter analyze
         script: flutter analyze
-        ignore_failure: true
       
       - name: Run tests
         script: flutter test
-        ignore_failure: true
       
       - name: Build APK
-        script: flutter build apk --flavor prod --dart-define=ENV=prod --release
+        script: flutter build apk --dart-define=ENV=prod --dart-define=STRIPE_PUBLISHABLE_KEY=$STRIPE_PUBLISHABLE_KEY --release
       
       - name: Build App Bundle
-        script: flutter build appbundle --flavor prod --dart-define=ENV=prod --release
+        script: flutter build appbundle --dart-define=ENV=prod --dart-define=STRIPE_PUBLISHABLE_KEY=$STRIPE_PUBLISHABLE_KEY --release
     
     artifacts:
       - build/app/outputs/flutter-apk/*.apk
@@ -64,23 +51,12 @@ workflows:
     integrations:
       app_store_connect: Zyntro App Store Connect
     environment:
-      flutter: 3.24.0
+      flutter: 3.38.9
       xcode: latest
       cocoapods: default
       groups:
         - firebase_credentials
     scripts:
-      - name: Set up environment
-        script: |
-          echo "FIREBASE_API_KEY=$FIREBASE_API_KEY" > .env
-          echo "FIREBASE_AUTH_DOMAIN=$FIREBASE_AUTH_DOMAIN" >> .env
-          echo "FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID" >> .env
-          echo "FIREBASE_STORAGE_BUCKET=$FIREBASE_STORAGE_BUCKET" >> .env
-          echo "FIREBASE_MESSAGING_SENDER_ID=$FIREBASE_MESSAGING_SENDER_ID" >> .env
-          echo "FIREBASE_APP_ID=$FIREBASE_APP_ID" >> .env
-          echo "ENV=production" >> .env
-          echo "STRIPE_PUBLISHABLE_KEY=$STRIPE_PUBLISHABLE_KEY" >> .env
-      
       - name: Set up code signing settings on Xcode project
         script: xcode-project use-profiles
       
@@ -95,14 +71,12 @@ workflows:
       
       - name: Run Flutter analyze
         script: flutter analyze
-        ignore_failure: true
       
       - name: Run tests
         script: flutter test
-        ignore_failure: true
       
       - name: Build IPA
-        script: flutter build ipa --flavor prod --dart-define=ENV=prod --release --export-options-plist=/Users/builder/export_options.plist
+        script: flutter build ipa --dart-define=ENV=prod --dart-define=STRIPE_PUBLISHABLE_KEY=$STRIPE_PUBLISHABLE_KEY --release --export-options-plist=/Users/builder/export_options.plist
     
     artifacts:
       - build/ios/ipa/*.ipa
@@ -120,7 +94,7 @@ workflows:
     max_build_duration: 30
     instance_type: mac_mini_m1
     environment:
-      flutter: 3.24.0
+      flutter: 3.38.9
       java: 17
     triggering:
       events:
@@ -139,7 +113,7 @@ workflows:
         script: flutter test
       
       - name: Build APK (debug)
-        script: flutter build apk --flavor dev --dart-define=ENV=dev --debug
+        script: flutter build apk --dart-define=ENV=dev --debug
     
     artifacts:
       - build/app/outputs/flutter-apk/*.apk

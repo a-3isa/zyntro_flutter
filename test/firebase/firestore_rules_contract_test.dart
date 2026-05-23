@@ -39,5 +39,32 @@ void main() {
       expect(rules, contains('match /pushQueue/{messageId}'));
       expect(rules, contains('allow read, create, update, delete: if false;'));
     });
+
+    test('protect privileged user fields from owner writes', () {
+      expect(rules, contains('privilegedUserFields()'));
+      expect(rules, contains('isPrivilegedUserCreate()'));
+      expect(rules, contains('isPrivilegedUserFieldChange()'));
+      expect(rules, contains('hasGlobalLeaderboardAccess'));
+      expect(rules, contains('isModerator'));
+    });
+
+    test('restrict cross-user notification creation to the owner', () {
+      expect(
+        rules,
+        contains(
+          'allow create: if isOwner(userId) && request.resource.data.userId == userId;',
+        ),
+      );
+    });
+
+    test('prevents followers from self-approving follow requests', () {
+      expect(rules, contains('isFollowStatusChange()'));
+      expect(
+        rules,
+        contains(
+          'resource.data.followerId == request.auth.uid && !isFollowStatusChange()',
+        ),
+      );
+    });
   });
 }
