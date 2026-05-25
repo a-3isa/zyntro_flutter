@@ -36,7 +36,8 @@ class ActiveTurnScreen extends StatefulWidget {
   State<ActiveTurnScreen> createState() => _ActiveTurnScreenState();
 }
 
-class _ActiveTurnScreenState extends State<ActiveTurnScreen> {
+class _ActiveTurnScreenState extends State<ActiveTurnScreen>
+    with TickerProviderStateMixin {
   _ActiveTurnPhase _phase = _ActiveTurnPhase.ready;
 
   Timer? _timer;
@@ -49,13 +50,45 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen> {
   // Pulse state for TIMING phase (toggled by the same ticking [_timer]).
   bool _pulseOn = false;
 
+  late AnimationController _repBounceController;
+  late Animation<double> _repBounceAnim;
+  late Animation<Color?> _repColorAnim;
+
   static const List<double> _quickPicks = [40, 60, 80, 100, 120];
   static const List<double> _increments = [-10, -5, -2.5, 2.5, 5, 10];
+
+  @override
+  void initState() {
+    super.initState();
+    _repBounceController = AnimationController(
+      duration: const Duration(milliseconds: 220),
+      vsync: this,
+    );
+    _repBounceAnim = TweenSequence<double>(<TweenSequenceItem<double>>[
+      TweenSequenceItem<double>(
+        tween: Tween<double>(begin: 1.0, end: 1.18),
+        weight: 40,
+      ),
+      TweenSequenceItem<double>(
+        tween: Tween<double>(begin: 1.18, end: 1.0),
+        weight: 60,
+      ),
+    ]).animate(
+      CurvedAnimation(parent: _repBounceController, curve: AppCurves.spring),
+    );
+    _repColorAnim = ColorTween(
+      begin: AppColors.textV2Primary,
+      end: AppColors.accentLime,
+    ).animate(
+      CurvedAnimation(parent: _repBounceController, curve: Curves.easeOut),
+    );
+  }
 
   @override
   void dispose() {
     _timer?.cancel();
     _weightFocus.dispose();
+    _repBounceController.dispose();
     super.dispose();
   }
 
@@ -88,6 +121,8 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen> {
       _weight = 0.0;
       _phase = _ActiveTurnPhase.weight;
     });
+    HapticFeedback.mediumImpact();
+    _repBounceController.forward(from: 0);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _weightFocus.requestFocus();
     });
@@ -351,27 +386,36 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           // Reps badge
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppColors.accentLime.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(
-                  color: AppColors.accentLime.withValues(alpha: 0.40),
+          AnimatedBuilder(
+            animation: _repBounceController,
+            builder: (BuildContext context, Widget? child) {
+              return Transform.scale(
+                scale: _repBounceAnim.value,
+                alignment: Alignment.centerLeft,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.accentLime.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: AppColors.accentLime.withValues(alpha: 0.40),
+                      ),
+                    ),
+                    child: Text(
+                      '$_reps reps',
+                      style: GoogleFonts.syne(
+                        color: _repColorAnim.value ?? AppColors.accentLime,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-              child: Text(
-                '$_reps reps',
-                style: GoogleFonts.syne(
-                  color: AppColors.accentLime,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
+              );
+            },
           ),
           const SizedBox(height: 24),
           // Weight display

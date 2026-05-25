@@ -1,5 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../core/theme/app_theme.dart';
 
@@ -26,6 +27,7 @@ class _RepCounterScreenState extends State<RepCounterScreen>
   late int _repCount;
   late AnimationController _bounceController;
   late Animation<double> _bounceAnimation;
+  late Animation<Color?> _repColorAnim;
 
   @override
   void initState() {
@@ -33,20 +35,22 @@ class _RepCounterScreenState extends State<RepCounterScreen>
     _repCount = widget.initialCount;
     _bounceController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 120),
+      duration: const Duration(milliseconds: 220),
     );
     _bounceAnimation = TweenSequence<double>(<TweenSequenceItem<double>>[
       TweenSequenceItem<double>(
-        tween: Tween<double>(begin: 1.0, end: 1.3)
-            .chain(CurveTween(curve: Curves.easeOut)),
-        weight: 50,
+        tween: Tween<double>(begin: 1.0, end: 1.18),
+        weight: 40,
       ),
       TweenSequenceItem<double>(
-        tween: Tween<double>(begin: 1.3, end: 1.0)
-            .chain(CurveTween(curve: Curves.easeIn)),
-        weight: 50,
+        tween: Tween<double>(begin: 1.18, end: 1.0),
+        weight: 60,
       ),
-    ]).animate(_bounceController);
+    ]).animate(CurvedAnimation(parent: _bounceController, curve: AppCurves.spring));
+    _repColorAnim = ColorTween(
+      begin: AppColors.textV2Primary,
+      end: AppColors.accentLime,
+    ).animate(CurvedAnimation(parent: _bounceController, curve: Curves.easeOut));
   }
 
   @override
@@ -56,7 +60,7 @@ class _RepCounterScreenState extends State<RepCounterScreen>
   }
 
   void _handleTap() {
-    HapticFeedback.selectionClick();
+    HapticFeedback.mediumImpact();
     setState(() => _repCount += 1);
     _bounceController.forward(from: 0.0);
   }
@@ -83,21 +87,34 @@ class _RepCounterScreenState extends State<RepCounterScreen>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
-                    ScaleTransition(
-                      scale: _bounceAnimation,
-                      child: AnimatedDefaultTextStyle(
-                        duration: const Duration(milliseconds: 150),
-                        style: TextStyle(
-                          color: _repCount == 0
-                              ? AppColors.textV2Tertiary
-                              : AppColors.accentLime,
-                          fontSize: _repCount == 0 ? 40.0 : 108.0,
-                          fontWeight: FontWeight.w800,
-                          height: 1.0,
-                          letterSpacing: -4,
-                        ),
-                        child: Text(_repCount == 0 ? 'TAP' : '$_repCount'),
-                      ),
+                    AnimatedBuilder(
+                      animation: _bounceController,
+                      builder: (BuildContext context, Widget? child) {
+                        return Transform.scale(
+                          scale: _bounceAnimation.value,
+                          child: _repCount == 0
+                              ? Text(
+                                  'TAP',
+                                  style: GoogleFonts.syne(
+                                    fontSize: 40,
+                                    fontWeight: FontWeight.w900,
+                                    color: AppColors.textV2Tertiary,
+                                    letterSpacing: -3,
+                                    height: 1,
+                                  ),
+                                )
+                              : Text(
+                                  '$_repCount',
+                                  style: GoogleFonts.syne(
+                                    fontSize: 80,
+                                    fontWeight: FontWeight.w900,
+                                    color: _repColorAnim.value ?? AppColors.textV2Primary,
+                                    letterSpacing: -3,
+                                    height: 1,
+                                  ),
+                                ),
+                        );
+                      },
                     ),
                     if (_repCount > 0) ...<Widget>[
                       const SizedBox(height: 8),
