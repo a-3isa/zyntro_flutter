@@ -13,3 +13,4 @@ export 'post_card_widget.dart';
 export 'premium_effects.dart';
 export 'shimmer_widgets.dart';
 export 'fluttermoji_avatar.dart';
+export 'celebration_overlay.dart';

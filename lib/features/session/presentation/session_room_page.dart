@@ -25,6 +25,7 @@ import '../../../widgets/shimmer_widgets.dart';
 import '../../../widgets/connection_status_widget.dart';
 import '../../../services/storage_service.dart';
 import '../../../widgets/session_error_banner.dart';
+import '../../../widgets/celebration_overlay.dart';
 import '../../../utils/haptic_manager.dart';
 import 'widgets/active_turn_screen.dart';
 import 'widgets/waiting_turn_screen.dart';
@@ -2188,7 +2189,15 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           .endSession(widget.sessionId, uid, summary);
 
       if (mounted) {
-        context.push(AppRouteLocations.sessionRecap(widget.sessionId));
+        await showCelebration(
+          context,
+          title: 'Workout Complete!',
+          subtitle: 'Great work — keep the momentum going',
+          emoji: '💪',
+        );
+        if (mounted) {
+          context.push(AppRouteLocations.sessionRecap(widget.sessionId));
+        }
       }
     } catch (e) {
       if (mounted) {
