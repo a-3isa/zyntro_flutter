@@ -164,30 +164,61 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
 
       if (existingSessionId != null && mounted) {
         setState(() => _isLoading = false);
-        final action = await showDialog<String>(
+        final action = await showModalBottomSheet<String>(
           context: context,
-          builder: (ctx) => AlertDialog(
-            backgroundColor: AppColors.surfaceV2Elevated,
-            title: const Text('Active Session Found', style: TextStyle(color: AppColors.textV2Primary, fontWeight: FontWeight.bold)),
-            content: const Text(
-              'You already have an active workout in progress. Would you like to resume it, or end it to start this new one?',
-              style: TextStyle(color: AppColors.textV2Secondary),
+          backgroundColor: Colors.transparent,
+          builder: (ctx) => Container(
+            margin: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceV2Elevated,
+              borderRadius: BorderRadius.circular(24),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, 'cancel'),
-                child: const Text('Cancel', style: TextStyle(color: AppColors.textV2Tertiary)),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, 'resume'),
-                child: const Text('Resume Active', style: TextStyle(color: AppColors.primary)),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-                onPressed: () => Navigator.pop(ctx, 'end'),
-                child: const Text('End Old & Start New', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              ),
-            ],
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Active Session Found',
+                  style: GoogleFonts.syne(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textV2Primary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'You already have a workout in progress. Resume it or end it to start a new one.',
+                  style: GoogleFonts.outfit(
+                    fontSize: 14,
+                    color: AppColors.textV2Secondary,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                ZyntroButton(
+                  title: 'Resume Active Session',
+                  variant: ZyntroButtonVariant.primary,
+                  fullWidth: true,
+                  onPressed: () => Navigator.pop(ctx, 'resume'),
+                ),
+                const SizedBox(height: 8),
+                ZyntroButton(
+                  title: 'End Old & Start New',
+                  variant: ZyntroButtonVariant.destructive,
+                  fullWidth: true,
+                  onPressed: () => Navigator.pop(ctx, 'end'),
+                ),
+                const SizedBox(height: 8),
+                ZyntroButton(
+                  title: 'Cancel',
+                  variant: ZyntroButtonVariant.ghost,
+                  fullWidth: true,
+                  onPressed: () => Navigator.pop(ctx, 'cancel'),
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
           ),
         );
 
@@ -239,7 +270,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: AppColors.error,
+        backgroundColor: AppColors.errorV2,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
@@ -328,11 +359,11 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: isSelected
-                ? AppColors.primary.withValues(alpha: 0.1)
+                ? AppColors.accentLime.withValues(alpha: 0.1)
                 : AppColors.surfaceV2Elevated.withValues(alpha: 0.4),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: isSelected ? AppColors.primary.withValues(alpha: 0.4) : Colors.white.withValues(alpha: 0.05),
+              color: isSelected ? AppColors.accentLime.withValues(alpha: 0.4) : Colors.white.withValues(alpha: 0.05),
             ),
           ),
           child: Row(
@@ -343,7 +374,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: isSelected ? AppColors.primary : Colors.white.withValues(alpha: 0.1),
+                    color: isSelected ? AppColors.accentLime : Colors.white.withValues(alpha: 0.1),
                     width: 2,
                   ),
                 ),
@@ -386,7 +417,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                 child: Icon(
                   isSelected ? Icons.check_circle_rounded : Icons.add_circle_outline_rounded,
                   key: ValueKey(isSelected),
-                  color: isSelected ? AppColors.primary : AppColors.textV2Tertiary,
+                  color: isSelected ? AppColors.accentLime : AppColors.textV2Tertiary,
                   size: 24,
                 ),
               ),
