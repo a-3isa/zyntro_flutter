@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../../app/navigation/app_route_locations.dart';
 import '../../../core/theme/app_theme.dart';
@@ -2452,15 +2453,9 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
             ),
           ),
           const SizedBox(width: 8),
-          Text(
-            _formatElapsedTime(_elapsedTime),
-            style: const TextStyle(
-              fontFamily: 'Outfit',
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
-              letterSpacing: 1,
-            ),
+          _DominantTimer(
+            elapsed: _elapsedTime,
+            workoutType: _workoutType.displayName,
           ),
           const SizedBox(width: 12),
           GestureDetector(
@@ -2787,6 +2782,102 @@ class _BounceAnimationState extends State<BounceAnimation>
         builder: (context, child) => Transform.scale(
           scale: _scaleAnimation.value,
           child: widget.child,
+        ),
+      ),
+    );
+  }
+}
+
+class _DominantTimer extends StatefulWidget {
+  final Duration elapsed;
+  final String workoutType;
+
+  const _DominantTimer({required this.elapsed, required this.workoutType});
+
+  @override
+  State<_DominantTimer> createState() => _DominantTimerState();
+}
+
+class _DominantTimerState extends State<_DominantTimer>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _glowController;
+  late Animation<double> _glowAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _glowController = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    )..repeat(reverse: true);
+    _glowAnim = Tween<double>(begin: 20.0, end: 40.0).animate(
+      CurvedAnimation(parent: _glowController, curve: AppCurves.smooth),
+    );
+  }
+
+  @override
+  void dispose() {
+    _glowController.dispose();
+    super.dispose();
+  }
+
+  Color _timerColor(Duration elapsed) {
+    final minutes = elapsed.inMinutes;
+    if (minutes < 45) return AppColors.accentLime;
+    if (minutes < 90) {
+      final t = (minutes - 45) / 45.0;
+      return Color.lerp(AppColors.accentLime, AppColors.warnV2, t)!;
+    }
+    final t = ((minutes - 90) / 30.0).clamp(0.0, 1.0);
+    return Color.lerp(AppColors.warnV2, AppColors.errorV2, t)!;
+  }
+
+  String _format(Duration d) {
+    final h = d.inHours;
+    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return h > 0 ? '$h:$m:$s' : '$m:$s';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _timerColor(widget.elapsed);
+    return AnimatedBuilder(
+      animation: _glowAnim,
+      builder: (context, _) => Container(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        decoration: BoxDecoration(
+          boxShadow: [
+            BoxShadow(
+              color: color.withValues(alpha: 0.3),
+              blurRadius: _glowAnim.value,
+              spreadRadius: 0,
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Text(
+              _format(widget.elapsed),
+              style: GoogleFonts.syne(
+                fontSize: 64,
+                fontWeight: FontWeight.w900,
+                color: color,
+                letterSpacing: -3,
+                height: 1,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              widget.workoutType.toUpperCase(),
+              style: GoogleFonts.outfit(
+                fontSize: 11,
+                color: AppColors.textV2Tertiary,
+                letterSpacing: 0.12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
         ),
       ),
     );
