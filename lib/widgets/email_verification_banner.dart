@@ -243,7 +243,7 @@ class _EmailVerificationBannerState
                   style: TextStyle(
                     fontSize: AppFontSize.md,
                     fontWeight: FontWeight.w500,
-                    color: AppColors.textLight,
+                    color: AppColors.textV2Primary,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -251,7 +251,7 @@ class _EmailVerificationBannerState
                   'Check your inbox for the verification link',
                   style: TextStyle(
                     fontSize: AppFontSize.sm,
-                    color: AppColors.textSecondaryLight,
+                    color: AppColors.textV2Secondary,
                   ),
                 ),
               ],

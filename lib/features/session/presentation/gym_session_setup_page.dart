@@ -1,6 +1,8 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../../app/navigation/app_route_locations.dart';
 import '../../../core/constants/constants.dart';
@@ -225,7 +227,7 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
     final sessionAsync = ref.watch(currentSessionProvider(widget.sessionId));
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: AppColors.backgroundV2,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -251,30 +253,34 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
   }
 
   Widget _buildLoadingShell() {
-    return const Column(
+    return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       mainAxisSize: MainAxisSize.min,
       children: [
-        SizedBox(
+        const SizedBox(
           width: 32,
           height: 32,
-          child: CircularProgressIndicator(strokeWidth: 3),
+          child: CircularProgressIndicator(
+            strokeWidth: 3,
+            color: AppColors.accentLime,
+          ),
         ),
-        SizedBox(height: 20),
+        const SizedBox(height: 20),
         Text(
           'Preparing your gym session',
-          style: TextStyle(
-            color: AppColors.textDark,
+          style: GoogleFonts.syne(
+            color: AppColors.textV2Primary,
             fontSize: 18,
             fontWeight: FontWeight.w600,
+            letterSpacing: -0.3,
           ),
           textAlign: TextAlign.center,
         ),
-        SizedBox(height: 8),
+        const SizedBox(height: 8),
         Text(
-          'We are loading the setup details now.',
-          style: TextStyle(
-            color: AppColors.textSecondaryDark,
+          'Loading the setup details now.',
+          style: GoogleFonts.outfit(
+            color: AppColors.textV2Secondary,
             fontSize: 14,
           ),
           textAlign: TextAlign.center,
@@ -303,13 +309,13 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
             ),
           ),
           const SizedBox(height: 20),
-          const Text(
-            'Gym session setup',
-            style: TextStyle(
-              color: AppColors.textDark,
+          Text(
+            'Gym Session Setup',
+            style: GoogleFonts.syne(
+              color: AppColors.textV2Primary,
               fontSize: 24,
-              fontWeight: FontWeight.bold,
-              letterSpacing: -0.4,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.8,
             ),
             textAlign: TextAlign.center,
           ),
@@ -318,19 +324,20 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
             _isReady
                 ? 'Your plan is locked in. We will jump to the live room once everyone is ready.'
                 : 'Prepare your plan before jumping into the live room.',
-            style: const TextStyle(
-              color: AppColors.textSecondaryDark,
-              fontSize: 15,
+            style: GoogleFonts.outfit(
+              color: AppColors.textV2Secondary,
+              fontSize: 14,
             ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 20),
           Text(
             session.title,
-            style: const TextStyle(
-              color: AppColors.textDark,
+            style: GoogleFonts.syne(
+              color: AppColors.textV2Primary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
+              letterSpacing: -0.3,
             ),
             textAlign: TextAlign.center,
           ),
@@ -355,28 +362,47 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
               _isReady
                   ? 'Waiting for the rest of the group to finish setup.'
                   : 'Each athlete can personalize their own copy of this plan before the room starts.',
-              style: const TextStyle(
-                color: AppColors.textSecondaryDark,
+              style: GoogleFonts.outfit(
+                color: AppColors.textV2Secondary,
+                fontSize: 13,
               ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 20),
-            FilledButton(
-              onPressed: _isReady || !_isPlanValid || _isSavingReady
+            GestureDetector(
+              onTap: _isReady || !_isPlanValid || _isSavingReady
                   ? null
                   : () => _markReady(session),
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: AppColors.textInverseDark,
-                minimumSize: const Size.fromHeight(52),
+              child: Container(
+                height: 52,
+                decoration: BoxDecoration(
+                  color: _isReady || !_isPlanValid || _isSavingReady
+                      ? AppColors.surfaceV2Active
+                      : AppColors.accentLime,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Center(
+                  child: _isSavingReady
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.backgroundV2,
+                          ),
+                        )
+                      : Text(
+                          _isReady ? 'Ready — Locked in' : 'I\'m Ready',
+                          style: GoogleFonts.syne(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: _isReady || !_isPlanValid
+                                ? AppColors.textV2Tertiary
+                                : AppColors.backgroundV2,
+                          ),
+                        ),
+                ),
               ),
-              child: _isSavingReady
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(_isReady ? 'Ready locked in' : 'Ready'),
             ),
           ],
         ],
@@ -400,18 +426,19 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
         const SizedBox(height: 16),
         Text(
           title,
-          style: const TextStyle(
-            color: AppColors.textDark,
+          style: GoogleFonts.syne(
+            color: AppColors.textV2Primary,
             fontSize: 18,
             fontWeight: FontWeight.w600,
+            letterSpacing: -0.3,
           ),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 8),
         Text(
           message,
-          style: const TextStyle(
-            color: AppColors.textSecondaryDark,
+          style: GoogleFonts.outfit(
+            color: AppColors.textV2Secondary,
             fontSize: 14,
           ),
           textAlign: TextAlign.center,

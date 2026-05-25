@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../domain/gym_session_plan.dart';
@@ -23,7 +23,7 @@ class GymPlanEditor extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+        color: AppColors.surfaceV2,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: AppColors.borderDarkSecondary),
       ),
@@ -40,7 +40,7 @@ class GymPlanEditor extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
-                      color: AppColors.textDark,
+                      color: AppColors.textV2Primary,
                     ),
                   ),
                 ),
@@ -59,7 +59,7 @@ class GymPlanEditor extends StatelessWidget {
             if (exercises.isEmpty)
               const Text(
                 'Choose exercises from the database first. If something is missing, add it as a custom exercise.',
-                style: TextStyle(color: AppColors.textSecondaryDark),
+                style: TextStyle(color: AppColors.textV2Secondary),
               )
             else
               ...exercises.asMap().entries.map((entry) {
@@ -69,7 +69,7 @@ class GymPlanEditor extends StatelessWidget {
                   padding: const EdgeInsets.only(bottom: 12),
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceSecondaryDark,
+                      color: AppColors.surfaceV2Elevated,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: AppColors.borderDarkSecondary),
                     ),
@@ -93,7 +93,7 @@ class GymPlanEditor extends StatelessWidget {
                                   exercise.name,
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w600,
-                                    color: AppColors.textDark,
+                                    color: AppColors.textV2Primary,
                                   ),
                                 ),
                                 if (exercise.muscleGroup != null)
@@ -105,7 +105,7 @@ class GymPlanEditor extends StatelessWidget {
                                           .textTheme
                                           .bodySmall
                                           ?.copyWith(
-                                            color: AppColors.textSecondaryDark,
+                                            color: AppColors.textV2Secondary,
                                           ),
                                     ),
                                   ),
@@ -115,14 +115,14 @@ class GymPlanEditor extends StatelessWidget {
                                     const Text(
                                       'Planned sets',
                                       style: TextStyle(
-                                        color: AppColors.textDark,
+                                        color: AppColors.textV2Primary,
                                       ),
                                     ),
                                     const SizedBox(width: 12),
                                     DropdownButton<int>(
-                                      dropdownColor: AppColors.surfaceDark,
+                                      dropdownColor: AppColors.surfaceV2,
                                       style: const TextStyle(
-                                        color: AppColors.textDark,
+                                        color: AppColors.textV2Primary,
                                       ),
                                       value: exercise.plannedSets,
                                       items: List.generate(
@@ -149,7 +149,7 @@ class GymPlanEditor extends StatelessWidget {
                             onPressed: isLocked ? null : () => onRemoveExercise(index),
                             icon: const Icon(
                               Icons.delete_outline_rounded,
-                              color: AppColors.textSecondaryDark,
+                              color: AppColors.textV2Secondary,
                             ),
                           ),
                         ],

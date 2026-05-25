@@ -415,7 +415,7 @@ class AppTheme {
         foregroundColor: AppColors.textV2PrimaryLight,
         elevation: 0,
         centerTitle: true,
-        titleTextStyle: GoogleFonts.spaceGrotesk(
+        titleTextStyle: GoogleFonts.syne(
           fontSize: AppFontSize.lg,
           fontWeight: FontWeight.w600,
           color: AppColors.textV2PrimaryLight,
@@ -439,7 +439,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppBorderRadius.md),
           ),
-          textStyle: GoogleFonts.spaceGrotesk(
+          textStyle: GoogleFonts.syne(
             fontSize: AppFontSize.md,
             fontWeight: FontWeight.w700,
           ),
@@ -468,7 +468,7 @@ class AppTheme {
           vertical: AppSpacing.lg,
         ),
         prefixIconColor: AppColors.textV2SecondaryLight,
-        hintStyle: GoogleFonts.dmSans(color: AppColors.textV2TertiaryLight),
+        hintStyle: GoogleFonts.outfit(color: AppColors.textV2TertiaryLight),
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: AppColors.backgroundV2Light,
@@ -492,45 +492,45 @@ class AppTheme {
         ),
       ),
       textTheme: TextTheme(
-        displayLarge: GoogleFonts.spaceGrotesk(
+        displayLarge: GoogleFonts.syne(
           fontSize: AppFontSize.hero,
           fontWeight: FontWeight.w800,
           color: AppColors.textV2PrimaryLight,
         ),
-        displayMedium: GoogleFonts.spaceGrotesk(
+        displayMedium: GoogleFonts.syne(
           fontSize: AppFontSize.display,
           fontWeight: FontWeight.w800,
           color: AppColors.textV2PrimaryLight,
         ),
-        headlineLarge: GoogleFonts.spaceGrotesk(
+        headlineLarge: GoogleFonts.syne(
           fontSize: AppFontSize.xxxl,
           fontWeight: FontWeight.w700,
           color: AppColors.textV2PrimaryLight,
         ),
-        headlineMedium: GoogleFonts.spaceGrotesk(
+        headlineMedium: GoogleFonts.syne(
           fontSize: AppFontSize.xxl,
           fontWeight: FontWeight.w700,
           color: AppColors.textV2PrimaryLight,
         ),
-        titleLarge: GoogleFonts.spaceGrotesk(
+        titleLarge: GoogleFonts.syne(
           fontSize: AppFontSize.xl,
           fontWeight: FontWeight.w600,
           color: AppColors.textV2PrimaryLight,
         ),
-        titleMedium: GoogleFonts.dmSans(
+        titleMedium: GoogleFonts.outfit(
           fontSize: AppFontSize.lg,
           fontWeight: FontWeight.w600,
           color: AppColors.textV2PrimaryLight,
         ),
-        bodyLarge: GoogleFonts.dmSans(
+        bodyLarge: GoogleFonts.outfit(
           fontSize: AppFontSize.md,
           color: AppColors.textV2PrimaryLight,
         ),
-        bodyMedium: GoogleFonts.dmSans(
+        bodyMedium: GoogleFonts.outfit(
           fontSize: AppFontSize.sm,
           color: AppColors.textV2SecondaryLight,
         ),
-        labelLarge: GoogleFonts.dmSans(
+        labelLarge: GoogleFonts.outfit(
           fontSize: AppFontSize.md,
           fontWeight: FontWeight.w600,
           color: AppColors.textV2PrimaryLight,
@@ -561,7 +561,7 @@ class AppTheme {
         foregroundColor: AppColors.textV2Primary,
         elevation: 0,
         centerTitle: true,
-        titleTextStyle: GoogleFonts.spaceGrotesk(
+        titleTextStyle: GoogleFonts.syne(
           fontSize: AppFontSize.lg,
           fontWeight: FontWeight.w600,
           color: AppColors.textV2Primary,
@@ -585,7 +585,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppBorderRadius.md),
           ),
-          textStyle: GoogleFonts.spaceGrotesk(
+          textStyle: GoogleFonts.syne(
             fontSize: AppFontSize.md,
             fontWeight: FontWeight.w700,
           ),
@@ -611,7 +611,7 @@ class AppTheme {
           vertical: AppSpacing.lg,
         ),
         prefixIconColor: AppColors.textV2Secondary,
-        hintStyle: GoogleFonts.dmSans(color: AppColors.textV2Tertiary),
+        hintStyle: GoogleFonts.outfit(color: AppColors.textV2Tertiary),
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: Colors.transparent,
@@ -635,45 +635,45 @@ class AppTheme {
         ),
       ),
       textTheme: TextTheme(
-        displayLarge: GoogleFonts.spaceGrotesk(
+        displayLarge: GoogleFonts.syne(
           fontSize: AppFontSize.hero,
           fontWeight: FontWeight.w800,
           color: AppColors.textV2Primary,
         ),
-        displayMedium: GoogleFonts.spaceGrotesk(
+        displayMedium: GoogleFonts.syne(
           fontSize: AppFontSize.display,
           fontWeight: FontWeight.w800,
           color: AppColors.textV2Primary,
         ),
-        headlineLarge: GoogleFonts.spaceGrotesk(
+        headlineLarge: GoogleFonts.syne(
           fontSize: AppFontSize.xxxl,
           fontWeight: FontWeight.w700,
           color: AppColors.textV2Primary,
         ),
-        headlineMedium: GoogleFonts.spaceGrotesk(
+        headlineMedium: GoogleFonts.syne(
           fontSize: AppFontSize.xxl,
           fontWeight: FontWeight.w700,
           color: AppColors.textV2Primary,
         ),
-        titleLarge: GoogleFonts.spaceGrotesk(
+        titleLarge: GoogleFonts.syne(
           fontSize: AppFontSize.xl,
           fontWeight: FontWeight.w600,
           color: AppColors.textV2Primary,
         ),
-        titleMedium: GoogleFonts.dmSans(
+        titleMedium: GoogleFonts.outfit(
           fontSize: AppFontSize.lg,
           fontWeight: FontWeight.w600,
           color: AppColors.textV2Primary,
         ),
-        bodyLarge: GoogleFonts.dmSans(
+        bodyLarge: GoogleFonts.outfit(
           fontSize: AppFontSize.md,
           color: AppColors.textV2Primary,
         ),
-        bodyMedium: GoogleFonts.dmSans(
+        bodyMedium: GoogleFonts.outfit(
           fontSize: AppFontSize.sm,
           color: AppColors.textV2Secondary,
         ),
-        labelLarge: GoogleFonts.dmSans(
+        labelLarge: GoogleFonts.outfit(
           fontSize: AppFontSize.md,
           fontWeight: FontWeight.w600,
           color: AppColors.textV2Primary,

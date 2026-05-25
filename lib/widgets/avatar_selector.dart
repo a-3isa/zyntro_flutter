@@ -4,7 +4,6 @@ import 'package:avatar_plus/avatar_plus.dart';
 import 'dart:math';
 
 import '../core/theme/app_theme.dart';
-import 'premium_animations.dart';
 
 /// Avatar selector widget for choosing and customizing profile avatars using AvatarPlus
 class AvatarSelector extends StatefulWidget {
@@ -79,7 +78,7 @@ class _AvatarSelectorState extends State<AvatarSelector> {
                 style: TextStyle(
                   fontSize: AppFontSize.md,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.textDark,
+                  color: AppColors.textV2Primary,
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
@@ -88,35 +87,26 @@ class _AvatarSelectorState extends State<AvatarSelector> {
               Container(
                 width: 140,
                 height: 140,
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: const LinearGradient(
-                    colors: AppColors.primaryGradient,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.primary.withValues(alpha: 0.3),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
+                  color: AppColors.accentLime,
                 ),
                 padding: const EdgeInsets.all(3),
                 child: Container(
                   decoration: const BoxDecoration(
                     shape: BoxShape.circle,
-                    color: AppColors.backgroundDark,
+                    color: AppColors.backgroundV2,
                   ),
                   padding: const EdgeInsets.all(3),
                   child: ClipOval(
                     child: _selectedSeed != null
                         ? AvatarPlus(_selectedSeed!, width: 134, height: 134)
                         : Container(
-                            color: AppColors.surfaceSecondaryDark,
+                            color: AppColors.surfaceV2Elevated,
                             child: const Icon(
                               Icons.person,
                               size: 60,
-                              color: AppColors.textSecondaryDark,
+                              color: AppColors.textV2Secondary,
                             ),
                           ),
                   ),
@@ -137,10 +127,10 @@ class _AvatarSelectorState extends State<AvatarSelector> {
               style: TextStyle(
                 fontSize: AppFontSize.md,
                 fontWeight: FontWeight.w600,
-                color: AppColors.textDark,
+                color: AppColors.textV2Primary,
               ),
             ),
-            ScaleOnTap(
+            GestureDetector(
               onTap: _regenerateAvatars,
               child: Container(
                 padding: const EdgeInsets.symmetric(
@@ -148,7 +138,7 @@ class _AvatarSelectorState extends State<AvatarSelector> {
                   vertical: AppSpacing.sm,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceSecondaryDark,
+                  color: AppColors.surfaceV2Elevated,
                   borderRadius: BorderRadius.circular(AppBorderRadius.lg),
                   border: Border.all(
                     color: AppColors.borderDark.withValues(alpha: 0.5),
@@ -194,7 +184,7 @@ class _AvatarSelectorState extends State<AvatarSelector> {
             final seed = _avatarSeeds[index];
             final isSelected = _selectedSeed == seed;
 
-            return ScaleOnTap(
+            return GestureDetector(
               onTap: () {
                 HapticFeedback.lightImpact();
                 setState(() => _selectedSeed = seed);

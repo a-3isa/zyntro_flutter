@@ -18,9 +18,9 @@ enum MainShellTab {
 }
 
 enum SocialTab {
+  board('board'),
   buddies('buddies'),
-  challenges('challenges'),
-  leaderboard('leaderboard');
+  find('find');
 
   final String value;
   const SocialTab(this.value);
@@ -28,7 +28,7 @@ enum SocialTab {
   static SocialTab fromString(String? value) {
     return SocialTab.values.firstWhere(
       (tab) => tab.value == value,
-      orElse: () => SocialTab.buddies,
+      orElse: () => SocialTab.board,
     );
   }
 }
@@ -104,11 +104,6 @@ class AppRouteLocations {
     required SessionPhase phase,
     String? audioUrl,
   }) {
-    final workoutType = WorkoutType.fromString(type);
-    if (workoutType == WorkoutType.gym && phase == SessionPhase.setup) {
-      return gymSessionSetup(sessionId);
-    }
-
     return sessionRoom(sessionId, type: type, audioUrl: audioUrl);
   }
 }

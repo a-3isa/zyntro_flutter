@@ -2,7 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:fl_chart/fl_chart.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../core/models/models.dart';
@@ -12,12 +13,12 @@ import '../../../services/post_service.dart';
 import '../../../services/media_service.dart';
 import '../../auth/auth_providers.dart';
 import '../../../app/navigation/app_router.dart';
-import '../../../widgets/premium_effects.dart';
-import '../../../widgets/premium_animations.dart';
 import '../../../utils/haptic_manager.dart';
 
-/// Recap page showing session summary after completion.
-/// Updated with photo sharing functionality and improved UI.
+// ────────────────────────────────────────────────────────────────────────────
+// Recap page – v2 design
+// ────────────────────────────────────────────────────────────────────────────
+
 class RecapPage extends ConsumerStatefulWidget {
   final String sessionId;
 
@@ -34,8 +35,10 @@ class _RecapPageState extends ConsumerState<RecapPage> {
   bool _isPickingPhoto = false;
   String? _selectedPhotoPath;
   bool _shareWithFriendsOnly = true;
-  double? _uploadProgress; // Track upload progress (0.0 to 1.0)
-  String? _createdPostId; // Store post ID for retry scenarios
+  double? _uploadProgress;
+  String? _createdPostId;
+  bool _shareCardExpanded = false;
+  bool _postedToFeed = false;
 
   @override
   void initState() {
@@ -45,91 +48,88 @@ class _RecapPageState extends ConsumerState<RecapPage> {
 
   Future<void> _loadSession() async {
     try {
-      final session = await ref
-          .read(sessionServiceProvider)
-          .getSession(widget.sessionId);
+      final session =
+          await ref.read(sessionServiceProvider).getSession(widget.sessionId);
       if (mounted) {
         setState(() {
           _session = session;
           _isLoading = false;
         });
       }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  /// Shows a bottom sheet with camera and gallery options for photo selection.
+  // ── helpers ───────────────────────────────────────────────────────────────
+
+  String _formatDuration(DateTime start, DateTime? end) {
+    if (end == null) return 'N/A';
+    final d = end.difference(start);
+    final h = d.inHours;
+    final m = d.inMinutes.remainder(60);
+    if (h > 0) return '${h}h ${m}m';
+    return '${m}m';
+  }
+
+  int _calcPoints(int totalSets) => 10 + (totalSets * 3).clamp(0, 60);
+
+  // ── photo helpers ─────────────────────────────────────────────────────────
+
   void _showPhotoSourceDialog() {
     showModalBottomSheet(
       context: context,
+      backgroundColor: AppColors.surfaceV2,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => SafeArea(
+      builder: (ctx) => SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+          padding: const EdgeInsets.symmetric(vertical: 16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 40,
+                width: 36,
                 height: 4,
-                margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                margin: const EdgeInsets.only(bottom: 16),
                 decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2),
+                  color: AppColors.textV2Tertiary,
+                  borderRadius: BorderRadius.circular(99),
                 ),
               ),
-              const Text(
+              Text(
                 'Add Photo',
-                style: TextStyle(
-                  fontSize: AppFontSize.lg,
-                  fontWeight: FontWeight.bold,
+                style: GoogleFonts.syne(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textV2Primary,
                 ),
               ),
-              const SizedBox(height: AppSpacing.lg),
+              const SizedBox(height: 16),
               ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(AppSpacing.sm),
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryMuted,
-                    borderRadius: BorderRadius.circular(AppBorderRadius.sm),
-                  ),
-                  child: const Icon(Icons.camera_alt, color: AppColors.primary),
-                ),
-                title: const Text('Take Photo'),
-                subtitle: const Text('Use your camera'),
+                leading: const Icon(Icons.camera_alt, color: AppColors.accentLime),
+                title: Text('Take Photo',
+                    style: GoogleFonts.outfit(color: AppColors.textV2Primary)),
                 onTap: () {
-                  Navigator.pop(context);
-                  _pickPhotoFromCamera();
+                  Navigator.pop(ctx);
+                  _pickPhoto(fromCamera: true);
                 },
               ),
               ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(AppSpacing.sm),
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryMuted,
-                    borderRadius: BorderRadius.circular(AppBorderRadius.sm),
-                  ),
-                  child: const Icon(
-                    Icons.photo_library,
-                    color: AppColors.primary,
-                  ),
-                ),
-                title: const Text('Choose from Gallery'),
-                subtitle: const Text('Select an existing photo'),
+                leading:
+                    const Icon(Icons.photo_library, color: AppColors.accentLime),
+                title: Text('Choose from Gallery',
+                    style: GoogleFonts.outfit(color: AppColors.textV2Primary)),
                 onTap: () {
-                  Navigator.pop(context);
-                  _pickPhotoFromGallery();
+                  Navigator.pop(ctx);
+                  _pickPhoto(fromCamera: false);
                 },
               ),
-              const SizedBox(height: AppSpacing.sm),
               TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
+                onPressed: () => Navigator.pop(ctx),
+                child: Text('Cancel',
+                    style: GoogleFonts.outfit(color: AppColors.textV2Secondary)),
               ),
             ],
           ),
@@ -138,130 +138,54 @@ class _RecapPageState extends ConsumerState<RecapPage> {
     );
   }
 
-  /// Pick photo from camera.
-  Future<void> _pickPhotoFromCamera() async {
+  Future<void> _pickPhoto({required bool fromCamera}) async {
     if (_isPickingPhoto) return;
     setState(() => _isPickingPhoto = true);
-
     try {
       final mediaService = ref.read(mediaServiceProvider);
-      final file = await mediaService.pickImage(fromCamera: true);
-
+      final file = await mediaService.pickImage(fromCamera: fromCamera);
       if (file != null && mounted) {
-        // Check file size
-        final fileSize = await file.length();
-        if (fileSize > MediaService.maxPhotoSize) {
+        final size = await file.length();
+        if (size > MediaService.maxPhotoSize) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Image is too large. Please choose a smaller image (max 5MB).',
-                ),
-                backgroundColor: AppColors.error,
-              ),
-            );
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Image is too large (max 5 MB).'),
+              backgroundColor: AppColors.error,
+            ));
           }
           return;
         }
-
-        setState(() {
-          _selectedPhotoPath = file.path;
-        });
+        setState(() => _selectedPhotoPath = file.path);
       }
     } catch (e) {
       if (mounted) {
-        String errorMessage = 'Failed to capture photo';
-        if (e.toString().contains('permission')) {
-          errorMessage =
-              'Camera permission denied. Please enable camera access in settings.';
-        }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMessage),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(e.toString().contains('permission')
+              ? 'Permission denied. Enable access in settings.'
+              : 'Failed to pick photo.'),
+          backgroundColor: AppColors.error,
+        ));
       }
     } finally {
-      if (mounted) {
-        setState(() => _isPickingPhoto = false);
-      }
+      if (mounted) setState(() => _isPickingPhoto = false);
     }
   }
 
-  /// Pick photo from gallery.
-  Future<void> _pickPhotoFromGallery() async {
-    if (_isPickingPhoto) return;
-    setState(() => _isPickingPhoto = true);
+  void _removePhoto() => setState(() => _selectedPhotoPath = null);
 
-    try {
-      final mediaService = ref.read(mediaServiceProvider);
-      final file = await mediaService.pickImage(fromCamera: false);
-
-      if (file != null && mounted) {
-        // Check file size
-        final fileSize = await file.length();
-        if (fileSize > MediaService.maxPhotoSize) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Image is too large. Please choose a smaller image (max 5MB).',
-                ),
-                backgroundColor: AppColors.error,
-              ),
-            );
-          }
-          return;
-        }
-
-        setState(() {
-          _selectedPhotoPath = file.path;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        String errorMessage = 'Failed to pick photo';
-        if (e.toString().contains('permission')) {
-          errorMessage =
-              'Photo library permission denied. Please enable access in settings.';
-        }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMessage),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isPickingPhoto = false);
-      }
-    }
-  }
-
-  void _removePhoto() {
-    setState(() {
-      _selectedPhotoPath = null;
-    });
-  }
+  // ── share / post ──────────────────────────────────────────────────────────
 
   Future<void> _handleShare() async {
     if (_session == null) return;
-
     setState(() {
       _isSharing = true;
       _uploadProgress = _selectedPhotoPath != null ? 0.0 : null;
     });
-
     try {
-      final authState = ref.read(authSessionProvider);
-      final uid = authState.valueOrNull?.id;
+      final uid = ref.read(authSessionProvider).valueOrNull?.id;
       if (uid == null) throw Exception('Not authenticated');
 
       final postService = ref.read(postServiceProvider);
-
-      // Create post with progress callback
       final postId = await postService.createPost(
         CreatePostParams(
           authorId: uid,
@@ -273,43 +197,29 @@ class _RecapPageState extends ConsumerState<RecapPage> {
           photoUri: _selectedPhotoPath,
         ),
         onProgress: _selectedPhotoPath != null
-            ? (progress) {
-                if (mounted) {
-                  setState(() => _uploadProgress = progress);
-                }
+            ? (p) {
+                if (mounted) setState(() => _uploadProgress = p);
               }
             : null,
       );
-
       _createdPostId = postId;
-
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Shared to feed! 🎉'),
-            backgroundColor: AppColors.success,
-          ),
-        );
         setState(() {
           _isSharing = false;
           _uploadProgress = null;
+          _postedToFeed = true;
         });
-
-        // Show "View in Feed" option or navigate?
         _showPostSuccessDialog(postId);
       }
     } catch (e) {
       if (mounted) {
-        // Check if post was created but photo upload failed
         if (_createdPostId != null && _selectedPhotoPath != null) {
           _showPhotoUploadRetryDialog(e.toString());
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(_getErrorMessage(e)),
-              backgroundColor: AppColors.error,
-            ),
-          );
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(_getErrorMessage(e)),
+            backgroundColor: AppColors.error,
+          ));
         }
         setState(() {
           _isSharing = false;
@@ -319,45 +229,45 @@ class _RecapPageState extends ConsumerState<RecapPage> {
     }
   }
 
-  /// Get user-friendly error message based on error type
-  String _getErrorMessage(dynamic error) {
-    final errorStr = error.toString().toLowerCase();
-    if (errorStr.contains('network') || errorStr.contains('connection')) {
-      return 'Network connection lost. Please check your internet and try again.';
-    } else if (errorStr.contains('permission')) {
-      return 'Storage permission denied. Please enable storage access in settings.';
-    } else if (errorStr.contains('size') || errorStr.contains('5mb')) {
-      return 'Photo exceeds 5MB limit. Please choose a smaller photo.';
-    } else if (errorStr.contains('format') || errorStr.contains('invalid')) {
+  String _getErrorMessage(dynamic e) {
+    final s = e.toString().toLowerCase();
+    if (s.contains('network') || s.contains('connection')) {
+      return 'Network connection lost. Please try again.';
+    } else if (s.contains('permission')) {
+      return 'Storage permission denied.';
+    } else if (s.contains('size') || s.contains('5mb')) {
+      return 'Photo exceeds 5 MB limit.';
+    } else if (s.contains('format') || s.contains('invalid')) {
       return 'Invalid file format. Only JPG and PNG are supported.';
     }
-    return 'Error sharing: $error';
+    return 'Error sharing: $e';
   }
 
-  /// Show retry dialog when post is created but photo upload failed
-  void _showPhotoUploadRetryDialog(String errorMessage) {
+  void _showPhotoUploadRetryDialog(String err) {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('Photo Upload Failed'),
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surfaceV2,
+        title: Text('Photo Upload Failed',
+            style: GoogleFonts.syne(color: AppColors.textV2Primary)),
         content: Text(
           'Your post was created, but the photo could not be uploaded.\n\n'
-          'Error: ${_getErrorMessage(errorMessage)}\n\n'
-          'Would you like to retry the upload or continue without the photo?',
+          '${_getErrorMessage(err)}\n\n'
+          'Retry the upload or continue without the photo?',
+          style: GoogleFonts.outfit(color: AppColors.textV2Secondary),
         ),
         actions: [
           TextButton(
             onPressed: () {
-              context.pop();
-              // Continue without photo - post already created
+              ctx.pop();
               _showPostSuccessDialog(_createdPostId!);
             },
             child: const Text('Continue Without Photo'),
           ),
           ElevatedButton(
             onPressed: () {
-              context.pop();
+              ctx.pop();
               _retryPhotoUpload();
             },
             child: const Text('Retry Upload'),
@@ -367,58 +277,33 @@ class _RecapPageState extends ConsumerState<RecapPage> {
     );
   }
 
-  /// Retry photo upload for an already created post
   Future<void> _retryPhotoUpload() async {
     if (_createdPostId == null || _selectedPhotoPath == null) return;
-
     setState(() {
       _isSharing = true;
       _uploadProgress = 0.0;
     });
-
     try {
       final mediaService = ref.read(mediaServiceProvider);
       final postService = ref.read(postServiceProvider);
-
-      // Upload photo with progress (raw 0-1 values, scale to 10-90%)
       final photoUrl = await mediaService.uploadPostPhoto(
         filePath: _selectedPhotoPath!,
         postId: _createdPostId!,
-        onProgress: (progress) {
-          if (mounted) {
-            // Scale raw 0-1 progress to 10-90% range
-            setState(() => _uploadProgress = 0.1 + progress * 0.8);
-          }
+        onProgress: (p) {
+          if (mounted) setState(() => _uploadProgress = 0.1 + p * 0.8);
         },
       );
-
-      // Update progress to 90% before final update
-      if (mounted) {
-        setState(() => _uploadProgress = 0.9);
-      }
-
-      // Update post with photo URL
+      if (mounted) setState(() => _uploadProgress = 0.9);
       await postService.updatePostPhoto(_createdPostId!, photoUrl);
-
-      // Complete at 100%
       if (mounted) {
         setState(() => _uploadProgress = 1.0);
-        await Future.delayed(
-          const Duration(milliseconds: 200),
-        ); // Brief pause to show 100%
-
+        await Future.delayed(const Duration(milliseconds: 200));
         if (!mounted) return;
-
         setState(() {
           _isSharing = false;
           _uploadProgress = null;
+          _postedToFeed = true;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Photo uploaded successfully! 🎉'),
-            backgroundColor: AppColors.success,
-          ),
-        );
         _showPostSuccessDialog(_createdPostId!);
       }
     } catch (e) {
@@ -436,22 +321,24 @@ class _RecapPageState extends ConsumerState<RecapPage> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('Post Created!'),
-        content: const Text('Your workout has been shared to the feed.'),
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surfaceV2,
+        title: Text('Post Created!',
+            style:
+                GoogleFonts.syne(color: AppColors.textV2Primary)),
+        content: Text('Your workout has been shared to the feed.',
+            style: GoogleFonts.outfit(color: AppColors.textV2Secondary)),
         actions: [
           TextButton(
             onPressed: () {
-              context.pop(); // close dialog
-              context.go(
-                '/feed',
-              ); // Navigate to feed (or specific post if router supports)
+              ctx.pop();
+              context.go(AppRoutes.main);
             },
             child: const Text('View in Feed'),
           ),
           TextButton(
             onPressed: () {
-              context.pop();
+              ctx.pop();
               context.go(AppRoutes.main);
             },
             child: const Text('Go Home'),
@@ -461,32 +348,31 @@ class _RecapPageState extends ConsumerState<RecapPage> {
     );
   }
 
-  String _formatDuration(DateTime start, DateTime? end) {
-    if (end == null) return 'N/A';
-    final duration = end.difference(start);
-    final hours = duration.inHours;
-    final minutes = duration.inMinutes.remainder(60);
-    if (hours > 0) return '${hours}h ${minutes}m';
-    return '${minutes}m';
-  }
+  // ── build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(
+        backgroundColor: AppColors.backgroundV2,
+        body: Center(
+            child: CircularProgressIndicator(color: AppColors.accentLime)),
+      );
     }
 
     if (_session == null) {
       return Scaffold(
+        backgroundColor: AppColors.backgroundV2,
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text('Session not found'),
-              const SizedBox(height: AppSpacing.lg),
-              ElevatedButton(
-                onPressed: () => context.go(AppRoutes.main),
-                child: const Text('Go Home'),
+              Text('Session not found',
+                  style: GoogleFonts.outfit(color: AppColors.textV2Secondary)),
+              const SizedBox(height: 24),
+              _GhostButton(
+                label: 'Back to Home',
+                onTap: () => context.go(AppRoutes.main),
               ),
             ],
           ),
@@ -494,819 +380,941 @@ class _RecapPageState extends ConsumerState<RecapPage> {
       );
     }
 
-    final summary = _session!.summary;
-    final workoutType = WorkoutType.fromString(_session!.type);
-    String durationStr;
+    final session = _session!;
+    final summary = session.summary;
+    final workoutType = WorkoutType.fromString(session.type);
 
+    String durationStr;
     if (workoutType.isCardio &&
         summary?.duration != null &&
         summary!.duration!.isNotEmpty) {
       durationStr = summary.duration!;
     } else {
-      durationStr = _formatDuration(_session!.startedAt, _session!.endedAt);
+      durationStr = _formatDuration(session.startedAt, session.endedAt);
     }
 
-    return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+    final totalSets = summary?.totalSets ?? 0;
+    final totalExercises = summary?.totalExercises ?? 0;
+    final totalVolume = summary?.totalVolume ?? 0.0;
+    final points = _calcPoints(totalSets);
+    final exercises = summary?.exercises ?? [];
 
-      body: Stack(
-        children: [
-          // Background orbs
-          Positioned(
-            top: -100,
-            right: -80,
-            child: Container(
-              width: 250,
-              height: 250,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    AppColors.secondary.withValues(alpha: 0.15),
-                    AppColors.secondary.withValues(alpha: 0.0),
+    final authUser = ref.watch(authSessionProvider).valueOrNull;
+    final username = authUser?.displayName ?? 'you';
+
+    return Scaffold(
+      backgroundColor: AppColors.backgroundV2,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // ── close button header ─────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: GestureDetector(
+                  onTap: () {
+                    HapticManager.light();
+                    context.go(AppRoutes.main);
+                  },
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceV2,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.close,
+                        size: 18, color: AppColors.textV2Secondary),
+                  ),
+                ),
+              ),
+            ),
+            // ── scrollable body ────────────────────────────────────────────
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.only(bottom: 40),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: 24),
+
+                    // ── hero section ──────────────────────────────────────
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _DoneHeader(),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Text(
+                                durationStr,
+                                style: GoogleFonts.outfit(
+                                  fontSize: 13,
+                                  color: AppColors.textV2Secondary,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                width: 3,
+                                height: 3,
+                                decoration: const BoxDecoration(
+                                  color: AppColors.textV2Tertiary,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              // Points badge
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surfaceV2,
+                                  border: Border.all(
+                                    color: AppColors.accentLime
+                                        .withValues(alpha: 0.13),
+                                  ),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.bolt,
+                                        size: 14,
+                                        color: AppColors.accentLime),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '+$points',
+                                      style: GoogleFonts.syne(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppColors.accentLime,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 3),
+                                    Text(
+                                      'pts',
+                                      style: GoogleFonts.outfit(
+                                        fontSize: 11,
+                                        color: AppColors.textV2Tertiary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // ── stats 2×2 grid ─────────────────────────────────────
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _StatCell(
+                                  value: '$totalExercises',
+                                  label: 'Exercises',
+                                  accentColor: AppColors.accentLime,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _StatCell(
+                                  value: '$totalSets',
+                                  label: 'Sets',
+                                  accentColor: const Color(0xFF38BDF8),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _StatCell(
+                                  value: durationStr,
+                                  label: 'Duration',
+                                  accentColor: const Color(0xFFFF8C00),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _StatCell(
+                                  value: totalVolume > 0
+                                      ? '${totalVolume.toStringAsFixed(1)} kg'
+                                      : '—',
+                                  label: 'Volume',
+                                  accentColor: const Color(0xFFFF4D4D),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // ── breakdown section ───────────────────────────────────
+                    if (exercises.isNotEmpty) ...[
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: _BreakdownSection(exercises: exercises),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
+                    // ── share card (collapsible) ────────────────────────────
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: _ShareCardSection(
+                        expanded: _shareCardExpanded,
+                        onToggle: () => setState(
+                            () => _shareCardExpanded = !_shareCardExpanded),
+                        session: session,
+                        durationStr: durationStr,
+                        totalExercises: totalExercises,
+                        totalSets: totalSets,
+                        totalVolume: totalVolume,
+                        points: points,
+                        username: username,
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // ── post to feed section ────────────────────────────────
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: _PostToFeedSection(
+                        postedToFeed: _postedToFeed,
+                        selectedPhotoPath: _selectedPhotoPath,
+                        isPickingPhoto: _isPickingPhoto,
+                        isSharing: _isSharing,
+                        shareWithFriendsOnly: _shareWithFriendsOnly,
+                        uploadProgress: _uploadProgress,
+                        onPhotoTap: _showPhotoSourceDialog,
+                        onRemovePhoto: _removePhoto,
+                        onToggleFriendsOnly: (v) =>
+                            setState(() => _shareWithFriendsOnly = v),
+                        onShare: _handleShare,
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // ── back to home ghost button ───────────────────────────
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: _GhostButton(
+                        label: 'Back to Home',
+                        onTap: () => context.go(AppRoutes.main),
+                      ),
+                    ),
                   ],
                 ),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// "Done." hero header
+// ────────────────────────────────────────────────────────────────────────────
+
+class _DoneHeader extends StatelessWidget {
+  const _DoneHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      'Done.',
+      style: GoogleFonts.syne(
+        fontSize: 64,
+        fontWeight: FontWeight.w800,
+        color: AppColors.textV2Primary,
+        letterSpacing: -3,
+        height: 0.9,
+      ),
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Stat cell
+// ────────────────────────────────────────────────────────────────────────────
+
+class _StatCell extends StatelessWidget {
+  final String value;
+  final String label;
+  final Color accentColor;
+
+  const _StatCell({
+    required this.value,
+    required this.label,
+    required this.accentColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 20, 18, 20),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceV2,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            value,
+            style: GoogleFonts.syne(
+              fontSize: 34,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textV2Primary,
+              letterSpacing: -1.5,
+              height: 1.0,
+            ),
           ),
-          Column(
+          const SizedBox(height: 8),
+          Row(
             children: [
-              // Custom Header
               Container(
-                padding: EdgeInsets.only(
-                  top: MediaQuery.paddingOf(context).top + 8,
-                  bottom: 8,
-                  left: 16,
-                  right: 16,
-                ),
-                child: Row(
-                  children: [
-                    const Expanded(
-                      child: GradientText(
-                        text: 'Session Recap',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        colors: [
-                          AppColors.textDark,
-                          AppColors.textSecondaryDark,
-                        ],
-                      ),
-                    ),
-                    BounceAnimation(
-                      onTap: () {
-                        HapticManager.light();
-                        _confirmExit();
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceSecondaryDark,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.close,
-                          color: AppColors.textDark,
-                          size: 20,
-                        ),
-                      ),
-                    ),
-                  ],
+                width: 16,
+                height: 2,
+                decoration: BoxDecoration(
+                  color: accentColor,
+                  borderRadius: BorderRadius.circular(99),
                 ),
               ),
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(AppSpacing.xl),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Celebration header with glow and fade animation
-                      FadeInAnimation(
-                        delay: const Duration(milliseconds: 200),
-                        child: Column(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(20),
-                                decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    colors: AppColors.secondaryGradient,
-                                  ),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.celebration,
-                                  size: 48,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              const SizedBox(height: AppSpacing.lg),
-                              const GradientText(
-                                text: 'Great Workout! 💪',
-                                style: TextStyle(
-                                  fontSize: AppFontSize.xxl,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                colors: AppColors.secondaryGradient,
-                              ),
-                            ],
-                          ),
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-                      SlideInAnimation.fromBottom(
-                        index: 1,
-                        child: Text(
-                          _session!.title,
-                          style: TextStyle(
-                            fontSize: AppFontSize.md,
-                            color: AppColors.textSecondaryDark,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                      SlideInAnimation.fromBottom(
-                        index: 2,
-                        child: Text(
-                          '$durationStr • ${workoutType.displayName}',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primary,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-
-                      const SizedBox(height: AppSpacing.xxl),
-
-                      // Stats cards - conditional display based on session type
-                      if (workoutType.isCardio) ...[
-                        // Cardio stats
-                        SlideInAnimation.fromBottom(
-                          index: 3,
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: _buildStatCard(
-                                  icon: Icons.straighten,
-                                  value: summary?.distance != null
-                                      ? '${summary!.distance!.toStringAsFixed(2)} km'
-                                      : '-',
-                                  label: 'Distance',
-                                ),
-                              ),
-                              const SizedBox(width: AppSpacing.md),
-                              Expanded(
-                                child: _buildStatCard(
-                                  icon: Icons.timer,
-                                  value: durationStr,
-                                  label: 'Duration',
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        SlideInAnimation.fromBottom(
-                          index: 4,
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: _buildStatCard(
-                                  icon: Icons.speed,
-                                  value: summary?.pace ?? '-',
-                                  label: 'Avg Pace',
-                                ),
-                              ),
-                              const SizedBox(width: AppSpacing.md),
-                              Expanded(
-                                child: _buildStatCard(
-                                  icon: Icons.local_fire_department,
-                                  value: summary?.activeCalories != null
-                                      ? '${summary!.activeCalories}'
-                                      : '-',
-                                  label: 'Calories',
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ] else ...[
-                        // Strength stats
-                        SlideInAnimation.fromBottom(
-                          index: 3,
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: _buildStatCard(
-                                  icon: Icons.fitness_center,
-                                  value: '${summary?.totalExercises ?? 0}',
-                                  label: 'Exercises',
-                                ),
-                              ),
-                              const SizedBox(width: AppSpacing.md),
-                              Expanded(
-                                child: _buildStatCard(
-                                  icon: Icons.repeat,
-                                  value: '${summary?.totalSets ?? 0}',
-                                  label: 'Total Sets',
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-
-                        // Volume and Duration Row
-                        SlideInAnimation.fromBottom(
-                          index: 4,
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: _buildStatCard(
-                                  icon: Icons.timer,
-                                  value: durationStr,
-                                  label: 'Duration',
-                                ),
-                              ),
-                              const SizedBox(width: AppSpacing.md),
-                              Expanded(
-                                child: _buildStatCard(
-                                  icon: Icons.scale,
-                                  value: summary?.totalVolume != null
-                                      ? '${summary!.totalVolume!.toStringAsFixed(1)} kg'
-                                      : '-',
-                                  label: 'Volume',
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        // Calories and Pace
-                        SlideInAnimation.fromBottom(
-                          index: 5,
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: _buildStatCard(
-                                  icon: Icons.local_fire_department,
-                                  value: summary?.activeCalories != null
-                                      ? '${summary!.activeCalories}'
-                                      : '-',
-                                  label: 'Calories',
-                                ),
-                              ),
-                              const SizedBox(width: AppSpacing.md),
-                              Expanded(
-                                child: _buildStatCard(
-                                  icon: Icons.speed,
-                                  value: summary?.pace ?? '-',
-                                  label: 'Pace',
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-
-                      const SizedBox(height: AppSpacing.xxl),
-
-                      // Exercises chart (using fl_chart)
-                      if (summary?.exercises != null &&
-                          summary!.exercises!.isNotEmpty) ...[
-                        const Text(
-                          'Exercises Breakdown',
-                          style: TextStyle(
-                            fontSize: AppFontSize.lg,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-
-                        // Scrollable Bar chart for sets per exercise
-                        FadeInAnimation(
-                          delay: const Duration(milliseconds: 600),
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: SizedBox(
-                              width: (summary.exercises!.length * 60)
-                                  .toDouble()
-                                  .clamp(300.0, 1000.0), // Dynamic width
-                              height: 200,
-                              child: BarChart(
-                                BarChartData(
-                                  alignment: BarChartAlignment.spaceAround,
-                                  maxY:
-                                      summary.exercises!.fold<double>(
-                                        0,
-                                        (max, e) => e.sets > max
-                                            ? e.sets.toDouble()
-                                            : max,
-                                      ) *
-                                      1.2,
-                                  barTouchData: BarTouchData(
-                                    enabled: true,
-                                    touchTooltipData: BarTouchTooltipData(
-                                      getTooltipItem:
-                                          (group, groupIndex, rod, rodIndex) {
-                                            final exercise =
-                                                summary.exercises![groupIndex];
-                                            return BarTooltipItem(
-                                              '${exercise.name}\n${exercise.sets} sets',
-                                              const TextStyle(
-                                                color: Colors.white,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            );
-                                          },
-                                    ),
-                                  ),
-                                  titlesData: FlTitlesData(
-                                    show: true,
-                                    bottomTitles: AxisTitles(
-                                      sideTitles: SideTitles(
-                                        showTitles: true,
-                                        getTitlesWidget: (value, meta) {
-                                          final index = value.toInt();
-                                          if (index >= 0 &&
-                                              index <
-                                                  summary.exercises!.length) {
-                                            final name =
-                                                summary.exercises![index].name;
-                                            return Padding(
-                                              padding: const EdgeInsets.only(
-                                                top: 8,
-                                              ),
-                                              child: LayoutBuilder(
-                                                builder: (context, constraints) {
-                                                  return Text(
-                                                    name.length > 8
-                                                        ? '${name.substring(0, 8)}...'
-                                                        : name,
-                                                    style: const TextStyle(
-                                                      fontSize: 10,
-                                                    ),
-                                                    textAlign: TextAlign.center,
-                                                  );
-                                                },
-                                              ),
-                                            );
-                                          }
-                                          return const SizedBox.shrink();
-                                        },
-                                      ),
-                                    ),
-                                    leftTitles: const AxisTitles(
-                                      sideTitles: SideTitles(showTitles: false),
-                                    ),
-                                    topTitles: const AxisTitles(
-                                      sideTitles: SideTitles(showTitles: false),
-                                    ),
-                                    rightTitles: const AxisTitles(
-                                      sideTitles: SideTitles(showTitles: false),
-                                    ),
-                                  ),
-                                  borderData: FlBorderData(show: false),
-                                  gridData: const FlGridData(show: false),
-                                  barGroups: summary.exercises!
-                                      .asMap()
-                                      .entries
-                                      .map((entry) {
-                                        final index = entry.key;
-                                        final exercise = entry.value;
-                                        return BarChartGroupData(
-                                          x: index,
-                                          barRods: [
-                                            BarChartRodData(
-                                              toY: exercise.sets.toDouble(),
-                                              color: AppColors.primary,
-                                              width: 16,
-                                              borderRadius:
-                                                  const BorderRadius.only(
-                                                    topLeft: Radius.circular(4),
-                                                    topRight: Radius.circular(
-                                                      4,
-                                                    ),
-                                                  ),
-                                            ),
-                                          ],
-                                        );
-                                      })
-                                      .toList(),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.lg),
-
-                        // Exercise list with details
-                        ...summary.exercises!.map(
-                          (exercise) => Card(
-                            margin: const EdgeInsets.only(
-                              bottom: AppSpacing.sm,
-                            ),
-                            child: ListTile(
-                              leading: Container(
-                                padding: const EdgeInsets.all(AppSpacing.sm),
-                                decoration: BoxDecoration(
-                                  color: AppColors.primaryMuted,
-                                  borderRadius: BorderRadius.circular(
-                                    AppBorderRadius.sm,
-                                  ),
-                                ),
-                                child: const Icon(
-                                  Icons.fitness_center,
-                                  color: AppColors.primary,
-                                  size: 20,
-                                ),
-                              ),
-                              title: Text(exercise.name),
-                              trailing: Text(
-                                '${exercise.sets} sets',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-
-                      const SizedBox(height: AppSpacing.xxl),
-
-                      // Photo selector with enhanced visual feedback
-                      Tooltip(
-                        message: _selectedPhotoPath != null
-                            ? 'Tap to view full size'
-                            : 'Add a photo to your post',
-                        child: GestureDetector(
-                          onTap: (_isPickingPhoto || _isSharing)
-                              ? null
-                              : (_selectedPhotoPath != null
-                                    ? () => Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) =>
-                                              _buildLocalPhotoViewer(),
-                                        ),
-                                      )
-                                    : _showPhotoSourceDialog),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 300),
-                            height: 200,
-                            decoration: BoxDecoration(
-                              color: AppColors.surfaceSecondaryLight,
-                              borderRadius: BorderRadius.circular(
-                                AppBorderRadius.lg,
-                              ),
-                              border: Border.all(
-                                color: _selectedPhotoPath != null
-                                    ? AppColors.primary
-                                    : AppColors.primary.withValues(alpha: 0.3),
-                                width: _selectedPhotoPath != null ? 3 : 2,
-                                style: BorderStyle.solid,
-                              ),
-                              boxShadow: _selectedPhotoPath != null
-                                  ? [
-                                      BoxShadow(
-                                        color: AppColors.primary.withValues(
-                                          alpha: 0.2,
-                                        ),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ]
-                                  : null,
-                              image: _selectedPhotoPath != null
-                                  ? DecorationImage(
-                                      image: FileImage(
-                                        File(_selectedPhotoPath!),
-                                      ),
-                                      fit: BoxFit.cover,
-                                    )
-                                  : null,
-                            ),
-                            child: Stack(
-                              children: [
-                                // Loading shimmer effect for picking
-                                if (_isPickingPhoto)
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(
-                                        AppBorderRadius.lg,
-                                      ),
-                                      gradient: LinearGradient(
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                        colors: [
-                                          AppColors.primary.withValues(
-                                            alpha: 0.1,
-                                          ),
-                                          AppColors.primary.withValues(
-                                            alpha: 0.2,
-                                          ),
-                                          AppColors.primary.withValues(
-                                            alpha: 0.1,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    child: const Center(
-                                      child: Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          CircularProgressIndicator(),
-                                          SizedBox(height: AppSpacing.sm),
-                                          Text(
-                                            'Processing photo...',
-                                            style: TextStyle(
-                                              color: AppColors.primary,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  )
-                                // Empty state
-                                else if (_selectedPhotoPath == null)
-                                  Center(
-                                    child: Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Icon(
-                                          Icons.add_photo_alternate,
-                                          size: 40,
-                                          color: _isSharing
-                                              ? AppColors.primary.withValues(
-                                                  alpha: 0.5,
-                                                )
-                                              : AppColors.primary,
-                                        ),
-                                        const SizedBox(height: AppSpacing.sm),
-                                        Text(
-                                          'Add a photo (optional)',
-                                          style: TextStyle(
-                                            color: _isSharing
-                                                ? AppColors.primary.withValues(
-                                                    alpha: 0.5,
-                                                  )
-                                                : AppColors.primary,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                // Photo action buttons (when photo is selected)
-                                if (_selectedPhotoPath != null && !_isSharing)
-                                  Positioned(
-                                    top: 8,
-                                    right: 8,
-                                    child: Row(
-                                      children: [
-                                        // Retake button
-                                        GestureDetector(
-                                          onTap: _showPhotoSourceDialog,
-                                          child: Container(
-                                            padding: const EdgeInsets.all(4),
-                                            decoration: const BoxDecoration(
-                                              color: Colors.black54,
-                                              shape: BoxShape.circle,
-                                            ),
-                                            child: const Icon(
-                                              Icons.refresh,
-                                              color: Colors.white,
-                                              size: 20,
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        // Remove button
-                                        GestureDetector(
-                                          onTap: _removePhoto,
-                                          child: Container(
-                                            padding: const EdgeInsets.all(4),
-                                            decoration: const BoxDecoration(
-                                              color: Colors.black54,
-                                              shape: BoxShape.circle,
-                                            ),
-                                            child: const Icon(
-                                              Icons.close,
-                                              color: Colors.white,
-                                              size: 20,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                // Tap to expand hint
-                                if (_selectedPhotoPath != null && !_isSharing)
-                                  Positioned(
-                                    bottom: 8,
-                                    right: 8,
-                                    child: Container(
-                                      padding: const EdgeInsets.all(6),
-                                      decoration: BoxDecoration(
-                                        color: Colors.black.withValues(
-                                          alpha: 0.5,
-                                        ),
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: const Icon(
-                                        Icons.fullscreen,
-                                        color: Colors.white,
-                                        size: 16,
-                                      ),
-                                    ),
-                                  ),
-                                // Upload in progress overlay
-                                if (_isSharing && _selectedPhotoPath != null)
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      color: Colors.black.withValues(
-                                        alpha: 0.6,
-                                      ),
-                                      borderRadius: BorderRadius.circular(
-                                        AppBorderRadius.lg,
-                                      ),
-                                    ),
-                                    child: const Center(
-                                      child: Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            Icons.cloud_upload,
-                                            color: Colors.white,
-                                            size: 40,
-                                          ),
-                                          SizedBox(height: AppSpacing.sm),
-                                          Text(
-                                            'Uploading...',
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: AppSpacing.xl),
-
-                      // Actions
-                      SwitchListTile(
-                        value: _shareWithFriendsOnly,
-                        onChanged: (value) =>
-                            setState(() => _shareWithFriendsOnly = value),
-                        title: const Text('Share with friends only'),
-                        activeThumbColor: AppColors.primary,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-
-                      // Upload progress indicator
-                      if (_uploadProgress != null) ...[
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.md,
-                            vertical: AppSpacing.sm,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.primaryMuted,
-                            borderRadius: BorderRadius.circular(
-                              AppBorderRadius.md,
-                            ),
-                          ),
-                          child: Column(
-                            children: [
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    _uploadProgress! < 0.1
-                                        ? 'Creating post...'
-                                        : _uploadProgress! < 0.9
-                                        ? 'Uploading photo...'
-                                        : 'Finalizing...',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  Text(
-                                    '${(_uploadProgress! * 100).toInt()}%',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.primary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: AppSpacing.sm),
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(4),
-                                child: LinearProgressIndicator(
-                                  value: _uploadProgress!,
-                                  minHeight: 8,
-                                  backgroundColor: Colors.grey[300],
-                                  valueColor:
-                                      const AlwaysStoppedAnimation<Color>(
-                                        AppColors.primary,
-                                      ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                      ],
-                      ElevatedButton.icon(
-                        onPressed: _isSharing ? null : _handleShare,
-                        icon: _isSharing
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.share),
-                        label: Text(
-                          _isSharing
-                              ? (_uploadProgress != null
-                                    ? 'Uploading...'
-                                    : 'Sharing...')
-                              : 'Share to Feed',
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-
-                      OutlinedButton(
-                        onPressed: () {
-                          context.pushReplacement(
-                            '/session/start',
-                          ); // Verify route
-                        },
-                        child: const Text('Start Another Session'),
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-
-                      TextButton(
-                        onPressed: () => _confirmExit(),
-                        style: TextButton.styleFrom(
-                          foregroundColor: Colors.grey,
-                        ),
-                        child: const Text('Skip Sharing & Done'),
-                      ),
-                    ],
-                  ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: GoogleFonts.outfit(
+                  fontSize: 11,
+                  color: AppColors.textV2Secondary,
                 ),
               ),
             ],
-          ),
-        ], // Stack children
-      ), // Stack
-    );
-  }
-
-  void _confirmExit() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Leave without sharing?'),
-        content: const Text(
-          'Your workout is saved, but not shared to your feed. You can still access it in your history.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => context.pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              context.pop();
-              context.go(AppRoutes.main);
-            },
-            child: const Text('Leave'),
           ),
         ],
       ),
     );
   }
+}
 
-  /// Build a full-screen viewer for locally selected photos
-  Widget _buildLocalPhotoViewer() {
-    final transformationController = TransformationController();
+// ────────────────────────────────────────────────────────────────────────────
+// Breakdown section
+// ────────────────────────────────────────────────────────────────────────────
 
+class _BreakdownSection extends StatelessWidget {
+  final List<ExerciseSummary> exercises;
+
+  const _BreakdownSection({required this.exercises});
+
+  @override
+  Widget build(BuildContext context) {
+    final maxSets =
+        exercises.fold<int>(0, (m, e) => e.sets > m ? e.sets : m);
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceV2,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'BREAKDOWN',
+            style: GoogleFonts.outfit(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textV2Tertiary,
+              letterSpacing: 2,
+            ),
+          ),
+          const SizedBox(height: 14),
+          ...exercises.map((ex) {
+            final ratio = maxSets > 0 ? ex.sets / maxSets : 0.0;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        ex.name,
+                        style: GoogleFonts.syne(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textV2Primary,
+                        ),
+                      ),
+                      Text(
+                        '${ex.sets} sets',
+                        style: GoogleFonts.outfit(
+                          fontSize: 12,
+                          color: AppColors.textV2Secondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  LayoutBuilder(
+                    builder: (ctx, constraints) {
+                      return Stack(
+                        children: [
+                          Container(
+                            height: 4,
+                            width: constraints.maxWidth,
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceV2Elevated,
+                              borderRadius: BorderRadius.circular(99),
+                            ),
+                          ),
+                          Container(
+                            height: 4,
+                            width: constraints.maxWidth * ratio,
+                            decoration: BoxDecoration(
+                              color: AppColors.accentLime,
+                              borderRadius: BorderRadius.circular(99),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Share card section
+// ────────────────────────────────────────────────────────────────────────────
+
+class _ShareCardSection extends StatelessWidget {
+  final bool expanded;
+  final VoidCallback onToggle;
+  final Session session;
+  final String durationStr;
+  final int totalExercises;
+  final int totalSets;
+  final double totalVolume;
+  final int points;
+  final String username;
+
+  const _ShareCardSection({
+    required this.expanded,
+    required this.onToggle,
+    required this.session,
+    required this.durationStr,
+    required this.totalExercises,
+    required this.totalSets,
+    required this.totalVolume,
+    required this.points,
+    required this.username,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Toggle button
+        GestureDetector(
+          onTap: onToggle,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceV2,
+              borderRadius: expanded
+                  ? const BorderRadius.vertical(top: Radius.circular(20))
+                  : BorderRadius.circular(20),
+            ),
+            child: Row(
+              children: [
+                Text(
+                  'SHARE CARD PREVIEW',
+                  style: GoogleFonts.outfit(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textV2Tertiary,
+                    letterSpacing: 2,
+                  ),
+                ),
+                const Spacer(),
+                Icon(
+                  expanded
+                      ? Icons.keyboard_arrow_up
+                      : Icons.keyboard_arrow_down,
+                  size: 18,
+                  color: AppColors.textV2Secondary,
+                ),
+              ],
+            ),
+          ),
+        ),
+        // Preview card
+        if (expanded)
+          Container(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFF141414), Color(0xFF1A1A1A)],
+              ),
+              border: Border.all(
+                color: AppColors.accentLime.withValues(alpha: 0.13),
+              ),
+              borderRadius:
+                  const BorderRadius.vertical(bottom: Radius.circular(20)),
+            ),
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Wordmark + date
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'zyntro',
+                      style: GoogleFonts.syne(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.accentLime,
+                      ),
+                    ),
+                    Text(
+                      DateFormat('MMM d, yyyy').format(session.startedAt),
+                      style: GoogleFonts.outfit(
+                        fontSize: 10,
+                        color: AppColors.textV2Tertiary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // Headline
+                Text(
+                  'DONE.',
+                  style: GoogleFonts.syne(
+                    fontSize: 48,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textV2Primary,
+                    letterSpacing: -2.5,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '$durationStr  ·  ${WorkoutType.fromString(session.type).displayName}',
+                  style: GoogleFonts.outfit(
+                    fontSize: 12,
+                    color: AppColors.textV2Secondary,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // 3 stats row
+                Row(
+                  children: [
+                    _CardStat(label: 'Exercises', value: '$totalExercises'),
+                    const SizedBox(width: 20),
+                    _CardStat(label: 'Sets', value: '$totalSets'),
+                    const SizedBox(width: 20),
+                    _CardStat(
+                      label: 'Volume',
+                      value: totalVolume > 0
+                          ? '${totalVolume.toStringAsFixed(1)} kg'
+                          : '—',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // Footer
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '@$username',
+                      style: GoogleFonts.outfit(
+                        fontSize: 11,
+                        color: AppColors.textV2Secondary,
+                      ),
+                    ),
+                    Text(
+                      '+$points pts',
+                      style: GoogleFonts.syne(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.accentLime,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _CardStat extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _CardStat({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          value,
+          style: GoogleFonts.syne(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: AppColors.textV2Primary,
+          ),
+        ),
+        Text(
+          label,
+          style: GoogleFonts.outfit(
+            fontSize: 10,
+            color: AppColors.textV2Tertiary,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Post to feed section
+// ────────────────────────────────────────────────────────────────────────────
+
+class _PostToFeedSection extends StatelessWidget {
+  final bool postedToFeed;
+  final String? selectedPhotoPath;
+  final bool isPickingPhoto;
+  final bool isSharing;
+  final bool shareWithFriendsOnly;
+  final double? uploadProgress;
+  final VoidCallback onPhotoTap;
+  final VoidCallback onRemovePhoto;
+  final ValueChanged<bool> onToggleFriendsOnly;
+  final VoidCallback onShare;
+
+  const _PostToFeedSection({
+    required this.postedToFeed,
+    required this.selectedPhotoPath,
+    required this.isPickingPhoto,
+    required this.isSharing,
+    required this.shareWithFriendsOnly,
+    required this.uploadProgress,
+    required this.onPhotoTap,
+    required this.onRemovePhoto,
+    required this.onToggleFriendsOnly,
+    required this.onShare,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceV2,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Header
+          postedToFeed
+              ? Row(
+                  children: [
+                    const Icon(Icons.check_circle,
+                        size: 16, color: AppColors.accentLime),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Posted to feed',
+                      style: GoogleFonts.syne(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.accentLime,
+                      ),
+                    ),
+                  ],
+                )
+              : Text(
+                  'Post to feed',
+                  style: GoogleFonts.syne(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textV2Primary,
+                  ),
+                ),
+
+          const SizedBox(height: 14),
+
+          // Photo placeholder / preview
+          GestureDetector(
+            onTap: (isPickingPhoto || isSharing || postedToFeed)
+                ? null
+                : (selectedPhotoPath != null
+                    ? () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => _LocalPhotoViewer(
+                                path: selectedPhotoPath!),
+                          ),
+                        )
+                    : onPhotoTap),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              height: 72,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.textV2Tertiary,
+                  style: BorderStyle.solid,
+                ),
+                image: selectedPhotoPath != null
+                    ? DecorationImage(
+                        image: FileImage(File(selectedPhotoPath!)),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
+              ),
+              child: selectedPhotoPath == null
+                  ? Center(
+                      child: isPickingPhoto
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppColors.accentLime,
+                              ),
+                            )
+                          : Text(
+                              'Add photo',
+                              style: GoogleFonts.outfit(
+                                fontSize: 13,
+                                color: AppColors.textV2Tertiary,
+                              ),
+                            ),
+                    )
+                  : Stack(
+                      children: [
+                        if (!isSharing && !postedToFeed)
+                          Positioned(
+                            top: 4,
+                            right: 4,
+                            child: GestureDetector(
+                              onTap: onRemovePhoto,
+                              child: Container(
+                                padding: const EdgeInsets.all(3),
+                                decoration: const BoxDecoration(
+                                  color: Colors.black54,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.close,
+                                    color: Colors.white, size: 14),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          // Friends only toggle
+          if (!postedToFeed) ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Friends only',
+                  style: GoogleFonts.outfit(
+                    fontSize: 13,
+                    color: AppColors.textV2Secondary,
+                  ),
+                ),
+                Switch(
+                  value: shareWithFriendsOnly,
+                  onChanged: isSharing ? null : onToggleFriendsOnly,
+                  activeThumbColor: AppColors.accentLime,
+                  inactiveTrackColor: AppColors.surfaceV2Active,
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+          ],
+
+          // Upload progress
+          if (uploadProgress != null) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceV2Elevated,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        uploadProgress! < 0.1
+                            ? 'Creating post...'
+                            : uploadProgress! < 0.9
+                                ? 'Uploading photo...'
+                                : 'Finalizing...',
+                        style: GoogleFonts.outfit(
+                            fontSize: 12,
+                            color: AppColors.textV2Secondary),
+                      ),
+                      Text(
+                        '${(uploadProgress! * 100).toInt()}%',
+                        style: GoogleFonts.syne(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.accentLime,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: uploadProgress,
+                      minHeight: 4,
+                      backgroundColor: AppColors.surfaceV2Active,
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                          AppColors.accentLime),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+          ],
+
+          // Share button
+          if (!postedToFeed)
+            GestureDetector(
+              onTap: isSharing ? null : onShare,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                height: 52,
+                decoration: BoxDecoration(
+                  color: isSharing
+                      ? AppColors.accentLime.withValues(alpha: 0.5)
+                      : AppColors.accentLime,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Center(
+                  child: isSharing
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.black,
+                          ),
+                        )
+                      : Text(
+                          'Share Workout',
+                          style: GoogleFonts.syne(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.black,
+                          ),
+                        ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Ghost button
+// ────────────────────────────────────────────────────────────────────────────
+
+class _GhostButton extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+
+  const _GhostButton({required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 52,
+        decoration: BoxDecoration(
+          border: Border.all(color: AppColors.textV2Tertiary),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: GoogleFonts.syne(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textV2Secondary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Local photo full-screen viewer
+// ────────────────────────────────────────────────────────────────────────────
+
+class _LocalPhotoViewer extends StatelessWidget {
+  final String path;
+
+  const _LocalPhotoViewer({required this.path});
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = TransformationController();
     return Scaffold(
       backgroundColor: Colors.black,
       extendBodyBehindAppBar: true,
@@ -1334,8 +1342,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
               ),
               child: const Icon(Icons.fit_screen, color: Colors.white),
             ),
-            onPressed: () =>
-                transformationController.value = Matrix4.identity(),
+            onPressed: () => controller.value = Matrix4.identity(),
             tooltip: 'Reset zoom',
           ),
         ],
@@ -1343,56 +1350,14 @@ class _RecapPageState extends ConsumerState<RecapPage> {
       body: GestureDetector(
         onTap: () => Navigator.of(context).pop(),
         child: InteractiveViewer(
-          transformationController: transformationController,
+          transformationController: controller,
           minScale: 0.5,
           maxScale: 4.0,
           boundaryMargin: const EdgeInsets.all(20),
           child: Center(
-            child: Image.file(File(_selectedPhotoPath!), fit: BoxFit.contain),
+            child: Image.file(File(path), fit: BoxFit.contain),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildStatCard({
-    required IconData icon,
-    required String value,
-    required String label,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceSecondaryDark,
-        borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-        border: Border.all(color: AppColors.borderDark),
-      ),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, size: 24, color: AppColors.primary),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: AppFontSize.lg,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textDark,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          Text(
-            label,
-            style: TextStyle(color: AppColors.textSecondaryDark, fontSize: 12),
-          ),
-        ],
       ),
     );
   }

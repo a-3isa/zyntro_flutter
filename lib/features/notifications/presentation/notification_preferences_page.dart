@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/feature_flags.dart';
 import '../../auth/auth_providers.dart';
 import '../../../widgets/widgets.dart';
 import '../../../services/notification_service.dart';
 import 'package:flutter/services.dart';
-import '../../../widgets/premium_animations.dart';
 
 /// Notification preferences page for managing notification settings.
 /// Allows users to enable/disable different notification types.
@@ -74,7 +74,7 @@ class _NotificationPreferencesPageState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: AppColors.backgroundV2,
       body: Column(
         children: [
           // Custom Header
@@ -86,14 +86,14 @@ class _NotificationPreferencesPageState
               right: 16,
             ),
             decoration: BoxDecoration(
-              color: AppColors.surfaceDark,
+              color: AppColors.surfaceV2,
               border: Border(
                 bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
               ),
             ),
             child: Row(
               children: [
-                BounceAnimation(
+                GestureDetector(
                   onTap: () {
                     HapticFeedback.lightImpact();
                     context.pop();
@@ -101,21 +101,24 @@ class _NotificationPreferencesPageState
                   child: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceSecondaryDark,
+                      color: AppColors.surfaceV2Elevated,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(
                       Icons.arrow_back,
-                      color: AppColors.textDark,
+                      color: AppColors.textV2Primary,
                       size: 20,
                     ),
                   ),
                 ),
                 const SizedBox(width: 16),
-                const GradientText(
-                  text: 'Notification Settings',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  colors: [AppColors.textDark, AppColors.textSecondaryDark],
+                Text(
+                  'Notification Settings',
+                  style: GoogleFonts.syne(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textV2Primary,
+                  ),
                 ),
               ],
             ),

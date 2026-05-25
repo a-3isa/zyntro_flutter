@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import '../core/theme/app_theme.dart';
@@ -11,7 +10,7 @@ enum ZyntroCardVariant { elevated, outlined, filled, glass }
 /// Card padding options.
 enum ZyntroCardPadding { none, sm, md, lg }
 
-/// Premium Card widget with glassmorphism and refined shadows.
+/// Premium Card widget with v2 minimal flat surfaces.
 class ZyntroCard extends StatefulWidget {
   final Widget child;
   final ZyntroCardVariant variant;
@@ -25,6 +24,8 @@ class ZyntroCard extends StatefulWidget {
   final Color? glowColor;
   final bool hapticFeedback;
   final String? semanticLabel;
+  // v2: adds 1px lime33 accent border
+  final bool accent;
 
   const ZyntroCard({
     super.key,
@@ -40,6 +41,7 @@ class ZyntroCard extends StatefulWidget {
     this.glowColor,
     this.hapticFeedback = true,
     this.semanticLabel,
+    this.accent = false,
   });
 
   @override
@@ -113,9 +115,6 @@ class _ZyntroCardState extends State<ZyntroCard>
   }
 
   BoxDecoration _getDecoration(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final borderRadius = _getBorderRadius(context);
-
     // Dynamic glow shadow based on pressed state and elevation animation
     List<BoxShadow>? boxShadow;
     if (widget.showGlow) {
@@ -130,40 +129,28 @@ class _ZyntroCardState extends State<ZyntroCard>
       ];
     }
 
+    // Accent border used by multiple variants
+    final accentBorder = widget.accent
+        ? Border.all(
+            color: AppColors.accentLime.withValues(alpha: 0.20),
+            width: 1,
+          )
+        : null;
+
     switch (widget.variant) {
       case ZyntroCardVariant.elevated:
         return BoxDecoration(
-          color:
-              widget.backgroundColor ??
-              (isDark ? AppColors.surfaceDark : AppColors.surfaceLight),
-          borderRadius: BorderRadius.circular(borderRadius),
-          border: Border.all(
-            color: isDark
-                ? AppColors.borderDark.withValues(alpha: 0.5)
-                : AppColors.borderLight,
-          ),
-          boxShadow:
-              boxShadow ??
-              [
-                BoxShadow(
-                  color: const Color(0x1A000000),
-                  offset: Offset(0, 4 * _elevationAnimation.value),
-                  blurRadius: 12 * _elevationAnimation.value,
-                ),
-              ],
+          color: widget.backgroundColor ?? AppColors.surfaceV2,
+          borderRadius: BorderRadius.circular(20),
+          border: accentBorder,
+          boxShadow: boxShadow,
         );
       case ZyntroCardVariant.outlined:
         return BoxDecoration(
-          color:
-              widget.backgroundColor ??
-              (isDark
-                  ? AppColors.surfaceDark.withValues(alpha: 0.5)
-                  : AppColors.surfaceLight),
-          borderRadius: BorderRadius.circular(borderRadius),
-          border: Border.all(
-            color: isDark ? AppColors.borderDark : AppColors.borderLight,
-            width: 1.5,
-          ),
+          color: widget.backgroundColor ?? AppColors.surfaceV2,
+          borderRadius: BorderRadius.circular(20),
+          border: accentBorder ??
+              Border.all(color: AppColors.surfaceV2Active),
           boxShadow: boxShadow,
         );
       case ZyntroCardVariant.filled:
@@ -176,25 +163,21 @@ class _ZyntroCardState extends State<ZyntroCard>
                 )
               : null,
           color: widget.gradientColors == null
-              ? (widget.backgroundColor ??
-                    (isDark
-                        ? AppColors.surfaceSecondaryDark
-                        : AppColors.surfaceSecondaryLight))
+              ? (widget.backgroundColor ?? AppColors.surfaceV2Elevated)
               : null,
-          borderRadius: BorderRadius.circular(borderRadius),
+          borderRadius: BorderRadius.circular(20),
+          border: accentBorder,
           boxShadow: boxShadow,
         );
       case ZyntroCardVariant.glass:
+        // v2: no blur, just a flat elevated surface
         return BoxDecoration(
-          color:
-              widget.backgroundColor ??
-              (isDark
-                  ? AppColors.surfaceDark.withValues(alpha: 0.6)
-                  : AppColors.surfaceLight.withValues(alpha: 0.8)),
-          borderRadius: BorderRadius.circular(borderRadius),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: isDark ? 0.1 : 0.2),
-          ),
+          color: widget.backgroundColor ?? AppColors.surfaceV2Elevated,
+          borderRadius: BorderRadius.circular(20),
+          border: accentBorder ??
+              Border.all(
+                color: Colors.white.withValues(alpha: 0.06),
+              ),
           boxShadow: boxShadow,
         );
     }
@@ -242,20 +225,6 @@ class _ZyntroCardState extends State<ZyntroCard>
         );
       },
     );
-
-    // Apply glassmorphism blur for glass variant
-    if (widget.variant == ZyntroCardVariant.glass) {
-      content = ClipRRect(
-        borderRadius: BorderRadius.circular(borderRadius),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(
-            sigmaX: _isPressed ? 8 : 10,
-            sigmaY: _isPressed ? 8 : 10,
-          ),
-          child: content,
-        ),
-      );
-    }
 
     // Wrap with animation
     content = AnimatedBuilder(

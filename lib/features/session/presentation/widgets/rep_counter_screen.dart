@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../core/theme/app_theme.dart';
@@ -61,18 +61,19 @@ class _RepCounterScreenState extends State<RepCounterScreen>
     _bounceController.forward(from: 0.0);
   }
 
-  void _reset() {
+  void _undo() {
+    if (_repCount == 0) return;
     HapticFeedback.lightImpact();
-    setState(() => _repCount = 0);
+    setState(() => _repCount -= 1);
   }
 
   @override
   Widget build(BuildContext context) {
     final bool canFinish = _repCount > 0;
 
-    return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
-      body: Stack(
+    return ColoredBox(
+      color: AppColors.backgroundV2,
+      child: Stack(
         children: <Widget>[
           Positioned.fill(
             child: GestureDetector(
@@ -84,70 +85,83 @@ class _RepCounterScreenState extends State<RepCounterScreen>
                   children: <Widget>[
                     ScaleTransition(
                       scale: _bounceAnimation,
-                      child: Text(
-                        '$_repCount',
-                        style: const TextStyle(
-                          color: AppColors.textDark,
-                          fontSize: 180,
+                      child: AnimatedDefaultTextStyle(
+                        duration: const Duration(milliseconds: 150),
+                        style: TextStyle(
+                          color: _repCount == 0
+                              ? AppColors.textV2Tertiary
+                              : AppColors.accentLime,
+                          fontSize: _repCount == 0 ? 40.0 : 108.0,
                           fontWeight: FontWeight.w800,
                           height: 1.0,
                           letterSpacing: -4,
                         ),
+                        child: Text(_repCount == 0 ? 'TAP' : '$_repCount'),
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'REPS',
-                      style: TextStyle(
-                        color: AppColors.textTertiaryDark,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 6,
+                    if (_repCount > 0) ...<Widget>[
+                      const SizedBox(height: 8),
+                      Text(
+                        'reps',
+                        style: TextStyle(
+                          color: AppColors.textV2Secondary,
+                          fontSize: 14,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 24),
-                    Text(
-                      'Tap anywhere to count',
-                      style: TextStyle(
-                        color: AppColors.textSecondaryDark,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
+                    ],
                   ],
                 ),
               ),
             ),
           ),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Align(
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Align(
                 alignment: Alignment.topLeft,
                 child: Material(
-                  color: AppColors.surfaceDark,
-                  shape: const CircleBorder(),
+                  color: _repCount > 0
+                      ? AppColors.surfaceV2
+                      : AppColors.surfaceV2.withValues(alpha: 0.4),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   child: InkWell(
-                    customBorder: const CircleBorder(),
-                    onTap: _reset,
-                    child: const SizedBox(
-                      width: 44,
-                      height: 44,
-                      child: Icon(
-                        Icons.refresh_rounded,
-                        color: AppColors.textDark,
-                        size: 22,
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: _undo,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 10),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Icon(
+                            Icons.undo_rounded,
+                            color: _repCount > 0
+                                ? AppColors.textV2Secondary
+                                : AppColors.textV2Tertiary,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Undo',
+                            style: TextStyle(
+                              color: _repCount > 0
+                                  ? AppColors.textV2Secondary
+                                  : AppColors.textV2Tertiary,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
           Align(
             alignment: Alignment.bottomCenter,
-            child: SafeArea(
-              child: Padding(
+            child: Padding(
                 padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
                 child: SizedBox(
                   width: double.infinity,
@@ -157,31 +171,25 @@ class _RepCounterScreenState extends State<RepCounterScreen>
                     style: FilledButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       disabledBackgroundColor:
-                          AppColors.surfaceSecondaryDark,
-                      foregroundColor: AppColors.backgroundDark,
-                      disabledForegroundColor: AppColors.textTertiaryDark,
+                          AppColors.surfaceV2Elevated,
+                      foregroundColor: AppColors.backgroundV2,
+                      disabledForegroundColor: AppColors.textV2Tertiary,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: <Widget>[
-                        Text(
-                          'Done',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        SizedBox(width: 8),
-                        Icon(Icons.check_rounded, size: 20),
-                      ],
+                    child: Text(
+                      canFinish
+                          ? 'Save — $_repCount ${_repCount == 1 ? "rep" : "reps"} ✓'
+                          : 'Save reps',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
           ),
         ],
       ),

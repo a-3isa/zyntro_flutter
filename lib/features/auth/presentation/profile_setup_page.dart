@@ -2,18 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/constants.dart';
 import '../../../app/navigation/app_router.dart';
 import '../../../widgets/email_verification_banner.dart';
 import '../../../widgets/zyntro_button.dart';
-import '../../../widgets/premium_effects.dart';
 import '../../../widgets/avatar_selector.dart';
 import '../auth_providers.dart';
 import 'providers/auth_controller.dart';
 
-/// Premium Profile setup screen for new users.
 class ProfileSetupPage extends ConsumerStatefulWidget {
   const ProfileSetupPage({super.key});
 
@@ -27,11 +26,11 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
   WorkoutType _workoutPreference = WorkoutType.other;
   bool _isLoading = false;
   bool _isBeginner = false;
-  String? _photoUrl; // For social auth providers
-  String? _selectedAvatar; // For avatar selection
+  String? _photoUrl;
+  String? _selectedAvatar;
   double? _uploadProgress;
   String _uploadStatus = '';
-  String _authProvider = 'email'; // Track auth provider
+  String _authProvider = 'email';
 
   @override
   void initState() {
@@ -39,17 +38,13 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final state = GoRouterState.of(context);
       if (state.extra is WorkoutType) {
-        setState(() {
-          _workoutPreference = state.extra as WorkoutType;
-        });
+        setState(() => _workoutPreference = state.extra as WorkoutType);
       }
 
-      // Pre-fill data from social providers
       final authState = ref.read(authSessionProvider);
       final user = authState.valueOrNull;
 
       if (user != null) {
-        // Detect auth provider
         final providerData = user.providerIds;
         final isGoogleSignup = providerData.contains('google.com');
         final isFacebookSignup = providerData.contains('facebook.com');
@@ -61,7 +56,6 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
             _authProvider = 'facebook';
           }
 
-          // Pre-fill name and photo for social signups
           if (_authProvider != 'email') {
             _nameController.text = user.displayName ?? '';
             _photoUrl = user.photoUrl;
@@ -86,36 +80,28 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
       final authState = ref.read(authSessionProvider);
       final uid = authState.valueOrNull?.id;
 
-      if (uid == null) {
-        throw Exception('User not authenticated');
-      }
+      if (uid == null) throw Exception('User not authenticated');
 
-      // For email signups, use avatarConfig instead of uploading photos
-      // For social auth, keep using photoURL from provider
       String? avatarConfigToSave;
       String? photoUrlToSave;
 
       if (_authProvider == 'email') {
-        // Use avatar config for email signups
         avatarConfigToSave = _selectedAvatar;
       } else {
-        // Use photo URL from social providers (already set in initState)
         photoUrlToSave = _photoUrl;
       }
 
       setState(() => _uploadStatus = 'Creating profile...');
 
-      await ref
-          .read(authControllerProvider)
-          .createUserProfile(
-            userId: uid,
-            displayName: _nameController.text.trim(),
-            workoutPreference: _workoutPreference,
-            beginnerFlag: _isBeginner,
-            photoUrl: photoUrlToSave,
-            avatarConfig: avatarConfigToSave,
-            authProvider: _authProvider,
-          );
+      await ref.read(authControllerProvider).createUserProfile(
+        userId: uid,
+        displayName: _nameController.text.trim(),
+        workoutPreference: _workoutPreference,
+        beginnerFlag: _isBeginner,
+        photoUrl: photoUrlToSave,
+        avatarConfig: avatarConfigToSave,
+        authProvider: _authProvider,
+      );
 
       if (mounted) {
         ref.invalidate(authProfileCompletionProvider);
@@ -128,9 +114,7 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
             content: Text('Error: ${e.toString()}'),
             backgroundColor: AppColors.error,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             action: SnackBarAction(
               label: 'Retry',
               textColor: Colors.white,
@@ -140,273 +124,198 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
         );
       }
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
-      body: Stack(
-        children: [
-          // Background orbs
-          Positioned(
-            top: -100,
-            right: -80,
-            child: Container(
-              width: 250,
-              height: 250,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    AppColors.primary.withValues(alpha: 0.2),
-                    AppColors.primary.withValues(alpha: 0.0),
-                  ],
+      backgroundColor: AppColors.backgroundV2,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: Form(
+            key: _formKey,
+            autovalidateMode: AutovalidateMode.onUserInteraction,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: AppSpacing.xl),
+
+                // Header
+                Text(
+                  'Set Up Your Profile',
+                  style: GoogleFonts.syne(
+                    fontSize: AppFontSize.xxl,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textV2Primary,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 100,
-            left: -60,
-            child: Container(
-              width: 180,
-              height: 180,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    AppColors.secondary.withValues(alpha: 0.15),
-                    AppColors.secondary.withValues(alpha: 0.0),
-                  ],
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  "Let's personalize your experience",
+                  style: GoogleFonts.outfit(
+                    fontSize: AppFontSize.md,
+                    color: AppColors.textV2Secondary,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-              ),
-            ),
-          ),
 
-          SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(AppSpacing.xl),
-              child: Form(
-                key: _formKey,
-                autovalidateMode: AutovalidateMode.onUserInteraction,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const SizedBox(height: AppSpacing.xl),
+                const SizedBox(height: AppSpacing.xxl),
 
-                    // Header
-                    const GradientText(
-                      text: 'Set Up Your Profile',
-                      style: TextStyle(
-                        fontSize: AppFontSize.xxl,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      colors: [AppColors.primary, AppColors.secondary],
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      "Let's personalize your experience",
-                      style: TextStyle(
-                        fontSize: AppFontSize.md,
-                        color: AppColors.textSecondaryDark,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
+                // Email Verification Banner
+                Consumer(
+                  builder: (context, ref, child) {
+                    final authState = ref.watch(authSessionProvider);
+                    final user = authState.valueOrNull;
 
-                    const SizedBox(height: AppSpacing.xxl),
-
-                    // Email Verification Banner - only for email signups
-                    Consumer(
-                      builder: (context, ref, child) {
-                        final authState = ref.watch(authSessionProvider);
-                        final user = authState.valueOrNull;
-
-                        // Only show for email signups
-                        if (user != null &&
-                            !user.emailVerified &&
-                            _authProvider == 'email') {
-                          return Padding(
-                            padding: const EdgeInsets.only(
-                              bottom: AppSpacing.xl,
-                            ),
-                            child: EmailVerificationBanner(
-                              onResendPressed: () async {
-                                await ref
-                                    .read(authControllerProvider)
-                                    .sendEmailVerification();
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: const Text(
-                                        'Verification email sent!',
-                                      ),
-                                      backgroundColor: AppColors.success,
-                                      behavior: SnackBarBehavior.floating,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                    ),
-                                  );
-                                }
-                              },
-                            ),
-                          );
-                        }
-                        return const SizedBox.shrink();
-                      },
-                    ),
-
-                    // Photo/Avatar Selection - conditional based on auth provider
-                    if (_authProvider == 'email') ...[
-                      // Avatar selector for email signups
-                      AvatarSelector(
-                        onAvatarSelected: (avatar) {
-                          setState(() => _selectedAvatar = avatar);
-                        },
-                        initialAvatar: _selectedAvatar,
-                      ),
-                    ] else ...[
-                      // Show social profile photo for Google/Facebook
-                      Center(
-                        child: Column(
-                          children: [
-                            Container(
-                              width: 130,
-                              height: 130,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: LinearGradient(
-                                  colors: AppColors.primaryGradient,
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
+                    if (user != null && !user.emailVerified && _authProvider == 'email') {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.xl),
+                        child: EmailVerificationBanner(
+                          onResendPressed: () async {
+                            await ref.read(authControllerProvider).sendEmailVerification();
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: const Text('Verification email sent!'),
+                                  backgroundColor: AppColors.success,
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
                                 ),
-                              ),
-                              padding: const EdgeInsets.all(4),
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: AppColors.surfaceDark,
-                                  image: _photoUrl != null
-                                      ? DecorationImage(
-                                          image: NetworkImage(_photoUrl!),
-                                          fit: BoxFit.cover,
-                                        )
-                                      : null,
-                                ),
-                                child: _photoUrl == null
-                                    ? Icon(
-                                        Icons.person,
-                                        size: 60,
-                                        color: AppColors.textSecondaryDark,
-                                      )
-                                    : null,
-                              ),
-                            ),
-                            const SizedBox(height: AppSpacing.md),
-                            Text(
-                              'Profile photo from ${_authProvider == 'google' ? 'Google' : 'Facebook'}',
-                              style: TextStyle(
-                                fontSize: AppFontSize.sm,
-                                color: AppColors.textSecondaryDark,
-                              ),
-                            ),
-                          ],
+                              );
+                            }
+                          },
                         ),
-                      ),
-                    ],
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
 
-                    const SizedBox(height: AppSpacing.xxxl),
-
-                    // Name field
-                    _buildTextField(
-                      controller: _nameController,
-                      label: 'Display Name',
-                      hint: 'How should we call you?',
-                      icon: Icons.person_outlined,
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Please enter your name';
-                        }
-                        if (value.trim().length < 2) {
-                          return 'Name must be at least 2 characters';
-                        }
-                        return null;
-                      },
-                    ),
-
-                    const SizedBox(height: AppSpacing.xxl),
-
-                    // Workout preference
-                    Text(
-                      'What type of workouts do you prefer?',
-                      style: TextStyle(
-                        fontSize: AppFontSize.md,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textDark,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    _buildWorkoutChips(),
-
-                    const SizedBox(height: AppSpacing.xxl),
-
-                    // Beginner toggle
-                    _buildBeginnerToggle(),
-
-                    const SizedBox(height: AppSpacing.xl),
-
-                    const SizedBox(height: AppSpacing.xxxl),
-
-                    // Submit button
-                    ZyntroButton(
-                      title: _isLoading ? '' : 'Continue',
-                      fullWidth: true,
-                      size: ZyntroButtonSize.lg,
-                      loading: _isLoading,
-                      variant: ZyntroButtonVariant.premium,
-                      rightIcon: _isLoading
-                          ? null
-                          : const Icon(Icons.arrow_forward_rounded),
-                      onPressed: _isLoading ? null : _handleSubmit,
-                    ),
-
-                    // Upload progress
-                    if (_isLoading && _uploadStatus.isNotEmpty) ...[
-                      const SizedBox(height: AppSpacing.md),
-                      if (_uploadProgress != null && _uploadProgress! < 1.0)
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            value: _uploadProgress,
-                            backgroundColor: AppColors.surfaceSecondaryDark,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              AppColors.primary,
+                // Photo/Avatar Selection
+                if (_authProvider == 'email') ...[
+                  AvatarSelector(
+                    onAvatarSelected: (avatar) => setState(() => _selectedAvatar = avatar),
+                    initialAvatar: _selectedAvatar,
+                  ),
+                ] else ...[
+                  Center(
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 130,
+                          height: 130,
+                          padding: const EdgeInsets.all(3),
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: AppColors.accentLime,
+                          ),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: AppColors.surfaceV2,
+                              image: _photoUrl != null
+                                  ? DecorationImage(
+                                      image: NetworkImage(_photoUrl!),
+                                      fit: BoxFit.cover,
+                                    )
+                                  : null,
                             ),
+                            child: _photoUrl == null
+                                ? Icon(Icons.person, size: 60, color: AppColors.textV2Secondary)
+                                : null,
                           ),
                         ),
-                      const SizedBox(height: AppSpacing.sm),
-                      Text(
-                        _uploadStatus,
-                        style: TextStyle(
-                          color: AppColors.textSecondaryDark,
-                          fontSize: AppFontSize.sm,
+                        const SizedBox(height: AppSpacing.md),
+                        Text(
+                          'Profile photo from ${_authProvider == 'google' ? 'Google' : 'Facebook'}',
+                          style: GoogleFonts.outfit(
+                            fontSize: AppFontSize.sm,
+                            color: AppColors.textV2Secondary,
+                          ),
                         ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
+                      ],
+                    ),
+                  ),
+                ],
 
-                    const SizedBox(height: AppSpacing.xl),
-                  ],
+                const SizedBox(height: AppSpacing.xxxl),
+
+                // Name field
+                _buildTextField(
+                  controller: _nameController,
+                  label: 'Display Name',
+                  hint: 'How should we call you?',
+                  icon: Icons.person_outlined,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) return 'Please enter your name';
+                    if (value.trim().length < 2) return 'Name must be at least 2 characters';
+                    return null;
+                  },
                 ),
-              ),
+
+                const SizedBox(height: AppSpacing.xxl),
+
+                Text(
+                  'What type of workouts do you prefer?',
+                  style: GoogleFonts.outfit(
+                    fontSize: AppFontSize.md,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textV2Primary,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                _buildWorkoutChips(),
+
+                const SizedBox(height: AppSpacing.xxl),
+
+                _buildBeginnerToggle(),
+
+                const SizedBox(height: AppSpacing.xl),
+                const SizedBox(height: AppSpacing.xxxl),
+
+                // Submit button
+                ZyntroButton(
+                  title: _isLoading ? '' : 'Continue',
+                  fullWidth: true,
+                  size: ZyntroButtonSize.lg,
+                  loading: _isLoading,
+                  rightIcon: _isLoading ? null : const Icon(Icons.arrow_forward_rounded),
+                  onPressed: _isLoading ? null : _handleSubmit,
+                ),
+
+                if (_isLoading && _uploadStatus.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  if (_uploadProgress != null && _uploadProgress! < 1.0)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: _uploadProgress,
+                        backgroundColor: AppColors.surfaceV2Elevated,
+                        valueColor: const AlwaysStoppedAnimation<Color>(AppColors.accentLime),
+                      ),
+                    ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    _uploadStatus,
+                    style: GoogleFonts.outfit(
+                      color: AppColors.textV2Secondary,
+                      fontSize: AppFontSize.sm,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+
+                const SizedBox(height: AppSpacing.xl),
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -421,26 +330,26 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
     return TextFormField(
       controller: controller,
       textCapitalization: TextCapitalization.words,
-      style: const TextStyle(color: AppColors.textDark),
+      style: const TextStyle(color: AppColors.textV2Primary),
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
-        prefixIcon: Icon(icon, color: AppColors.textSecondaryDark),
-        labelStyle: TextStyle(color: AppColors.textSecondaryDark),
-        hintStyle: TextStyle(color: AppColors.textTertiaryDark),
+        prefixIcon: Icon(icon, color: AppColors.textV2Secondary),
+        labelStyle: TextStyle(color: AppColors.textV2Secondary),
+        hintStyle: TextStyle(color: AppColors.textV2Tertiary),
         filled: true,
-        fillColor: AppColors.surfaceSecondaryDark,
+        fillColor: AppColors.surfaceV2Elevated,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppBorderRadius.lg),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-          borderSide: BorderSide(color: AppColors.borderDark),
+          borderSide: BorderSide(color: AppColors.surfaceV2Active),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-          borderSide: BorderSide(color: AppColors.primary, width: 2),
+          borderSide: const BorderSide(color: AppColors.accentLime, width: 2),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppBorderRadius.lg),
@@ -469,21 +378,18 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
               vertical: AppSpacing.md,
             ),
             decoration: BoxDecoration(
-              gradient: isSelected
-                  ? LinearGradient(colors: AppColors.primaryGradient)
-                  : null,
-              color: isSelected ? null : AppColors.surfaceSecondaryDark,
+              color: isSelected ? AppColors.accentLime : AppColors.surfaceV2Elevated,
               borderRadius: BorderRadius.circular(AppBorderRadius.lg),
               border: Border.all(
-                color: isSelected ? AppColors.primary : AppColors.borderDark,
+                color: isSelected ? AppColors.accentLime : AppColors.surfaceV2Active,
                 width: isSelected ? 2 : 1,
               ),
             ),
             child: Text(
               type.value.toUpperCase(),
-              style: TextStyle(
-                color: isSelected ? Colors.white : AppColors.textSecondaryDark,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+              style: GoogleFonts.outfit(
+                color: isSelected ? AppColors.backgroundV2 : AppColors.textV2Secondary,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                 fontSize: AppFontSize.sm,
               ),
             ),
@@ -497,30 +403,30 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: AppColors.surfaceSecondaryDark,
+        color: AppColors.surfaceV2Elevated,
         borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-        border: Border.all(color: AppColors.borderDark),
+        border: Border.all(color: AppColors.surfaceV2Active),
       ),
       child: Row(
         children: [
-          Icon(Icons.school_outlined, color: AppColors.primary),
+          const Icon(Icons.school_outlined, color: AppColors.accentLime),
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   "I'm new to fitness",
-                  style: TextStyle(
+                  style: GoogleFonts.outfit(
                     fontWeight: FontWeight.w600,
-                    color: AppColors.textDark,
+                    color: AppColors.textV2Primary,
                   ),
                 ),
                 Text(
                   "We'll provide extra guidance and tips",
-                  style: TextStyle(
+                  style: GoogleFonts.outfit(
                     fontSize: AppFontSize.sm,
-                    color: AppColors.textSecondaryDark,
+                    color: AppColors.textV2Secondary,
                   ),
                 ),
               ],
@@ -533,16 +439,12 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
               setState(() => _isBeginner = value);
             },
             thumbColor: WidgetStateProperty.resolveWith<Color?>((states) {
-              if (states.contains(WidgetState.selected)) {
-                return AppColors.primary;
-              }
+              if (states.contains(WidgetState.selected)) return AppColors.backgroundV2;
               return null;
             }),
             trackColor: WidgetStateProperty.resolveWith<Color?>((states) {
-              if (states.contains(WidgetState.selected)) {
-                return AppColors.primary.withValues(alpha: 0.3);
-              }
-              return null;
+              if (states.contains(WidgetState.selected)) return AppColors.accentLime;
+              return AppColors.surfaceV2Active;
             }),
           ),
         ],

@@ -16,8 +16,6 @@ import '../features/moderation/presentation/report_dialog.dart';
 import '../utils/responsive_utils.dart';
 import 'photo_viewer_page.dart';
 import 'reaction_buttons.dart';
-import 'premium_animations.dart';
-import 'premium_effects.dart';
 import '../utils/image_cache_manager.dart';
 import 'fluttermoji_avatar.dart';
 
@@ -289,13 +287,11 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
                                   cacheManager: ZyntroImageCacheManager(),
                                   imageUrl: widget.post.mediaURLs!.first,
                                   fit: BoxFit.cover,
-                                  placeholder: (context, url) => ShimmerLoading(
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey[300],
-                                        borderRadius: BorderRadius.circular(
-                                          AppBorderRadius.md,
-                                        ),
+                                  placeholder: (context, url) => Container(
+                                    decoration: BoxDecoration(
+                                      color: AppColors.surfaceV2,
+                                      borderRadius: BorderRadius.circular(
+                                        AppBorderRadius.md,
                                       ),
                                     ),
                                   ),
@@ -386,14 +382,15 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
                     ),
                   ),
 
-                // Stats with premium gradient border
+                // Stats section
                 if (widget.post.summary.totalExercises != null ||
                     widget.post.summary.totalSets != null ||
                     widget.post.summary.duration != null)
-                  GradientBorder(
-                    gradientColors: AppColors.primaryGradient,
-                    borderWidth: 1.5,
-                    borderRadius: BorderRadius.circular(AppBorderRadius.md),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceV2Elevated,
+                      borderRadius: BorderRadius.circular(AppBorderRadius.md),
+                    ),
                     child: Container(
                       padding: const EdgeInsets.all(AppSpacing.md),
                       child: Column(

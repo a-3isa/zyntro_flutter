@@ -68,7 +68,7 @@ class _ZyntroButtonState extends State<ZyntroButton>
       vsync: this,
     );
     _scaleAnimation =
-        Tween<double>(begin: 1.0, end: AppAnimations.buttonPressScale).animate(
+        Tween<double>(begin: 1.0, end: 0.97).animate(
           CurvedAnimation(parent: _scaleController, curve: Curves.easeInOut),
         );
 
@@ -114,68 +114,59 @@ class _ZyntroButtonState extends State<ZyntroButton>
     super.dispose();
   }
 
-  List<Color> _getGradientColors() {
+  // v2: flat fill for primary (no gradient)
+  Color _getFillColor() {
     switch (widget.variant) {
       case ZyntroButtonVariant.primary:
-        return _isPressed
-            ? [AppColors.primaryDark, AppColors.primary]
-            : AppColors.primaryGradient;
+        return _isPressed ? AppColors.accentLimeDim : AppColors.accentLime;
       case ZyntroButtonVariant.secondary:
-        return _isPressed
-            ? [AppColors.secondaryDark, AppColors.secondary]
-            : AppColors.secondaryGradient;
+        return AppColors.surfaceV2;
       case ZyntroButtonVariant.premium:
-        return _isPressed
-            ? [AppColors.premiumDark, AppColors.premium]
-            : AppColors.premiumGradient;
+        return AppColors.surfaceV2Elevated;
       case ZyntroButtonVariant.destructive:
-        return _isPressed
-            ? [AppColors.error.withValues(alpha: 0.7), AppColors.error]
-            : [AppColors.error, AppColors.error.withValues(alpha: 0.8)];
+        return AppColors.errorV2;
       case ZyntroButtonVariant.outline:
       case ZyntroButtonVariant.ghost:
-        return [Colors.transparent, Colors.transparent];
+        return Colors.transparent;
     }
   }
 
   Color _getForegroundColor() {
     switch (widget.variant) {
       case ZyntroButtonVariant.primary:
+        return AppColors.backgroundV2;
       case ZyntroButtonVariant.secondary:
+        return AppColors.textV2Primary;
       case ZyntroButtonVariant.destructive:
-        return AppColors.backgroundDark;
+        return Colors.white;
       case ZyntroButtonVariant.premium:
-        return AppColors.textDark;
+        return AppColors.textV2Primary;
       case ZyntroButtonVariant.outline:
-        return AppColors.primary;
+        return AppColors.accentLime;
       case ZyntroButtonVariant.ghost:
-        return Theme.of(context).colorScheme.onSurface;
+        return AppColors.textV2Secondary;
     }
   }
 
   List<BoxShadow>? _getBoxShadow() {
-    if (widget.variant == ZyntroButtonVariant.outline ||
-        widget.variant == ZyntroButtonVariant.ghost) {
-      return null;
+    if (widget.variant == ZyntroButtonVariant.primary && !_isPressed) {
+      return [
+        BoxShadow(
+          color: AppColors.accentLime.withValues(alpha: 0.30),
+          blurRadius: 20,
+          offset: const Offset(0, 0),
+        ),
+      ];
     }
-
-    // Neutral elevation shadow — no colored glow
-    final intensity = _isPressed ? 0.5 : 1.0;
-    return [
-      BoxShadow(
-        color: const Color(0x24000000),
-        blurRadius: 12 * intensity,
-        offset: Offset(0, 4 * intensity),
-      ),
-    ];
+    return null;
   }
 
   Border? _getBorder() {
     if (widget.variant == ZyntroButtonVariant.outline) {
-      return Border.all(
-        color: _isPressed ? AppColors.primaryDark : AppColors.primary,
-        width: 2,
-      );
+      return Border.all(color: AppColors.accentLime, width: 1);
+    }
+    if (widget.variant == ZyntroButtonVariant.ghost) {
+      return Border.all(color: AppColors.surfaceV2Active, width: 1);
     }
     return null;
   }
@@ -302,7 +293,7 @@ class _ZyntroButtonState extends State<ZyntroButton>
   Widget build(BuildContext context) {
     final isDisabled = widget.disabled || widget.loading;
     final foregroundColor = _getForegroundColor();
-    final gradientColors = _getGradientColors();
+    final fillColor = _getFillColor();
     final boxShadow = _getBoxShadow();
     final border = _getBorder();
 
@@ -322,21 +313,15 @@ class _ZyntroButtonState extends State<ZyntroButton>
           },
           child: AnimatedOpacity(
             duration: AppDurations.fast,
-            opacity: isDisabled ? 0.5 : 1.0,
+            opacity: isDisabled ? 0.4 : 1.0,
             child: AnimatedContainer(
               duration: AppAnimations.microInteraction,
               width: widget.fullWidth ? double.infinity : null,
               constraints: BoxConstraints(minHeight: _getMinHeight(context)),
               padding: _getPadding(context),
               decoration: BoxDecoration(
-                gradient: gradientColors.first != Colors.transparent
-                    ? LinearGradient(
-                        colors: gradientColors,
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      )
-                    : null,
-                borderRadius: BorderRadius.circular(AppBorderRadius.lg),
+                color: fillColor,
+                borderRadius: BorderRadius.circular(AppBorderRadius.md),
                 border: border,
                 boxShadow: boxShadow,
               ),
@@ -370,10 +355,11 @@ class _ZyntroButtonState extends State<ZyntroButton>
                     Text(
                       widget.title,
                       style: TextStyle(
+                        fontFamily: AppFonts.display,
                         fontSize: _getFontSize(context),
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w700,
                         color: foregroundColor,
-                        letterSpacing: 0.5,
+                        letterSpacing: 0.3,
                       ),
                     ),
                     if (widget.rightIcon != null) ...[

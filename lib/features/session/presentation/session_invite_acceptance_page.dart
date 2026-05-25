@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -300,14 +300,10 @@ class _SessionInviteAcceptancePageState
   }
 
   void _navigateToNextScreen(WorkoutType type) {
-    if (type == WorkoutType.gym) {
-      context.go(AppRouteLocations.gymSessionSetup(widget.sessionId));
-    } else {
-      context.go(AppRouteLocations.sessionRoom(
-        widget.sessionId,
-        type: type.value,
-      ));
-    }
+    context.go(AppRouteLocations.sessionRoom(
+      widget.sessionId,
+      type: type.value,
+    ));
   }
 
   void _handleAlreadyParticipant(Session session, String uid) {
@@ -375,7 +371,7 @@ class _SessionInviteAcceptancePageState
       case 'mixed':
         return AppColors.cardGradient;
       default:
-        return [AppColors.textSecondaryDark, AppColors.textTertiaryDark];
+        return [AppColors.textV2Secondary, AppColors.textV2Tertiary];
     }
   }
 
@@ -385,7 +381,7 @@ class _SessionInviteAcceptancePageState
     final authUser = ref.watch(authSessionProvider).valueOrNull;
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: AppColors.backgroundV2,
       body: SafeArea(
         child: sessionAsync.when(
           loading: () => _buildLoading(),
@@ -460,7 +456,7 @@ class _SessionInviteAcceptancePageState
             message,
             textAlign: TextAlign.center,
             style: const TextStyle(
-              color: AppColors.textDark,
+              color: AppColors.textV2Primary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
@@ -508,7 +504,7 @@ class _SessionInviteAcceptancePageState
                       ? 'Same as host — you will share turns during the session.'
                       : 'Different from host — you will train side-by-side in parallel.',
                   style: const TextStyle(
-                    color: AppColors.textTertiaryDark,
+                    color: AppColors.textV2Tertiary,
                     fontSize: 13,
                   ),
                 ),
@@ -521,7 +517,7 @@ class _SessionInviteAcceptancePageState
                   const Text(
                     'We pre-loaded the host\'s plan. Add or remove exercises and tune your set counts before you join.',
                     style: TextStyle(
-                      color: AppColors.textTertiaryDark,
+                      color: AppColors.textV2Tertiary,
                       fontSize: 13,
                     ),
                   ),
@@ -574,9 +570,9 @@ class _SessionInviteAcceptancePageState
                   },
             tooltip: 'Decline',
             icon: const Icon(Icons.close_rounded,
-                color: AppColors.textDark, size: 22),
+                color: AppColors.textV2Primary, size: 22),
             style: IconButton.styleFrom(
-              backgroundColor: AppColors.surfaceSecondaryDark,
+              backgroundColor: AppColors.surfaceV2Elevated,
               padding: const EdgeInsets.all(10),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
@@ -588,7 +584,7 @@ class _SessionInviteAcceptancePageState
             child: Text(
               'Session Invite',
               style: TextStyle(
-                color: AppColors.textDark,
+                color: AppColors.textV2Primary,
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
                 letterSpacing: -0.3,
@@ -609,7 +605,7 @@ class _SessionInviteAcceptancePageState
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+        color: AppColors.surfaceV2,
         borderRadius: BorderRadius.circular(22),
         border: Border.all(
           color: gradient.first.withValues(alpha: 0.25),
@@ -653,7 +649,7 @@ class _SessionInviteAcceptancePageState
                 Text(
                   hostName,
                   style: const TextStyle(
-                    color: AppColors.textDark,
+                    color: AppColors.textV2Primary,
                     fontSize: 17,
                     fontWeight: FontWeight.bold,
                   ),
@@ -662,7 +658,7 @@ class _SessionInviteAcceptancePageState
                 const Text(
                   'invited you to train',
                   style: TextStyle(
-                    color: AppColors.textSecondaryDark,
+                    color: AppColors.textV2Secondary,
                     fontSize: 13,
                   ),
                 ),
@@ -743,7 +739,7 @@ class _SessionInviteAcceptancePageState
                       : null,
                   color: isSelected
                       ? null
-                      : AppColors.surfaceSecondaryDark.withValues(alpha: 0.5),
+                      : AppColors.surfaceV2Elevated.withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
                     color: isSelected
@@ -793,7 +789,7 @@ class _SessionInviteAcceptancePageState
                             fontSize: 14,
                             color: isSelected
                                 ? Colors.white
-                                : AppColors.textDark,
+                                : AppColors.textV2Primary,
                           ),
                           textAlign: TextAlign.center,
                         ),
@@ -842,7 +838,7 @@ class _SessionInviteAcceptancePageState
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+        color: AppColors.surfaceV2,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.borderDarkSecondary),
       ),
@@ -868,7 +864,7 @@ class _SessionInviteAcceptancePageState
                 Text(
                   'You will log your ${type.displayName.toLowerCase()} workout',
                   style: const TextStyle(
-                    color: AppColors.textDark,
+                    color: AppColors.textV2Primary,
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
                   ),
@@ -877,7 +873,7 @@ class _SessionInviteAcceptancePageState
                 const Text(
                   'Side-by-side with the host. No plan needed — just join and start moving.',
                   style: TextStyle(
-                    color: AppColors.textSecondaryDark,
+                    color: AppColors.textV2Secondary,
                     fontSize: 13,
                     height: 1.35,
                   ),
@@ -905,7 +901,7 @@ class _SessionInviteAcceptancePageState
                   end: Alignment.bottomRight,
                 )
               : null,
-          color: canJoin ? null : AppColors.surfaceSecondaryDark,
+          color: canJoin ? null : AppColors.surfaceV2Elevated,
           borderRadius: BorderRadius.circular(18),
           boxShadow: canJoin
               ? [
@@ -971,7 +967,7 @@ class _SectionTitle extends StatelessWidget {
     return Text(
       text,
       style: const TextStyle(
-        color: AppColors.textDark,
+        color: AppColors.textV2Primary,
         fontSize: 17,
         fontWeight: FontWeight.bold,
         letterSpacing: -0.3,

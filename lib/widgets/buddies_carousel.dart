@@ -54,7 +54,7 @@ class BuddiesActivityCarousel extends StatelessWidget {
                   style: TextStyle(
                     fontSize: AppFontSize.sm,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.textLight,
+                    color: AppColors.textV2Secondary,
                   ),
                 ),
               ],
@@ -100,9 +100,8 @@ class _BuddyChip extends StatelessWidget {
       margin: const EdgeInsets.only(right: AppSpacing.sm),
       padding: const EdgeInsets.all(AppSpacing.sm),
       decoration: BoxDecoration(
-        color: AppColors.surfaceLight,
+        color: AppColors.surfaceV2Elevated,
         borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-        boxShadow: AppShadows.sm,
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -136,12 +135,12 @@ class _BuddyChip extends StatelessWidget {
             style: const TextStyle(
               fontSize: AppFontSize.xs,
               fontWeight: FontWeight.w600,
-              color: AppColors.textLight,
+              color: AppColors.textV2Primary,
             ),
           ),
           Text(
             activity,
-            style: TextStyle(fontSize: 10, color: AppColors.textSecondaryLight),
+            style: TextStyle(fontSize: 10, color: AppColors.textV2Secondary),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,

@@ -63,9 +63,9 @@ class RecentActivityCard extends StatelessWidget {
                       imageUrl: activity.mediaURLs!.first,
                       fit: BoxFit.cover,
                       placeholder: (context, url) =>
-                          Container(color: AppColors.surfaceSecondaryDark),
+                          Container(color: AppColors.surfaceV2Elevated),
                       errorWidget: (context, url, error) =>
-                          Container(color: AppColors.surfaceSecondaryDark),
+                          Container(color: AppColors.surfaceV2Elevated),
                     ),
                   ),
                 ),
@@ -113,7 +113,7 @@ class RecentActivityCard extends StatelessWidget {
                           child: Text(
                             activity.userName,
                             style: const TextStyle(
-                              color: AppColors.textDark,
+                              color: AppColors.textV2Primary,
                               fontWeight: FontWeight.w600,
                               fontSize: AppFontSize.sm,
                             ),
@@ -172,7 +172,7 @@ class RecentActivityCard extends StatelessWidget {
                     Text(
                       _getStatsText(),
                       style: const TextStyle(
-                        color: AppColors.textDark,
+                        color: AppColors.textV2Primary,
                         fontSize: AppFontSize.sm,
                         fontWeight: FontWeight.w500,
                       ),
@@ -186,7 +186,7 @@ class RecentActivityCard extends StatelessWidget {
                     Text(
                       timeago.format(activity.timestamp),
                       style: TextStyle(
-                        color: AppColors.textSecondaryDark,
+                        color: AppColors.textV2Secondary,
                         fontSize: AppFontSize.xs,
                       ),
                     ),
@@ -306,7 +306,7 @@ class RecentActivityCardShimmer extends StatelessWidget {
       height: 160,
       margin: const EdgeInsets.only(right: AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.surfaceSecondaryDark,
+        color: AppColors.surfaceV2Elevated,
         borderRadius: BorderRadius.circular(AppBorderRadius.xl),
         border: Border.all(color: AppColors.borderDark.withValues(alpha: 0.5)),
       ),

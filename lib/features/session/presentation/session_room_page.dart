@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:audioplayers/audioplayers.dart';
-import 'dart:ui';
 
 import '../../../app/navigation/app_route_locations.dart';
 import '../../../core/theme/app_theme.dart';
@@ -25,9 +24,7 @@ import '../../../widgets/shimmer_widgets.dart';
 import '../../../widgets/connection_status_widget.dart';
 import '../../../services/storage_service.dart';
 import '../../../widgets/session_error_banner.dart';
-import '../../../utils/session_error_handler.dart';
 import '../../../utils/haptic_manager.dart';
-import '../../../widgets/premium_animations.dart';
 import 'widgets/active_turn_screen.dart';
 import 'widgets/waiting_turn_screen.dart';
 import 'widgets/parallel_gym_view.dart';
@@ -86,17 +83,18 @@ class ParticipantProgress {
 }
 
 /// Session room page for active workout sessions.
-/// Matches React Native SessionRoomScreen behavior.
 class SessionRoomPage extends ConsumerStatefulWidget {
   final String sessionId;
   final String type;
   final String? initialAudioUrl;
+  final List<String>? plannedExercises;
 
   const SessionRoomPage({
     super.key,
     required this.sessionId,
     required this.type,
     this.initialAudioUrl,
+    this.plannedExercises,
   });
 
   @override
@@ -138,6 +136,13 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   String? _currentTurnExercise; // exercise name chosen for current set
   int _currentSetNumber = 1; // which set the active user is on
 
+  // Planned exercises (passed from start session page)
+  List<String> _plannedExercises = [];
+
+  // Inactivity timer — terminates session after 10 minutes without logging
+  Timer? _inactivityTimer;
+  static const _inactivityLimit = Duration(minutes: 10);
+
   // Voice recording state
   bool _isRecording = false;
   bool _isUploadingVoice = false;
@@ -148,7 +153,6 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   // Audio playback
   final AudioPlayer _audioPlayer = AudioPlayer();
   String? _playingAudioUrl;
-  bool _isLoadingAudio = false;
 
   // Auto-play queue
   final List<String> _audioQueue = [];
@@ -183,8 +187,6 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   final Set<String> _processedVoiceEvents = {};
   DateTime? _lastProcessedEventTime;
 
-  // Cheers emojis
-  static const List<String> _cheersEmojis = ['ðŸ”¥', 'ðŸ’ª', 'ðŸ‘', 'ðŸŽ‰', 'âš¡'];
 
   // Participant progress tracking
   final Map<String, ParticipantProgress> _participantProgress = {};
@@ -195,24 +197,17 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   // Set milestone tracking for animations
   int _lastMilestoneAchieved = 0;
   final List<int> _milestones = [5, 10, 15, 20, 25, 30, 40, 50];
-  int _eventLimit = 50; // Pagination limit for events
+  final int _eventLimit = 50;
   final List<TimelineEvent> _localPendingEvents = [];
 
-  // Floating emojis state
-  final List<({String id, String emoji})> _activeCheers = [];
-  int _cheerCounter = 0;
+  // Cached for use in dispose() — ref is invalid by the time dispose() is called
+  String? _presenceUserId;
+  PresenceService? _presenceServiceRef;
 
   bool _voiceNotesEnabled = true;
 
   StreamSubscription? _audioPlayerSubscription;
   StreamSubscription? _connectivitySubscription;
-
-  void _addCheer(String emoji) {
-    if (!mounted) return;
-    setState(() {
-      _activeCheers.add((id: 'cheer_${_cheerCounter++}', emoji: emoji));
-    });
-  }
 
   @override
   void initState() {
@@ -233,9 +228,16 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       _cardioActivityType = 'walking';
     }
 
+    // Load planned exercises if provided
+    if (widget.plannedExercises != null && widget.plannedExercises!.isNotEmpty) {
+      _plannedExercises = List<String>.from(widget.plannedExercises!);
+      _currentTurnExercise = _plannedExercises[0];
+    }
+
     _initPresence();
     _initConnectivity();
     _initSessionTimer();
+    _resetInactivityTimer();
     // Initialize marker to ignore historical events
     _lastProcessedEventTime = DateTime.now();
 
@@ -244,7 +246,6 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       if (mounted) {
         setState(() {
           _playingAudioUrl = null;
-          _isLoadingAudio = false;
         });
       }
     });
@@ -321,9 +322,9 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     final authState = ref.read(authSessionProvider);
     final uid = authState.valueOrNull?.id;
     if (uid != null) {
-      // Set initial status
-      await ref.read(presenceServiceProvider).setOnline(widget.sessionId, uid);
-      // Heartbeat would go here (or in service)
+      _presenceUserId = uid;
+      _presenceServiceRef = ref.read(presenceServiceProvider);
+      await _presenceServiceRef!.setOnline(widget.sessionId, uid);
     }
   }
 
@@ -482,6 +483,20 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     return '${diff.inDays}d ago';
   }
 
+  void _resetInactivityTimer() {
+    _inactivityTimer?.cancel();
+    _inactivityTimer = Timer(_inactivityLimit, _terminateSessionInactive);
+  }
+
+  Future<void> _terminateSessionInactive() async {
+    final uid = ref.read(authSessionProvider).valueOrNull?.id;
+    if (uid == null || !mounted) return;
+    await ref.read(sessionServiceProvider).endSession(widget.sessionId, uid, null);
+    if (mounted) {
+      context.go(AppRouteLocations.mainTab(MainShellTab.feed));
+    }
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
@@ -494,12 +509,17 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     switch (state) {
       case AppLifecycleState.resumed:
         presenceService.setOnline(widget.sessionId, uid);
+        _resetInactivityTimer();
         break;
       case AppLifecycleState.paused:
       case AppLifecycleState.inactive:
+        presenceService.setAway(widget.sessionId, uid);
+        break;
       case AppLifecycleState.detached:
       case AppLifecycleState.hidden:
         presenceService.setAway(widget.sessionId, uid);
+        // Terminate session when app is fully closed
+        ref.read(sessionServiceProvider).endSession(widget.sessionId, uid, null);
         break;
     }
   }
@@ -520,6 +540,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     _syncProgressSubscription?.cancel();
     _connectivitySubscription?.cancel();
     _audioPlayerSubscription?.cancel();
+    _inactivityTimer?.cancel();
     _setOfflinePresence();
 
     _exerciseNameFocus.dispose();
@@ -533,10 +554,10 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   }
 
   Future<void> _setOfflinePresence() async {
-    final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
-    if (uid != null) {
-      await ref.read(presenceServiceProvider).setOffline(widget.sessionId, uid);
+    final uid = _presenceUserId;
+    final service = _presenceServiceRef;
+    if (uid != null && service != null) {
+      await service.setOffline(widget.sessionId, uid);
     }
   }
 
@@ -832,32 +853,25 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       _weightController.clear();
       _repsController.clear();
 
+      // Reset inactivity timer on each logged set
+      _resetInactivityTimer();
+
+      // Advance planned exercise list (per-set cycling through plan)
+      if (_plannedExercises.isNotEmpty) {
+        final totalLogged = _participantProgress.values
+            .fold<int>(0, (s, p) => s + p.totalSets);
+        // Figure out which exercise index we're on based on total sets and sets per exercise
+        // Simple approach: advance to next exercise every time current exercise's sets match plan order
+        final nextIndex = (totalLogged) % _plannedExercises.length;
+        if (_plannedExercises[nextIndex] != _currentTurnExercise) {
+          setState(() => _currentTurnExercise = _plannedExercises[nextIndex]);
+        }
+      }
+
       setState(() {});
     } finally {
       setState(() => _isLogging = false);
     }
-  }
-
-  void _undoLastSet() {
-    // Implementation for local undo
-    if (_exercises.isEmpty) return;
-
-    setState(() {
-      final lastExercise = _exercises.last;
-      if (lastExercise.sets.length > 1) {
-        // Remove last set
-        final updatedSets = List<SetData>.from(lastExercise.sets)..removeLast();
-        _exercises[_exercises.length - 1] = lastExercise.copyWith(
-          sets: updatedSets,
-        );
-      } else {
-        // Remove exercise if only 1 set
-        _exercises.removeLast();
-      }
-    });
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Last set undone (Local)')));
   }
 
   /// Parameterized cardio logger used by the new parallel-mode cardio view.
@@ -1234,102 +1248,6 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     }
   }
 
-  // Send cheer emoji
-  Future<void> _sendCheer(String emoji) async {
-    try {
-      final authState = ref.read(authSessionProvider);
-      final uid = authState.valueOrNull?.id;
-      if (uid == null) return;
-
-      HapticFeedback.lightImpact();
-
-      // Optimistic local animation
-      _addCheer(emoji);
-
-      // Log event to service
-      try {
-        if (!_isOffline) {
-          await ref
-              .read(sessionServiceProvider)
-              .addSessionEvent(
-                sessionId: widget.sessionId,
-                type: SessionEventType.cheer,
-                userId: uid,
-                text: 'sent $emoji',
-                data: {'emoji': emoji},
-              );
-        } else {
-          // Queue offline cheer
-          await ref.read(offlineManagerProvider).queueOperation(
-            'session_event',
-            {
-              'sessionId': widget.sessionId,
-              'type': SessionEventType.cheer.value,
-              'userId': uid,
-              'text': 'sent $emoji',
-              'data': {'emoji': emoji},
-            },
-          );
-        }
-      } catch (e) {
-        debugPrint('[SessionRoom] Error sending cheer: $e');
-        // If online send fails, queue for offline sync
-        await ref.read(offlineManagerProvider).queueOperation('session_event', {
-          'sessionId': widget.sessionId,
-          'type': SessionEventType.cheer.value,
-          'userId': uid,
-          'text': 'sent $emoji',
-          'data': {'emoji': emoji},
-        });
-      }
-    } catch (e) {
-      debugPrint('[SessionRoom] Error sending cheer: $e');
-    }
-  }
-
-  // Handle Pass Turn
-  Future<void> _handlePassTurn() async {
-    try {
-      final authState = ref.read(authSessionProvider);
-      final uid = authState.valueOrNull?.id;
-      if (uid == null) return;
-
-      if (_isOffline) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Cannot pass turn while offline.')),
-        );
-        return;
-      }
-
-      setState(
-        () => _isLogging = true,
-      ); // Show loading state on button potentially
-
-      await ref.read(sessionServiceProvider).switchTurn(widget.sessionId, uid);
-
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Turn passed!')));
-      }
-    } catch (e, stack) {
-      if (mounted) {
-        await SessionErrorHandler.handleError(
-          context,
-          e,
-          stack,
-          ref,
-          onRetry: _handlePassTurn, // Allow retrying this specific action
-          onErrorMessage: (msg) {
-            if (mounted) setState(() => _errorMessage = msg);
-          },
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isLogging = false);
-    }
-  }
-
   // Play audio from URL with loading state and retry
   Future<void> _playAudio(String url) async {
     try {
@@ -1338,11 +1256,9 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         await _audioPlayer.stop();
         setState(() {
           _playingAudioUrl = null;
-          _isLoadingAudio = false;
         });
       } else {
         // Show loading state
-        setState(() => _isLoadingAudio = true);
 
         // Use withRetryBackoff for robust retry with exponential backoff
         await withRetryBackoff(
@@ -1356,13 +1272,11 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
 
         setState(() {
           _playingAudioUrl = url;
-          _isLoadingAudio = false;
         });
         // Listener is set up in initState
       }
     } catch (e) {
       debugPrint('[SessionRoom] Error playing audio after retries: $e');
-      setState(() => _isLoadingAudio = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -2212,345 +2126,6 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       ),
     );
   }
-
-  /// Show detailed participants list bottom sheet
-  void _showParticipantsBottomSheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.6,
-        minChildSize: 0.4,
-        maxChildSize: 0.9,
-        builder: (context, scrollController) {
-          return Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).cardColor,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(AppBorderRadius.xl),
-              ),
-            ),
-            child: Column(
-              children: [
-                // Handle bar
-                Center(
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(vertical: 12),
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: AppColors.textTertiaryLight,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                // Title
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: Text(
-                    'Participants',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                const Divider(height: 1),
-                // List
-                Expanded(
-                  child: Consumer(
-                    builder: (context, ref, child) {
-                      final sessionAsync = ref.watch(
-                        currentSessionProvider(widget.sessionId),
-                      );
-                      final participantsAsync = ref.watch(
-                        sessionOnlineUsersProvider(widget.sessionId),
-                      );
-
-                      return sessionAsync.when(
-                        data: (session) {
-                          if (session == null) return const SizedBox.shrink();
-
-                          return participantsAsync.when(
-                            data: (onlineUserIds) {
-                              return ListView.separated(
-                                controller: scrollController,
-                                padding: const EdgeInsets.all(AppSpacing.lg),
-                                itemCount: session.participants.length,
-                                separatorBuilder: (_, _) => const Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 8),
-                                  child: Divider(),
-                                ),
-                                itemBuilder: (context, index) {
-                                  final uid = session.participants[index];
-                                  final isOnline = onlineUserIds.contains(uid);
-                                  final progress = _participantProgress[uid];
-                                  final isActive =
-                                      session.derivedMode == SessionMode.turnBased &&
-                                      session.activeUserId == uid;
-
-                                  return FutureBuilder<User?>(
-                                    future: ref
-                                        .read(userCacheServiceProvider)
-                                        .getUser(uid),
-                                    builder: (context, snapshot) {
-                                      final user = snapshot.data;
-                                      final name = user?.displayName ?? 'User';
-
-                                      return ListTile(
-                                        contentPadding: EdgeInsets.zero,
-                                        leading: Stack(
-                                          children: [
-                                            CircleAvatar(
-                                              radius: 24,
-                                              backgroundImage:
-                                                  user?.photoURL != null
-                                                  ? NetworkImage(
-                                                      user!.photoURL!,
-                                                    )
-                                                  : null,
-                                              child: user?.photoURL == null
-                                                  ? Text(
-                                                      name.isNotEmpty
-                                                          ? name[0]
-                                                          : '?',
-                                                    )
-                                                  : null,
-                                            ),
-                                            if (isOnline)
-                                              Positioned(
-                                                bottom: 0,
-                                                right: 0,
-                                                child: Container(
-                                                  width: 12,
-                                                  height: 12,
-                                                  decoration: BoxDecoration(
-                                                    color: AppColors.success,
-                                                    shape: BoxShape.circle,
-                                                    border: Border.all(
-                                                      color: Theme.of(
-                                                        context,
-                                                      ).canvasColor,
-                                                      width: 2,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                          ],
-                                        ),
-                                        title: Row(
-                                          children: [
-                                            Text(
-                                              name,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                            if (isActive) ...[
-                                              const SizedBox(width: 8),
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 8,
-                                                      vertical: 2,
-                                                    ),
-                                                decoration: BoxDecoration(
-                                                  color: AppColors.primary
-                                                      .withValues(alpha: 0.1),
-                                                  borderRadius:
-                                                      BorderRadius.circular(10),
-                                                ),
-                                                child: const Text(
-                                                  'Active Turn',
-                                                  style: TextStyle(
-                                                    fontSize: 10,
-                                                    color: AppColors.primary,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ],
-                                        ),
-                                        subtitle: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              isOnline ? 'Online' : 'Offline',
-                                              style: TextStyle(
-                                                color: isOnline
-                                                    ? AppColors.success
-                                                    : AppColors
-                                                          .textSecondaryLight,
-                                                fontSize: 12,
-                                              ),
-                                            ),
-                                            if (progress != null)
-                                              Text(
-                                                '${progress.totalSets} sets â€¢ ${progress.totalVolume.toInt()}kg',
-                                                style: TextStyle(
-                                                  color: AppColors
-                                                      .textSecondaryLight,
-                                                  fontSize: 12,
-                                                ),
-                                              ),
-                                          ],
-                                        ),
-                                      );
-                                    },
-                                  );
-                                },
-                              );
-                            },
-                            loading: () => const Center(
-                              child: CircularProgressIndicator(),
-                            ),
-                            error: (_, _) => Column(
-                              children: [
-                                Container(
-                                  width: double.infinity,
-                                  color: AppColors.warning.withValues(
-                                    alpha: 0.1,
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 8,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      const Icon(
-                                        Icons.cloud_off,
-                                        size: 16,
-                                        color: AppColors.warning,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        'Presence status unavailable',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                              color: AppColors.warning,
-                                            ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Expanded(
-                                  child: ListView.separated(
-                                    controller: scrollController,
-                                    padding: const EdgeInsets.all(
-                                      AppSpacing.lg,
-                                    ),
-                                    itemCount: session.participants.length,
-                                    separatorBuilder: (_, _) => const Padding(
-                                      padding: EdgeInsets.symmetric(
-                                        vertical: 8,
-                                      ),
-                                      child: Divider(),
-                                    ),
-                                    itemBuilder: (context, index) {
-                                      final uid = session.participants[index];
-                                      final isActive =
-                                          session.derivedMode ==
-                                              SessionMode.turnBased &&
-                                          session.activeUserId == uid;
-
-                                      return FutureBuilder<User?>(
-                                        future: ref
-                                            .read(userCacheServiceProvider)
-                                            .getUser(uid),
-                                        builder: (context, snapshot) {
-                                          final user = snapshot.data;
-                                          final name =
-                                              user?.displayName ?? 'User';
-
-                                          return ListTile(
-                                            contentPadding: EdgeInsets.zero,
-                                            leading: CircleAvatar(
-                                              radius: 24,
-                                              backgroundImage:
-                                                  user?.photoURL != null
-                                                  ? NetworkImage(
-                                                      user!.photoURL!,
-                                                    )
-                                                  : null,
-                                              child: user?.photoURL == null
-                                                  ? Text(
-                                                      name.isNotEmpty
-                                                          ? name[0]
-                                                          : '?',
-                                                    )
-                                                  : null,
-                                            ),
-                                            title: Row(
-                                              children: [
-                                                Text(
-                                                  name,
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                                if (isActive) ...[
-                                                  const SizedBox(width: 8),
-                                                  Container(
-                                                    padding:
-                                                        const EdgeInsets.symmetric(
-                                                          horizontal: 8,
-                                                          vertical: 2,
-                                                        ),
-                                                    decoration: BoxDecoration(
-                                                      color: AppColors.primary
-                                                          .withValues(
-                                                            alpha: 0.2,
-                                                          ),
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            4,
-                                                          ),
-                                                    ),
-                                                    child: const Text(
-                                                      'Active',
-                                                      style: TextStyle(
-                                                        fontSize: 10,
-                                                        color:
-                                                            AppColors.primary,
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ],
-                                            ),
-                                            // Show generic status or nothing
-                                          );
-                                        },
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                        loading: () =>
-                            const Center(child: CircularProgressIndicator()),
-                        error: (_, _) =>
-                            const Center(child: Text('Error loading session')),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-
   Future<void> _handleFinishSession() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -2622,166 +2197,6 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       }
     }
   }
-
-  List<Widget> _buildProgressComparisonList() {
-    // Calculate max values for relative progress bars
-    final maxSets = _participantProgress.values
-        .map((p) => p.totalSets)
-        .fold<int>(0, (a, b) => a > b ? a : b);
-    final maxVolume = _participantProgress.values
-        .map((p) => p.totalVolume)
-        .fold<double>(0.0, (a, b) => a > b ? a : b);
-    final maxDistance = _participantProgress.values
-        .map((p) => p.totalDistance)
-        .fold<double>(0.0, (a, b) => a > b ? a : b);
-
-    return _participantProgress.entries.map((entry) {
-      final authState = ref.read(authSessionProvider);
-      final isCurrentUser = entry.key == authState.valueOrNull?.id;
-      final progress = entry.value;
-
-      // Determine if leader in each category
-      final isLeaderSets = maxSets > 0 && progress.totalSets == maxSets;
-      final isLeaderVolume = maxVolume > 0 && progress.totalVolume == maxVolume;
-      final isLeaderDistance =
-          maxDistance > 0 && progress.totalDistance == maxDistance;
-
-      return FutureBuilder<User?>(
-        future: ref.read(userCacheServiceProvider).getUser(entry.key),
-        builder: (context, userSnapshot) {
-          final user = userSnapshot.data;
-          final displayName = user?.displayName ?? 'User';
-
-          return Container(
-            margin: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md,
-              vertical: AppSpacing.xs,
-            ),
-            padding: const EdgeInsets.all(AppSpacing.md),
-            decoration: BoxDecoration(
-              color: isCurrentUser
-                  ? AppColors.primary.withValues(alpha: 0.05)
-                  : AppColors.surfaceSecondaryLight,
-              borderRadius: BorderRadius.circular(AppBorderRadius.md),
-              border: Border.all(
-                color: isCurrentUser
-                    ? AppColors.primary.withValues(alpha: 0.2)
-                    : AppColors.borderLight,
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // User header with avatar
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 16,
-                      backgroundColor: AppColors.surfaceSecondaryLight,
-                      backgroundImage: user?.photoURL != null
-                          ? NetworkImage(user!.photoURL!)
-                          : null,
-                      child: user?.photoURL == null
-                          ? Text(
-                              displayName.isNotEmpty
-                                  ? displayName[0].toUpperCase()
-                                  : '?',
-                              style: const TextStyle(fontSize: 12),
-                            )
-                          : null,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        isCurrentUser ? 'You' : displayName.split(' ').first,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: isCurrentUser
-                              ? AppColors.primary
-                              : AppColors.textLight,
-                        ),
-                      ),
-                    ),
-                    if (progress.isActive)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.success.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Text(
-                          'Active',
-                          style: TextStyle(
-                            fontSize: 9,
-                            color: AppColors.success,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                // Metrics row with progress bars
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    // Sets metric
-                    _buildMetricChip(
-                      emoji: 'ðŸ‹ï¸',
-                      label: 'Sets',
-                      value: '${progress.totalSets}',
-                      progress: maxSets > 0
-                          ? progress.totalSets / maxSets
-                          : 0.0,
-                      isLeader: isLeaderSets,
-                    ),
-                    // Volume metric (strength) or Distance (cardio)
-                    if (_workoutType.isCardio ||
-                        _workoutType.requiresDistanceTracking)
-                      _buildMetricChip(
-                        emoji: 'ðŸ“',
-                        label: 'Distance',
-                        value: '${progress.totalDistance.toStringAsFixed(2)}km',
-                        progress: maxDistance > 0
-                            ? progress.totalDistance / maxDistance
-                            : 0.0,
-                        isLeader: isLeaderDistance,
-                      )
-                    else
-                      _buildMetricChip(
-                        emoji: 'âš–ï¸',
-                        label: 'Volume',
-                        value: '${progress.totalVolume.toStringAsFixed(0)}kg',
-                        progress: maxVolume > 0
-                            ? progress.totalVolume / maxVolume
-                            : 0.0,
-                        isLeader: isLeaderVolume,
-                      ),
-                  ],
-                ),
-                // Current exercise
-                if (progress.currentExercise.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    'â€¢ ${progress.currentExercise}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondaryLight,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          );
-        },
-      );
-    }).toList();
-  }
-
   Widget _buildAnimatedBackground() {
     return Stack(
       children: [
@@ -2849,13 +2264,6 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           ),
         ),
 
-        // Fine glass texture overlay
-        BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-          child: Container(
-            color: Colors.black.withValues(alpha: 0.1),
-          ),
-        ),
       ],
     );
   }
@@ -2964,133 +2372,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           backgroundColor: Colors.transparent, // Transparent to show background
           body: Column(
             children: [
-              // Custom Header (Elite Brutalist + Glassmorphic)
-              ClipRRect(
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceDark.withValues(alpha: 0.6),
-                      border: Border(
-                        bottom: BorderSide(
-                          color: AppColors.primary.withValues(alpha: 0.2),
-                          width: 2,
-                        ),
-                      ),
-                    ),
-                    padding: EdgeInsets.only(
-                      top: MediaQuery.paddingOf(context).top + 16,
-                      bottom: 16,
-                      left: 20,
-                      right: 20,
-                    ),
-                    child: Row(
-                      children: [
-                        BounceAnimation(
-                          onTap: () {
-                            HapticManager.light();
-                            context.go(
-                              AppRouteLocations.mainTab(MainShellTab.session),
-                            );
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.05),
-                              borderRadius: BorderRadius.circular(0),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.2),
-                                width: 2,
-                              ),
-                            ),
-                            child: const Icon(
-                              Icons.arrow_back,
-                              color: Colors.white,
-                              size: 24,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 20),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _workoutType.displayName.toUpperCase(),
-                                style: const TextStyle(
-                                  fontFamily: 'Outfit',
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 22,
-                                  letterSpacing: -0.5,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              Text(
-                                'SESSION #${widget.sessionId.substring(0, 4)}',
-                                style: TextStyle(
-                                  fontFamily: 'Outfit',
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 2,
-                                  color: AppColors.primary.withValues(alpha: 0.8),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Row(
-                          children: [
-                            BounceAnimation(
-                              onTap: () {
-                                HapticManager.heavy();
-                                _handleFinishSession();
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: AppColors.error.withValues(alpha: 0.1),
-                                  border: Border.all(
-                                    color: AppColors.error.withValues(alpha: 0.3),
-                                    width: 2,
-                                  ),
-                                ),
-                                child: const Icon(
-                                  Icons.stop_rounded,
-                                  color: AppColors.error,
-                                  size: 24,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            BounceAnimation(
-                              onTap: () {
-                                HapticManager.light();
-                                _showParticipantsBottomSheet();
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.05),
-                                  border: Border.all(
-                                    color: Colors.white.withValues(alpha: 0.2),
-                                    width: 2,
-                                  ),
-                                ),
-                                child: const Icon(
-                                  Icons.people_alt_rounded,
-                                  color: Colors.white,
-                                  size: 24,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              // Connection status banner (offline/syncing/online)
+              _buildV2SessionHeader(context),
+              _buildV2ProgressRow(context),
               ConnectionStatusWidget(
                 queueCount: _queueCount,
                 isOffline: _isOffline,
@@ -3098,8 +2381,6 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                 syncProgress: _syncProgress,
                 onTap: _showQueueStatusDialog,
               ),
-
-              // Session Error Banner
               if (_errorMessage != null)
                 SessionErrorBanner(
                   message: _errorMessage!,
@@ -3108,859 +2389,9 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                     setState(() => _errorMessage = null);
                   },
                 ),
-
-              // Turn Status Banner (if turn-based and not solo)
-              sessionAsync.when(
-                data: (session) {
-                  // Hide turn banner for solo sessions or parallel mode
-                  if (session == null ||
-                      session.derivedMode != SessionMode.turnBased ||
-                      _isSoloSession) {
-                    return const SizedBox.shrink();
-                  }
-
-                  final authState = ref.read(authSessionProvider);
-                  final uid = authState.valueOrNull?.id;
-                  final isMyTurn = session.activeUserId == uid;
-
-                  return Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 8,
-                      horizontal: 16,
-                    ),
-                    color: isMyTurn
-                        ? AppColors.primary.withValues(alpha: 0.1)
-                        : Colors.grey[200],
-
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          isMyTurn
-                              ? Icons.play_circle_fill
-                              : Icons.hourglass_empty,
-                          color: isMyTurn ? AppColors.primary : Colors.grey,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          isMyTurn
-                              ? "It's your turn! Log a set."
-                              : "Waiting for partner...",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: isMyTurn
-                                ? AppColors.primary
-                                : Colors.grey[700],
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-                loading: () => const SizedBox.shrink(),
-                error: (_, _) => const SizedBox.shrink(),
-              ),
-
-              // Participants Section
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16.0,
-                  vertical: 8.0,
-                ),
-                color: Theme.of(context).cardColor,
-                child: participantsAsync.when(
-                  data: (onlineUserIds) {
-                    return sessionAsync.when(
-                      data: (session) {
-                        if (session == null) return const SizedBox.shrink();
-                        final isTurnBased =
-                            session.derivedMode == SessionMode.turnBased;
-
-                        return SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: session.participants.map((uid) {
-                              final isOnline = onlineUserIds.contains(uid);
-                              final progress = _participantProgress[uid];
-                              final setCount = progress?.totalSets ?? 0;
-                              final currentEx = progress?.currentExercise ?? '';
-                              final isActive = progress?.isActive ?? false;
-                              final isMyTurn =
-                                  isTurnBased && session.activeUserId == uid;
-
-                              // Calculate progress for mini bar (strength: sets/15, cardio: distance/5km)
-                              final progressValue =
-                                  _workoutType.isCardio ||
-                                      _workoutType.requiresDistanceTracking
-                                  ? ((progress?.totalDistance ?? 0) / 5.0)
-                                        .clamp(0.0, 1.0)
-                                  : (setCount / 15.0).clamp(0.0, 1.0);
-
-                              return Padding(
-                                padding: const EdgeInsets.only(right: 12.0),
-                                child: FutureBuilder<User?>(
-                                  future: ref
-                                      .read(userCacheServiceProvider)
-                                      .getUser(uid),
-                                  builder: (context, userSnapshot) {
-                                    final user = userSnapshot.data;
-                                    final displayName =
-                                        user?.displayName ?? 'User';
-                                    final photoUrl = user?.photoURL;
-
-                                    return Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        // Avatar with glowing border for active turn
-                                        AnimatedContainer(
-                                          duration: const Duration(
-                                            milliseconds: 300,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            border: isMyTurn
-                                                ? Border.all(
-                                                    color: AppColors.primary,
-                                                    width: 3,
-                                                  )
-                                                : isActive
-                                                ? Border.all(
-                                                    color: AppColors.success,
-                                                    width: 2,
-                                                  )
-                                                : null,
-                                            boxShadow: isMyTurn
-                                                ? [
-                                                    BoxShadow(
-                                                      color: AppColors.primary
-                                                          .withValues(
-                                                            alpha: 0.4,
-                                                          ),
-                                                      blurRadius: 8,
-                                                      spreadRadius: 2,
-                                                    ),
-                                                  ]
-                                                : null,
-                                          ),
-                                          child: Stack(
-                                            clipBehavior: Clip.none,
-                                            children: [
-                                              CircleAvatar(
-                                                radius: isMyTurn ? 28 : 22,
-                                                backgroundColor:
-                                                    Colors.grey[200],
-                                                backgroundImage:
-                                                    photoUrl != null
-                                                    ? NetworkImage(photoUrl)
-                                                    : null,
-                                                child: photoUrl == null
-                                                    ? Text(
-                                                        displayName.isNotEmpty
-                                                            ? displayName[0]
-                                                                  .toUpperCase()
-                                                            : '?',
-                                                        style: TextStyle(
-                                                          fontWeight:
-                                                              FontWeight.bold,
-                                                          fontSize: isMyTurn
-                                                              ? 18
-                                                              : 14,
-                                                        ),
-                                                      )
-                                                    : null,
-                                              ),
-                                              // Online status indicator
-                                              Positioned(
-                                                bottom: 0,
-                                                right: 0,
-                                                child: AnimatedContainer(
-                                                  duration: const Duration(
-                                                    milliseconds: 300,
-                                                  ),
-                                                  width: 12,
-                                                  height: 12,
-                                                  decoration: BoxDecoration(
-                                                    color: isOnline
-                                                        ? (isActive
-                                                              ? Colors.green
-                                                              : Colors.amber)
-                                                        : Colors.grey,
-                                                    shape: BoxShape.circle,
-                                                    border: Border.all(
-                                                      color: Colors.white,
-                                                      width: 2,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                              // Set count badge
-                                              if (setCount > 0)
-                                                Positioned(
-                                                  top: -4,
-                                                  right: -4,
-                                                  child: Container(
-                                                    padding:
-                                                        const EdgeInsets.symmetric(
-                                                          horizontal: 6,
-                                                          vertical: 2,
-                                                        ),
-                                                    decoration: BoxDecoration(
-                                                      color: AppColors.primary,
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            10,
-                                                          ),
-                                                    ),
-                                                    child: Text(
-                                                      '$setCount',
-                                                      style: const TextStyle(
-                                                        color: Colors.white,
-                                                        fontSize: 10,
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ),
-                                            ],
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        // User name
-                                        SizedBox(
-                                          width: 70,
-                                          child: Text(
-                                            displayName.split(' ').first,
-                                            style: TextStyle(
-                                              fontSize: 10,
-                                              fontWeight: isMyTurn
-                                                  ? FontWeight.bold
-                                                  : FontWeight.w500,
-                                              color: isMyTurn
-                                                  ? AppColors.primary
-                                                  : (isActive
-                                                        ? Colors.grey[800]
-                                                        : Colors.grey[600]),
-                                            ),
-                                            textAlign: TextAlign.center,
-                                            overflow: TextOverflow.ellipsis,
-                                            maxLines: 1,
-                                          ),
-                                        ),
-                                        // Current exercise or "Active" label
-                                        if (isMyTurn)
-                                          Container(
-                                            margin: const EdgeInsets.only(
-                                              top: 2,
-                                            ),
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 6,
-                                              vertical: 1,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: AppColors.primary
-                                                  .withValues(alpha: 0.15),
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                            ),
-                                            child: const Text(
-                                              'Active',
-                                              style: TextStyle(
-                                                fontSize: 8,
-                                                fontWeight: FontWeight.bold,
-                                                color: AppColors.primary,
-                                              ),
-                                            ),
-                                          )
-                                        else if (currentEx.isNotEmpty)
-                                          SizedBox(
-                                            width: 60,
-                                            child: Text(
-                                              currentEx,
-                                              style: TextStyle(
-                                                fontSize: 9,
-                                                color: isActive
-                                                    ? AppColors.primary
-                                                    : Colors.grey[600],
-                                              ),
-                                              textAlign: TextAlign.center,
-                                              overflow: TextOverflow.ellipsis,
-                                              maxLines: 1,
-                                            ),
-                                          ),
-                                        // Mini progress bar
-                                        const SizedBox(height: 4),
-                                        SizedBox(
-                                          width: 50,
-                                          height: 4,
-                                          child: AnimatedProgressBar(
-                                            value: progressValue,
-                                            backgroundColor: Colors.grey[300]!,
-                                            foregroundColor:
-                                                progressValue >= 1.0
-                                                ? AppColors.success
-                                                : AppColors.primary,
-                                            height: 4,
-                                          ),
-                                        ),
-                                      ],
-                                    );
-                                  },
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                        );
-                      },
-                      loading: () => const SizedBox(
-                        height: 80,
-                        child: Center(child: CircularProgressIndicator()),
-                      ),
-                      error: (_, _) => const SizedBox.shrink(),
-                    );
-                  },
-                  loading: () => const SizedBox.shrink(),
-                  error: (_, _) => const SizedBox.shrink(),
-                ),
-              ),
-
-              // Pass Turn Button (hide for solo sessions)
-              sessionAsync.when(
-                data: (session) {
-                  if (session == null ||
-                      session.derivedMode != SessionMode.turnBased ||
-                      _isSoloSession) {
-                    return const SizedBox.shrink();
-                  }
-
-                  final authState = ref.read(authSessionProvider);
-                  final uid = authState.valueOrNull?.id;
-                  final isMyTurn = session.activeUserId == uid;
-
-                  if (!isMyTurn) return const SizedBox.shrink();
-
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16.0,
-                      vertical: 8.0,
-                    ),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _isLogging ? null : _handlePassTurn,
-                        icon: const Icon(Icons.skip_next),
-                        label: const Text('Pass Turn'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.secondary,
-                          foregroundColor: Colors.white,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-                loading: () => const SizedBox.shrink(),
-                error: (_, _) => const SizedBox.shrink(),
-              ),
-
-              // Voice upload progress
-              if (_isUploadingVoice)
-                AnimatedProgressBar(
-                  value: _voiceUploadProgress,
-                  backgroundColor: AppColors.primaryMuted,
-                  foregroundColor: AppColors.primary,
-                  height: 4,
-                ),
-
-              // Shared Session Timer (Elite Brutalist)
-              ClipRRect(
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      vertical: AppSpacing.md,
-                      horizontal: AppSpacing.lg,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceDark.withValues(alpha: 0.4),
-                      border: Border.symmetric(
-                        horizontal: BorderSide(
-                          color: AppColors.primary.withValues(alpha: 0.12),
-                          width: 1,
-                        ),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.timer_outlined,
-                          color: AppColors.primary,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          _formatElapsedTime(_elapsedTime),
-                          style: const TextStyle(
-                            fontFamily: 'Outfit',
-                            fontSize: 36,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 2,
-                            fontFeatures: [FontFeature.tabularFigures()],
-                            color: AppColors.primary,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: _isPaused
-                                ? Colors.white.withValues(alpha: 0.05)
-                                : AppColors.success.withValues(alpha: 0.15),
-                            border: Border.all(
-                              color: _isPaused
-                                  ? Colors.white.withValues(alpha: 0.1)
-                                  : AppColors.success.withValues(alpha: 0.4),
-                              width: 1.5,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              PulseAnimation(
-                                duration: const Duration(seconds: 1),
-                                child: Icon(
-                                  Icons.circle,
-                                  size: 6,
-                                  color: _isPaused ? Colors.grey : AppColors.success,
-                                ),
-                              ),
-                              const SizedBox(width: 5),
-                              Text(
-                                _isPaused ? 'PAUSED' : 'LIVE',
-                                style: TextStyle(
-                                  fontFamily: 'Outfit',
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 2,
-                                  color: _isPaused ? Colors.grey : AppColors.success,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-
-              // Current Activity Display (real-time tracking) - conditional based on session type
-              if (_participantProgress.isNotEmpty)
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.lg,
-                    vertical: AppSpacing.sm,
-                  ),
-                  color: AppColors.primaryMuted.withValues(alpha: 0.1),
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        if (_isSoloSession)
-                          // Solo mode: Single user activity
-                          (_workoutType.isCardio ||
-                                  _workoutType.requiresDistanceTracking)
-                              ? _buildCardioActivityChip(
-                                  label: 'Current',
-                                  distance: _participantProgress
-                                      .values
-                                      .first
-                                      .totalDistance,
-                                  duration: _participantProgress
-                                      .values
-                                      .first
-                                      .totalDuration,
-                                  activityType: _participantProgress
-                                      .values
-                                      .first
-                                      .activityType,
-                                  isActive: _participantProgress
-                                      .values
-                                      .first
-                                      .isActive,
-                                )
-                              : _buildCurrentActivityChip(
-                                  label: 'Current',
-                                  exercise: _participantProgress
-                                      .values
-                                      .first
-                                      .currentExercise,
-                                  setCount: _participantProgress
-                                      .values
-                                      .first
-                                      .totalSets,
-                                  isActive: _participantProgress
-                                      .values
-                                      .first
-                                      .isActive,
-                                )
-                        else
-                          // Buddy mode: Show all users
-                          ..._participantProgress.entries.map((entry) {
-                            final authState = ref.read(authSessionProvider);
-                            final isCurrentUser =
-                                entry.key == authState.valueOrNull?.id;
-                            final label = isCurrentUser ? 'You' : 'Partner';
-
-                            if (_workoutType.isCardio ||
-                                _workoutType.requiresDistanceTracking) {
-                              return Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 4,
-                                ),
-                                child: _buildCardioActivityChip(
-                                  label: label,
-                                  distance: entry.value.totalDistance,
-                                  duration: entry.value.totalDuration,
-                                  activityType: entry.value.activityType,
-                                  isActive: entry.value.isActive,
-                                ),
-                              );
-                            } else {
-                              return Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 4,
-                                ),
-                                child: _buildCurrentActivityChip(
-                                  label: label,
-                                  exercise: entry.value.currentExercise,
-                                  setCount: entry.value.totalSets,
-                                  isActive: entry.value.isActive,
-                                ),
-                              );
-                            }
-                          }),
-                      ],
-                    ),
-                  ),
-                ),
-
-              // Session Progress Bar - conditionally show strength or cardio metrics
-              if (_participantProgress.isNotEmpty)
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.lg,
-                    vertical: AppSpacing.sm,
-                  ),
-                  child: Column(
-                    children: [
-                      if (_workoutType.isCardio ||
-                          _workoutType.requiresDistanceTracking) ...[
-                        // Cardio progress display
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              '${_participantProgress.values.fold<double>(0, (sum, p) => sum + p.totalDistance).toStringAsFixed(2)} km covered',
-                              style: TextStyle(
-                                fontSize: AppFontSize.sm,
-                                fontWeight: FontWeight.w500,
-                                color: Colors.grey[700],
-                              ),
-                            ),
-                            Text(
-                              'Goal: 5 km',
-                              style: TextStyle(
-                                fontSize: AppFontSize.xs,
-                                color: Colors.grey[500],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        AnimatedProgressBar(
-                          value:
-                              (_participantProgress.values.fold<double>(
-                                        0,
-                                        (sum, p) => sum + p.totalDistance,
-                                      ) /
-                                      5)
-                                  .clamp(0.0, 1.0),
-                          backgroundColor: Colors.grey[200]!,
-                          foregroundColor:
-                              _participantProgress.values.fold<double>(
-                                    0,
-                                    (sum, p) => sum + p.totalDistance,
-                                  ) >=
-                                  5
-                              ? AppColors.success
-                              : AppColors.primary,
-                          height: 4,
-                        ),
-                      ] else ...[
-                        // Strength progress display
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              '${_participantProgress.values.fold<int>(0, (sum, p) => sum + p.totalSets)} sets logged',
-                              style: TextStyle(
-                                fontSize: AppFontSize.sm,
-                                fontWeight: FontWeight.w500,
-                                color: Colors.grey[700],
-                              ),
-                            ),
-                            Text(
-                              'Goal: 20 sets',
-                              style: TextStyle(
-                                fontSize: AppFontSize.xs,
-                                color: Colors.grey[500],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        AnimatedProgressBar(
-                          value:
-                              (_participantProgress.values.fold<int>(
-                                        0,
-                                        (sum, p) => sum + p.totalSets,
-                                      ) /
-                                      20)
-                                  .clamp(0.0, 1.0),
-                          backgroundColor: Colors.grey[200]!,
-                          foregroundColor:
-                              _participantProgress.values.fold<int>(
-                                    0,
-                                    (sum, p) => sum + p.totalSets,
-                                  ) >=
-                                  20
-                              ? AppColors.success
-                              : AppColors.primary,
-                          height: 8,
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-
-              // Exercise/Cardio input section (Elite Brutalist Glass Card)
-              ClipRRect(
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-                  child: Container(
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.04),
-                      border: Border.symmetric(
-                        horizontal: BorderSide(
-                          color: AppColors.primary.withValues(alpha: 0.1),
-                          width: 1,
-                        ),
-                      ),
-                    ),
-                    child: _buildDispatchedInputSection(),
-                  ),
-                ),
-              ),
-
-              // Cheers bar (Elite Brutalist Style)
-              ClipRRect(
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.lg,
-                      vertical: AppSpacing.sm,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.03),
-                      border: Border(
-                        bottom: BorderSide(
-                          color: Colors.white.withValues(alpha: 0.07),
-                          width: 1,
-                        ),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: _cheersEmojis.map((emoji) {
-                        return BounceAnimation(
-                          onTap: () => _sendCheer(emoji),
-                          child: Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.06),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.12),
-                                width: 1.5,
-                              ),
-                            ),
-                            child: Text(
-                              emoji,
-                              style: const TextStyle(fontSize: 22),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                ),
-              ),
-
-              // Enhanced Participant Progress Comparison View (for multi-participant sessions)
-              if (_participantProgress.isNotEmpty && !_isSoloSession)
-                ExpansionTile(
-                  title: const Row(
-                    children: [
-                      Text('ðŸ“Š '),
-                      Text(
-                        'Progress Comparison',
-                        style: TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                    ],
-                  ),
-                  subtitle: Text(
-                    '${_participantProgress.length} participants â€¢ ${_participantProgress.values.fold<int>(0, (sum, p) => sum + p.totalSets)} total sets',
-                  ),
-                  initiallyExpanded: false,
-                  backgroundColor: AppColors.primaryMuted.withValues(
-                    alpha: 0.05,
-                  ),
-                  children: [..._buildProgressComparisonList()],
-                ),
-
-              const SizedBox(height: AppSpacing.sm),
-
-              // Timeline
               Expanded(
-                child: eventsAsync.when(
-                  data: (events) =>
-                      events.isEmpty && _localPendingEvents.isEmpty
-                      ? const Center(
-                          child: Text('No events yet. Log your first set!'),
-                        )
-                      : ListView.builder(
-                          padding: const EdgeInsets.all(AppSpacing.lg),
-                          itemCount:
-                              _localPendingEvents.length +
-                              events.length +
-                              (events.length >= _eventLimit ? 1 : 0),
-                          itemBuilder: (context, index) {
-                            // Show Load More button at the top (index 0) if we hit the limit
-                            if (events.length >= _eventLimit && index == 0) {
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 8.0),
-                                child: TextButton.icon(
-                                  onPressed: () {
-                                    setState(() {
-                                      _eventLimit += 50;
-                                    });
-                                  },
-                                  icon: const Icon(Icons.history, size: 16),
-                                  label: const Text('Load Older Events'),
-                                ),
-                              );
-                            }
-
-                            // Adjust index for Load More button
-                            final listIndex = events.length >= _eventLimit
-                                ? index - 1
-                                : index;
-
-                            // Show pending events (newest) at bottom?
-                            // If logic is "bottom of list" (index=N), but this is standard ListView.
-                            // Standard ListView: index 0 is top.
-                            // Our events list is reversed (oldest -> newest).
-                            // So events[0] is oldest. events[last] is newest.
-                            // _localPendingEvents are NEWER than events.
-                            // So they should be AFTER events.
-                            // Order: [LoadMore?, ...events (old->new), ...pendingEvents (newest)]
-
-                            if (listIndex < events.length) {
-                              return _buildTimelineItem(events[listIndex]);
-                            } else {
-                              // Pending events
-                              final pendingIndex = listIndex - events.length;
-                              // _localPendingEvents was inserted at 0 (newest).
-                              // If we want [A, B] (chronological) but list is [B, A] (reverse chronological)
-                              // pendingIndex 0 -> _localPendingEvents[len-1] (oldest pending)
-                              // pendingIndex 1 -> _localPendingEvents[len-2]
-                              // So we need to render in reverse order of _localPendingEvents list.
-
-                              final reversedIndex =
-                                  _localPendingEvents.length - 1 - pendingIndex;
-                              return Opacity(
-                                opacity: 0.7,
-                                child: _buildTimelineItem(
-                                  _localPendingEvents[reversedIndex],
-                                ),
-                              );
-                            }
-                          },
-                        ),
-                  loading: () =>
-                      const Center(child: CircularProgressIndicator()),
-                  error: (e, _) => Center(child: Text('Error: $e')),
-                ),
+                child: _buildDispatchedInputSection(),
               ),
-
-              // Local exercises summary
-              if (_exercises.isNotEmpty)
-                ExpansionTile(
-                  title: Text(
-                    'Session Summary (${_exercises.length} Exercises)',
-                  ),
-                  subtitle: Text(
-                    '${_exercises.fold(0, (sum, e) => sum + e.sets.length)} sets total',
-                  ),
-                  backgroundColor: AppColors.primaryMuted.withValues(
-                    alpha: 0.1,
-                  ),
-                  children: [
-                    Container(
-                      height: 200,
-                      padding: const EdgeInsets.all(8.0),
-                      child: ListView.builder(
-                        itemCount: _exercises.length,
-                        itemBuilder: (context, index) {
-                          final exercise = _exercises[index];
-                          return ListTile(
-                            dense: true,
-                            title: Text(
-                              exercise.name,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            subtitle: Text('${exercise.sets.length} sets'),
-                            trailing: Text(
-                              exercise.sets
-                                  .map((s) => '${s.weight}kg x ${s.reps}')
-                                  .join(', '),
-                              style: const TextStyle(fontSize: 10),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    // Undo button
-                    TextButton.icon(
-                      icon: const Icon(Icons.undo),
-                      label: const Text('Undo Last Set'),
-                      onPressed: _undoLastSet,
-                    ),
-                  ],
-                ),
             ],
           ),
         ),
@@ -3968,315 +2399,152 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     );
   }
 
-  Widget _buildMetricChip({
-    required String emoji,
-    required String label,
-    required String value,
-    required double progress,
-    required bool isLeader,
-  }) {
+  Widget _buildV2SessionHeader(BuildContext context) {
     return Container(
-      width: 100,
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: isLeader
-              ? Colors.amber.withValues(alpha: 0.5)
-              : Colors.grey[200]!,
-        ),
-        boxShadow: isLeader
-            ? [
-                BoxShadow(
-                  color: Colors.amber.withValues(alpha: 0.1),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ]
-            : null,
+      padding: EdgeInsets.only(
+        top: MediaQuery.paddingOf(context).top + 12,
+        bottom: 12,
+        left: 20,
+        right: 20,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(emoji, style: const TextStyle(fontSize: 12)),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.w500,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              if (isLeader)
-                const Icon(Icons.emoji_events, size: 12, color: Colors.amber),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: isLeader ? Colors.amber[800] : Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 4),
-          AnimatedProgressBar(
-            value: progress,
-            backgroundColor: Colors.grey[100]!,
-            foregroundColor: isLeader ? Colors.amber : AppColors.primary,
-            height: 4,
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Build a chip showing current activity for a participant.
-  Widget _buildCurrentActivityChip({
-    required String label,
-    required String exercise,
-    required int setCount,
-    required bool isActive,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: isActive
-            ? AppColors.success.withValues(alpha: 0.15)
-            : Colors.grey[200],
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isActive ? AppColors.success : Colors.grey[300]!,
-          width: 1,
-        ),
-      ),
+      color: AppColors.backgroundV2,
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.circle,
-            size: 8,
-            color: isActive ? AppColors.success : Colors.grey,
-          ),
-          const SizedBox(width: 6),
-          Text(
-            '$label: ',
-            style: TextStyle(fontSize: 11, color: Colors.grey[700]),
-          ),
-          Text(
-            exercise.isNotEmpty ? exercise : 'Idle',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              color: isActive ? AppColors.primary : Colors.grey[600],
-            ),
-          ),
-          if (setCount > 0) ...[
-            const SizedBox(width: 4),
-            Text(
-              '(Set $setCount)',
-              style: TextStyle(fontSize: 10, color: Colors.grey[600]),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  /// Build a chip showing cardio activity for a participant.
-  Widget _buildCardioActivityChip({
-    required String label,
-    required double distance,
-    required int duration,
-    required String? activityType,
-    required bool isActive,
-  }) {
-    final activityIcon = activityType == 'cycling'
-        ? Icons.directions_bike
-        : Icons.directions_run;
-    final activityName = activityType == 'cycling' ? 'Cycling' : 'Running';
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: isActive
-            ? AppColors.success.withValues(alpha: 0.15)
-            : Colors.grey[200],
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isActive ? AppColors.success : Colors.grey[300]!,
-          width: 1,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            activityIcon,
-            size: 14,
-            color: isActive ? AppColors.success : Colors.grey,
-          ),
-          const SizedBox(width: 6),
-          Text(
-            '$label: ',
-            style: TextStyle(fontSize: 11, color: Colors.grey[700]),
-          ),
-          if (distance > 0 || duration > 0) ...[
-            Text(
-              '${distance.toStringAsFixed(2)}km',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: isActive ? AppColors.primary : Colors.grey[600],
-              ),
-            ),
-            Text(
-              ' / ${duration}min',
-              style: TextStyle(fontSize: 10, color: Colors.grey[600]),
-            ),
-          ] else
-            Text(
-              activityType != null ? activityName : 'Idle',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: isActive ? AppColors.primary : Colors.grey[600],
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTimelineItem(TimelineEvent event) {
-    final iconData = switch (event.type) {
-      SessionEventType.start => Icons.play_arrow_rounded,
-      SessionEventType.join => Icons.person_add_rounded,
-      SessionEventType.setLogged => Icons.fitness_center_rounded,
-      SessionEventType.finish => Icons.flag_rounded,
-      SessionEventType.voiceNote => Icons.mic_rounded,
-      SessionEventType.cheer => Icons.celebration_rounded,
-      _ => Icons.circle,
-    };
-
-    final iconColor = switch (event.type) {
-      SessionEventType.cheer => AppColors.secondary,
-      SessionEventType.voiceNote => const Color(0xFFFF9800),
-      SessionEventType.finish => AppColors.success,
-      SessionEventType.start => AppColors.primary,
-      _ => AppColors.primary,
-    };
-
-    // Check for audio URL in voice note events
-    final audioUrl = event.data?['audioUrl'] as String?;
-    final isPlaying = audioUrl != null && _playingAudioUrl == audioUrl;
-
-    // Check for emoji in cheer events
-    final emoji = event.data?['emoji'] as String?;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: ClipRRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            padding: const EdgeInsets.all(14),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.04),
+              color: AppColors.accentLime.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: iconColor.withValues(alpha: 0.15),
-                width: 1.5,
+                color: AppColors.accentLime.withValues(alpha: 0.3),
+                width: 1,
               ),
             ),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // Event icon or emoji
-                if (event.type == SessionEventType.cheer && emoji != null)
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.secondary.withValues(alpha: 0.1),
-                      border: Border.all(
-                        color: AppColors.secondary.withValues(alpha: 0.3),
-                        width: 1.5,
-                      ),
-                    ),
-                    child: Text(emoji, style: const TextStyle(fontSize: 18)),
-                  )
-                else
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: iconColor.withValues(alpha: 0.1),
-                      border: Border.all(
-                        color: iconColor.withValues(alpha: 0.3),
-                        width: 1.5,
-                      ),
-                    ),
-                    child: Icon(iconData, size: 16, color: iconColor),
-                  ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        event.text,
-                        style: const TextStyle(
-                          fontFamily: 'Outfit',
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                          color: Colors.white,
-                          letterSpacing: 0.2,
-                        ),
-                      ),
-                      // Voice note playback button
-                      if (event.type == SessionEventType.voiceNote &&
-                          audioUrl != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 6),
-                          child: VoiceNoteWaveform(
-                            duration: event.data?['duration'],
-                            isPlaying: isPlaying,
-                            isLoading:
-                                _isLoadingAudio && _playingAudioUrl == audioUrl,
-                            onTap: () => _playAudio(audioUrl),
-                          ),
-                        ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _formatTime(event.timestamp),
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.5,
-                          color: iconColor.withValues(alpha: 0.6),
-                        ),
-                      ),
-                    ],
+                Text(
+                  _workoutTypeEmoji(_workoutType),
+                  style: const TextStyle(fontSize: 13),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  _workoutType.displayName.toUpperCase(),
+                  style: const TextStyle(
+                    color: AppColors.accentLime,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.5,
                   ),
                 ),
               ],
             ),
           ),
-        ),
+          const Spacer(),
+          GestureDetector(
+            onTap: () {
+              HapticManager.light();
+              context.go(AppRouteLocations.mainTab(MainShellTab.feed));
+            },
+            child: const Padding(
+              padding: EdgeInsets.all(8),
+              child: Icon(Icons.home_outlined, color: Colors.white70, size: 22),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            _formatElapsedTime(_elapsedTime),
+            style: const TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+              letterSpacing: 1,
+            ),
+          ),
+          const SizedBox(width: 12),
+          GestureDetector(
+            onTap: () {
+              HapticManager.heavy();
+              _handleFinishSession();
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.error,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Text(
+                'End',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  String _formatTime(DateTime time) {
-    return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+  Widget _buildV2ProgressRow(BuildContext context) {
+    final totalSets = _participantProgress.values
+        .fold<int>(0, (sum, p) => sum + p.totalSets);
+    final exerciseName = _currentTurnExercise ??
+        (_participantProgress.values.isNotEmpty
+            ? _participantProgress.values.first.currentExercise
+            : '');
+    final label = exerciseName.isNotEmpty
+        ? '${exerciseName.toUpperCase()} · SET $_currentSetNumber'
+        : 'GET STARTED';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceV2,
+        border: Border(
+          bottom: BorderSide(
+            color: Colors.white.withValues(alpha: 0.06),
+            width: 1,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1,
+            ),
+          ),
+          const Spacer(),
+          Text(
+            '$totalSets sets',
+            style: const TextStyle(
+              color: Colors.white38,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
   }
+
+  String _workoutTypeEmoji(WorkoutType type) {
+    if (type == WorkoutType.running || type == WorkoutType.walking) return '\u{1F3C3}';
+    if (type == WorkoutType.cycling) return '\u{1F6B4}';
+    if (type == WorkoutType.swimming) return '\u{1F3CA}';
+    if (type == WorkoutType.yoga) return '\u{1F9D8}';
+    if (type == WorkoutType.hiit) return '⚡';
+    if (type == WorkoutType.sports) return '⚽';
+    return '\u{1F4AA}';
+  }
+
 
   /// Format elapsed duration as HH:MM:SS
   String _formatElapsedTime(Duration duration) {
@@ -4347,6 +2615,77 @@ class _PulseAnimationState extends State<PulseAnimation>
   }
 }
 
+/// Horizontal exercise-plan progress strip.
+/// Shows labeled dots for up to [totalExercises] exercises;
+/// dots for [completedExercises] are filled lime.
+class PlanProgressBar extends StatelessWidget {
+  final int completedExercises;
+  final int totalExercises;
+
+  const PlanProgressBar({
+    super.key,
+    required this.completedExercises,
+    required this.totalExercises,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (totalExercises == 0) return const SizedBox.shrink();
+    final completed = completedExercises.clamp(0, totalExercises);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      color: AppColors.surfaceV2,
+      child: Row(
+        children: [
+          Text(
+            'PLAN',
+            style: TextStyle(
+              color: AppColors.textV2Tertiary,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 2,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Row(
+              children: List.generate(totalExercises, (i) {
+                final done = i < completed;
+                return Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: done
+                            ? AppColors.accentLime
+                            : (AppColors.surfaceV2Active),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            '$completed/$totalExercises',
+            style: TextStyle(
+              color: AppColors.accentLime,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class AnimatedProgressBar extends StatelessWidget {
   final double value;
   final Color backgroundColor;
@@ -4390,3 +2729,66 @@ class AnimatedProgressBar extends StatelessWidget {
   }
 }
 
+class BounceAnimation extends StatefulWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+  final double scaleDown;
+  final Duration duration;
+
+  const BounceAnimation({
+    super.key,
+    required this.child,
+    this.onTap,
+    this.scaleDown = 0.95,
+    this.duration = const Duration(milliseconds: 100),
+  });
+
+  @override
+  State<BounceAnimation> createState() => _BounceAnimationState();
+}
+
+class _BounceAnimationState extends State<BounceAnimation>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _bounceController;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _bounceController = AnimationController(duration: widget.duration, vsync: this);
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: widget.scaleDown,
+    ).animate(CurvedAnimation(parent: _bounceController, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() {
+    _bounceController.dispose();
+    super.dispose();
+  }
+
+  void _handleTapDown(TapDownDetails details) => _bounceController.forward();
+
+  void _handleTapUp(TapUpDetails details) {
+    _bounceController.reverse().then((_) => widget.onTap?.call());
+  }
+
+  void _handleTapCancel() => _bounceController.reverse();
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: _handleTapDown,
+      onTapUp: _handleTapUp,
+      onTapCancel: _handleTapCancel,
+      child: AnimatedBuilder(
+        animation: _scaleAnimation,
+        builder: (context, child) => Transform.scale(
+          scale: _scaleAnimation.value,
+          child: widget.child,
+        ),
+      ),
+    );
+  }
+}

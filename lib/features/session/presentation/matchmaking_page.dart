@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -137,7 +137,7 @@ class _MatchmakingPageState extends ConsumerState<MatchmakingPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: AppColors.backgroundV2,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -148,7 +148,7 @@ class _MatchmakingPageState extends ConsumerState<MatchmakingPage>
                 child: IconButton(
                   onPressed: _isCancelling ? null : _cancel,
                   icon: const Icon(Icons.close_rounded),
-                  color: AppColors.textSecondaryDark,
+                  color: AppColors.textV2Secondary,
                 ),
               ),
               const Spacer(),
@@ -177,7 +177,7 @@ class _MatchmakingPageState extends ConsumerState<MatchmakingPage>
           Text(
             _error!,
             style: const TextStyle(
-                color: AppColors.textSecondaryDark, fontSize: 15),
+                color: AppColors.textV2Secondary, fontSize: 15),
             textAlign: TextAlign.center,
           ),
         ],
@@ -219,7 +219,7 @@ class _MatchmakingPageState extends ConsumerState<MatchmakingPage>
         const Text(
           'Finding a partner',
           style: TextStyle(
-            color: AppColors.textDark,
+            color: AppColors.textV2Primary,
             fontSize: 24,
             fontWeight: FontWeight.bold,
             letterSpacing: -0.4,
@@ -230,7 +230,7 @@ class _MatchmakingPageState extends ConsumerState<MatchmakingPage>
         Text(
           'Looking for someone doing ${widget.workoutType.displayName} near your level...',
           style: const TextStyle(
-            color: AppColors.textSecondaryDark,
+            color: AppColors.textV2Secondary,
             fontSize: 15,
           ),
           textAlign: TextAlign.center,
@@ -273,7 +273,7 @@ class _MatchmakingPageState extends ConsumerState<MatchmakingPage>
       child: OutlinedButton(
         onPressed: _isCancelling ? null : _cancel,
         style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.textSecondaryDark,
+          foregroundColor: AppColors.textV2Secondary,
           side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
           minimumSize: const Size.fromHeight(52),
           shape: RoundedRectangleBorder(

@@ -10,7 +10,7 @@ class Shimmer extends StatefulWidget {
   const Shimmer({
     super.key,
     required this.child,
-    this.baseColor = const Color(0xFF2C2C2E), // AppColors.surfaceSecondaryDark
+    this.baseColor = const Color(0xFF2C2C2E), // AppColors.surfaceV2Elevated
     this.highlightColor = const Color(0xFF3A3A3C), // Slightly lighter
   });
 
@@ -88,7 +88,7 @@ class BuddyListItemSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
-      color: AppColors.surfaceSecondaryDark,
+      color: AppColors.surfaceV2Elevated,
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.md),
         child: Row(
@@ -99,7 +99,7 @@ class BuddyListItemSkeleton extends StatelessWidget {
                 width: 48,
                 height: 48,
                 decoration: const BoxDecoration(
-                  color: AppColors.backgroundDark,
+                  color: AppColors.backgroundV2,
                   shape: BoxShape.circle,
                 ),
               ),
@@ -115,7 +115,7 @@ class BuddyListItemSkeleton extends StatelessWidget {
                       width: 120,
                       height: 16,
                       decoration: BoxDecoration(
-                        color: AppColors.backgroundDark,
+                        color: AppColors.backgroundV2,
                         borderRadius: BorderRadius.circular(4),
                       ),
                     ),
@@ -126,7 +126,7 @@ class BuddyListItemSkeleton extends StatelessWidget {
                       width: 80,
                       height: 12,
                       decoration: BoxDecoration(
-                        color: AppColors.backgroundDark,
+                        color: AppColors.backgroundV2,
                         borderRadius: BorderRadius.circular(4),
                       ),
                     ),
@@ -240,7 +240,7 @@ class ShimmerItem extends StatelessWidget {
         width: width,
         height: height,
         decoration: BoxDecoration(
-          color: AppColors.backgroundDark,
+          color: AppColors.backgroundV2,
           borderRadius: borderRadius,
         ),
       ),
@@ -296,7 +296,7 @@ class TimelineItemSkeleton extends StatelessWidget {
               Container(
                 width: 2,
                 height: 40,
-                color: AppColors.surfaceSecondaryDark,
+                color: AppColors.surfaceV2Elevated,
               ),
             ],
           ),
@@ -307,7 +307,7 @@ class TimelineItemSkeleton extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.all(AppSpacing.md),
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceDark,
+                  color: AppColors.surfaceV2,
                   borderRadius: BorderRadius.circular(AppBorderRadius.md),
                 ),
                 child: Column(
@@ -352,28 +352,38 @@ class SessionRoomSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
-      appBar: AppBar(
-        leading: const Icon(
-          Icons.arrow_back,
-          color: AppColors.textSecondaryDark,
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: const ShimmerItem(width: 120, height: 18),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: const ShimmerItem(
-              width: 32,
-              height: 32,
-              borderRadius: BorderRadius.all(Radius.circular(16)),
-            ),
-          ),
-        ],
-      ),
+      backgroundColor: AppColors.backgroundV2,
       body: Column(
         children: [
+          Container(
+            padding: EdgeInsets.only(
+              top: MediaQuery.paddingOf(context).top + 8,
+              bottom: 8,
+              left: 16,
+              right: 16,
+            ),
+            color: AppColors.surfaceV2,
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceV2Elevated,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                const ShimmerItem(width: 120, height: 18),
+                const Spacer(),
+                const ShimmerItem(
+                  width: 32,
+                  height: 32,
+                  borderRadius: BorderRadius.all(Radius.circular(16)),
+                ),
+              ],
+            ),
+          ),
           // Participants Area
           const SizedBox(height: AppSpacing.md),
           const ParticipantRowSkeleton(),
@@ -391,7 +401,7 @@ class SessionRoomSkeleton extends StatelessWidget {
           // Input Area
           Container(
             padding: const EdgeInsets.all(AppSpacing.md),
-            color: AppColors.surfaceDark,
+            color: AppColors.surfaceV2,
             child: Row(
               children: [
                 const ShimmerItem(

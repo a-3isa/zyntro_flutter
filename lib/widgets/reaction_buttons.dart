@@ -4,7 +4,6 @@ import '../core/theme/app_theme.dart';
 import '../core/models/models.dart';
 import '../utils/haptic_manager.dart';
 import '../utils/responsive_utils.dart';
-import 'premium_effects.dart';
 
 /// Reusable reaction buttons widget displaying 3 reaction types:
 /// fire, strong, and clap.
@@ -111,7 +110,7 @@ class _ReactionButtonsState extends State<ReactionButtons>
       case ReactionType.fire:
         return [AppColors.neonGreen, AppColors.action];
       case ReactionType.strong:
-        return [AppColors.navy700, AppColors.navy800];
+        return [AppColors.surfaceV2Active, AppColors.surfaceV2Elevated];
       case ReactionType.clap:
         return [AppColors.warmBorder, AppColors.neonGreenHover];
     }
@@ -119,9 +118,6 @@ class _ReactionButtonsState extends State<ReactionButtons>
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
     // Responsive sizing
     final isSmallScreen =
         MediaQuery.of(context).size.width < ResponsiveBreakpoints.mobile;
@@ -147,7 +143,6 @@ class _ReactionButtonsState extends State<ReactionButtons>
             emoji: '🔥',
             color: AppColors.neonGreen,
             label: 'Fire',
-            isDark: isDark,
             buttonPadding: buttonPadding,
             emojiSize: emojiSize,
           ),
@@ -155,9 +150,8 @@ class _ReactionButtonsState extends State<ReactionButtons>
           _buildReactionButton(
             type: ReactionType.strong,
             emoji: '💪',
-            color: AppColors.navy700,
+            color: AppColors.textV2Secondary,
             label: 'Strong',
-            isDark: isDark,
             buttonPadding: buttonPadding,
             emojiSize: emojiSize,
           ),
@@ -167,7 +161,6 @@ class _ReactionButtonsState extends State<ReactionButtons>
             emoji: '👏',
             color: AppColors.warmBorder,
             label: 'Clap',
-            isDark: isDark,
             buttonPadding: buttonPadding,
             emojiSize: emojiSize,
           ),
@@ -181,7 +174,6 @@ class _ReactionButtonsState extends State<ReactionButtons>
     required String emoji,
     required Color color,
     required String label,
-    required bool isDark,
     required EdgeInsets buttonPadding,
     required double emojiSize,
   }) {
@@ -232,8 +224,8 @@ class _ReactionButtonsState extends State<ReactionButtons>
               ),
               if (count > 0) ...[
                 const SizedBox(width: AppSpacing.xs),
-                AnimatedCounter(
-                  value: count,
+                Text(
+                  '$count',
                   style: TextStyle(
                     fontSize: AppFontSize.sm,
                     fontWeight: isSelected
@@ -241,9 +233,7 @@ class _ReactionButtonsState extends State<ReactionButtons>
                         : FontWeight.normal,
                     color: isSelected
                         ? color
-                        : Theme.of(
-                            context,
-                          ).colorScheme.onSurface.withValues(alpha: 0.7),
+                        : AppColors.textV2Secondary,
                   ),
                 ),
               ],

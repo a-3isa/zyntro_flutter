@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -97,12 +97,11 @@ class _WaitingTurnScreenState extends State<WaitingTurnScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-          child: Column(
+    return ColoredBox(
+      color: AppColors.backgroundV2,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+        child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
               _buildPartnerHeader(),
@@ -113,7 +112,7 @@ class _WaitingTurnScreenState extends State<WaitingTurnScreen>
                 child: Text(
                   "Your turn is coming...",
                   style: TextStyle(
-                    color: AppColors.textTertiaryDark,
+                    color: AppColors.textV2Tertiary,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                     letterSpacing: 0.5,
@@ -125,8 +124,7 @@ class _WaitingTurnScreenState extends State<WaitingTurnScreen>
             ],
           ),
         ),
-      ),
-    );
+      );
   }
 
   Widget _buildPartnerHeader() {
@@ -137,7 +135,7 @@ class _WaitingTurnScreenState extends State<WaitingTurnScreen>
         Text(
           widget.partnerName,
           style: const TextStyle(
-            color: AppColors.textDark,
+            color: AppColors.textV2Primary,
             fontSize: 20,
             fontWeight: FontWeight.w700,
           ),
@@ -146,13 +144,13 @@ class _WaitingTurnScreenState extends State<WaitingTurnScreen>
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: AppColors.surfaceSecondaryDark,
+            color: AppColors.surfaceV2Elevated,
             borderRadius: BorderRadius.circular(999),
           ),
           child: Text(
             '${widget.partnerCurrentExercise} \u2014 Set ${widget.partnerSetNumber}',
             style: const TextStyle(
-              color: AppColors.textSecondaryDark,
+              color: AppColors.textV2Secondary,
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
@@ -216,7 +214,7 @@ class _WaitingTurnScreenState extends State<WaitingTurnScreen>
       child: Text(
         initials,
         style: const TextStyle(
-          color: AppColors.backgroundDark,
+          color: AppColors.backgroundV2,
           fontSize: 28,
           fontWeight: FontWeight.w800,
         ),
@@ -233,7 +231,7 @@ class _WaitingTurnScreenState extends State<WaitingTurnScreen>
           imageUrl: url,
           fit: BoxFit.cover,
           placeholder: (BuildContext ctx, String url2) => Container(
-            color: AppColors.surfaceSecondaryDark,
+            color: AppColors.surfaceV2Elevated,
           ),
           errorWidget:
               (BuildContext ctx, String url2, Object err) => fallback,
@@ -246,10 +244,10 @@ class _WaitingTurnScreenState extends State<WaitingTurnScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       decoration: BoxDecoration(
-        color: AppColors.surfaceSecondaryDark,
+        color: AppColors.surfaceV2Elevated,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: AppColors.surfaceDark,
+          color: AppColors.surfaceV2,
         ),
       ),
       child: Column(
@@ -257,7 +255,7 @@ class _WaitingTurnScreenState extends State<WaitingTurnScreen>
           Text(
             _formatDuration(widget.partnerElapsedTime),
             style: const TextStyle(
-              color: AppColors.textDark,
+              color: AppColors.textV2Primary,
               fontSize: 56,
               fontWeight: FontWeight.w800,
               height: 1.0,
@@ -268,7 +266,7 @@ class _WaitingTurnScreenState extends State<WaitingTurnScreen>
           Text(
             "Partner's current set time",
             style: TextStyle(
-              color: AppColors.textTertiaryDark,
+              color: AppColors.textV2Tertiary,
               fontSize: 12,
               fontWeight: FontWeight.w600,
               letterSpacing: 1,
@@ -282,9 +280,9 @@ class _WaitingTurnScreenState extends State<WaitingTurnScreen>
   Widget _buildVoiceButton() {
     final bool recording = widget.isRecording;
     final Color buttonColor =
-        recording ? AppColors.error : AppColors.surfaceDark;
+        recording ? AppColors.error : AppColors.surfaceV2;
     final Color iconColor =
-        recording ? AppColors.textDark : AppColors.primary;
+        recording ? AppColors.textV2Primary : AppColors.primary;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -296,7 +294,7 @@ class _WaitingTurnScreenState extends State<WaitingTurnScreen>
           style: TextStyle(
             color: recording
                 ? AppColors.error
-                : AppColors.textSecondaryDark,
+                : AppColors.textV2Secondary,
             fontSize: 13,
             fontWeight: FontWeight.w600,
           ),
@@ -315,7 +313,7 @@ class _WaitingTurnScreenState extends State<WaitingTurnScreen>
               border: Border.all(
                 color: recording
                     ? AppColors.error
-                    : AppColors.surfaceSecondaryDark,
+                    : AppColors.surfaceV2Elevated,
                 width: 2,
               ),
               boxShadow: recording

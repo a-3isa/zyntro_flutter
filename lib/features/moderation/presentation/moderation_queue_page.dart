@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/models/models.dart';
 import '../../auth/auth_providers.dart';
 import '../../../services/moderation_service.dart';
-import '../../../widgets/premium_animations.dart';
-import '../../../widgets/premium_effects.dart';
 import '../../../utils/haptic_manager.dart';
 import 'package:go_router/go_router.dart';
 
@@ -220,6 +219,7 @@ class _ModerationQueuePageState extends ConsumerState<ModerationQueuePage> {
     final reportsAsync = ref.watch(pendingReportsProvider);
 
     return Scaffold(
+      backgroundColor: AppColors.backgroundV2,
       body: Column(
         children: [
           // Custom Header
@@ -232,7 +232,7 @@ class _ModerationQueuePageState extends ConsumerState<ModerationQueuePage> {
             ),
             child: Row(
               children: [
-                BounceAnimation(
+                GestureDetector(
                   onTap: () {
                     HapticManager.light();
                     context.pop();
@@ -240,22 +240,23 @@ class _ModerationQueuePageState extends ConsumerState<ModerationQueuePage> {
                   child: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceSecondaryDark,
+                      color: AppColors.surfaceV2Elevated,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(
                       Icons.arrow_back,
-                      color: AppColors.textDark,
+                      color: AppColors.textV2Primary,
                       size: 20,
                     ),
                   ),
                 ),
                 const SizedBox(width: 16),
-                const Expanded(
-                  child: GradientText(
-                    text: 'Moderation Queue',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                    colors: [AppColors.textDark, AppColors.textSecondaryDark],
+                Text(
+                  'Moderation Queue',
+                  style: GoogleFonts.syne(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textV2Primary,
                   ),
                 ),
               ],

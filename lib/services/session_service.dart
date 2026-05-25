@@ -855,6 +855,22 @@ class SessionService {
       return progress;
     });
   }
+
+  /// Fetch a user's recent completed sessions for the Train home screen.
+  Future<List<Session>> getUserSessions(String userId, {int limit = 10}) async {
+    try {
+      final snapshot = await _firestore
+          .collection('sessions')
+          .where('participants', arrayContains: userId)
+          .where('status', isEqualTo: 'completed')
+          .orderBy('createdAt', descending: true)
+          .limit(limit)
+          .get();
+      return snapshot.docs.map((doc) => Session.fromFirestore(doc)).toList();
+    } catch (_) {
+      return [];
+    }
+  }
 }
 
 /// Session service provider.

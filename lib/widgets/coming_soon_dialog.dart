@@ -33,16 +33,9 @@ class ComingSoonDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Determine if we are in dark mode for background coloring
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final backgroundColor = isDark
-        ? AppColors.surfaceDark
-        : AppColors.surfaceLight;
-    final textColor = isDark ? AppColors.textDark : AppColors.textLight;
-
     return Container(
       decoration: BoxDecoration(
-        color: backgroundColor,
+        color: AppColors.surfaceV2,
         borderRadius: const BorderRadius.vertical(
           top: Radius.circular(AppBorderRadius.xl),
         ),
@@ -58,7 +51,7 @@ class ComingSoonDialog extends StatelessWidget {
               height: 4,
               margin: const EdgeInsets.only(bottom: AppSpacing.xl),
               decoration: BoxDecoration(
-                color: isDark ? Colors.grey[700] : Colors.grey[300],
+                color: AppColors.surfaceV2Active,
                 borderRadius: BorderRadius.circular(AppBorderRadius.full),
               ),
             ),
@@ -78,7 +71,7 @@ class ComingSoonDialog extends StatelessWidget {
               style: TextStyle(
                 fontSize: AppFontSize.xxl,
                 fontWeight: FontWeight.bold,
-                color: textColor,
+                color: AppColors.textV2Primary,
               ),
               textAlign: TextAlign.center,
             ),
@@ -102,9 +95,7 @@ class ComingSoonDialog extends StatelessWidget {
                   'This feature is currently under development. Stay tuned for updates!',
               style: TextStyle(
                 fontSize: AppFontSize.md,
-                color: isDark
-                    ? AppColors.textSecondaryDark
-                    : AppColors.textSecondaryLight,
+                color: AppColors.textV2Secondary,
                 height: 1.5,
               ),
               textAlign: TextAlign.center,

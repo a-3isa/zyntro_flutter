@@ -2,11 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../app/navigation/app_router.dart';
 import 'package:flutter/services.dart';
-import '../../../widgets/premium_animations.dart';
-import '../../../widgets/premium_effects.dart';
 import '../../../services/follow_service.dart';
 import '../../auth/auth_providers.dart';
 import '../../auth/presentation/providers/auth_controller.dart';
@@ -53,7 +52,7 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
     final uid = authState.valueOrNull?.id;
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: AppColors.backgroundV2,
       body: Column(
         children: [
           // Custom Header
@@ -65,14 +64,14 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
               right: 16,
             ),
             decoration: BoxDecoration(
-              color: AppColors.surfaceDark,
+              color: AppColors.surfaceV2,
               border: Border(
                 bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
               ),
             ),
             child: Row(
               children: [
-                BounceAnimation(
+                GestureDetector(
                   onTap: () {
                     HapticFeedback.lightImpact();
                     Navigator.pop(context);
@@ -80,21 +79,24 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
                   child: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceSecondaryDark,
+                      color: AppColors.surfaceV2Elevated,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(
                       Icons.arrow_back,
-                      color: AppColors.textDark,
+                      color: AppColors.textV2Primary,
                       size: 20,
                     ),
                   ),
                 ),
                 const SizedBox(width: 16),
-                const GradientText(
-                  text: 'Privacy',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  colors: [AppColors.textDark, AppColors.textSecondaryDark],
+                Text(
+                  'Privacy',
+                  style: GoogleFonts.syne(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textV2Primary,
+                  ),
                 ),
               ],
             ),
@@ -169,7 +171,7 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
                     // Private account toggle
                     Container(
                       decoration: BoxDecoration(
-                        color: AppColors.surfaceLight,
+                        color: AppColors.surfaceV2,
                         borderRadius: BorderRadius.circular(AppBorderRadius.md),
                       ),
                       child: SwitchListTile(
@@ -204,7 +206,7 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
                     // "What does this mean?" expandable section
                     Container(
                       decoration: BoxDecoration(
-                        color: AppColors.surfaceLight,
+                        color: AppColors.surfaceV2,
                         borderRadius: BorderRadius.circular(AppBorderRadius.md),
                       ),
                       child: ExpansionTile(
@@ -295,7 +297,7 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
 
                     Container(
                       decoration: BoxDecoration(
-                        color: AppColors.surfaceLight,
+                        color: AppColors.surfaceV2,
                         borderRadius: BorderRadius.circular(AppBorderRadius.md),
                       ),
                       child: ListTile(
@@ -364,7 +366,7 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.surfaceLight,
+        color: AppColors.surfaceV2,
         borderRadius: BorderRadius.circular(AppBorderRadius.md),
       ),
       child: Row(
@@ -438,7 +440,7 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
 
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.surfaceLight,
+        color: AppColors.surfaceV2,
         borderRadius: BorderRadius.circular(AppBorderRadius.md),
       ),
       child: pendingCountAsync.when(

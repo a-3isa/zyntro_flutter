@@ -38,7 +38,7 @@ class FluttermojiAvatar extends StatelessWidget {
       // Use network image (for social auth or uploaded photos)
       avatarWidget = CircleAvatar(
         radius: size / 2,
-        backgroundColor: AppColors.surfaceSecondaryDark,
+        backgroundColor: AppColors.surfaceV2Elevated,
         backgroundImage: NetworkImage(photoUrl!),
         onBackgroundImageError: (exception, stackTrace) {
           // Fallback handled by child
@@ -49,11 +49,11 @@ class FluttermojiAvatar extends StatelessWidget {
       // Fallback to text initials
       avatarWidget = CircleAvatar(
         radius: size / 2,
-        backgroundColor: AppColors.surfaceSecondaryDark,
+        backgroundColor: AppColors.surfaceV2Elevated,
         child: Text(
           initial,
           style: TextStyle(
-            color: AppColors.textDark,
+            color: AppColors.textV2Primary,
             fontSize: size * 0.4,
             fontWeight: FontWeight.w600,
           ),
@@ -64,15 +64,15 @@ class FluttermojiAvatar extends StatelessWidget {
     // Wrap with gradient border if enabled
     if (showGradientBorder) {
       avatarWidget = Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           shape: BoxShape.circle,
-          gradient: const LinearGradient(colors: AppColors.primaryGradient),
+          color: AppColors.accentLime,
         ),
         padding: const EdgeInsets.all(2),
         child: Container(
           decoration: const BoxDecoration(
             shape: BoxShape.circle,
-            color: AppColors.backgroundDark,
+            color: AppColors.backgroundV2,
           ),
           padding: const EdgeInsets.all(2),
           child: avatarWidget,

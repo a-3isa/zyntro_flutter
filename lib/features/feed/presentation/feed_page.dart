@@ -4,7 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:timeago/timeago.dart' as timeago;
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/feature_flags.dart';
@@ -18,14 +18,14 @@ import '../../../services/user_cache_service.dart';
 import '../../../utils/haptic_manager.dart';
 import '../../../utils/image_cache_manager.dart';
 import '../../../widgets/widgets.dart';
-import '../../../widgets/photo_viewer_page.dart';
-import '../../../widgets/premium_animations.dart';
 import '../../../widgets/reaction_buttons.dart';
 import '../../moderation/presentation/report_dialog.dart';
 
 /// Feed page showing posts with Public and Following tabs.
 class FeedPage extends ConsumerStatefulWidget {
-  const FeedPage({super.key});
+  const FeedPage({super.key, this.onSessionTap});
+
+  final VoidCallback? onSessionTap;
 
   @override
   ConsumerState<FeedPage> createState() => _FeedPageState();
@@ -50,87 +50,15 @@ class _FeedPageState extends ConsumerState<FeedPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: AppColors.backgroundV2,
       body: SafeArea(
         child: Column(
           children: [
-            // Compact navigation bar indicator
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.backgroundDark,
-                border: Border(
-                  bottom: BorderSide(
-                    color: AppColors.borderDark.withValues(alpha: 0.5),
-                    width: 1,
-                  ),
-                ),
-              ),
-              child: Row(
-                children: [
-                  // Tab indicator pills
-                  Expanded(
-                    child: Container(
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceSecondaryDark,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: TabBar(
-                        controller: _tabController,
-                        indicator: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: AppColors.primaryGradient,
-                          ),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        indicatorSize: TabBarIndicatorSize.tab,
-                        dividerColor: Colors.transparent,
-                        labelColor: Colors.white,
-                        unselectedLabelColor: AppColors.textSecondaryDark,
-                        labelStyle: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                        ),
-                        unselectedLabelStyle: const TextStyle(
-                          fontWeight: FontWeight.w400,
-                          fontSize: 14,
-                        ),
-                        tabs: const [
-                          Tab(text: 'Following'),
-                          Tab(text: 'Discover'),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  // Notification button
-                  Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceSecondaryDark,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: AppColors.borderDark.withValues(alpha: 0.5),
-                      ),
-                    ),
-                    child: IconButton(
-                      icon: const Icon(
-                        Icons.notifications_outlined,
-                        color: AppColors.textDark,
-                        size: 20,
-                      ),
-                      onPressed: () => context.push(AppRoutes.notifications),
-                      constraints: const BoxConstraints(
-                        minWidth: 40,
-                        minHeight: 40,
-                      ),
-                      padding: EdgeInsets.zero,
-                    ),
-                  ),
-                ],
-              ),
+            _V2FeedHeader(
+              onNotificationsTap: () => context.push(AppRoutes.notifications),
+              onSessionTap: widget.onSessionTap,
+              tabController: _tabController,
             ),
-            // Tab content
             Expanded(
               child: TabBarView(
                 controller: _tabController,
@@ -145,19 +73,15 @@ class _FeedPageState extends ConsumerState<FeedPage>
                           cursor: FeedCursor(hasMore: false),
                         );
                       }
-
                       final followingIds = await ref
                           .read(followServiceProvider)
                           .getFollowingIds(uid);
-
-                      return ref
-                          .read(postServiceProvider)
-                          .getFollowingPosts(
-                            currentUserId: uid,
-                            followingIds: followingIds,
-                            limit: 10,
-                            startAfterDoc: cursor?.lastDoc,
-                          );
+                      return ref.read(postServiceProvider).getFollowingPosts(
+                        currentUserId: uid,
+                        followingIds: followingIds,
+                        limit: 10,
+                        startAfterDoc: cursor?.lastDoc,
+                      );
                     },
                     feedKey: 'following',
                     requiresAuth: true,
@@ -177,6 +101,127 @@ class _FeedPageState extends ConsumerState<FeedPage>
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// v2 Feed header: ZYNTRO wordmark + theme toggle + tab pill
+class _V2FeedHeader extends StatelessWidget {
+  final VoidCallback onNotificationsTap;
+  final VoidCallback? onSessionTap;
+  final TabController tabController;
+
+  const _V2FeedHeader({
+    required this.onNotificationsTap,
+    this.onSessionTap,
+    required this.tabController,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'zyntro',
+                style: GoogleFonts.syne(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textV2Primary,
+                  letterSpacing: -0.8,
+                ),
+              ),
+              const Spacer(),
+              
+              GestureDetector(
+                onTap: onNotificationsTap,
+                child: SizedBox(
+                  width: 36,
+                  height: 36,
+                  child: Stack(
+                    children: [
+                      Center(
+                        child: Icon(
+                          Icons.notifications_outlined,
+                          color: AppColors.textV2Secondary,
+                          size: 22,
+                        ),
+                      ),
+                      Positioned(
+                        top: 4,
+                        right: 4,
+                        child: Container(
+                          width: 7,
+                          height: 7,
+                          decoration: BoxDecoration(
+                            color: AppColors.accentLime,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: AppColors.backgroundV2,
+                              width: 1.5,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),if (onSessionTap != null) ...[
+                GestureDetector(
+                  onTap: onSessionTap,
+                  child: const Padding(
+                    padding: EdgeInsets.all(6),
+                    child: Icon(
+                      Icons.people_outline,
+                      color: AppColors.textV2Secondary,
+                      size: 24,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+              ],
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Tab pill
+          Container(
+            height: 40,
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceV2,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: TabBar(
+              controller: tabController,
+              indicator: BoxDecoration(
+                color: AppColors.surfaceV2Active,
+                borderRadius: BorderRadius.circular(9),
+              ),
+              indicatorSize: TabBarIndicatorSize.tab,
+              dividerColor: Colors.transparent,
+              labelColor: AppColors.textV2Primary,
+              unselectedLabelColor: AppColors.textV2Secondary,
+              labelStyle: GoogleFonts.outfit(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+              unselectedLabelStyle: GoogleFonts.outfit(
+                fontWeight: FontWeight.w400,
+                fontSize: 13,
+              ),
+              tabs: const [
+                Tab(text: 'Following'),
+                Tab(text: 'Discover'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
+        ],
       ),
     );
   }
@@ -357,7 +402,7 @@ class _FeedTabState extends ConsumerState<_FeedTab>
         padding: const EdgeInsets.all(AppSpacing.lg),
         itemCount: 3,
         itemBuilder: (context, index) =>
-            SlideInAnimation(index: index, child: const PostCardSkeleton()),
+            const PostCardSkeleton(),
       );
     }
 
@@ -383,14 +428,14 @@ class _FeedTabState extends ConsumerState<_FeedTab>
               'Something went wrong',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                color: AppColors.textDark,
+                color: AppColors.textV2Primary,
                 fontSize: AppFontSize.lg,
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(
               _error!,
-              style: TextStyle(color: AppColors.textSecondaryDark),
+              style: TextStyle(color: AppColors.textV2Secondary),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: AppSpacing.lg),
@@ -419,37 +464,34 @@ class _FeedTabState extends ConsumerState<_FeedTab>
     if (filteredPosts.isEmpty) {
       // Empty state - dark themed with animation
       return Center(
-        child: FadeInAnimation(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              PulseAnimation(
-                child: Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceSecondaryDark,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.fitness_center,
-                    size: 48,
-                    color: AppColors.textSecondaryDark,
-                  ),
-                ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceV2Elevated,
+                shape: BoxShape.circle,
               ),
+              child: Icon(
+                Icons.fitness_center,
+                size: 48,
+                color: AppColors.textV2Secondary,
+              ),
+            ),
               const SizedBox(height: AppSpacing.lg),
               Text(
                 'No posts yet',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: AppColors.textDark,
+                  color: AppColors.textV2Primary,
                   fontSize: AppFontSize.lg,
                 ),
               ),
               const SizedBox(height: AppSpacing.sm),
               Text(
                 'Follow some users to see their workouts',
-                style: TextStyle(color: AppColors.textSecondaryDark),
+                style: TextStyle(color: AppColors.textV2Secondary),
               ),
               const SizedBox(height: AppSpacing.lg),
               OutlinedButton(
@@ -465,7 +507,6 @@ class _FeedTabState extends ConsumerState<_FeedTab>
               ),
             ],
           ),
-        ),
       );
     }
 
@@ -476,15 +517,14 @@ class _FeedTabState extends ConsumerState<_FeedTab>
             HapticManager.medium();
             await _refresh();
           },
-          color: AppColors.primary,
-          backgroundColor: AppColors.surfaceDark,
+          color: AppColors.accentLime,
           child: ListView.builder(
             controller: _scrollController,
             physics: const BouncingScrollPhysics(
               parent: AlwaysScrollableScrollPhysics(),
             ),
             cacheExtent: 500,
-            padding: const EdgeInsets.all(AppSpacing.lg),
+            padding: EdgeInsets.zero,
             itemCount: filteredPosts.length + 1 + (_isLoadingMore ? 1 : 0),
             itemBuilder: (context, index) {
               if (index == 0) {
@@ -512,7 +552,7 @@ class _FeedTabState extends ConsumerState<_FeedTab>
                       Text(
                         'Loading more...',
                         style: TextStyle(
-                          color: AppColors.textSecondaryDark,
+                          color: AppColors.textV2Secondary,
                           fontSize: AppFontSize.sm,
                         ),
                       ),
@@ -522,11 +562,7 @@ class _FeedTabState extends ConsumerState<_FeedTab>
               }
 
               final postIndex = index - 1;
-              return SlideInAnimation(
-                index: postIndex,
-                delay: const Duration(milliseconds: 30),
-                child: _buildPostCard(filteredPosts[postIndex]),
-              );
+              return _buildPostCard(filteredPosts[postIndex]);
             },
           ),
         ),
@@ -535,12 +571,10 @@ class _FeedTabState extends ConsumerState<_FeedTab>
           Positioned(
             right: AppSpacing.lg,
             bottom: AppSpacing.lg,
-            child: FadeInAnimation(
-              child: FloatingActionButton.small(
-                onPressed: _scrollToTop,
-                backgroundColor: AppColors.primary,
-                child: const Icon(Icons.arrow_upward, color: Colors.white),
-              ),
+            child: FloatingActionButton.small(
+              onPressed: _scrollToTop,
+              backgroundColor: AppColors.primary,
+              child: const Icon(Icons.arrow_upward, color: Colors.white),
             ),
           ),
       ],
@@ -548,13 +582,7 @@ class _FeedTabState extends ConsumerState<_FeedTab>
   }
 
   Widget _buildHeaderWidgets() {
-    return Column(
-      children: const [
-        BuddiesActivityCarousel(),
-        StreakCard(days: 3),
-        DailyQuote(),
-      ],
-    );
+    return const SizedBox.shrink();
   }
 
   /// Fetch reaction data (counts and user's reaction) for a list of posts.
@@ -586,266 +614,228 @@ class _FeedTabState extends ConsumerState<_FeedTab>
     final currentUserId = authState.valueOrNull?.id;
     final isOwnPost = currentUserId == post.authorId;
 
-    final author = ref
-        .watch(userCacheServiceProvider)
-        .getUserSync(post.authorId);
+    final author = ref.watch(userCacheServiceProvider).getUserSync(post.authorId);
     final authorName = author?.displayName ?? 'User';
     final hasImage = post.mediaURLs != null && post.mediaURLs!.isNotEmpty;
+    final typeColor = AppColors.typeColor(post.type);
+    const t2 = AppColors.textV2Secondary;
+    const s1 = AppColors.surfaceV2;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: AppSpacing.xl),
-      decoration: GlassDecoration.card.copyWith(
-        borderRadius: BorderRadius.circular(AppBorderRadius.xxl),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // If hasImage, put the image FIRST, edge to edge at the top
-          if (hasImage)
-            GestureDetector(
-              onTap: () {
-                HapticManager.light();
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => PhotoViewerPage(
-                      imageUrl: post.mediaURLs!.first,
-                      heroTag: 'post-card-${post.id}',
-                    ),
-                  ),
-                );
-              },
-              child: Hero(
-                tag: 'post-card-${post.id}',
-                child: Container(
-                  constraints: const BoxConstraints(maxHeight: 400, minHeight: 250),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      CachedNetworkImage(
+    return GestureDetector(
+      onTap: () {
+        HapticManager.light();
+        context.push('/post/${post.id}');
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 1),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Photo / placeholder area — 280px tall
+            SizedBox(
+              height: 280,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Image or radial gradient placeholder
+                  if (hasImage)
+                    Hero(
+                      tag: 'post-card-${post.id}',
+                      child: CachedNetworkImage(
                         cacheManager: ZyntroImageCacheManager(),
                         imageUrl: post.mediaURLs!.first,
                         fit: BoxFit.cover,
                       ),
-                      // Gradient overlay for author row contrast
-                      Positioned(
-                        top: 0, left: 0, right: 0,
-                        height: 120,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.black.withValues(alpha: 0.7),
-                                Colors.transparent,
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      // Author Row overlaid on top of image
-                      Positioned(
-                        top: AppSpacing.lg,
-                        left: AppSpacing.lg,
-                        right: AppSpacing.md,
-                        child: _buildAuthorRow(post, author, authorName, isOwnPost, true),
-                      ),
-                      if (post.mediaURLs!.length > 1)
-                        Positioned(
-                          bottom: AppSpacing.md,
-                          right: AppSpacing.md,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: GlassDecoration.card.copyWith(
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.photo_library, color: Colors.white, size: 16),
-                                const SizedBox(width: AppSpacing.xs),
-                                Text(
-                                  '${post.mediaURLs!.length}',
-                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-          Padding(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (!hasImage)
-                  _buildAuthorRow(post, author, authorName, isOwnPost, false),
-                  
-                if (!hasImage) const SizedBox(height: AppSpacing.md),
-                
-                // Title
-                Text(
-                  post.title,
-                  style: const TextStyle(
-                    fontSize: AppFontSize.xl,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-
-                // Stats area with glass effect
-                if (post.summary.totalExercises != null ||
-                    post.summary.totalSets != null ||
-                    post.summary.duration != null)
-                  Container(
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    decoration: GlassDecoration.elevated.copyWith(
-                      color: AppColors.surfaceSecondaryDark.withValues(alpha: 0.3),
-                    ),
-                    child: Column(
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceAround,
-                          children: [
-                            _buildStat('Exercises', '${post.summary.totalExercises ?? 0}'),
-                            _buildStat('Sets', '${post.summary.totalSets ?? 0}'),
-                            if (post.summary.duration != null)
-                              _buildStat('Duration', post.summary.duration!)
-                            else
-                              _buildStat('Type', post.type.toUpperCase()),
+                    )
+                  else
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: RadialGradient(
+                          center: Alignment.center,
+                          radius: 0.85,
+                          colors: [
+                            typeColor.withValues(alpha: 0.22),
+                            AppColors.backgroundV2,
                           ],
+                        ),
+                      ),
+                    ),
+                  // Type icon watermark
+                  Positioned(
+                    right: 16,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: Opacity(
+                        opacity: 0.05,
+                        child: _workoutTypeIcon(post.type, size: 120),
+                      ),
+                    ),
+                  ),
+                  // Bottom gradient fade
+                  Positioned(
+                    left: 0, right: 0, bottom: 0,
+                    height: 120,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.bottomCenter,
+                          end: Alignment.topCenter,
+                          colors: [
+                            Colors.black.withValues(alpha: 0.75),
+                            Colors.transparent,
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Author overlay at bottom
+                  Positioned(
+                    left: 16, right: 16, bottom: 14,
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 32, height: 32,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: typeColor.withValues(alpha: 0.6),
+                              width: 1.5,
+                            ),
+                            color: AppColors.surfaceV2Elevated,
+                          ),
+                          child: ClipOval(
+                            child: author?.photoURL != null
+                                ? CachedNetworkImage(
+                                    imageUrl: author!.photoURL!,
+                                    fit: BoxFit.cover,
+                                  )
+                                : Center(
+                                    child: Text(
+                                      authorName.isNotEmpty
+                                          ? authorName[0].toUpperCase()
+                                          : '?',
+                                      style: GoogleFonts.syne(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            post.title,
+                            style: GoogleFonts.syne(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                              letterSpacing: -0.4,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ],
                     ),
                   ),
-                const SizedBox(height: AppSpacing.md),
-
-                // Actions area below everything
-                Row(
-                  children: [
-                    Expanded(
-                      child: ReactionButtons(
-                        postId: post.id,
-                        currentReaction: _userReactions[post.id],
-                        reactionCounts: _reactionCounts[post.id] ?? {},
-                        onReactionTap: (type) => _handleReaction(post, type),
+                  // More menu (own-post check)
+                  if (!isOwnPost)
+                    Positioned(
+                      top: 12, right: 8,
+                      child: PopupMenuButton<String>(
+                        icon: const Icon(Icons.more_horiz, color: Colors.white70, size: 20),
+                        onSelected: (value) => _handlePostAction(
+                          action: value,
+                          post: post,
+                          authorName: authorName,
+                        ),
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(value: 'report_post', child: Text('Report Post')),
+                          const PopupMenuItem(value: 'report_user', child: Text('Report User')),
+                          const PopupMenuItem(
+                            value: 'block_user',
+                            child: Text('Block User', style: TextStyle(color: Colors.red)),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: AppSpacing.md),
-                    if (FeatureFlags.isCommentsEnabled)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceSecondaryDark,
-                          borderRadius: BorderRadius.circular(AppBorderRadius.full),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            GestureDetector(
-                               onTap: () => context.push('/post/${post.id}'),
-                               child: const Icon(Icons.mode_comment_outlined, size: 20, color: AppColors.textSecondaryDark)),
-                            const SizedBox(width: AppSpacing.xs),
-                            Text('${post.commentsCount}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textSecondaryDark)),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+
+            // Action row below photo
+            Container(
+              color: s1,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Row(
+                children: [
+                  // Reactions
+                  ReactionButtons(
+                    postId: post.id,
+                    currentReaction: _userReactions[post.id],
+                    reactionCounts: _reactionCounts[post.id] ?? {},
+                    onReactionTap: (type) => _handleReaction(post, type),
+                  ),
+                  const Spacer(),
+                  // Comments
+                  if (FeatureFlags.isCommentsEnabled) ...[
+                    Icon(Icons.mode_comment_outlined, size: 17, color: t2),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${post.commentsCount}',
+                      style: GoogleFonts.outfit(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: t2,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                  ],
+                  // Workout type badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: typeColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      post.type.toUpperCase(),
+                      style: GoogleFonts.outfit(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: typeColor,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Divider between cards
+            Container(
+              height: 8,
+              color: AppColors.backgroundV2,
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildAuthorRow(Post post, dynamic author, String authorName, bool isOwnPost, bool overlaid) {
-    final textColor = overlaid ? Colors.white : AppColors.textDark;
-    final secondaryTextColor = overlaid ? Colors.white70 : AppColors.textSecondaryDark;
-    
-    return Row(
-      children: [
-        GestureDetector(
-          onTap: () {
-            if (author != null) context.push('/user/${author.id}');
-          },
-          child: Row(
-            children: [
-              Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.primary, width: 2),
-                ),
-                child: FluttermojiAvatar(
-                  avatarConfig: author?.avatarConfig,
-                  photoUrl: author?.photoURL,
-                  displayName: authorName,
-                  size: 40,
-                  showGradientBorder: false,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    authorName,
-                    style: TextStyle(fontWeight: FontWeight.w600, color: textColor, fontSize: AppFontSize.md),
-                  ),
-                  Text(
-                    timeago.format(post.createdAt),
-                    style: TextStyle(fontSize: AppFontSize.sm, color: secondaryTextColor),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const Spacer(),
-        if (!isOwnPost)
-          PopupMenuButton<String>(
-            icon: Icon(Icons.more_horiz, color: textColor),
-            onSelected: (value) => _handlePostAction(action: value, post: post, authorName: authorName),
-            itemBuilder: (context) => [
-              const PopupMenuItem(value: 'report_post', child: Text('Report Post')),
-              const PopupMenuItem(value: 'report_user', child: Text('Report User')),
-              const PopupMenuItem(value: 'block_user', child: Text('Block User', style: TextStyle(color: Colors.red))),
-            ],
-          ),
-      ],
-    );
-  }
-
-  Widget _buildStat(String label, String value) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: AppFontSize.lg,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: AppFontSize.sm,
-            color: Theme.of(
-              context,
-            ).colorScheme.onSurface.withValues(alpha: 0.6),
-          ),
-        ),
-      ],
-    );
+  Widget _workoutTypeIcon(String type, {double size = 24}) {
+    final icons = {
+      'gym': Icons.fitness_center,
+      'cardio': Icons.directions_run,
+      'hiit': Icons.flash_on,
+      'cycling': Icons.directions_bike,
+      'yoga': Icons.self_improvement,
+      'swimming': Icons.pool,
+    };
+    final color = AppColors.typeColor(type);
+    return Icon(icons[type] ?? Icons.fitness_center, size: size, color: color);
   }
 
   /// Handle reaction tap - toggle or change reaction type with haptic feedback.

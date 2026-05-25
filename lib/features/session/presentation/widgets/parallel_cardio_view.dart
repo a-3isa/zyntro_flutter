@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -109,7 +109,7 @@ class _ParallelCardioViewState extends State<ParallelCardioView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: AppColors.backgroundV2,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -172,7 +172,7 @@ class _ParallelCardioViewState extends State<ParallelCardioView> {
               height: 240,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: AppColors.surfaceDark,
+                color: AppColors.surfaceV2,
                 border: Border.all(
                   color: _running ? AppColors.primary : AppColors.secondary,
                   width: 3,
@@ -185,7 +185,7 @@ class _ParallelCardioViewState extends State<ParallelCardioView> {
                   Text(
                     _formatSeconds(_elapsedSeconds),
                     style: TextStyle(
-                      color: AppColors.textDark,
+                      color: AppColors.textV2Primary,
                       fontSize: 44,
                       fontWeight: FontWeight.w700,
                       fontFeatures: const [FontFeature.tabularFigures()],
@@ -195,7 +195,7 @@ class _ParallelCardioViewState extends State<ParallelCardioView> {
                   Text(
                     _running ? 'RUNNING' : 'READY',
                     style: TextStyle(
-                      color: AppColors.textTertiaryDark,
+                      color: AppColors.textV2Tertiary,
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 1.6,
@@ -216,7 +216,7 @@ class _ParallelCardioViewState extends State<ParallelCardioView> {
             Text(
               'Distance (km)',
               style: TextStyle(
-                color: AppColors.textTertiaryDark,
+                color: AppColors.textV2Tertiary,
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 1.1,
@@ -227,12 +227,12 @@ class _ParallelCardioViewState extends State<ParallelCardioView> {
               controller: _distanceController,
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
-              style: TextStyle(color: AppColors.textDark, fontSize: 18),
+              style: TextStyle(color: AppColors.textV2Primary, fontSize: 18),
               decoration: InputDecoration(
                 filled: true,
-                fillColor: AppColors.surfaceDark,
+                fillColor: AppColors.surfaceV2,
                 hintText: '0.0',
-                hintStyle: TextStyle(color: AppColors.textTertiaryDark),
+                hintStyle: TextStyle(color: AppColors.textV2Tertiary),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 14,
                   vertical: 12,
@@ -247,7 +247,7 @@ class _ParallelCardioViewState extends State<ParallelCardioView> {
             Text(
               'Notes (optional)',
               style: TextStyle(
-                color: AppColors.textTertiaryDark,
+                color: AppColors.textV2Tertiary,
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 1.1,
@@ -256,12 +256,12 @@ class _ParallelCardioViewState extends State<ParallelCardioView> {
             const SizedBox(height: 6),
             TextField(
               controller: _notesController,
-              style: TextStyle(color: AppColors.textDark, fontSize: 15),
+              style: TextStyle(color: AppColors.textV2Primary, fontSize: 15),
               decoration: InputDecoration(
                 filled: true,
-                fillColor: AppColors.surfaceDark,
+                fillColor: AppColors.surfaceV2,
                 hintText: 'How did it feel?',
-                hintStyle: TextStyle(color: AppColors.textTertiaryDark),
+                hintStyle: TextStyle(color: AppColors.textV2Tertiary),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 14,
                   vertical: 12,
@@ -335,7 +335,7 @@ class _CardioPartnerCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceSecondaryDark,
+        color: AppColors.surfaceV2Elevated,
         borderRadius: BorderRadius.circular(20),
         border: Border(top: BorderSide(color: accentColor, width: 2)),
       ),
@@ -348,7 +348,7 @@ class _CardioPartnerCard extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 18,
-                  backgroundColor: AppColors.surfaceDark,
+                  backgroundColor: AppColors.surfaceV2,
                   backgroundImage: partner.photoUrl != null &&
                           partner.photoUrl!.isNotEmpty
                       ? CachedNetworkImageProvider(partner.photoUrl!)
@@ -360,7 +360,7 @@ class _CardioPartnerCard extends StatelessWidget {
                               ? partner.name[0].toUpperCase()
                               : '?',
                           style: TextStyle(
-                            color: AppColors.textDark,
+                            color: AppColors.textV2Primary,
                             fontWeight: FontWeight.w600,
                           ),
                         )
@@ -372,7 +372,7 @@ class _CardioPartnerCard extends StatelessWidget {
                     partner.name,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: AppColors.textDark,
+                      color: AppColors.textV2Primary,
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
                     ),
@@ -447,7 +447,7 @@ class _CardioPartnerCard extends StatelessWidget {
         Text(
           partner.currentExercise ?? 'Resting',
           style: TextStyle(
-            color: AppColors.textDark,
+            color: AppColors.textV2Primary,
             fontSize: 16,
             fontWeight: FontWeight.w700,
           ),
@@ -456,7 +456,7 @@ class _CardioPartnerCard extends StatelessWidget {
         Text(
           'Set ${partner.totalSets}',
           style: TextStyle(
-            color: AppColors.textSecondaryDark,
+            color: AppColors.textV2Secondary,
             fontSize: 13,
             fontWeight: FontWeight.w500,
           ),
@@ -495,7 +495,7 @@ class _MetricTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+        color: AppColors.surfaceV2,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -504,7 +504,7 @@ class _MetricTile extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              color: AppColors.textTertiaryDark,
+              color: AppColors.textV2Tertiary,
               fontSize: 10,
               fontWeight: FontWeight.w700,
               letterSpacing: 1.1,
@@ -514,7 +514,7 @@ class _MetricTile extends StatelessWidget {
           Text(
             value,
             style: TextStyle(
-              color: AppColors.textDark,
+              color: AppColors.textV2Primary,
               fontSize: 15,
               fontWeight: FontWeight.w700,
             ),

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/theme/app_theme.dart';
@@ -11,8 +12,6 @@ import '../../../core/constants/constants.dart';
 import '../../../core/models/models.dart';
 import '../../../services/media_service.dart';
 import '../../../utils/haptic_manager.dart';
-import '../../../widgets/premium_animations.dart';
-import '../../../widgets/premium_effects.dart';
 import '../../../widgets/responsive_center.dart';
 import '../../../widgets/avatar_selector.dart';
 import '../../auth/auth_providers.dart';
@@ -41,7 +40,6 @@ final editProfileUserProvider = FutureProvider<User?>((ref) async {
   );
 });
 
-/// Edit profile page for updating user profile information.
 class EditProfilePage extends ConsumerStatefulWidget {
   const EditProfilePage({super.key});
 
@@ -53,11 +51,11 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
   final _formKey = GlobalKey<FormState>();
   final _displayNameController = TextEditingController();
 
-  String? _photoPath; // Local file path for upload
-  String? _existingPhotoUrl; // Remote URL
-  String? _selectedAvatar; // Selected avatar config
-  String? _originalAvatar; // Original avatar config
-  bool _isUsingAvatar = false; // Toggle state
+  String? _photoPath;
+  String? _existingPhotoUrl;
+  String? _selectedAvatar;
+  String? _originalAvatar;
+  bool _isUsingAvatar = false;
 
   WorkoutType _workoutPreference = WorkoutType.gym;
   bool _isLoading = false;
@@ -81,9 +79,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
   }
 
   void _checkForChanges() {
-    // Determine original mode
-    final bool originalIsUsingAvatar =
-        _existingPhotoUrl == null && _originalAvatar != null;
+    final bool originalIsUsingAvatar = _existingPhotoUrl == null && _originalAvatar != null;
 
     bool isProfileChanged = false;
 
@@ -91,20 +87,16 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
       isProfileChanged = true;
     } else {
       if (_isUsingAvatar) {
-        // Both using avatar - check if avatar config changed
         if (_selectedAvatar != _originalAvatar) isProfileChanged = true;
       } else {
-        // Both using photo - check if new photo selected
         if (_photoPath != null) isProfileChanged = true;
       }
     }
 
-    final hasChanges =
-        _displayNameController.text != _originalDisplayName ||
+    final hasChanges = _displayNameController.text != _originalDisplayName ||
         _workoutPreference != _originalWorkoutPreference ||
         isProfileChanged;
 
-    // Always trigger rebuild to update char counter and validation helper
     setState(() => _hasChanges = hasChanges);
   }
 
@@ -117,27 +109,21 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
         _originalDisplayName = user.displayName;
         _originalWorkoutPreference = user.workoutPreference;
 
-        // Photo/Avatar logic
         _existingPhotoUrl = user.photoURL;
         final avatarConfig = user.avatarConfig;
 
         if (_existingPhotoUrl != null && _existingPhotoUrl!.isNotEmpty) {
-          // User has a photo
           _isUsingAvatar = false;
-          _selectedAvatar =
-              avatarConfig; // Keep track of their avatar if they switch back
+          _selectedAvatar = avatarConfig;
         } else if (avatarConfig != null && avatarConfig.isNotEmpty) {
-          // User has an avatar
           _isUsingAvatar = true;
           _selectedAvatar = avatarConfig;
         } else {
-          // Neither
           _isUsingAvatar = false;
           _selectedAvatar = null;
         }
 
         _originalAvatar = _selectedAvatar;
-
         setState(() {});
       }
     });
@@ -176,18 +162,10 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
       String? avatarConfig = _selectedAvatar;
 
       if (_isUsingAvatar) {
-        // If using avatar, clear photo URL to ensure avatar takes precedence
-        // But only if we are actually saving an avatar
         if (avatarConfig != null) {
-          photoUrl = null; // This will trigger field deletion or update to null
+          photoUrl = null;
         }
       } else {
-        // If using photo, clear avatar config? Not strictly necessary if photoURL takes precedence in UI
-        // But cleaner to keep them in sync.
-        // Actually, let's keep avatar config as a fallback/history unless explicitly clearing.
-        // The implementation plan says: "If Photo is selected: Upload if new, set photoURL. avatarConfig can remain."
-
-        // Upload new photo if selected
         if (_photoPath != null) {
           setState(() => _isUploading = true);
           photoUrl = await ref
@@ -205,33 +183,23 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
       if (_isUsingAvatar) {
         if (avatarConfig != null) {
           updates['avatarConfig'] = avatarConfig;
-          // We need to REMOVE photoURL. Passing null to update might not work depending on repository.
-          // AuthService.updateUserProfile uses SetOptions(merge: true).
-          // If we pass null, it might be ignored or set to null.
-          // However, to be safe and explicit, let's check auth_service.
           updates['photoURL'] = FieldValue.delete();
         }
       } else {
         if (photoUrl != null) {
           updates['photoURL'] = photoUrl;
-          // Ideally we might want to unset avatarConfig, but it's optional.
         }
       }
 
-      // Update profile
-      await ref
-          .read(authControllerProvider)
-          .updateUserProfile(userId: uid, data: updates);
-
-      // Invalidate user profile provider to refresh data
+      await ref.read(authControllerProvider).updateUserProfile(userId: uid, data: updates);
       ref.invalidate(editProfileUserProvider);
 
       if (mounted) {
         HapticFeedback.heavyImpact();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Row(
-              children: const [
+            content: const Row(
+              children: [
                 Icon(Icons.check_circle, color: Colors.white),
                 SizedBox(width: 8),
                 Text('Profile updated successfully'),
@@ -239,9 +207,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
             ),
             backgroundColor: AppColors.success,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
         context.pop();
@@ -254,9 +220,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
             content: Text('Failed to update profile: $e'),
             backgroundColor: AppColors.error,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
       }
@@ -275,10 +239,10 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
     final userAsync = ref.watch(editProfileUserProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: AppColors.backgroundV2,
       body: Column(
         children: [
-          // Custom Header
+          // Header
           Container(
             padding: EdgeInsets.only(
               top: MediaQuery.paddingOf(context).top + 8,
@@ -288,75 +252,70 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
             ),
             child: Row(
               children: [
-                BounceAnimation(
+                GestureDetector(
                   onTap: () {
                     HapticManager.light();
                     context.pop();
                   },
                   child: Container(
-                    padding: const EdgeInsets.all(8),
+                    width: 38,
+                    height: 38,
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceSecondaryDark,
-                      borderRadius: BorderRadius.circular(12),
+                      color: AppColors.surfaceV2Elevated,
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Icon(
                       Icons.arrow_back,
-                      color: AppColors.textDark,
+                      color: AppColors.textV2Primary,
                       size: 20,
                     ),
                   ),
                 ),
                 const SizedBox(width: 16),
-                const Expanded(
-                  child: GradientText(
-                    text: 'Edit Profile',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                    colors: [AppColors.textDark, AppColors.textSecondaryDark],
+                Expanded(
+                  child: Text(
+                    'Edit Profile',
+                    style: GoogleFonts.syne(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textV2Primary,
+                    ),
                   ),
                 ),
                 // Save Button
                 _hasChanges
-                    ? GradientBorderAnimation(
-                        enabled: true,
-                        borderRadius: BorderRadius.circular(12),
-                        gradientColors: AppColors.primaryGradient,
-                        child: BounceAnimation(
-                          onTap: _isLoading ? null : _saveChanges,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.surfaceDark,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: _isLoading
-                                ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation(
-                                        AppColors.primary,
-                                      ),
-                                    ),
-                                  )
-                                : const Text(
-                                    'Save',
-                                    style: TextStyle(
-                                      color: AppColors.primary,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
+                    ? GestureDetector(
+                        onTap: _isLoading ? null : _saveChanges,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceV2Elevated,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: AppColors.accentLime),
                           ),
+                          child: _isLoading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: AppColors.accentLime,
+                                  ),
+                                )
+                              : Text(
+                                  'Save',
+                                  style: GoogleFonts.outfit(
+                                    color: AppColors.accentLime,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                         ),
                       )
-                    : TextButton(
-                        onPressed: null,
+                    : Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         child: Text(
                           'Save',
-                          style: TextStyle(color: AppColors.textTertiaryDark),
+                          style: GoogleFonts.outfit(color: AppColors.textV2Tertiary),
                         ),
                       ),
               ],
@@ -366,7 +325,12 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
             child: userAsync.when(
               data: (user) {
                 if (user == null) {
-                  return const Center(child: Text('User not found'));
+                  return Center(
+                    child: Text(
+                      'User not found',
+                      style: TextStyle(color: AppColors.textV2Secondary),
+                    ),
+                  );
                 }
 
                 return SingleChildScrollView(
@@ -378,482 +342,316 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                       key: _formKey,
                       child: Column(
                         children: [
-                          // Photo/Avatar Section
-                          Column(
-                            children: [
-                              // Toggle between Photo and Avatar
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: AppColors.surfaceSecondaryDark,
-                                  borderRadius: BorderRadius.circular(
-                                    AppBorderRadius.full,
-                                  ),
-                                  border: Border.all(
-                                    color: AppColors.borderDark,
-                                  ),
+                          // Photo/Avatar toggle
+                          Container(
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceV2Elevated,
+                              borderRadius: BorderRadius.circular(AppBorderRadius.full),
+                              border: Border.all(color: AppColors.surfaceV2Active),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _buildToggleOption(
+                                  title: 'Photo',
+                                  isSelected: !_isUsingAvatar,
+                                  onTap: () {
+                                    HapticFeedback.selectionClick();
+                                    setState(() {
+                                      _isUsingAvatar = false;
+                                      _checkForChanges();
+                                    });
+                                  },
                                 ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    _buildToggleOption(
-                                      title: 'Photo',
-                                      isSelected: !_isUsingAvatar,
-                                      onTap: () {
-                                        HapticFeedback.selectionClick();
-                                        setState(() {
-                                          _isUsingAvatar = false;
-                                          _checkForChanges();
-                                        });
-                                      },
-                                    ),
-                                    _buildToggleOption(
-                                      title: 'Avatar',
-                                      isSelected: _isUsingAvatar,
-                                      onTap: () {
-                                        HapticFeedback.selectionClick();
-                                        setState(() {
-                                          _isUsingAvatar = true;
-                                          _checkForChanges();
-                                        });
-                                      },
-                                    ),
-                                  ],
+                                _buildToggleOption(
+                                  title: 'Avatar',
+                                  isSelected: _isUsingAvatar,
+                                  onTap: () {
+                                    HapticFeedback.selectionClick();
+                                    setState(() {
+                                      _isUsingAvatar = true;
+                                      _checkForChanges();
+                                    });
+                                  },
                                 ),
-                              ),
-                              const SizedBox(height: AppSpacing.xl),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.xl),
 
-                              // Content based on selection
-                              AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 300),
-                                child: _isUsingAvatar
-                                    ? Column(
-                                        key: const ValueKey('avatar'),
-                                        children: [
-                                          AvatarSelector(
-                                            initialAvatar: _selectedAvatar,
-                                            onAvatarSelected: (avatar) {
-                                              setState(() {
-                                                _selectedAvatar = avatar;
-                                                _checkForChanges();
-                                              });
-                                            },
-                                          ),
-                                        ],
-                                      )
-                                    : Column(
-                                        key: const ValueKey('photo'),
-                                        children: [
-                                          SlideInAnimation.fromBottom(
-                                            index: 0,
-                                            child: BounceAnimation(
-                                              onTap: _pickImage,
-                                              child: Stack(
-                                                children: [
-                                                  Container(
-                                                      width: 130,
-                                                      height: 130,
-                                                      decoration: BoxDecoration(
-                                                        shape: BoxShape.circle,
-                                                        gradient:
-                                                            const LinearGradient(
-                                                              colors: AppColors
-                                                                  .primaryGradient,
-                                                              begin: Alignment
-                                                                  .topLeft,
-                                                              end: Alignment
-                                                                  .bottomRight,
-                                                            ),
-                                                      ),
-                                                      padding:
-                                                          const EdgeInsets.all(
-                                                            3,
-                                                          ),
-                                                      child: Container(
-                                                        decoration:
-                                                            BoxDecoration(
-                                                              shape: BoxShape
-                                                                  .circle,
-                                                              color: AppColors
-                                                                  .surfaceDark,
-                                                            ),
-                                                        padding:
-                                                            const EdgeInsets.all(
-                                                              3,
-                                                            ),
-                                                        child: _isUploading
-                                                            ? ShimmerLoading(
-                                                                child: CircleAvatar(
-                                                                  radius: 57,
-                                                                  backgroundColor:
-                                                                      AppColors
-                                                                          .surfaceSecondaryDark,
-                                                                ),
-                                                              )
-                                                            : Hero(
-                                                                tag:
-                                                                    'avatar_${user.id}',
-                                                                child: ClipOval(
-                                                                  child:
-                                                                      (_photoPath !=
-                                                                          null)
-                                                                      ? Image.file(
-                                                                          File(
-                                                                            _photoPath!,
-                                                                          ),
-                                                                          width:
-                                                                              114,
-                                                                          height:
-                                                                              114,
-                                                                          fit: BoxFit
-                                                                              .cover,
-                                                                        )
-                                                                      : (_existingPhotoUrl !=
-                                                                                null &&
-                                                                            _existingPhotoUrl!.isNotEmpty)
-                                                                      ? CachedNetworkImage(
-                                                                          imageUrl:
-                                                                              _existingPhotoUrl!,
-                                                                          width:
-                                                                              114,
-                                                                          height:
-                                                                              114,
-                                                                          fit: BoxFit
-                                                                              .cover,
-                                                                          placeholder:
-                                                                              (
-                                                                                context,
-                                                                                url,
-                                                                              ) => Container(
-                                                                                color: AppColors.surfaceSecondaryDark,
-                                                                              ),
-                                                                          errorWidget:
-                                                                              (
-                                                                                context,
-                                                                                url,
-                                                                                error,
-                                                                              ) => const Icon(
-                                                                                Icons.error,
-                                                                              ),
-                                                                        )
-                                                                      : Container(
-                                                                          width:
-                                                                              114,
-                                                                          height:
-                                                                              114,
-                                                                          color:
-                                                                              AppColors.surfaceSecondaryDark,
-                                                                          child: Center(
-                                                                            child: Text(
-                                                                              user.displayName.isNotEmpty
-                                                                                  ? user.displayName[0].toUpperCase()
-                                                                                  : 'U',
-                                                                              style: const TextStyle(
-                                                                                fontSize: 40,
-                                                                                fontWeight: FontWeight.bold,
-                                                                                color: AppColors.primary,
-                                                                              ),
-                                                                            ),
+                          // Photo or Avatar content
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 300),
+                            child: _isUsingAvatar
+                                ? Column(
+                                    key: const ValueKey('avatar'),
+                                    children: [
+                                      AvatarSelector(
+                                        initialAvatar: _selectedAvatar,
+                                        onAvatarSelected: (avatar) {
+                                          setState(() {
+                                            _selectedAvatar = avatar;
+                                            _checkForChanges();
+                                          });
+                                        },
+                                      ),
+                                    ],
+                                  )
+                                : Column(
+                                    key: const ValueKey('photo'),
+                                    children: [
+                                      GestureDetector(
+                                        onTap: _pickImage,
+                                        child: Stack(
+                                          children: [
+                                            Container(
+                                              width: 130,
+                                              height: 130,
+                                              padding: const EdgeInsets.all(3),
+                                              decoration: const BoxDecoration(
+                                                shape: BoxShape.circle,
+                                                color: AppColors.accentLime,
+                                              ),
+                                              child: Container(
+                                                decoration: BoxDecoration(
+                                                  shape: BoxShape.circle,
+                                                  color: AppColors.surfaceV2,
+                                                ),
+                                                padding: const EdgeInsets.all(3),
+                                                child: _isUploading
+                                                    ? CircleAvatar(
+                                                        radius: 57,
+                                                        backgroundColor: AppColors.surfaceV2Elevated,
+                                                      )
+                                                    : Hero(
+                                                        tag: 'avatar_${user.id}',
+                                                        child: ClipOval(
+                                                          child: (_photoPath != null)
+                                                              ? Image.file(
+                                                                  File(_photoPath!),
+                                                                  width: 114,
+                                                                  height: 114,
+                                                                  fit: BoxFit.cover,
+                                                                )
+                                                              : (_existingPhotoUrl != null &&
+                                                                      _existingPhotoUrl!.isNotEmpty)
+                                                                  ? CachedNetworkImage(
+                                                                      imageUrl: _existingPhotoUrl!,
+                                                                      width: 114,
+                                                                      height: 114,
+                                                                      fit: BoxFit.cover,
+                                                                      placeholder: (context, url) =>
+                                                                          Container(color: AppColors.surfaceV2Elevated),
+                                                                      errorWidget: (context, url, error) =>
+                                                                          const Icon(Icons.error),
+                                                                    )
+                                                                  : Container(
+                                                                      width: 114,
+                                                                      height: 114,
+                                                                      color: AppColors.surfaceV2Elevated,
+                                                                      child: Center(
+                                                                        child: Text(
+                                                                          user.displayName.isNotEmpty
+                                                                              ? user.displayName[0].toUpperCase()
+                                                                              : 'U',
+                                                                          style: GoogleFonts.syne(
+                                                                            fontSize: 40,
+                                                                            fontWeight: FontWeight.w800,
+                                                                            color: AppColors.accentLime,
                                                                           ),
                                                                         ),
-                                                                ),
-                                                              ),
-                                                      ),
-                                                    ),
-                                                  Positioned(
-                                                    bottom: 0,
-                                                    right: 0,
-                                                    child: ScaleOnTap(
-                                                      onTap: _pickImage,
-                                                      child: Container(
-                                                        padding:
-                                                            const EdgeInsets.all(
-                                                              10,
-                                                            ),
-                                                        decoration: BoxDecoration(
-                                                          gradient:
-                                                              const LinearGradient(
-                                                                colors: AppColors
-                                                                    .primaryGradient,
-                                                              ),
-                                                          shape:
-                                                              BoxShape.circle,
-                                                          boxShadow: [
-                                                            BoxShadow(
-                                                              color: AppColors
-                                                                  .primary
-                                                                  .withValues(
-                                                                    alpha: 0.4,
-                                                                  ),
-                                                              blurRadius: 8,
-                                                              offset:
-                                                                  const Offset(
-                                                                    0,
-                                                                    4,
-                                                                  ),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                        child: const Icon(
-                                                          Icons.camera_alt,
-                                                          color: Colors.white,
-                                                          size: 20,
+                                                                      ),
+                                                                    ),
                                                         ),
                                                       ),
-                                                    ),
+                                              ),
+                                            ),
+                                            Positioned(
+                                              bottom: 0,
+                                              right: 0,
+                                              child: GestureDetector(
+                                                onTap: _pickImage,
+                                                child: Container(
+                                                  padding: const EdgeInsets.all(10),
+                                                  decoration: const BoxDecoration(
+                                                    color: AppColors.accentLime,
+                                                    shape: BoxShape.circle,
                                                   ),
-                                                ],
+                                                  child: const Icon(
+                                                    Icons.camera_alt,
+                                                    color: AppColors.backgroundV2,
+                                                    size: 20,
+                                                  ),
+                                                ),
                                               ),
                                             ),
-                                          ),
-                                          const SizedBox(height: AppSpacing.sm),
-                                          FadeInAnimation(
-                                            delay: const Duration(
-                                              milliseconds: 200,
-                                            ),
-                                            child: Text(
-                                              'Tap to change photo',
-                                              style: TextStyle(
-                                                fontSize: AppFontSize.sm,
-                                                color:
-                                                    AppColors.textSecondaryDark,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
+                                          ],
+                                        ),
                                       ),
-                              ),
-                            ],
+                                      const SizedBox(height: AppSpacing.sm),
+                                      Text(
+                                        'Tap to change photo',
+                                        style: TextStyle(
+                                          fontSize: AppFontSize.sm,
+                                          color: AppColors.textV2Secondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                           ),
 
                           const SizedBox(height: AppSpacing.xxl),
 
-                          // Display name field with glass container
-                          SlideInAnimation.fromBottom(
-                            index: 1,
-                            child: GlassContainer(
-                              blur: 10,
-                              backgroundColor: AppColors.surfaceSecondaryDark
-                                  .withValues(alpha: 0.5),
-                              borderRadius: BorderRadius.circular(
-                                AppBorderRadius.lg,
-                              ),
-                              padding: const EdgeInsets.all(AppSpacing.lg),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      const Icon(
-                                        Icons.person_outline,
-                                        color: AppColors.primary,
+                          // Display name section
+                          Container(
+                            padding: const EdgeInsets.all(AppSpacing.lg),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceV2Elevated,
+                              borderRadius: BorderRadius.circular(AppBorderRadius.lg),
+                              border: Border.all(color: AppColors.surfaceV2Active),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(Icons.person_outline, color: AppColors.accentLime),
+                                    const SizedBox(width: AppSpacing.sm),
+                                    Text(
+                                      'Display Name',
+                                      style: GoogleFonts.outfit(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: AppFontSize.md,
+                                        color: AppColors.textV2Primary,
                                       ),
-                                      const SizedBox(width: AppSpacing.sm),
-                                      const Text(
-                                        'Display Name',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: AppFontSize.md,
-                                          color: AppColors.textDark,
-                                        ),
-                                      ),
-                                      const Spacer(),
-                                      // Character count
-                                      AnimatedCounter(
-                                        value:
-                                            _displayNameController.text.length,
-                                        style: TextStyle(
-                                          fontSize: AppFontSize.xs,
-                                          color: AppColors.textTertiaryDark,
-                                        ),
-                                        suffix: '/30',
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: AppSpacing.md),
-                                  TextFormField(
-                                    controller: _displayNameController,
-                                    maxLength: 30,
-                                    style: const TextStyle(
-                                      color: AppColors.textDark,
                                     ),
-                                    decoration: InputDecoration(
-                                      hintText: 'Enter your display name',
-                                      hintStyle: TextStyle(
-                                        color: AppColors.textTertiaryDark,
+                                    const Spacer(),
+                                    Text(
+                                      '${_displayNameController.text.length}/30',
+                                      style: TextStyle(
+                                        fontSize: AppFontSize.xs,
+                                        color: AppColors.textV2Tertiary,
                                       ),
-                                      counterText: '',
-                                      filled: true,
-                                      fillColor: AppColors.surfaceDark
-                                          .withValues(alpha: 0.5),
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(
-                                          AppBorderRadius.md,
-                                        ),
-                                        borderSide: BorderSide.none,
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(
-                                          AppBorderRadius.md,
-                                        ),
-                                        borderSide: const BorderSide(
-                                          color: AppColors.primary,
-                                          width: 2,
-                                        ),
-                                      ),
-                                      errorBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(
-                                          AppBorderRadius.md,
-                                        ),
-                                        borderSide: const BorderSide(
-                                          color: AppColors.error,
-                                        ),
-                                      ),
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
-                                            horizontal: AppSpacing.lg,
-                                            vertical: AppSpacing.md,
-                                          ),
-                                      suffixIcon:
-                                          _displayNameController.text.length >=
-                                              2
-                                          ? FadeInAnimation(
-                                              child: const Icon(
-                                                Icons.check_circle,
-                                                color: AppColors.success,
-                                              ),
-                                            )
-                                          : null,
                                     ),
-                                    validator: (value) {
-                                      if (value == null ||
-                                          value.trim().isEmpty) {
-                                        return 'Please enter a display name';
-                                      }
-                                      if (value.trim().length < 2) {
-                                        return 'Display name must be at least 2 characters';
-                                      }
-                                      return null;
-                                    },
+                                  ],
+                                ),
+                                const SizedBox(height: AppSpacing.md),
+                                TextFormField(
+                                  controller: _displayNameController,
+                                  maxLength: 30,
+                                  style: const TextStyle(color: AppColors.textV2Primary),
+                                  decoration: InputDecoration(
+                                    hintText: 'Enter your display name',
+                                    hintStyle: TextStyle(color: AppColors.textV2Tertiary),
+                                    counterText: '',
+                                    filled: true,
+                                    fillColor: AppColors.surfaceV2,
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(AppBorderRadius.md),
+                                      borderSide: BorderSide.none,
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(AppBorderRadius.md),
+                                      borderSide: const BorderSide(color: AppColors.accentLime, width: 2),
+                                    ),
+                                    errorBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(AppBorderRadius.md),
+                                      borderSide: const BorderSide(color: AppColors.error),
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: AppSpacing.lg,
+                                      vertical: AppSpacing.md,
+                                    ),
+                                    suffixIcon: _displayNameController.text.length >= 2
+                                        ? const Icon(Icons.check_circle, color: AppColors.success)
+                                        : null,
                                   ),
-                                ],
-                              ),
+                                  validator: (value) {
+                                    if (value == null || value.trim().isEmpty) {
+                                      return 'Please enter a display name';
+                                    }
+                                    if (value.trim().length < 2) {
+                                      return 'Display name must be at least 2 characters';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              ],
                             ),
                           ),
 
                           const SizedBox(height: AppSpacing.xl),
 
-                          // Workout preference with glass container
-                          SlideInAnimation.fromBottom(
-                            index: 2,
-                            child: GradientBorder(
-                              gradientColors: AppColors.primaryGradient,
-                              borderWidth: 1,
-                              borderRadius: BorderRadius.circular(
-                                AppBorderRadius.lg,
-                              ),
-                              child: GlassContainer(
-                                blur: 10,
-                                backgroundColor: AppColors.surfaceSecondaryDark
-                                    .withValues(alpha: 0.5),
-                                borderRadius: BorderRadius.circular(
-                                  AppBorderRadius.lg - 1,
-                                ),
-                                border: Border.all(color: Colors.transparent),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Padding(
-                                      padding: const EdgeInsets.all(
-                                        AppSpacing.md,
-                                      ),
-                                      child: Row(
-                                        children: const [
-                                          Icon(
-                                            Icons.fitness_center,
-                                            color: AppColors.primary,
-                                          ),
-                                          SizedBox(width: AppSpacing.sm),
-                                          Text(
-                                            'Workout Preference',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: AppFontSize.md,
-                                              color: AppColors.textDark,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    _buildWorkoutRadioTile(
-                                      title: 'Strength Training',
-                                      subtitle:
-                                          'Weight lifting, resistance training',
-                                      value: WorkoutType.gym,
-                                      index: 0,
-                                    ),
-                                    _buildWorkoutRadioTile(
-                                      title: 'Cardio',
-                                      subtitle: 'Running, cycling, HIIT',
-                                      value: WorkoutType.running,
-                                      index: 1,
-                                    ),
-                                    _buildWorkoutRadioTile(
-                                      title: 'Hybrid',
-                                      subtitle: 'Mix of strength and cardio',
-                                      value: WorkoutType.other,
-                                      index: 2,
-                                    ),
-                                  ],
-                                ),
-                              ),
+                          // Workout preference section
+                          Container(
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceV2Elevated,
+                              borderRadius: BorderRadius.circular(AppBorderRadius.lg),
+                              border: Border.all(color: AppColors.accentLime.withValues(alpha: 0.3)),
                             ),
-                          ),
-
-                          const SizedBox(height: AppSpacing.xxl),
-
-                          // Unsaved changes indicator
-                          if (_hasChanges)
-                            SlideInAnimation.fromBottom(
-                              index: 3,
-                              child: PulseAnimation(
-                                minScale: 1.0,
-                                maxScale: 1.02,
-                                duration: const Duration(milliseconds: 1500),
-                                child: Container(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Padding(
                                   padding: const EdgeInsets.all(AppSpacing.md),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.info.withValues(
-                                      alpha: 0.15,
-                                    ),
-                                    borderRadius: BorderRadius.circular(
-                                      AppBorderRadius.md,
-                                    ),
-                                    border: Border.all(
-                                      color: AppColors.info.withValues(
-                                        alpha: 0.3,
-                                      ),
-                                    ),
-                                  ),
                                   child: Row(
                                     children: [
-                                      const Icon(
-                                        Icons.info_outline,
-                                        color: AppColors.info,
-                                        size: 20,
-                                      ),
+                                      const Icon(Icons.fitness_center, color: AppColors.accentLime),
                                       const SizedBox(width: AppSpacing.sm),
-                                      const Expanded(
-                                        child: Text(
-                                          'You have unsaved changes',
-                                          style: TextStyle(
-                                            color: AppColors.info,
-                                            fontSize: AppFontSize.sm,
-                                          ),
+                                      Text(
+                                        'Workout Preference',
+                                        style: GoogleFonts.outfit(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: AppFontSize.md,
+                                          color: AppColors.textV2Primary,
                                         ),
                                       ),
                                     ],
                                   ),
                                 ),
+                                _buildWorkoutRadioTile(
+                                  title: 'Strength Training',
+                                  subtitle: 'Weight lifting, resistance training',
+                                  value: WorkoutType.gym,
+                                  index: 0,
+                                ),
+                                _buildWorkoutRadioTile(
+                                  title: 'Cardio',
+                                  subtitle: 'Running, cycling, HIIT',
+                                  value: WorkoutType.running,
+                                  index: 1,
+                                ),
+                                _buildWorkoutRadioTile(
+                                  title: 'Hybrid',
+                                  subtitle: 'Mix of strength and cardio',
+                                  value: WorkoutType.other,
+                                  index: 2,
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: AppSpacing.xxl),
+
+                          if (_hasChanges)
+                            Container(
+                              padding: const EdgeInsets.all(AppSpacing.md),
+                              decoration: BoxDecoration(
+                                color: AppColors.info.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(AppBorderRadius.md),
+                                border: Border.all(color: AppColors.info.withValues(alpha: 0.3)),
+                              ),
+                              child: const Row(
+                                children: [
+                                  Icon(Icons.info_outline, color: AppColors.info, size: 20),
+                                  SizedBox(width: AppSpacing.sm),
+                                  Expanded(
+                                    child: Text(
+                                      'You have unsaved changes',
+                                      style: TextStyle(color: AppColors.info, fontSize: AppFontSize.sm),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                         ],
@@ -862,41 +660,31 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                   ),
                 );
               },
-              loading: () => ShimmerLoading(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(AppSpacing.lg),
-                  child: Column(
-                    children: [
-                      ShimmerSkeleton.circle(size: 130),
-                      const SizedBox(height: AppSpacing.sm),
-                      ShimmerSkeleton.text(width: 120),
-                      const SizedBox(height: AppSpacing.xxl),
-                      const ShimmerSkeleton(height: 120),
-                      const SizedBox(height: AppSpacing.xl),
-                      const ShimmerSkeleton(height: 200),
-                    ],
-                  ),
+              loading: () => const SingleChildScrollView(
+                padding: EdgeInsets.all(AppSpacing.lg),
+                child: Column(
+                  children: [
+                    SizedBox(width: 130, height: 130),
+                    SizedBox(height: AppSpacing.sm),
+                    SizedBox(width: 120, height: 14),
+                    SizedBox(height: AppSpacing.xxl),
+                    SizedBox(height: 120),
+                    SizedBox(height: AppSpacing.xl),
+                    SizedBox(height: 200),
+                  ],
                 ),
               ),
               error: (e, _) => Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(
-                      Icons.error_outline,
-                      size: 48,
-                      color: AppColors.error,
-                    ),
+                    const Icon(Icons.error_outline, size: 48, color: AppColors.error),
                     const SizedBox(height: AppSpacing.md),
                     Text('Error: $e'),
                     const SizedBox(height: AppSpacing.md),
-                    BounceAnimation(
-                      onTap: () => ref.invalidate(editProfileUserProvider),
-                      child: ElevatedButton(
-                        onPressed: () =>
-                            ref.invalidate(editProfileUserProvider),
-                        child: const Text('Retry'),
-                      ),
+                    ElevatedButton(
+                      onPressed: () => ref.invalidate(editProfileUserProvider),
+                      child: const Text('Retry'),
                     ),
                   ],
                 ),
@@ -916,83 +704,64 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
   }) {
     final isSelected = _workoutPreference == value;
 
-    return SlideInAnimation.fromRight(
-      index: index,
-      delay: const Duration(milliseconds: 30),
-      child: ScaleOnTap(
-        onTap: () {
-          HapticFeedback.selectionClick();
-          setState(() {
-            _workoutPreference = value;
-            _checkForChanges();
-          });
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          margin: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.sm,
-            vertical: AppSpacing.xs,
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        setState(() {
+          _workoutPreference = value;
+          _checkForChanges();
+        });
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        margin: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.accentLime.withValues(alpha: 0.12) : Colors.transparent,
+          borderRadius: BorderRadius.circular(AppBorderRadius.md),
+          border: Border.all(
+            color: isSelected ? AppColors.accentLime : Colors.transparent,
+            width: isSelected ? 2 : 1,
           ),
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
-            vertical: AppSpacing.sm,
-          ),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? AppColors.primary.withValues(alpha: 0.15)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(AppBorderRadius.md),
-            border: Border.all(
-              color: isSelected ? AppColors.primary : Colors.transparent,
-              width: isSelected ? 2 : 1,
+        ),
+        child: Row(
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isSelected ? AppColors.accentLime : AppColors.textV2Tertiary,
+                  width: 2,
+                ),
+                color: isSelected ? AppColors.accentLime : Colors.transparent,
+              ),
+              child: isSelected
+                  ? const Icon(Icons.check, size: 16, color: AppColors.backgroundV2)
+                  : null,
             ),
-          ),
-          child: Row(
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: isSelected
-                        ? AppColors.primary
-                        : AppColors.textTertiaryDark,
-                    width: 2,
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: isSelected ? AppColors.accentLime : AppColors.textV2Primary,
+                    ),
                   ),
-                  color: isSelected ? AppColors.primary : Colors.transparent,
-                ),
-                child: isSelected
-                    ? const Icon(Icons.check, size: 16, color: Colors.white)
-                    : null,
+                  Text(
+                    subtitle,
+                    style: TextStyle(fontSize: AppFontSize.sm, color: AppColors.textV2Secondary),
+                  ),
+                ],
               ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: isSelected
-                            ? AppColors.primary
-                            : AppColors.textDark,
-                      ),
-                    ),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: AppFontSize.sm,
-                        color: AppColors.textSecondaryDark,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -1007,18 +776,15 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.lg,
-          vertical: AppSpacing.sm,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary : Colors.transparent,
+          color: isSelected ? AppColors.accentLime : Colors.transparent,
           borderRadius: BorderRadius.circular(AppBorderRadius.full),
         ),
         child: Text(
           title,
-          style: TextStyle(
-            color: isSelected ? Colors.white : AppColors.textSecondaryDark,
+          style: GoogleFonts.outfit(
+            color: isSelected ? AppColors.backgroundV2 : AppColors.textV2Secondary,
             fontWeight: FontWeight.w600,
             fontSize: AppFontSize.sm,
           ),

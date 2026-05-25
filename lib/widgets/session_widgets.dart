@@ -619,7 +619,7 @@ class _AnimatedProgressBarState extends State<AnimatedProgressBar> {
   Widget build(BuildContext context) {
     final gradientColors = widget.gradientColors ?? AppColors.primaryGradient;
     final backgroundColor =
-        widget.backgroundColor ?? AppColors.surfaceSecondaryDark;
+        widget.backgroundColor ?? AppColors.surfaceV2Elevated;
     final borderRadius =
         widget.borderRadius ?? BorderRadius.circular(widget.height / 2);
     final showGlow = widget.showGlowAtHighProgress && widget.value >= 0.8;
@@ -691,7 +691,7 @@ class MilestoneIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final active = activeColor ?? AppColors.primary;
-    final inactive = inactiveColor ?? AppColors.surfaceSecondaryDark;
+    final inactive = inactiveColor ?? AppColors.surfaceV2Elevated;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -740,7 +740,7 @@ class MilestoneIndicator extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
-                          color: isNext ? active : AppColors.textSecondaryDark,
+                          color: isNext ? active : AppColors.textV2Secondary,
                         ),
                       ),
               ),
@@ -904,7 +904,7 @@ class ParticipantComparisonChart extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
-                      color: AppColors.textDark,
+                      color: AppColors.textV2Primary,
                     ),
                   ),
                   Text(
@@ -928,7 +928,7 @@ class ParticipantComparisonChart extends StatelessWidget {
                   return Container(
                     height: 8,
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceSecondaryDark,
+                      color: AppColors.surfaceV2Elevated,
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: ClipRRect(

@@ -48,9 +48,8 @@ class DailyQuote extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: AppColors.surfaceLight,
+        color: AppColors.surfaceV2,
         borderRadius: BorderRadius.circular(AppBorderRadius.xl),
-        boxShadow: AppShadows.md,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -64,7 +63,7 @@ class DailyQuote extends StatelessWidget {
                 style: TextStyle(
                   fontSize: AppFontSize.sm,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.textSecondaryLight,
+                  color: AppColors.textV2Secondary,
                 ),
               ),
             ],
@@ -75,7 +74,7 @@ class DailyQuote extends StatelessWidget {
             style: const TextStyle(
               fontSize: AppFontSize.md,
               fontWeight: FontWeight.w500,
-              color: AppColors.textLight,
+              color: AppColors.textV2Primary,
               fontStyle: FontStyle.italic,
               height: 1.4,
             ),
@@ -85,7 +84,7 @@ class DailyQuote extends StatelessWidget {
             '— ${quote['author']}',
             style: TextStyle(
               fontSize: AppFontSize.sm,
-              color: AppColors.textSecondaryLight,
+              color: AppColors.textV2Secondary,
             ),
           ),
         ],

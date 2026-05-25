@@ -2,337 +2,227 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../../core/theme/app_theme.dart';
-import '../../../core/constants/feature_flags.dart';
 import '../../../app/navigation/app_router.dart';
-import '../../../widgets/mvp_feature_wrapper.dart';
-import '../../../widgets/premium_effects.dart';
-import '../../../widgets/premium_animations.dart';
 import '../../../widgets/circuit_breaker_status_widget.dart';
 import '../../auth/presentation/providers/auth_controller.dart';
+import '../../auth/auth_providers.dart';
 
-/// Settings page with app preferences and account options.
-class SettingsPage extends ConsumerWidget {
+/// Settings page — v2 design (true-black + acid-lime palette).
+class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends ConsumerState<SettingsPage> {
+  // ── Notification toggles ──────────────────────────────────────────────────
+  bool _sessionInvites = true;
+  bool _workoutLikes = true;
+  bool _newFollowers = true;
+  bool _buddyActivity = false;
+
+  // ── Training prefs ────────────────────────────────────────────────────────
+  String _restTimer = '1m';
+  String _weightUnit = 'kg';
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  TextStyle _sectionHeader() => GoogleFonts.outfit(
+        fontSize: 10,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 2,
+        color: AppColors.textV2Tertiary,
+      );
+
+  TextStyle _rowLabel({bool danger = false}) => GoogleFonts.outfit(
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
+        color: danger ? AppColors.errorV2 : AppColors.textV2Primary,
+      );
+
+  TextStyle _rowSub() => GoogleFonts.outfit(
+        fontSize: 11,
+        color: AppColors.textV2Tertiary,
+      );
+
+  // ── Build ─────────────────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    final authState = ref.watch(authSessionProvider);
+    final displayName = authState.valueOrNull?.displayName ?? 'Zyntro User';
+    final username = displayName.toLowerCase().replaceAll(' ', '_');
+    final initial =
+        displayName.isNotEmpty ? displayName[0].toUpperCase() : 'Z';
+
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: AppColors.backgroundV2,
       body: Column(
         children: [
-          // Custom Header
-          Container(
-            padding: EdgeInsets.only(
-              top: MediaQuery.paddingOf(context).top + 8,
-              bottom: 8,
-              left: 16,
-              right: 16,
-            ),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceDark,
-              border: Border(
-                bottom: BorderSide(
-                  color: AppColors.primary.withValues(alpha: 0.2),
-                  width: 1.5,
-                ),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                BounceAnimation(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    Navigator.pop(context);
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceSecondaryDark,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.1),
-                      ),
-                    ),
-                    child: const Icon(
-                      Icons.arrow_back,
-                      color: AppColors.textDark,
-                      size: 20,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                const GradientText(
-                  text: 'Settings',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  colors: [AppColors.textDark, AppColors.textSecondaryDark],
-                ),
-              ],
-            ),
-          ),
+          _buildHeader(context),
           Expanded(
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(AppSpacing.lg),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Account section
-                  SlideInAnimation.fromBottom(
-                    index: 0,
-                    child: _buildSection(
-                      context: context,
-                      title: 'Account',
-                      icon: Icons.person_outline,
+                  const SizedBox(height: 16),
+
+                  // Profile card
+                  _buildProfileCard(
+                    context,
+                    displayName: displayName,
+                    username: username,
+                    initial: initial,
+                  ),
+
+                  // ── Notifications ────────────────────────────────────────
+                  _sectionLabel('NOTIFICATIONS'),
+                  _buildSectionCard([
+                    _toggleRow(
+                      label: 'Session invites',
+                      sub: 'When a buddy starts a session',
+                      value: _sessionInvites,
+                      onChanged: (v) => setState(() => _sessionInvites = v),
+                    ),
+                    _divider(),
+                    _toggleRow(
+                      label: 'Workout likes',
+                      sub: 'When someone reacts to your post',
+                      value: _workoutLikes,
+                      onChanged: (v) => setState(() => _workoutLikes = v),
+                    ),
+                    _divider(),
+                    _toggleRow(
+                      label: 'New followers',
+                      sub: 'When someone follows you',
+                      value: _newFollowers,
+                      onChanged: (v) => setState(() => _newFollowers = v),
+                    ),
+                    _divider(),
+                    _toggleRow(
+                      label: 'Buddy activity',
+                      sub: 'When buddies finish workouts',
+                      value: _buddyActivity,
+                      onChanged: (v) => setState(() => _buddyActivity = v),
+                    ),
+                  ]),
+
+                  // ── Training ─────────────────────────────────────────────
+                  _sectionLabel('TRAINING'),
+                  _buildSectionCard([
+                    _segmentedRow(
+                      label: 'Default rest timer',
+                      sub: 'Applied after each set',
+                      options: const ['30s', '1m', '1.5m', '2m'],
+                      selected: _restTimer,
+                      onSelected: (v) => setState(() => _restTimer = v),
+                    ),
+                    _divider(),
+                    _segmentedRow(
+                      label: 'Weight unit',
+                      sub: null,
+                      options: const ['kg', 'lbs'],
+                      selected: _weightUnit,
+                      onSelected: (v) => setState(() => _weightUnit = v),
+                    ),
+                  ]),
+
+                  // ── Privacy ──────────────────────────────────────────────
+                  _sectionLabel('PRIVACY'),
+                  _buildSectionCard([
+                    _chevronRow(
+                      label: 'Profile visibility',
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        context.push(AppRoutes.privacySettings);
+                      },
+                    ),
+                    _divider(),
+                    _chevronRow(
+                      label: 'Post visibility',
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        context.push(AppRoutes.privacySettings);
+                      },
+                    ),
+                  ]),
+
+                  // ── Account ──────────────────────────────────────────────
+                  _sectionLabel('ACCOUNT'),
+                  _buildSectionCard([
+                    _chevronRow(
+                      label: 'Change password',
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        context.push(AppRoutes.changePassword);
+                      },
+                    ),
+                    _divider(),
+                    _chevronRow(
+                      label: 'Linked devices',
+                      sub: '2 devices',
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        _showNetworkDiagnostics(context);
+                      },
+                    ),
+                    _divider(),
+                    _chevronRow(
+                      label: 'Export my data',
+                      sub: 'Download your workout history',
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                      },
+                    ),
+                    _divider(),
+                    _dangerRow(
+                      label: 'Sign out',
+                      onTap: () => _confirmSignOut(context),
+                    ),
+                    _divider(),
+                    _dangerRow(
+                      label: 'Delete account',
+                      sub: 'This cannot be undone',
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        context.push(AppRoutes.deleteAccount);
+                      },
+                    ),
+                  ]),
+
+                  const SizedBox(height: 32),
+
+                  // App version footer
+                  Center(
+                    child: Column(
                       children: [
-                        _buildSettingsTile(
-                          context,
-                          icon: Icons.person_outline,
-                          title: 'Edit Profile',
-                          index: 0,
-                          onTap: () => context.push(AppRoutes.editProfile),
+                        Text(
+                          'Zyntro',
+                          style: GoogleFonts.syne(
+                            color: AppColors.textV2Secondary,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
                         ),
-                        _buildSettingsTile(
-                          context,
-                          icon: Icons.lock_outline,
-                          title: 'Privacy',
-                          index: 1,
-                          onTap: () => context.push(AppRoutes.privacySettings),
-                        ),
-                        _buildSettingsTile(
-                          context,
-                          icon: Icons.block_outlined,
-                          title: 'Blocked Users',
-                          index: 2,
-                          onTap: () => context.push(AppRoutes.blockedUsers),
-                        ),
-                        _buildSettingsTile(
-                          context,
-                          icon: Icons.notifications_outlined,
-                          title: 'Notification Preferences',
-                          index: 3,
-                          onTap: () =>
-                              context.push(AppRoutes.notificationPreferences),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Version 1.0.0',
+                          style: GoogleFonts.outfit(
+                            color: AppColors.textV2Tertiary,
+                            fontSize: 12,
+                          ),
                         ),
                       ],
                     ),
                   ),
 
-                  const SizedBox(height: AppSpacing.xl),
-
-                  // Account Management section
-                  SlideInAnimation.fromBottom(
-                    index: 1,
-                    child: _buildSection(
-                      context: context,
-                      title: 'Account Management',
-                      icon: Icons.manage_accounts_outlined,
-                      children: [
-                        _buildSettingsTile(
-                          context,
-                          icon: Icons.key_outlined,
-                          title: 'Change Password',
-                          index: 0,
-                          onTap: () => context.push(AppRoutes.changePassword),
-                        ),
-                        _buildSettingsTile(
-                          context,
-                          icon: Icons.email_outlined,
-                          title: 'Change Email',
-                          index: 1,
-                          onTap: () => context.push(AppRoutes.changeEmail),
-                        ),
-                        _buildSettingsTile(
-                          context,
-                          icon: Icons.delete_outline,
-                          title: 'Delete Account',
-                          index: 2,
-                          isDestructive: true,
-                          onTap: () => context.push(AppRoutes.deleteAccount),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: AppSpacing.xl),
-
-                  // Security section (Coming Soon)
-                  SlideInAnimation.fromBottom(
-                    index: 2,
-                    child: _buildSection(
-                      context: context,
-                      title: 'Security',
-                      icon: Icons.security_outlined,
-                      children: [
-                        MVPFeatureWrapper(
-                          feature: FeatureFlag.activeSessions,
-                          featureName: 'Active Sessions',
-                          description:
-                              'View and manage your active login sessions.',
-                          child: _buildSettingsTile(
-                            context,
-                            icon: Icons.devices_outlined,
-                            title: 'Active Sessions',
-                            index: 0,
-                            onTap: () {},
-                            comingSoon: true,
-                          ),
-                        ),
-                        MVPFeatureWrapper(
-                          feature: FeatureFlag.twoFactorAuth,
-                          featureName: 'Two-Factor Authentication',
-                          description:
-                              'Add an extra layer of security to your account.',
-                          child: _buildSettingsTile(
-                            context,
-                            icon: Icons.security_outlined,
-                            title: 'Two-Factor Authentication',
-                            index: 1,
-                            onTap: () {},
-                            comingSoon: true,
-                          ),
-                        ),
-                        MVPFeatureWrapper(
-                          feature: FeatureFlag.loginHistory,
-                          featureName: 'Login History',
-                          description: 'View your recent login activity.',
-                          child: _buildSettingsTile(
-                            context,
-                            icon: Icons.history_outlined,
-                            title: 'Login History',
-                            index: 2,
-                            onTap: () {},
-                            comingSoon: true,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: AppSpacing.xl),
-
-                  // App section
-                  SlideInAnimation.fromBottom(
-                    index: 3,
-                    child: _buildSection(
-                      context: context,
-                      title: 'App',
-                      icon: Icons.apps_outlined,
-                      children: [
-                        _buildSettingsTile(
-                          context,
-                          icon: Icons.network_check_outlined,
-                          title: 'Network Diagnostics',
-                          index: 0,
-                          onTap: () => _showNetworkDiagnostics(context),
-                        ),
-                        _buildSettingsTile(
-                          context,
-                          icon: Icons.dark_mode_outlined,
-                          title: 'Appearance',
-                          index: 1,
-                          onTap: () {},
-                          trailing: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: AppColors.primaryGradient,
-                              ),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Text(
-                              'Dark',
-                              style: TextStyle(
-                                fontSize: AppFontSize.xs,
-                                color: Colors.white,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ),
-                        _buildSettingsTile(
-                          context,
-                          icon: Icons.gavel_outlined,
-                          title: 'Community Guidelines',
-                          index: 2,
-                          onTap: () =>
-                              context.push(AppRoutes.communityGuidelines),
-                        ),
-                        _buildSettingsTile(
-                          context,
-                          icon: Icons.description_outlined,
-                          title: 'Terms of Service',
-                          index: 3,
-                          onTap: () => context.push(AppRoutes.termsOfService),
-                        ),
-                        _buildSettingsTile(
-                          context,
-                          icon: Icons.privacy_tip_outlined,
-                          title: 'Privacy Policy',
-                          index: 4,
-                          onTap: () => context.push(AppRoutes.privacyPolicy),
-                        ),
-                        _buildSettingsTile(
-                          context,
-                          icon: Icons.help_outline,
-                          title: 'Help & Support',
-                          index: 5,
-                          onTap: () {},
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: AppSpacing.xl),
-
-                  // Sign Out section
-                  SlideInAnimation.fromBottom(
-                    index: 4,
-                    child: _buildSignOutCard(context, ref),
-                  ),
-
-                  const SizedBox(height: AppSpacing.xxl),
-
-                  // App Version
-                  SlideInAnimation.fromBottom(
-                    index: 5,
-                    child: Center(
-                      child: FadeInAnimation(
-                        child: Column(
-                          children: [
-                            const Text(
-                              'Zyntro',
-                              style: TextStyle(
-                                color: AppColors.textSecondaryDark,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Version 1.0.0',
-                              style: TextStyle(
-                                color: AppColors.textTertiaryDark,
-                                fontSize: AppFontSize.xs,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: AppSpacing.lg),
+                  const SizedBox(height: 32),
                 ],
               ),
             ),
@@ -342,293 +232,410 @@ class SettingsPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildSection({
-    required BuildContext context,
-    required String title,
-    required IconData icon,
-    required List<Widget> children,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Section header
-        Padding(
-          padding: const EdgeInsets.only(
-            left: AppSpacing.sm,
-            bottom: AppSpacing.md,
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: AppColors.primaryGradient,
-                  ),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: Colors.white, size: 18),
+  // ── Header ────────────────────────────────────────────────────────────────
+
+  Widget _buildHeader(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.only(
+        top: MediaQuery.paddingOf(context).top + 12,
+        bottom: 14,
+        left: 16,
+        right: 16,
+      ),
+      color: AppColors.surfaceV2,
+      child: Row(
+        children: [
+          GestureDetector(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              Navigator.pop(context);
+            },
+            child: Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: AppColors.surfaceV2Active,
+                borderRadius: BorderRadius.circular(10),
               ),
-              const SizedBox(width: AppSpacing.sm),
-              GradientText(
-                text: title,
-                style: const TextStyle(
-                  fontSize: AppFontSize.lg,
-                  fontWeight: FontWeight.bold,
-                ),
-                colors: [AppColors.textDark, AppColors.textSecondaryDark],
+              child: const Icon(
+                Icons.arrow_back,
+                color: AppColors.textV2Primary,
+                size: 18,
               ),
-            ],
+            ),
           ),
-        ),
-        // Settings container
-        GlassContainer(
-          blur: 10,
-          backgroundColor: AppColors.surfaceSecondaryDark.withValues(
-            alpha: 0.5,
+          const SizedBox(width: 14),
+          Text(
+            'Settings',
+            style: GoogleFonts.syne(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textV2Primary,
+              letterSpacing: -0.5,
+            ),
           ),
-          borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-          child: Column(children: children),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  Widget _buildSettingsTile(
-    BuildContext context, {
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-    required int index,
-    bool isDestructive = false,
-    bool comingSoon = false,
-    Widget? trailing,
-  }) {
-    final color = isDestructive
-        ? AppColors.error
-        : comingSoon
-        ? AppColors.textTertiaryDark
-        : AppColors.textDark;
+  // ── Profile Card ──────────────────────────────────────────────────────────
 
-    return SlideInAnimation.fromRight(
-      index: index,
-      delay: const Duration(milliseconds: 30),
-      child: ScaleOnTap(
-        onTap: () {
-          HapticFeedback.lightImpact();
-          onTap();
-        },
-        child: Container(
-          margin: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.sm,
-            vertical: AppSpacing.xs,
-          ),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppBorderRadius.md),
-          ),
-          child: ListTile(
-            leading: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: isDestructive
-                    ? AppColors.error.withValues(alpha: 0.15)
-                    : AppColors.primary.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(10),
+  Widget _buildProfileCard(
+    BuildContext context, {
+    required String displayName,
+    required String username,
+    required String initial,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceV2,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        children: [
+          // Avatar
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: AppColors.accentLime.withValues(alpha: 0.5),
+                width: 2,
               ),
-              child: Icon(
-                icon,
-                color: isDestructive ? AppColors.error : AppColors.primary,
-                size: 20,
+              color: AppColors.surfaceV2Active,
+            ),
+            child: Center(
+              child: Text(
+                initial,
+                style: GoogleFonts.syne(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.accentLime,
+                ),
               ),
             ),
-            title: Row(
+          ),
+          const SizedBox(width: 14),
+          // Name + username
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Flexible(
-                  child: Text(
-                    title,
-                    style: TextStyle(color: color, fontWeight: FontWeight.w500),
-                    overflow: TextOverflow.ellipsis,
+                Text(
+                  displayName,
+                  style: GoogleFonts.syne(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textV2Primary,
                   ),
                 ),
-                if (comingSoon) ...[
-                  const SizedBox(width: AppSpacing.sm),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.warning.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: const Text(
-                      'Soon',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: AppColors.warning,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                const SizedBox(height: 2),
+                Text(
+                  '@$username · Rank #4',
+                  style: GoogleFonts.outfit(
+                    fontSize: 12,
+                    color: AppColors.textV2Secondary,
                   ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          // Ghost Edit button
+          GestureDetector(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              context.push(AppRoutes.editProfile);
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceV2Active,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.surfaceV2Active),
+              ),
+              child: Text(
+                'Edit',
+                style: GoogleFonts.syne(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textV2Secondary,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Section helpers ───────────────────────────────────────────────────────
+
+  Widget _sectionLabel(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 24, bottom: 8, left: 4),
+      child: Text(text, style: _sectionHeader()),
+    );
+  }
+
+  Widget _buildSectionCard(List<Widget> children) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceV2,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: children,
+      ),
+    );
+  }
+
+  Widget _divider() => Divider(
+        height: 1,
+        thickness: 1,
+        color: Colors.white.withValues(alpha: 0.06),
+        indent: 0,
+        endIndent: 0,
+      );
+
+  // ── Row types ─────────────────────────────────────────────────────────────
+
+  Widget _toggleRow({
+    required String label,
+    required String sub,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: _rowLabel()),
+                const SizedBox(height: 2),
+                Text(sub, style: _rowSub()),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          _LimeToggle(value: value, onChanged: onChanged),
+        ],
+      ),
+    );
+  }
+
+  Widget _segmentedRow({
+    required String label,
+    required String? sub,
+    required List<String> options,
+    required String selected,
+    required ValueChanged<String> onSelected,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: _rowLabel()),
+                if (sub != null) ...[
+                  const SizedBox(height: 2),
+                  Text(sub, style: _rowSub()),
                 ],
               ],
             ),
-            trailing:
-                trailing ??
-                Icon(
-                  Icons.chevron_right,
-                  color: isDestructive
-                      ? AppColors.error
-                      : AppColors.textTertiaryDark,
-                ),
-            onTap: () {
-              HapticFeedback.lightImpact();
-              onTap();
-            },
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppBorderRadius.md),
-            ),
           ),
+          const SizedBox(width: 12),
+          _SegmentedSelector(
+            options: options,
+            selected: selected,
+            onSelected: onSelected,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _chevronRow({
+    required String label,
+    String? sub,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: _rowLabel()),
+                  if (sub != null) ...[
+                    const SizedBox(height: 2),
+                    Text(sub, style: _rowSub()),
+                  ],
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right,
+              color: AppColors.textV2Tertiary,
+              size: 18,
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildSignOutCard(BuildContext context, WidgetRef ref) {
-    return GlassContainer(
-        blur: 10,
-        backgroundColor: AppColors.error.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-        border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
-        child: BounceAnimation(
-          onTap: () async {
-            HapticFeedback.mediumImpact();
-            final confirmed = await showDialog<bool>(
-              context: context,
-              builder: (context) => FadeInAnimation(
-                child: AlertDialog(
-                  backgroundColor: AppColors.surfaceDark,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppBorderRadius.xl),
-                  ),
-                  title: const Row(
-                    children: [
-                      Icon(Icons.logout, color: AppColors.error),
-                      SizedBox(width: 8),
-                      Text(
-                        'Sign Out',
-                        style: TextStyle(color: AppColors.textDark),
-                      ),
-                    ],
-                  ),
-                  content: const Text(
-                    'Are you sure you want to sign out?',
-                    style: TextStyle(color: AppColors.textSecondaryDark),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: Text(
-                        'Cancel',
-                        style: TextStyle(color: AppColors.textSecondaryDark),
-                      ),
-                    ),
-                    BounceAnimation(
-                      onTap: () => Navigator.pop(context, true),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.error,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Text(
-                          'Sign Out',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
+  Widget _dangerRow({
+    required String label,
+    String? sub,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: _rowLabel(danger: true)),
+                  if (sub != null) ...[
+                    const SizedBox(height: 2),
+                    Text(sub, style: _rowSub()),
                   ],
-                ),
-              ),
-            );
-
-            if (confirmed == true && context.mounted) {
-              HapticFeedback.heavyImpact();
-              await ref.read(authControllerProvider).signOut();
-              if (context.mounted) {
-                context.go(AppRoutes.login);
-              }
-            }
-          },
-          child: ListTile(
-            leading: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.error.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(Icons.logout, color: AppColors.error, size: 24),
-            ),
-            title: const Text(
-              'Sign Out',
-              style: TextStyle(
-                color: AppColors.error,
-                fontWeight: FontWeight.w600,
-                fontSize: AppFontSize.md,
+                ],
               ),
             ),
-            subtitle: Text(
-              'Sign out of your account',
-              style: TextStyle(
-                color: AppColors.error.withValues(alpha: 0.7),
-                fontSize: AppFontSize.sm,
-              ),
+            const Icon(
+              Icons.chevron_right,
+              color: AppColors.errorV2,
+              size: 18,
             ),
-            trailing: const Icon(Icons.chevron_right, color: AppColors.error),
-          ),
+          ],
         ),
+      ),
     );
   }
+
+  // ── Sign-out dialog ───────────────────────────────────────────────────────
+
+  Future<void> _confirmSignOut(BuildContext context) async {
+    HapticFeedback.mediumImpact();
+    final router = GoRouter.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surfaceV2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Row(
+          children: [
+            const Icon(Icons.logout, color: AppColors.errorV2),
+            const SizedBox(width: 8),
+            Text(
+              'Sign Out',
+              style: GoogleFonts.syne(
+                color: AppColors.textV2Primary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to sign out?',
+          style: GoogleFonts.outfit(color: AppColors.textV2Secondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.outfit(color: AppColors.textV2Secondary),
+            ),
+          ),
+          GestureDetector(
+            onTap: () => Navigator.pop(ctx, true),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.errorV2,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                'Sign Out',
+                style: GoogleFonts.outfit(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      HapticFeedback.heavyImpact();
+      await ref.read(authControllerProvider).signOut();
+      if (mounted) {
+        router.go(AppRoutes.login);
+      }
+    }
+  }
+
+  // ── Network diagnostics sheet ─────────────────────────────────────────────
 
   void _showNetworkDiagnostics(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: AppColors.surfaceV2,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => DraggableScrollableSheet(
+      builder: (ctx) => DraggableScrollableSheet(
         initialChildSize: 0.6,
         minChildSize: 0.4,
         maxChildSize: 0.9,
         expand: false,
-        builder: (context, scrollController) => Column(
+        builder: (ctx2, scrollController) => Column(
           children: [
             const SizedBox(height: 12),
             Container(
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey[600],
+                color: AppColors.surfaceV2Active,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            const Padding(
-              padding: EdgeInsets.all(16.0),
+            Padding(
+              padding: const EdgeInsets.all(16),
               child: Text(
                 'Network Diagnostics',
-                style: TextStyle(
+                style: GoogleFonts.syne(
                   fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textDark,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textV2Primary,
                 ),
               ),
             ),
@@ -636,7 +643,7 @@ class SettingsPage extends ConsumerWidget {
               child: SingleChildScrollView(
                 controller: scrollController,
                 child: const Padding(
-                  padding: EdgeInsets.all(16.0),
+                  padding: EdgeInsets.all(16),
                   child: CircuitBreakerStatusWidget(),
                 ),
               ),
@@ -644,6 +651,99 @@ class SettingsPage extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ── Lime Toggle ──────────────────────────────────────────────────────────────
+
+class _LimeToggle extends StatelessWidget {
+  const _LimeToggle({required this.value, required this.onChanged});
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onChanged(!value);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: 44,
+        height: 26,
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: value ? AppColors.accentLime : AppColors.surfaceV2Active,
+          borderRadius: BorderRadius.circular(13),
+        ),
+        child: AnimatedAlign(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
+          alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+          child: Container(
+            width: 18,
+            height: 18,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: value
+                  ? const Color(0xFF080808)
+                  : AppColors.textV2Tertiary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Segmented Selector ────────────────────────────────────────────────────────
+
+class _SegmentedSelector extends StatelessWidget {
+  const _SegmentedSelector({
+    required this.options,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final List<String> options;
+  final String selected;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: options.map((opt) {
+        final isSelected = opt == selected;
+        return GestureDetector(
+          onTap: () {
+            HapticFeedback.selectionClick();
+            onSelected(opt);
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color:
+                  isSelected ? AppColors.accentLime : AppColors.surfaceV2Elevated,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              opt,
+              style: GoogleFonts.syne(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: isSelected
+                    ? const Color(0xFF080808)
+                    : AppColors.textV2Secondary,
+              ),
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 }

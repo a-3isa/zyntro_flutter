@@ -362,17 +362,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoutes.startSession,
-        pageBuilder: (context, state) {
-          final initialType = WorkoutType.fromString(
-            state.uri.queryParameters['type'] ?? WorkoutType.gym.value,
-          );
-
-          return buildModalPageTransition(
-            context: context,
-            state: state,
-            child: StartSessionPage(initialType: initialType),
-          );
-        },
+        pageBuilder: (context, state) => buildModalPageTransition(
+          context: context,
+          state: state,
+          child: const StartSessionPage(),
+        ),
       ),
       GoRoute(
         path: AppRoutes.matchmaking,
@@ -413,6 +407,9 @@ final routerProvider = Provider<GoRouter>((ref) {
           final initialAudioUrl =
               extra?['initialAudioUrl'] as String? ??
               state.uri.queryParameters['audioUrl'];
+          final plannedExercises =
+              (extra?['plannedExercises'] as List<dynamic>?)
+                  ?.cast<String>();
 
           return buildPremiumPageTransition(
             context: context,
@@ -421,6 +418,7 @@ final routerProvider = Provider<GoRouter>((ref) {
               sessionId: sessionId,
               type: type,
               initialAudioUrl: initialAudioUrl,
+              plannedExercises: plannedExercises,
             ),
           );
         },

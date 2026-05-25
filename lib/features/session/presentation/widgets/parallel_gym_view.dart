@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -154,30 +154,28 @@ class _ParallelGymViewState extends State<ParallelGymView> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final double ownHeight = constraints.maxHeight * 0.60;
-            final double partnerHeight = constraints.maxHeight * 0.40;
-            return Column(
-              children: [
-                SizedBox(
-                  height: ownHeight,
-                  child: _buildOwnSection(),
+    return ColoredBox(
+      color: AppColors.backgroundV2,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final double ownHeight = constraints.maxHeight * 0.60;
+          final double partnerHeight = constraints.maxHeight * 0.40;
+          return Column(
+            children: [
+              SizedBox(
+                height: ownHeight,
+                child: _buildOwnSection(),
+              ),
+              SizedBox(
+                height: partnerHeight,
+                child: _PartnerCard(
+                  partner: widget.partner,
+                  accentColor: AppColors.secondary,
                 ),
-                SizedBox(
-                  height: partnerHeight,
-                  child: _PartnerCard(
-                    partner: widget.partner,
-                    accentColor: AppColors.secondary,
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -205,7 +203,7 @@ class _ParallelGymViewState extends State<ParallelGymView> {
           Text(
             'Set ${widget.setNumber}',
             style: TextStyle(
-              color: AppColors.textTertiaryDark,
+              color: AppColors.textV2Tertiary,
               fontSize: 14,
               letterSpacing: 1.6,
               fontWeight: FontWeight.w600,
@@ -216,7 +214,7 @@ class _ParallelGymViewState extends State<ParallelGymView> {
             widget.exerciseName,
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: AppColors.textDark,
+              color: AppColors.textV2Primary,
               fontSize: 28,
               fontWeight: FontWeight.w700,
               height: 1.15,
@@ -242,7 +240,7 @@ class _ParallelGymViewState extends State<ParallelGymView> {
           Text(
             widget.exerciseName,
             style: TextStyle(
-              color: AppColors.textSecondaryDark,
+              color: AppColors.textV2Secondary,
               fontSize: 16,
               fontWeight: FontWeight.w500,
             ),
@@ -253,14 +251,14 @@ class _ParallelGymViewState extends State<ParallelGymView> {
             height: 220,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: AppColors.surfaceDark,
+              color: AppColors.surfaceV2,
               border: Border.all(color: AppColors.primary, width: 3),
             ),
             alignment: Alignment.center,
             child: Text(
               _formatDuration(_elapsedSeconds),
               style: TextStyle(
-                color: AppColors.textDark,
+                color: AppColors.textV2Primary,
                 fontSize: 48,
                 fontWeight: FontWeight.w700,
                 fontFeatures: const [FontFeature.tabularFigures()],
@@ -289,7 +287,7 @@ class _ParallelGymViewState extends State<ParallelGymView> {
             '$_reps reps • ${_formatDuration(_capturedDuration)}',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: AppColors.textSecondaryDark,
+              color: AppColors.textV2Secondary,
               fontSize: 15,
               fontWeight: FontWeight.w500,
             ),
@@ -298,7 +296,7 @@ class _ParallelGymViewState extends State<ParallelGymView> {
           Text(
             'Weight (kg)',
             style: TextStyle(
-              color: AppColors.textTertiaryDark,
+              color: AppColors.textV2Tertiary,
               fontSize: 13,
               letterSpacing: 1.2,
               fontWeight: FontWeight.w600,
@@ -310,12 +308,12 @@ class _ParallelGymViewState extends State<ParallelGymView> {
             keyboardType:
                 const TextInputType.numberWithOptions(decimal: true),
             autofocus: true,
-            style: TextStyle(color: AppColors.textDark, fontSize: 22),
+            style: TextStyle(color: AppColors.textV2Primary, fontSize: 22),
             decoration: InputDecoration(
               filled: true,
-              fillColor: AppColors.surfaceDark,
+              fillColor: AppColors.surfaceV2,
               hintText: '0.0',
-              hintStyle: TextStyle(color: AppColors.textTertiaryDark),
+              hintStyle: TextStyle(color: AppColors.textV2Tertiary),
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 16,
                 vertical: 14,
@@ -380,7 +378,7 @@ class _PartnerCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceSecondaryDark,
+        color: AppColors.surfaceV2Elevated,
         borderRadius: BorderRadius.circular(20),
         border: Border(top: BorderSide(color: accentColor, width: 2)),
       ),
@@ -393,7 +391,7 @@ class _PartnerCard extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 18,
-                  backgroundColor: AppColors.surfaceDark,
+                  backgroundColor: AppColors.surfaceV2,
                   backgroundImage: partner.photoUrl != null &&
                           partner.photoUrl!.isNotEmpty
                       ? CachedNetworkImageProvider(partner.photoUrl!)
@@ -404,7 +402,7 @@ class _PartnerCard extends StatelessWidget {
                               ? partner.name[0].toUpperCase()
                               : '?',
                           style: TextStyle(
-                            color: AppColors.textDark,
+                            color: AppColors.textV2Primary,
                             fontWeight: FontWeight.w600,
                           ),
                         )
@@ -416,7 +414,7 @@ class _PartnerCard extends StatelessWidget {
                     partner.name,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: AppColors.textDark,
+                      color: AppColors.textV2Primary,
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
                     ),
@@ -491,7 +489,7 @@ class _PartnerCard extends StatelessWidget {
         Text(
           partner.currentExercise ?? 'Resting',
           style: TextStyle(
-            color: AppColors.textDark,
+            color: AppColors.textV2Primary,
             fontSize: 16,
             fontWeight: FontWeight.w700,
           ),
@@ -530,7 +528,7 @@ class _MetricTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
+        color: AppColors.surfaceV2,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -539,7 +537,7 @@ class _MetricTile extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              color: AppColors.textTertiaryDark,
+              color: AppColors.textV2Tertiary,
               fontSize: 10,
               fontWeight: FontWeight.w700,
               letterSpacing: 1.1,
@@ -549,7 +547,7 @@ class _MetricTile extends StatelessWidget {
           Text(
             value,
             style: TextStyle(
-              color: AppColors.textDark,
+              color: AppColors.textV2Primary,
               fontSize: 15,
               fontWeight: FontWeight.w700,
             ),

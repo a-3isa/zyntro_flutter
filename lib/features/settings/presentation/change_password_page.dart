@@ -3,11 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../widgets/reauthentication_dialog.dart';
-import '../../../widgets/zyntro_button.dart';
-import '../../../widgets/premium_animations.dart';
-import '../../../widgets/premium_effects.dart';
+import '../../../widgets/widgets.dart';
 import '../../auth/presentation/providers/auth_controller.dart';
 
 /// Password change page for authenticated users.
@@ -142,7 +141,7 @@ class _ChangePasswordPageState extends ConsumerState<ChangePasswordPage> {
     final passwordStrength = _getPasswordStrength(_newPasswordController.text);
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: AppColors.backgroundV2,
       body: Column(
         children: [
           // Custom Header
@@ -154,14 +153,14 @@ class _ChangePasswordPageState extends ConsumerState<ChangePasswordPage> {
               right: 16,
             ),
             decoration: BoxDecoration(
-              color: AppColors.surfaceDark,
+              color: AppColors.surfaceV2,
               border: Border(
                 bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
               ),
             ),
             child: Row(
               children: [
-                BounceAnimation(
+                GestureDetector(
                   onTap: () {
                     HapticFeedback.lightImpact();
                     Navigator.pop(context);
@@ -169,21 +168,24 @@ class _ChangePasswordPageState extends ConsumerState<ChangePasswordPage> {
                   child: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceSecondaryDark,
+                      color: AppColors.surfaceV2Elevated,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(
                       Icons.arrow_back,
-                      color: AppColors.textDark,
+                      color: AppColors.textV2Primary,
                       size: 20,
                     ),
                   ),
                 ),
                 const SizedBox(width: 16),
-                const GradientText(
-                  text: 'Change Password',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  colors: [AppColors.textDark, AppColors.textSecondaryDark],
+                Text(
+                  'Change Password',
+                  style: GoogleFonts.syne(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textV2Primary,
+                  ),
                 ),
               ],
             ),

@@ -3,13 +3,13 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
 import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/feature_flags.dart';
 import '../../../utils/haptic_manager.dart';
 import '../../../widgets/widgets.dart';
-import '../../../widgets/premium_animations.dart';
 import '../../../core/models/models.dart';
 import '../../auth/auth_providers.dart';
 import '../../auth/domain/entities/user_profile_entity.dart';
@@ -38,6 +38,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
   UserProfileEntity? _author;
   ReactionType? _currentReaction;
   Map<ReactionType, int> _reactionCounts = {};
+  String _selectedTab = 'Workout';
 
   @override
   void initState() {
@@ -201,7 +202,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
     if (_isLoading) {
       // Shimmer loading state
       return Scaffold(
-        backgroundColor: AppColors.backgroundDark,
+        backgroundColor: AppColors.backgroundV2,
         body: Column(
           children: [
             // Custom Header
@@ -213,7 +214,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                 right: 16,
               ),
               decoration: BoxDecoration(
-                color: AppColors.surfaceDark,
+                color: AppColors.surfaceV2,
                 border: Border(
                   bottom: BorderSide(
                     color: Colors.white.withValues(alpha: 0.05),
@@ -222,7 +223,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
               ),
               child: Row(
                 children: [
-                  BounceAnimation(
+                  GestureDetector(
                     onTap: () {
                       HapticFeedback.lightImpact();
                       Navigator.pop(context);
@@ -230,59 +231,31 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                     child: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: AppColors.surfaceSecondaryDark,
+                        color: AppColors.surfaceV2Elevated,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Icon(
                         Icons.arrow_back,
-                        color: AppColors.textDark,
+                        color: AppColors.textV2Primary,
                         size: 20,
                       ),
                     ),
                   ),
                   const SizedBox(width: 16),
-                  const Text(
+                  Text(
                     'Post',
-                    style: TextStyle(
+                    style: GoogleFonts.syne(
                       fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textDark,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textV2Primary,
+                      letterSpacing: -0.4,
                     ),
                   ),
                 ],
               ),
             ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                child: ShimmerLoading(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          ShimmerSkeleton.circle(size: 40),
-                          const SizedBox(width: AppSpacing.md),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              ShimmerSkeleton.text(width: 120),
-                              const SizedBox(height: 4),
-                              ShimmerSkeleton.text(width: 60, height: 10),
-                            ],
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: AppSpacing.lg),
-                      ShimmerSkeleton.text(width: 200, height: 20),
-                      const SizedBox(height: AppSpacing.md),
-                      const ShimmerSkeleton(height: 250),
-                      const SizedBox(height: AppSpacing.md),
-                      const ShimmerSkeleton(height: 100),
-                    ],
-                  ),
-                ),
-              ),
+            const Expanded(
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
             ),
           ],
         ),
@@ -299,7 +272,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
     final commentsAsync = ref.watch(commentsProvider(widget.postId));
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: AppColors.backgroundV2,
       body: Column(
         children: [
           // Custom Header
@@ -311,14 +284,14 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
               right: 16,
             ),
             decoration: BoxDecoration(
-              color: AppColors.surfaceDark,
+              color: AppColors.surfaceV2,
               border: Border(
                 bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
               ),
             ),
             child: Row(
               children: [
-                BounceAnimation(
+                GestureDetector(
                   onTap: () {
                     HapticFeedback.lightImpact();
                     Navigator.pop(context);
@@ -326,12 +299,12 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                   child: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceSecondaryDark,
+                      color: AppColors.surfaceV2Elevated,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(
                       Icons.arrow_back,
-                      color: AppColors.textDark,
+                      color: AppColors.textV2Primary,
                       size: 20,
                     ),
                   ),
@@ -342,7 +315,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.textDark,
+                    color: AppColors.textV2Primary,
                   ),
                 ),
               ],
@@ -358,7 +331,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                   Row(
                     children: [
                       CircleAvatar(
-                        backgroundColor: AppColors.primaryMuted,
+                        backgroundColor: AppColors.surfaceV2Elevated,
                         backgroundImage: _author?.photoUrl != null
                             ? NetworkImage(_author!.photoUrl!)
                             : null,
@@ -377,17 +350,17 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                           children: [
                             Text(
                               _author?.displayName ?? 'User',
-                              style: const TextStyle(
+                              style: GoogleFonts.syne(
+                                fontSize: 14,
                                 fontWeight: FontWeight.w600,
+                                color: AppColors.textV2Primary,
                               ),
                             ),
                             Text(
                               timeago.format(_post!.createdAt),
-                              style: TextStyle(
+                              style: GoogleFonts.outfit(
                                 fontSize: AppFontSize.sm,
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurface.withValues(alpha: 0.6),
+                                color: AppColors.textV2Secondary,
                               ),
                             ),
                           ],
@@ -445,9 +418,11 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                   // Title
                   Text(
                     _post!.title,
-                    style: const TextStyle(
+                    style: GoogleFonts.syne(
                       fontSize: AppFontSize.xl,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textV2Primary,
+                      letterSpacing: -0.5,
                     ),
                   ),
                   const SizedBox(height: AppSpacing.md),
@@ -495,7 +470,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                                   imageUrl: _post!.mediaURLs!.first,
                                   fit: BoxFit.cover,
                                   placeholder: (context, url) => Container(
-                                    color: AppColors.surfaceSecondaryDark,
+                                    color: AppColors.surfaceV2Elevated,
                                     child: const Center(
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
@@ -505,10 +480,10 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                                   ),
                                   errorWidget: (context, url, error) =>
                                       Container(
-                                        color: AppColors.surfaceSecondaryDark,
+                                        color: AppColors.surfaceV2Elevated,
                                         child: const Icon(
                                           Icons.broken_image,
-                                          color: AppColors.textSecondaryDark,
+                                          color: AppColors.textV2Secondary,
                                         ),
                                       ),
                                 ),
@@ -601,10 +576,10 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                     Container(
                       padding: const EdgeInsets.all(AppSpacing.md),
                       decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surface,
+                        color: AppColors.surfaceV2,
                         borderRadius: BorderRadius.circular(AppBorderRadius.md),
                         border: Border.all(
-                          color: Theme.of(context).dividerColor,
+                          color: AppColors.surfaceV2Elevated,
                         ),
                       ),
                       child: Column(
@@ -660,10 +635,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                                           '${exercise.sets} sets',
                                           style: TextStyle(
                                             fontSize: AppFontSize.sm,
-                                            color: Theme.of(context)
-                                                .colorScheme
-                                                .onSurface
-                                                .withValues(alpha: 0.6),
+                                            color: AppColors.textV2Secondary,
                                           ),
                                         ),
                                       ],
@@ -679,10 +651,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                                   '+${_post!.summary.exercises!.length - 3} more',
                                   style: TextStyle(
                                     fontSize: AppFontSize.xs,
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurface
-                                        .withValues(alpha: 0.5),
+                                    color: AppColors.textV2Tertiary,
                                   ),
                                 ),
                               ),
@@ -690,109 +659,32 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                         ],
                       ),
                     ),
-                  const SizedBox(height: AppSpacing.md),
+                  const SizedBox(height: AppSpacing.lg),
 
-                  // Actions - Reaction buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ReactionButtons(
-                          postId: _post!.id,
-                          currentReaction: _currentReaction,
-                          reactionCounts: _reactionCounts,
-                          onReactionTap: _handleReaction,
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.md),
-                      // MVP: Comments disabled - wrapped with feature flag
-                      MVPFeatureWrapper(
-                        feature: FeatureFlag.comments,
-                        featureName: 'Comments',
-                        description:
-                            'Comment on posts to engage with the community. Coming soon!',
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.comment_outlined),
-                            const SizedBox(width: AppSpacing.sm),
-                            Text('${_post!.commentsCount}'),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+                  // v2: 3-tab row
+                  _buildTabRow(),
+                  const SizedBox(height: AppSpacing.lg),
 
-                  const Divider(height: AppSpacing.xxl),
-
-                  // Comments section
-                  // MVP: Comments disabled - wrapped with feature flag
-                  MVPFeatureWrapper(
-                    feature: FeatureFlag.comments,
-                    featureName: 'Comments',
-                    description: 'See what others are saying. Coming soon!',
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Comments',
-                          style: TextStyle(
-                            fontSize: AppFontSize.lg,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        commentsAsync.when(
-                          data: (comments) {
-                            final blockedUserIds =
-                                ref.watch(blockedUserIdsProvider).valueOrNull ??
-                                [];
-                            final filteredComments = comments
-                                .where(
-                                  (c) => !blockedUserIds.contains(c.authorId),
-                                )
-                                .toList();
-
-                            return filteredComments.isEmpty
-                                ? Text(
-                                    'No comments yet. Be the first!',
-                                    style: TextStyle(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onSurface
-                                          .withValues(alpha: 0.6),
-                                    ),
-                                  )
-                                : Column(
-                                    children: filteredComments
-                                        .map((c) => _buildCommentTile(c))
-                                        .toList(),
-                                  );
-                          },
-                          loading: () =>
-                              const Center(child: CircularProgressIndicator()),
-                          error: (_, _) => const Text('Error loading comments'),
-                        ),
-                      ],
-                    ),
-                  ),
+                  // Tab content
+                  if (_selectedTab == 'Workout')
+                    WorkoutDetailSection(post: _post!)
+                  else if (_selectedTab == 'Reactions')
+                    _buildReactionsTab()
+                  else if (_selectedTab == 'Comments')
+                    _buildCommentsTab(commentsAsync),
                 ],
               ),
             ),
           ),
 
-          // Comment input
-          // MVP: Comments disabled - wrapped with feature flag
-          MVPFeatureWrapper(
-            feature: FeatureFlag.comments,
-            featureName: 'Comments',
-            description:
-                'Share your thoughts and encourage others. Coming soon!',
-            child: Container(
+          // Sticky comment input — only shown on Comments tab
+          if (_selectedTab == 'Comments')
+            Container(
               padding: const EdgeInsets.all(AppSpacing.md),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
+              decoration: const BoxDecoration(
+                color: AppColors.surfaceV2,
                 border: Border(
-                  top: BorderSide(color: Theme.of(context).dividerColor),
+                  top: BorderSide(color: AppColors.surfaceV2Elevated),
                 ),
               ),
               child: SafeArea(
@@ -801,10 +693,17 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                     Expanded(
                       child: TextField(
                         controller: _commentController,
-                        decoration: const InputDecoration(
+                        style: const TextStyle(color: AppColors.textV2Primary),
+                        decoration: InputDecoration(
                           hintText: 'Add a comment...',
-                          border: OutlineInputBorder(),
-                          contentPadding: EdgeInsets.symmetric(
+                          hintStyle: const TextStyle(color: AppColors.textV2Tertiary),
+                          filled: true,
+                          fillColor: AppColors.surfaceV2Elevated,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
                             horizontal: AppSpacing.md,
                             vertical: AppSpacing.sm,
                           ),
@@ -828,8 +727,79 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                 ),
               ),
             ),
-          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildTabRow() {
+    const tabs = ['Workout', 'Reactions', 'Comments'];
+
+    return Row(
+      children: tabs.map((tab) {
+        final isActive = _selectedTab == tab;
+        return Expanded(
+          child: GestureDetector(
+            onTap: () => setState(() => _selectedTab = tab),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: isActive ? AppColors.accentLime : Colors.transparent,
+                    width: 2,
+                  ),
+                ),
+              ),
+              child: Text(
+                tab,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.outfit(
+                  fontSize: 13,
+                  fontWeight: isActive ? FontWeight.w700 : FontWeight.w400,
+                  color: isActive ? AppColors.textV2Primary : AppColors.textV2Secondary,
+                ),
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildReactionsTab() {
+    return ReactionButtons(
+      postId: _post!.id,
+      currentReaction: _currentReaction,
+      reactionCounts: _reactionCounts,
+      onReactionTap: _handleReaction,
+    );
+  }
+
+  Widget _buildCommentsTab(AsyncValue<List<Comment>> commentsAsync) {
+    return MVPFeatureWrapper(
+      feature: FeatureFlag.comments,
+      featureName: 'Comments',
+      description: 'See what others are saying. Coming soon!',
+      child: commentsAsync.when(
+        data: (comments) {
+          final blockedUserIds =
+              ref.watch(blockedUserIdsProvider).valueOrNull ?? [];
+          final filtered = comments
+              .where((c) => !blockedUserIds.contains(c.authorId))
+              .toList();
+          if (filtered.isEmpty) {
+            return const Text(
+              'No comments yet. Be the first!',
+              style: TextStyle(color: AppColors.textV2Secondary),
+            );
+          }
+          return Column(
+            children: filtered.map((c) => _buildCommentTile(c)).toList(),
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (_, _) => const Text('Error loading comments'),
       ),
     );
   }
@@ -839,18 +809,18 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
       children: [
         Text(
           value,
-          style: const TextStyle(
-            fontSize: AppFontSize.lg,
-            fontWeight: FontWeight.bold,
+          style: GoogleFonts.syne(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: AppColors.textV2Primary,
           ),
         ),
+        const SizedBox(height: 2),
         Text(
           label,
-          style: TextStyle(
+          style: GoogleFonts.outfit(
             fontSize: AppFontSize.sm,
-            color: Theme.of(
-              context,
-            ).colorScheme.onSurface.withValues(alpha: 0.6),
+            color: AppColors.textV2Secondary,
           ),
         ),
       ],
@@ -869,7 +839,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
         children: [
           CircleAvatar(
             radius: 16,
-            backgroundColor: AppColors.primaryMuted,
+            backgroundColor: AppColors.surfaceV2Elevated,
             backgroundImage: comment.authorPhotoURL != null
                 ? NetworkImage(comment.authorPhotoURL!)
                 : null,
@@ -891,16 +861,18 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                   children: [
                     Text(
                       comment.authorName,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
+                      style: GoogleFonts.outfit(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textV2Primary,
+                      ),
                     ),
                     const SizedBox(width: AppSpacing.sm),
                     Text(
                       timeago.format(comment.createdAt),
-                      style: TextStyle(
+                      style: GoogleFonts.outfit(
                         fontSize: AppFontSize.xs,
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withValues(alpha: 0.6),
+                        color: AppColors.textV2Tertiary,
                       ),
                     ),
                     const Spacer(),
@@ -1063,5 +1035,102 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
         }
       }
     }
+  }
+}
+
+/// v2 Workout tab content — shows exercises from post summary.
+class WorkoutDetailSection extends StatelessWidget {
+  final Post post;
+
+  const WorkoutDetailSection({super.key, required this.post});
+
+  @override
+  Widget build(BuildContext context) {
+    final exercises = post.summary.exercises;
+    final totalSets = post.summary.totalSets ?? 0;
+
+    if (exercises == null || exercises.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 32),
+        child: Center(
+          child: Text(
+            'No exercise details',
+            style: GoogleFonts.outfit(fontSize: 13, color: AppColors.textV2Tertiary),
+          ),
+        ),
+      );
+    }
+
+    // Total volume strip
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Total sets strip
+        Row(
+          children: [
+            Text(
+              '$totalSets',
+              style: GoogleFonts.syne(
+                fontSize: 28,
+                fontWeight: FontWeight.w800,
+                color: AppColors.accentLime,
+                letterSpacing: -1,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'total sets',
+              style: GoogleFonts.outfit(fontSize: 12, color: AppColors.textV2Tertiary),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        // Exercise rows
+        ...exercises.map((exercise) {
+          return Container(
+            margin: const EdgeInsets.only(bottom: 2),
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: AppColors.surfaceV2,
+                ),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.typeColor(post.type),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    exercise.name,
+                    style: GoogleFonts.outfit(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textV2Primary,
+                    ),
+                  ),
+                ),
+                Text(
+                  '${exercise.sets} sets',
+                  style: GoogleFonts.syne(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textV2Secondary,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }),
+      ],
+    );
   }
 }

@@ -4,8 +4,6 @@ import '../core/theme/app_theme.dart';
 import '../services/user_service.dart';
 import '../utils/haptic_manager.dart';
 import '../utils/responsive_utils.dart';
-import 'premium_effects.dart';
-import 'premium_animations.dart';
 
 /// Streak card widget matching React Native StreakCard.
 /// Shows user's workout streak with animated flame icon and friend comparisons.
@@ -128,7 +126,7 @@ class _StreakCardState extends State<StreakCard>
                           fontSize: isSmallScreen
                               ? AppFontSize.xs
                               : AppFontSize.sm,
-                          color: AppColors.textSecondaryLight,
+                          color: AppColors.textV2Secondary,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -136,14 +134,14 @@ class _StreakCardState extends State<StreakCard>
                       Row(
                         children: [
                           // Gradient text for days count
-                          GradientText(
-                            text: '${widget.days}',
-                            colors: AppColors.streakGradient,
+                          Text(
+                            '${widget.days}',
                             style: TextStyle(
                               fontSize: isSmallScreen
                                   ? AppFontSize.xl
                                   : AppFontSize.xxl,
                               fontWeight: FontWeight.bold,
+                              color: AppColors.accentLime,
                             ),
                           ),
                           Text(
@@ -153,7 +151,7 @@ class _StreakCardState extends State<StreakCard>
                                   ? AppFontSize.xl
                                   : AppFontSize.xxl,
                               fontWeight: FontWeight.bold,
-                              color: AppColors.textLight,
+                              color: AppColors.textV2Primary,
                             ),
                           ),
                         ],
@@ -174,14 +172,7 @@ class _StreakCardState extends State<StreakCard>
                       width: isSmallScreen ? 48 : 56,
                       height: isSmallScreen ? 48 : 56,
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            AppColors.action.withValues(alpha: 0.2),
-                            AppColors.action.withValues(alpha: 0.1),
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
+                        color: AppColors.action.withValues(alpha: 0.15),
                         shape: BoxShape.circle,
                       ),
                       child: Center(
@@ -202,12 +193,12 @@ class _StreakCardState extends State<StreakCard>
               if (rankText != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                  child: GradientText(
-                    text: rankText,
-                    colors: AppColors.primaryGradient,
+                  child: Text(
+                    rankText,
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: AppFontSize.sm,
+                      color: AppColors.accentLime,
                     ),
                   ),
                 ),
@@ -220,12 +211,7 @@ class _StreakCardState extends State<StreakCard>
                       const SizedBox(width: AppSpacing.md),
                   itemBuilder: (context, index) {
                     final item = comparisonData[index];
-                    return SlideInAnimation.fromBottom(
-                      index: index,
-                      duration: const Duration(milliseconds: 300),
-                      delay: const Duration(milliseconds: 80),
-                      child: _buildComparisonItem(item, isSmallScreen),
-                    );
+                    return _buildComparisonItem(item, isSmallScreen);
                   },
                 ),
               ),
@@ -239,7 +225,7 @@ class _StreakCardState extends State<StreakCard>
                     "You're on fire! Keep it up!",
                     style: TextStyle(
                       fontSize: isSmallScreen ? AppFontSize.xs : AppFontSize.sm,
-                      color: AppColors.textSecondaryLight,
+                      color: AppColors.textV2Secondary,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -256,37 +242,35 @@ class _StreakCardState extends State<StreakCard>
     final containerWidth = isSmallScreen ? 52.0 : 60.0;
 
     if (item.isCurrentUser) {
-      return GradientBorder(
-        gradientColors: AppColors.primaryGradient,
-        borderWidth: 2,
-        borderRadius: BorderRadius.circular(AppBorderRadius.md),
+      return Container(
+        width: containerWidth,
         padding: EdgeInsets.all(isSmallScreen ? 4 : AppSpacing.xs),
-        child: Container(
-          width: containerWidth,
-          decoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(AppBorderRadius.md - 2),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                'You',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: isSmallScreen ? 9 : 10,
-                ),
+        decoration: BoxDecoration(
+          color: AppColors.accentLime.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(AppBorderRadius.md),
+          border: Border.all(color: AppColors.accentLime, width: 2),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              'You',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: isSmallScreen ? 9 : 10,
+                color: AppColors.accentLime,
               ),
-              const SizedBox(height: 2),
-              Text(
-                '${item.currentStreak}',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: isSmallScreen ? 12 : 14,
-                ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '${item.currentStreak}',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: isSmallScreen ? 12 : 14,
+                color: AppColors.textV2Primary,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       );
     }

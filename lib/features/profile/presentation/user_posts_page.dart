@@ -2,12 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../services/post_service.dart';
 import '../../../utils/haptic_manager.dart';
-import '../../../widgets/post_card_widget.dart';
-import '../../../widgets/premium_animations.dart';
-import '../../../widgets/premium_effects.dart';
+import '../../../widgets/widgets.dart';
 
 /// Page for viewing all posts from a specific user.
 class UserPostsPage extends ConsumerStatefulWidget {
@@ -27,6 +26,7 @@ class _UserPostsPageState extends ConsumerState<UserPostsPage> {
     final postsAsync = ref.watch(userPostsProvider(widget.userId));
 
     return Scaffold(
+      backgroundColor: AppColors.backgroundV2,
       body: Column(
         children: [
           // Custom Header
@@ -38,7 +38,7 @@ class _UserPostsPageState extends ConsumerState<UserPostsPage> {
               right: 16,
             ),
             decoration: BoxDecoration(
-              color: AppColors.surfaceDark,
+              color: AppColors.surfaceV2,
               border: Border(
                 bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
               ),
@@ -46,7 +46,7 @@ class _UserPostsPageState extends ConsumerState<UserPostsPage> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                BounceAnimation(
+                GestureDetector(
                   onTap: () {
                     HapticManager.light();
                     context.pop();
@@ -54,12 +54,12 @@ class _UserPostsPageState extends ConsumerState<UserPostsPage> {
                   child: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceSecondaryDark,
+                      color: AppColors.surfaceV2Elevated,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(
                       Icons.arrow_back,
-                      color: AppColors.textDark,
+                      color: AppColors.textV2Primary,
                       size: 20,
                     ),
                   ),
@@ -67,26 +67,26 @@ class _UserPostsPageState extends ConsumerState<UserPostsPage> {
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    child: const GradientText(
-                      text: 'Posts',
-                      style: TextStyle(
+                    child: Text(
+                      'Posts',
+                      style: GoogleFonts.syne(
                         fontSize: 20,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textV2Primary,
                       ),
-                      colors: [AppColors.textDark, AppColors.textSecondaryDark],
                     ),
                   ),
                 ),
                 PopupMenuButton<String>(
                   icon: const Icon(
                     Icons.filter_list,
-                    color: AppColors.textDark,
+                    color: AppColors.textV2Primary,
                   ),
                   onSelected: (value) {
                     HapticManager.medium();
                     setState(() => _filter = value);
                   },
-                  color: AppColors.surfaceSecondaryDark,
+                  color: AppColors.surfaceV2Elevated,
                   itemBuilder: (context) => [
                     PopupMenuItem(
                       value: 'all',
@@ -102,7 +102,7 @@ class _UserPostsPageState extends ConsumerState<UserPostsPage> {
                           const SizedBox(width: 8),
                           const Text(
                             'All',
-                            style: TextStyle(color: AppColors.textDark),
+                            style: TextStyle(color: AppColors.textV2Primary),
                           ),
                         ],
                       ),
@@ -121,7 +121,7 @@ class _UserPostsPageState extends ConsumerState<UserPostsPage> {
                           const SizedBox(width: 8),
                           const Text(
                             'Strength',
-                            style: TextStyle(color: AppColors.textDark),
+                            style: TextStyle(color: AppColors.textV2Primary),
                           ),
                         ],
                       ),
@@ -140,7 +140,7 @@ class _UserPostsPageState extends ConsumerState<UserPostsPage> {
                           const SizedBox(width: 8),
                           const Text(
                             'Cardio',
-                            style: TextStyle(color: AppColors.textDark),
+                            style: TextStyle(color: AppColors.textV2Primary),
                           ),
                         ],
                       ),
@@ -167,7 +167,7 @@ class _UserPostsPageState extends ConsumerState<UserPostsPage> {
                     ref.invalidate(userPostsProvider(widget.userId));
                   },
                   color: AppColors.primary,
-                  backgroundColor: AppColors.surfaceDark,
+                  backgroundColor: AppColors.surfaceV2,
                   child: GridView.builder(
                     padding: const EdgeInsets.all(AppSpacing.md),
                     gridDelegate:

@@ -2,28 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../../app/navigation/app_route_locations.dart';
-import '../../../core/theme/app_theme.dart';
 import '../../../core/models/models.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../auth/auth_providers.dart';
+import '../../../services/follow_service.dart';
 import '../../../services/leaderboard_service.dart';
 import '../../../services/user_service.dart';
-import '../../../services/workout_service.dart';
-import '../../../utils/haptic_manager.dart';
-import '../../../widgets/streak_widgets.dart';
-import 'package:timeago/timeago.dart' as timeago;
-import '../../../widgets/recent_activity_card.dart';
-import '../../../widgets/shimmer_widgets.dart'; // Handled in previous step
 import '../../../services/user_cache_service.dart';
+import '../../../utils/haptic_manager.dart';
 import '../../../utils/image_cache_manager.dart';
 
-/// Social page with buddies, challenges, and leaderboard tabs.
-/// Matches React Native SocialScreen behavior.
+/// Social page with Board, Buddies, and Find tabs.
 class SocialPage extends ConsumerStatefulWidget {
   const SocialPage({
     super.key,
-    this.initialTab = SocialTab.buddies,
+    this.initialTab = SocialTab.board,
   });
 
   final SocialTab initialTab;
@@ -35,8 +31,6 @@ class SocialPage extends ConsumerStatefulWidget {
 class _SocialPageState extends ConsumerState<SocialPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  late PageController _activityController;
-  int _currentActivityIndex = 0;
 
   // Buddies pagination
   final ScrollController _buddiesScrollController = ScrollController();
@@ -44,6 +38,11 @@ class _SocialPageState extends ConsumerState<SocialPage>
   List<String> _allBuddyIds = [];
   bool _isLoadingMoreBuddies = false;
   bool _isInitialLoad = true;
+
+  // Find tab
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  final Set<String> _followedInFind = {};
 
   @override
   void initState() {
@@ -53,8 +52,6 @@ class _SocialPageState extends ConsumerState<SocialPage>
       vsync: this,
       initialIndex: widget.initialTab.index,
     );
-    _activityController = PageController(viewportFraction: 0.9);
-
     _buddiesScrollController.addListener(_onBuddiesScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadBuddies(refresh: true);
@@ -99,7 +96,6 @@ class _SocialPageState extends ConsumerState<SocialPage>
       }
 
       if (refresh) {
-        // Fetch all IDs
         final userService = ref.read(userServiceProvider);
         _allBuddyIds = await userService.computeAndCacheBuddies(authState.id);
         setState(() => _buddies.clear());
@@ -113,14 +109,12 @@ class _SocialPageState extends ConsumerState<SocialPage>
         return;
       }
 
-      // Slice next chunk
       final startIndex = _buddies.length;
       final endIndex = (startIndex + 10 < _allBuddyIds.length)
           ? startIndex + 10
           : _allBuddyIds.length;
       final chunkIds = _allBuddyIds.sublist(startIndex, endIndex);
 
-      // Fetch users using Cache Service
       final cacheService = ref.read(userCacheServiceProvider);
       final usersMap = await cacheService.fetchUsers(chunkIds);
 
@@ -128,14 +122,10 @@ class _SocialPageState extends ConsumerState<SocialPage>
           .map((id) {
             final user = usersMap[id];
             if (user == null) return null;
-
-            // Calculate presence
             final lastActive = user.lastActive;
-            // 5 minutes threshold
             final isOnline =
                 lastActive != null &&
                 DateTime.now().difference(lastActive).inMinutes < 5;
-
             return BuddyWithPresence(
               id: user.id,
               displayName: user.displayName,
@@ -161,66 +151,70 @@ class _SocialPageState extends ConsumerState<SocialPage>
   }
 
   @override
-  @override
-  @override
   void dispose() {
     _tabController.dispose();
-    _activityController.dispose();
     _buddiesScrollController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
+      backgroundColor: AppColors.backgroundV2,
       body: Column(
         children: [
-          // Custom Header with TabBar
           Container(
             padding: EdgeInsets.only(
-              top: MediaQuery.paddingOf(context).top + 8,
-              bottom: 0,
+              top: MediaQuery.paddingOf(context).top + 16,
+              left: 20,
+              right: 20,
+              bottom: 14,
             ),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceDark,
-              border: Border(
-                bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
-              ),
-            ),
+            color: AppColors.backgroundV2,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Padding(
-                //   padding: const EdgeInsets.symmetric(
-                //     horizontal: 16,
-                //     vertical: 8,
-                //   ),
-                //   child: const GradientText(
-                //     text: 'Social',
-                //     style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                //     colors: [AppColors.textDark, AppColors.textSecondaryDark],
-                //   ),
-                // ),
-                TabBar(
-                  controller: _tabController,
-                  labelColor: AppColors.primary,
-                  unselectedLabelColor: AppColors.textSecondaryDark,
-                  indicatorColor: AppColors.primary,
-                  indicatorWeight: 3,
-                  labelStyle: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
+                Text(
+                  'Social',
+                  style: GoogleFonts.syne(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.7,
+                    color: AppColors.textV2Primary,
                   ),
-                  unselectedLabelStyle: const TextStyle(
-                    fontWeight: FontWeight.normal,
-                    fontSize: 14,
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceV2,
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  tabs: const [
-                    Tab(text: 'Buddies'),
-                    Tab(text: 'Challenges'),
-                    Tab(text: 'Leaderboard'),
-                  ],
+                  padding: const EdgeInsets.all(3),
+                  child: TabBar(
+                    controller: _tabController,
+                    labelColor: AppColors.textV2Primary,
+                    unselectedLabelColor: AppColors.textV2Secondary,
+                    indicator: BoxDecoration(
+                      color: AppColors.surfaceV2Active,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    indicatorSize: TabBarIndicatorSize.tab,
+                    dividerColor: Colors.transparent,
+                    labelStyle: GoogleFonts.outfit(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                    unselectedLabelStyle: GoogleFonts.outfit(
+                      fontWeight: FontWeight.w400,
+                      fontSize: 13,
+                    ),
+                    tabs: const [
+                      Tab(text: 'Board'),
+                      Tab(text: 'Buddies'),
+                      Tab(text: 'Find'),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -229,9 +223,9 @@ class _SocialPageState extends ConsumerState<SocialPage>
             child: TabBarView(
               controller: _tabController,
               children: [
+                _buildBoardTab(),
                 _buildBuddiesTab(),
-                _buildChallengesTab(),
-                _buildLeaderboardTab(),
+                _buildFindTab(),
               ],
             ),
           ),
@@ -240,886 +234,631 @@ class _SocialPageState extends ConsumerState<SocialPage>
     );
   }
 
-  Widget _buildBuddiesTab() {
-    final authState = ref.watch(authSessionProvider).value;
-    final userId = authState?.id ?? '';
+  Widget _buildBoardTab() {
+    final userId = ref.watch(authSessionProvider).value?.id ?? '';
+    return _BoardContent(userId: userId);
+  }
 
+  // ── Buddies tab ────────────────────────────────────────────────────────────
+
+  Widget _buildBuddiesTab() {
     return RefreshIndicator(
       onRefresh: () async {
         HapticManager.medium();
-        // Invalidate the recent activity provider to refresh data
-        ref.invalidate(friendsRecentActivityProvider(userId));
         await _loadBuddies(refresh: true);
       },
       color: AppColors.primary,
-      backgroundColor: AppColors.surfaceDark,
+      backgroundColor: AppColors.surfaceV2,
       child: ListView(
         controller: _buddiesScrollController,
         physics: const BouncingScrollPhysics(
           parent: AlwaysScrollableScrollPhysics(),
         ),
-        padding: const EdgeInsets.all(AppSpacing.lg),
+        padding: const EdgeInsets.symmetric(vertical: 12),
         children: [
-          // Search bar
-          Container(
-            decoration: BoxDecoration(
-              color: AppColors.surfaceSecondaryDark,
-              borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-              border: Border.all(color: AppColors.borderDark),
-            ),
-            child: TextField(
-              style: const TextStyle(color: AppColors.textDark),
-              decoration: InputDecoration(
-                hintText: 'Search users...',
-                hintStyle: TextStyle(color: AppColors.textTertiaryDark),
-                prefixIcon: Icon(
-                  Icons.search,
-                  color: AppColors.textSecondaryDark,
-                ),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.all(AppSpacing.md),
-              ),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.xl),
-
-          // Recent Activity Section
-          if (userId.isNotEmpty) ...[
-            _buildRecentActivitySection(userId),
-            const SizedBox(height: AppSpacing.xl),
-          ],
-
-          // Mutual follows section
-          Text(
-            'Your Buddies',
-            style: TextStyle(
-              fontSize: AppFontSize.lg,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textDark,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-
-          // Placeholder buddies list
-          // Buddies list
           if (_isInitialLoad)
-            // Initial Shimmer
-            ...List.generate(5, (index) => const BuddyListItemSkeleton())
+            ...List.generate(5, (_) => _buildBuddySkeleton())
           else if (_buddies.isEmpty)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(AppSpacing.xl),
-                child: Text('No buddies yet. Search users to follow them!'),
+            Padding(
+              padding: const EdgeInsets.all(48),
+              child: Center(
+                child: Text(
+                  'No buddies yet.\nSearch for people to follow!',
+                  style: GoogleFonts.outfit(color: AppColors.textV2Secondary),
+                  textAlign: TextAlign.center,
+                ),
               ),
             )
           else
-            ..._buddies.map(
-              (buddy) => Card(
-                margin: const EdgeInsets.only(bottom: AppSpacing.md),
-                child: ListTile(
-                  onTap: () => context.push('/user/${buddy.id}'),
-                  leading: Stack(
-                    children: [
-                      CircleAvatar(
-                        backgroundImage: buddy.photoURL != null
-                            ? CachedNetworkImageProvider(
-                                buddy.photoURL!,
-                                cacheManager: ZyntroImageCacheManager(),
-                              )
-                            : null,
-                        backgroundColor: AppColors.primaryMuted,
-                        child: buddy.photoURL == null
-                            ? Text(buddy.displayName[0].toUpperCase())
-                            : null,
-                      ),
-                      if (buddy.isOnline)
-                        Positioned(
-                          right: 0,
-                          bottom: 0,
-                          child: Container(
-                            width: 12,
-                            height: 12,
-                            decoration: BoxDecoration(
-                              color: AppColors.success,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: AppColors.surfaceDark,
-                                width: 2,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  title: Text(buddy.displayName),
-                  subtitle: Text(
-                    buddy.isOnline
-                        ? 'Online now'
-                        : buddy.lastActive != null
-                        ? 'Active ${timeago.format(buddy.lastActive!)}'
-                        : 'Offline',
-                    style: TextStyle(
-                      color: buddy.isOnline ? AppColors.success : null,
-                      fontSize: AppFontSize.sm,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-          // Loading indicator at bottom
+            ..._buddies.map(_buildBuddyRow),
           if (_isLoadingMoreBuddies && !_isInitialLoad)
             const Padding(
-              padding: EdgeInsets.all(AppSpacing.md),
+              padding: EdgeInsets.all(16),
               child: Center(
                 child: SizedBox(
                   width: 24,
                   height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.primary,
+                  ),
                 ),
               ),
             ),
-
-          const SizedBox(height: AppSpacing.xl),
-
-          // Suggestions
-          const Text(
-            'Suggested',
-            style: TextStyle(
-              fontSize: AppFontSize.lg,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-
-          ...List.generate(
-            2,
-            (index) => Card(
-              margin: const EdgeInsets.only(bottom: AppSpacing.md),
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: AppColors.surfaceSecondaryLight,
-                  child: Text('S${index + 1}'),
-                ),
-                title: Text('Suggested User ${index + 1}'),
-                subtitle: const Text('2 mutual friends'),
-                trailing: TextButton(
-                  onPressed: () {},
-                  child: const Text('Follow'),
-                ),
-              ),
-            ),
-          ),
         ],
       ),
     );
   }
 
-  /// Build the Recent Activity section with horizontal carousel.
-  Widget _buildRecentActivitySection(String userId) {
-    final activityAsync = ref.watch(friendsRecentActivityProvider(userId));
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Section header
-        Row(
+  Widget _buildBuddyRow(BuddyWithPresence buddy) {
+    return GestureDetector(
+      onTap: () {
+        HapticManager.light();
+        context.push('/user/${buddy.id}');
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        child: Row(
           children: [
-            const Text('⚡', style: TextStyle(fontSize: AppFontSize.lg)),
-            const SizedBox(width: AppSpacing.sm),
-            Text(
-              'Recent Activity',
-              style: TextStyle(
-                fontSize: AppFontSize.lg,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textDark,
+            Stack(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.surfaceV2Elevated,
+                  ),
+                  child: ClipOval(
+                    child: buddy.photoURL != null
+                        ? CachedNetworkImage(
+                            imageUrl: buddy.photoURL!,
+                            cacheManager: ZyntroImageCacheManager(),
+                            fit: BoxFit.cover,
+                          )
+                        : Center(
+                            child: Text(
+                              buddy.displayName.isNotEmpty
+                                  ? buddy.displayName[0].toUpperCase()
+                                  : '?',
+                              style: GoogleFonts.syne(
+                                color: AppColors.textV2Primary,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                  ),
+                ),
+                if (buddy.isOnline)
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: AppColors.success,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppColors.backgroundV2,
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    buddy.displayName,
+                    style: GoogleFonts.syne(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                      color: AppColors.textV2Primary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    buddy.isOnline ? 'Online now' : 'Offline',
+                    style: GoogleFonts.outfit(
+                      fontSize: 12,
+                      color: buddy.isOnline
+                          ? AppColors.success
+                          : AppColors.textV2Secondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            GestureDetector(
+              onTap: () {
+                HapticManager.light();
+                context.push('/user/${buddy.id}');
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 7,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceV2,
+                  border: Border.all(color: AppColors.surfaceV2Active),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  'Following',
+                  style: GoogleFonts.outfit(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textV2Secondary,
+                  ),
+                ),
               ),
             ),
           ],
         ),
-        const SizedBox(height: AppSpacing.md),
-
-        // Content based on async state
-        AnimatedSwitcher(
-          duration: AppDurations.normal,
-          switchInCurve: AppCurves.premium,
-          switchOutCurve: AppCurves.premium,
-          child: activityAsync.when(
-            data: (activities) {
-              if (activities.isEmpty) {
-                return _buildEmptyActivityState();
-              }
-              return _buildActivityCarousel(activities);
-            },
-            loading: () => _buildLoadingActivityState(),
-            error: (error, stack) => _buildErrorActivityState(
-              () => ref.invalidate(friendsRecentActivityProvider(userId)),
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
 
-  /// Build the horizontal activity carousel.
-  /// Build the horizontal activity carousel.
-  Widget _buildActivityCarousel(List<ActivityItem> activities) {
+  Widget _buildBuddySkeleton() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.surfaceV2,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  height: 13,
+                  width: 110,
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceV2,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  height: 11,
+                  width: 70,
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceV2,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            width: 82,
+            height: 32,
+            decoration: BoxDecoration(
+              color: AppColors.surfaceV2,
+              borderRadius: BorderRadius.circular(20),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Find tab ───────────────────────────────────────────────────────────────
+
+  Widget _buildFindTab() {
     return Column(
       children: [
-        SizedBox(
-          height: 160,
-          child: PageView.builder(
-            controller: _activityController,
-            itemCount: activities.length,
-            onPageChanged: (index) {
-              setState(() => _currentActivityIndex = index);
-            },
-            itemBuilder: (context, index) {
-              final activity = activities[index];
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
-                child: RecentActivityCard(
-                  activity: activity,
-                  heroTag: activity.isPost
-                      ? 'post-card-${activity.id}'
-                      : 'activity_${activity.id}',
-                  onTap: () => _handleActivityTap(activity),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppColors.surfaceV2,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: TextField(
+              controller: _searchController,
+              style: GoogleFonts.outfit(
+                color: AppColors.textV2Primary,
+                fontSize: 14,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Find athletes by name…',
+                hintStyle: GoogleFonts.outfit(
+                  color: AppColors.textV2Tertiary,
+                  fontSize: 14,
                 ),
-              );
-            },
+                prefixIcon: const Icon(
+                  Icons.search_rounded,
+                  color: AppColors.textV2Tertiary,
+                  size: 20,
+                ),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+              ),
+              onChanged: (q) => setState(() => _searchQuery = q.trim()),
+            ),
           ),
         ),
-        const SizedBox(height: AppSpacing.sm),
-        _buildActivityIndicator(activities.length),
+        Expanded(
+          child: _searchQuery.isEmpty
+              ? Center(
+                  child: Text(
+                    'Search for athletes to follow',
+                    style: GoogleFonts.outfit(color: AppColors.textV2Tertiary),
+                  ),
+                )
+              : _SearchResultsWidget(
+                  query: _searchQuery,
+                  followedIds: _followedInFind,
+                  onFollow: (userId) =>
+                      setState(() => _followedInFind.add(userId)),
+                  currentUserId:
+                      ref.watch(authSessionProvider).value?.id,
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Board tab ─────────────────────────────────────────────────────────────────
+
+class _BoardContent extends ConsumerStatefulWidget {
+  final String userId;
+  const _BoardContent({required this.userId});
+
+  @override
+  ConsumerState<_BoardContent> createState() => _BoardContentState();
+}
+
+class _BoardContentState extends ConsumerState<_BoardContent> {
+  bool _isFriends = true;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // Friends / Global toggle
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppColors.surfaceV2,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            padding: const EdgeInsets.all(3),
+            child: Row(
+              children: [
+                _toggleBtn('Friends', _isFriends, () {
+                  HapticManager.selection();
+                  setState(() => _isFriends = true);
+                }),
+                _toggleBtn('Global', !_isFriends, () {
+                  HapticManager.selection();
+                  setState(() => _isFriends = false);
+                }),
+              ],
+            ),
+          ),
+        ),
+        Expanded(
+          child: _isFriends
+              ? _FriendsLeaderboard(userId: widget.userId)
+              : const _GlobalUpsell(),
+        ),
       ],
     );
   }
 
-  Widget _buildActivityIndicator(int count) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(count, (index) {
-        final isActive = index == _currentActivityIndex;
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          margin: const EdgeInsets.symmetric(horizontal: 2),
-          width: isActive ? 16 : 6,
-          height: 6,
+  Widget _toggleBtn(String label, bool active, VoidCallback onTap) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: isActive ? AppColors.primary : AppColors.textTertiaryDark,
-            borderRadius: BorderRadius.circular(3),
+            color: active ? AppColors.surfaceV2Active : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
           ),
-        );
-      }),
-    );
-  }
-
-  /// Build loading shimmer state.
-  Widget _buildLoadingActivityState() {
-    return SizedBox(
-      height: 160,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        itemCount: 3,
-        itemBuilder: (context, index) => const RecentActivityCardShimmer(),
-      ),
-    );
-  }
-
-  /// Build empty state when no recent activity.
-  Widget _buildEmptyActivityState() {
-    return Container(
-      height: 140,
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceSecondaryDark,
-        borderRadius: BorderRadius.circular(AppBorderRadius.xl),
-        border: Border.all(color: AppColors.borderDark.withValues(alpha: 0.5)),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.fitness_center,
-            size: 32,
-            color: AppColors.textTertiaryDark,
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            'No recent activity from your buddies',
-            style: TextStyle(
-              color: AppColors.textSecondaryDark,
-              fontSize: AppFontSize.sm,
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: GoogleFonts.outfit(
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+              color: active
+                  ? AppColors.textV2Primary
+                  : AppColors.textV2Secondary,
             ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            'Be the first to complete a workout today! 💪',
-            style: TextStyle(
-              color: AppColors.textTertiaryDark,
-              fontSize: AppFontSize.xs,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Build error state with retry button.
-  Widget _buildErrorActivityState(VoidCallback onRetry) {
-    return Container(
-      height: 140,
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceSecondaryDark,
-        borderRadius: BorderRadius.circular(AppBorderRadius.xl),
-        border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.error_outline, size: 32, color: AppColors.error),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            'Failed to load recent activity',
-            style: TextStyle(
-              color: AppColors.textSecondaryDark,
-              fontSize: AppFontSize.sm,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          TextButton.icon(
-            onPressed: onRetry,
-            icon: const Icon(Icons.refresh, size: 16),
-            label: const Text('Retry'),
-            style: TextButton.styleFrom(foregroundColor: AppColors.primary),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Handle tap on activity card with haptic feedback.
-  void _handleActivityTap(ActivityItem activity) {
-    HapticManager.light();
-    if (activity.isPost) {
-      // Navigate to post detail
-      context.push('/post/${activity.id}');
-    } else {
-      // Navigate to user profile
-      context.push('/user/${activity.userId}');
-    }
-  }
-
-  Widget _buildChallengesTab() {
-    return ListView(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      children: [
-        const Text(
-          'Active Challenges',
-          style: TextStyle(
-            fontSize: AppFontSize.lg,
-            fontWeight: FontWeight.bold,
           ),
         ),
-        const SizedBox(height: AppSpacing.md),
+      ),
+    );
+  }
+}
 
-        // Challenge cards
-        ...List.generate(
-          2,
-          (index) => Card(
-            margin: const EdgeInsets.only(bottom: AppSpacing.md),
+// ── Friends leaderboard ───────────────────────────────────────────────────────
+
+class _FriendsLeaderboard extends ConsumerWidget {
+  final String userId;
+  const _FriendsLeaderboard({required this.userId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (userId.isEmpty) {
+      return Center(
+        child: Text(
+          'Please sign in to view leaderboard',
+          style: GoogleFonts.outfit(color: AppColors.textV2Secondary),
+        ),
+      );
+    }
+
+    final leaderboardAsync = ref.watch(friendsLeaderboardProvider(userId));
+
+    return leaderboardAsync.when(
+      data: (entries) {
+        if (entries.isEmpty) {
+          return Center(
             child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.lg),
+              padding: const EdgeInsets.all(32),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(AppSpacing.sm),
-                        decoration: BoxDecoration(
-                          color: AppColors.secondary.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(
-                            AppBorderRadius.md,
+                  const Icon(
+                    Icons.people_outline,
+                    size: 56,
+                    color: AppColors.textV2Tertiary,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No friends yet',
+                    style: GoogleFonts.syne(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textV2Primary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Follow people to see your friends leaderboard',
+                    style: GoogleFonts.outfit(
+                      color: AppColors.textV2Secondary,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+        return _buildLeaderboardList(context, entries);
+      },
+      loading: () => const Center(
+        child: CircularProgressIndicator(
+          color: AppColors.primary,
+          strokeWidth: 2,
+        ),
+      ),
+      error: (e, _) => Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 48, color: AppColors.error),
+            const SizedBox(height: 12),
+            Text(
+              'Failed to load leaderboard',
+              style: GoogleFonts.outfit(color: AppColors.textV2Secondary),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLeaderboardList(
+    BuildContext context,
+    List<LeaderboardEntry> entries,
+  ) {
+    final top3 = entries.take(3).toList();
+    final rest = entries.skip(3).toList();
+    final me = entries.firstWhere(
+      (e) => e.isCurrentUser,
+      orElse: () => entries.isNotEmpty ? entries.first : _emptyEntry(),
+    );
+
+    return ListView(
+      physics: const BouncingScrollPhysics(
+        parent: AlwaysScrollableScrollPhysics(),
+      ),
+      padding: const EdgeInsets.only(bottom: 24),
+      children: [
+        // Podium
+        if (top3.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (top3.length > 1)
+                  _PodiumSpot(entry: top3[1], rank: 2, height: 90),
+                if (top3.isNotEmpty)
+                  _PodiumSpot(entry: top3[0], rank: 1, height: 116),
+                if (top3.length > 2)
+                  _PodiumSpot(entry: top3[2], rank: 3, height: 74),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+        ],
+        // My rank card
+        if (entries.any((e) => e.isCurrentUser)) ...[
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 14,
+              ),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceV2,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: AppColors.accentLime.withValues(alpha: 0.40),
+                  width: 1.5,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Text(
+                    '#${me.rank}',
+                    style: GoogleFonts.syne(
+                      fontSize: 32,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.accentLime,
+                      height: 1,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          me.displayName,
+                          style: GoogleFonts.syne(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                            color: AppColors.textV2Primary,
                           ),
                         ),
-                        child: Icon(
-                          index == 0
-                              ? Icons.fitness_center
-                              : Icons.directions_run,
-                          color: AppColors.secondary,
+                        const SizedBox(height: 2),
+                        Text(
+                          '${me.score} pts · 🔥${me.streak}',
+                          style: GoogleFonts.outfit(
+                            fontSize: 12,
+                            color: AppColors.textV2Secondary,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: AppSpacing.md),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              index == 0 ? '100 Push-ups' : '5K Run',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              '${3 - index} days left',
-                              style: TextStyle(
-                                fontSize: AppFontSize.sm,
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurface.withValues(alpha: 0.6),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: AppSpacing.md),
-                  LinearProgressIndicator(
-                    value: 0.6 + index * 0.2,
-                    backgroundColor: AppColors.primaryMuted,
-                    valueColor: const AlwaysStoppedAnimation(AppColors.primary),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
                   Text(
-                    '${60 + index * 20}% complete',
-                    style: TextStyle(
-                      fontSize: AppFontSize.sm,
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withValues(alpha: 0.6),
+                    'You',
+                    style: GoogleFonts.outfit(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.accentLime,
                     ),
                   ),
                 ],
               ),
             ),
           ),
-        ),
+          const SizedBox(height: 16),
+        ],
+        // Remaining rows (rank 4+)
+        ...rest.map((entry) => _LeaderboardRow(entry: entry)),
       ],
     );
   }
 
-  Widget _buildLeaderboardTab() {
-    final authState = ref.watch(authSessionProvider).value;
-    final userId = authState?.id ?? '';
-
-    // We'll use a local state for the toggle here since it's UI specific
-    // Or we could move it to a provider. For now, let's use a ValueNotifier
-    // or just a hook if we were using hooks, but we are in a StatefulWidget.
-    // Actually, let's create a separate widget for the leaderboard content
-    // to keep the state clean.
-    return _LeaderboardContent(userId: userId);
-  }
+  LeaderboardEntry _emptyEntry() => LeaderboardEntry(
+    userId: '',
+    displayName: '',
+    score: 0,
+    rank: 0,
+  );
 }
 
-class _LeaderboardContent extends StatefulWidget {
-  final String userId;
-  const _LeaderboardContent({required this.userId});
+// ── Podium spot ───────────────────────────────────────────────────────────────
 
-  @override
-  State<_LeaderboardContent> createState() => _LeaderboardContentState();
-}
+class _PodiumSpot extends StatelessWidget {
+  final LeaderboardEntry entry;
+  final int rank;
+  final double height;
 
-class _LeaderboardContentState extends State<_LeaderboardContent> {
-  int _selectedIndex = 0;
+  const _PodiumSpot({
+    required this.entry,
+    required this.rank,
+    required this.height,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // Type Selector - Premium styled
-        Container(
-          margin: const EdgeInsets.fromLTRB(
-            AppSpacing.md,
-            AppSpacing.md,
-            AppSpacing.md,
-            0,
-          ),
-          padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceSecondaryDark,
-            borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-            border: Border.all(color: AppColors.borderDark),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: GestureDetector(
-                  onTap: () {
-                    HapticManager.selection();
-                    setState(() => _selectedIndex = 0);
-                  },
-                  child: AnimatedContainer(
-                    duration: AppDurations.fast,
-                    padding: const EdgeInsets.symmetric(
-                      vertical: AppSpacing.md,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: _selectedIndex == 0
-                          ? const LinearGradient(
-                              colors: AppColors.primaryGradient,
-                            )
-                          : null,
-                      borderRadius: BorderRadius.circular(AppBorderRadius.md),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      'Points',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: _selectedIndex == 0
-                            ? Colors.white
-                            : AppColors.textSecondaryDark,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () {
-                    HapticManager.selection();
-                    setState(() => _selectedIndex = 1);
-                  },
-                  child: AnimatedContainer(
-                    duration: AppDurations.fast,
-                    padding: const EdgeInsets.symmetric(
-                      vertical: AppSpacing.md,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: _selectedIndex == 1
-                          ? const LinearGradient(
-                              colors: AppColors.secondaryGradient,
-                            )
-                          : null,
-                      borderRadius: BorderRadius.circular(AppBorderRadius.md),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      'Streak',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: _selectedIndex == 1
-                            ? Colors.white
-                            : AppColors.textSecondaryDark,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        // Header
-        Padding(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                _selectedIndex == 0
-                    ? Icons.people
-                    : Icons.local_fire_department,
-                size: 20,
-                color: _selectedIndex == 0
-                    ? AppColors.primary
-                    : AppColors.secondary,
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Text(
-                _selectedIndex == 0
-                    ? 'Friends Leaderboard'
-                    : 'Streak Leaderboard',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: AppFontSize.lg,
-                  color: _selectedIndex == 0
-                      ? AppColors.primary
-                      : AppColors.secondary,
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        // Content
-        Expanded(
-          child: widget.userId.isEmpty
-              ? Center(
-                  child: Text(
-                    'Please sign in to view leaderboard',
-                    style: TextStyle(color: AppColors.textSecondaryDark),
-                  ),
-                )
-              : _selectedIndex == 0
-              ? const _PointsLeaderboard()
-              : const _StreakLeaderboard(),
-        ),
-      ],
-    );
-  }
-}
-
-class _PointsLeaderboard extends ConsumerWidget {
-  const _PointsLeaderboard();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final userId = ref.watch(authSessionProvider).value?.id ?? '';
-    final leaderboardAsync = ref.watch(friendsLeaderboardProvider(userId));
-
-    return leaderboardAsync.when(
-      data: (entries) {
-        if (entries.isEmpty) {
-          return _buildEmptyState(context);
-        }
-        return _buildList(context, entries);
-      },
-      loading: () => Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const CircularProgressIndicator(color: AppColors.primary),
-            const SizedBox(height: AppSpacing.md),
-            Text(
-              'Loading leaderboard...',
-              style: TextStyle(color: AppColors.textSecondaryDark),
-            ),
-          ],
-        ),
-      ),
-      error: (error, stack) => Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline, size: 48, color: AppColors.error),
-            const SizedBox(height: AppSpacing.md),
-            Text(
-              'Failed to load leaderboard',
-              style: TextStyle(color: AppColors.textSecondaryDark),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEmptyState(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.people_outline,
-            size: 64,
-            color: Theme.of(
-              context,
-            ).colorScheme.onSurface.withValues(alpha: 0.3),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Text(
-            'No friends yet',
-            style: TextStyle(
-              fontSize: AppFontSize.lg,
-              color: Theme.of(
-                context,
-              ).colorScheme.onSurface.withValues(alpha: 0.5),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            'Follow some users to see your friends leaderboard',
-            style: TextStyle(
-              color: Theme.of(
-                context,
-              ).colorScheme.onSurface.withValues(alpha: 0.5),
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildList(BuildContext context, List<LeaderboardEntry> entries) {
-    final top3 = entries.take(3).toList();
-    final rest = entries.skip(3).toList();
-
-    return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-      children: [
-        if (top3.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.md),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              if (top3.length > 1) _buildPodiumSpot(context, top3[1], 2, 80),
-              if (top3.isNotEmpty) _buildPodiumSpot(context, top3[0], 1, 100),
-              if (top3.length > 2) _buildPodiumSpot(context, top3[2], 3, 60),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.xl),
-        ],
-        ...rest.map((entry) => _buildItem(entry)),
-        const SizedBox(height: AppSpacing.lg),
-      ],
-    );
-  }
-
-  Widget _buildPodiumSpot(
-    BuildContext context,
-    LeaderboardEntry entry,
-    int rank,
-    double height,
-  ) {
-    final colors = {
-      1: AppColors.accent,
-      2: AppColors.textSecondaryDark,
-      3: AppColors.secondaryDark,
+    const podiumColors = {
+      1: Color(0xFFFFD700),
+      2: Color(0xFFC0C0C0),
+      3: Color(0xFFCD7F32),
     };
-    final isCurrentUser = entry.isCurrentUser;
+    final podiumColor = podiumColors[rank]!;
+    final avatarRadius = rank == 1 ? 30.0 : 24.0;
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+      margin: const EdgeInsets.symmetric(horizontal: 6),
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Container(
-                decoration: isCurrentUser
-                    ? BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: AppColors.primary, width: 3),
-                      )
-                    : null,
-                child: CircleAvatar(
-                  radius: rank == 1 ? 32 : 26,
-                  backgroundColor: colors[rank],
-                  backgroundImage: entry.photoURL != null
-                      ? CachedNetworkImageProvider(entry.photoURL!)
-                      : null,
-                  child: entry.photoURL == null
-                      ? Text(
-                          entry.displayName.isNotEmpty
-                              ? entry.displayName[0].toUpperCase()
-                              : '?',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: rank == 1 ? 24 : 18,
-                          ),
-                        )
-                      : null,
+          if (rank == 1)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 4),
+              child: Text('👑', style: TextStyle(fontSize: 22)),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: podiumColor.withValues(alpha: 0.20),
                 ),
-              ),
-              if (rank == 1)
-                const Positioned(
-                  top: -12,
-                  left: 0,
-                  right: 0,
-                  child: Center(
-                    child: Text('👑', style: TextStyle(fontSize: 20)),
+                child: Center(
+                  child: Text(
+                    '$rank',
+                    style: TextStyle(
+                      color: podiumColor,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          SizedBox(
-            width: 80,
-            child: Text(
-              entry.displayName,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: AppFontSize.sm,
-                color: isCurrentUser ? AppColors.primary : null,
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          Text(
-            '${entry.score} pts',
-            style: TextStyle(
-              fontSize: AppFontSize.sm,
-              color: Theme.of(
-                context,
-              ).colorScheme.onSurface.withValues(alpha: 0.6),
-            ),
-          ),
-          if (entry.streak > 0) ...[
-            const SizedBox(height: 2),
-            Text(
-              '🔥 ${entry.streak}',
-              style: TextStyle(
-                fontSize: AppFontSize.xs,
-                fontWeight: FontWeight.bold,
-                color: Colors.orange.shade700,
               ),
             ),
-          ],
-          const SizedBox(height: AppSpacing.sm),
           Container(
-            width: 80,
-            height: height,
             decoration: BoxDecoration(
-              color: colors[rank]!.withValues(alpha: 0.3),
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(AppBorderRadius.md),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: entry.isCurrentUser
+                    ? AppColors.accentLime
+                    : podiumColor.withValues(alpha: 0.60),
+                width: entry.isCurrentUser ? 2.5 : 2,
               ),
             ),
-            child: Center(
-              child: Text(
-                '#$rank',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: colors[rank],
-                  fontSize: AppFontSize.lg,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildItem(LeaderboardEntry entry) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-      color: entry.isCurrentUser
-          ? AppColors.primary.withValues(alpha: 0.1)
-          : null,
-      shape: entry.isCurrentUser
-          ? RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppBorderRadius.md),
-              side: const BorderSide(color: AppColors.primary, width: 2),
-            )
-          : null,
-      child: ListTile(
-        leading: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 30,
-              child: Text(
-                '#${entry.rank}',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: entry.isCurrentUser ? AppColors.primary : null,
-                ),
-              ),
-            ),
-            CircleAvatar(
-              backgroundColor: AppColors.surfaceSecondaryLight,
+            child: CircleAvatar(
+              radius: avatarRadius,
+              backgroundColor: podiumColor.withValues(alpha: 0.25),
               backgroundImage: entry.photoURL != null
                   ? CachedNetworkImageProvider(entry.photoURL!)
                   : null,
@@ -1128,129 +867,433 @@ class _PointsLeaderboard extends ConsumerWidget {
                       entry.displayName.isNotEmpty
                           ? entry.displayName[0].toUpperCase()
                           : '?',
+                      style: TextStyle(
+                        color: podiumColor,
+                        fontWeight: FontWeight.w800,
+                        fontSize: rank == 1 ? 20 : 16,
+                      ),
                     )
                   : null,
             ),
-          ],
-        ),
-        title: Text(
-          entry.displayName,
-          style: TextStyle(
-            fontWeight: entry.isCurrentUser ? FontWeight.bold : FontWeight.w500,
-            color: entry.isCurrentUser ? AppColors.primary : null,
           ),
-        ),
-        subtitle: Row(
-          children: [
-            Flexible(
-              child: Text(
-                '${entry.score} points',
-                overflow: TextOverflow.ellipsis,
+          const SizedBox(height: 8),
+          SizedBox(
+            width: 76,
+            child: Text(
+              entry.displayName,
+              style: GoogleFonts.syne(
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+                color: entry.isCurrentUser
+                    ? AppColors.accentLime
+                    : AppColors.textV2Primary,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Text(
+            '${entry.score} pts',
+            style: GoogleFonts.outfit(
+              fontSize: 11,
+              color: AppColors.textV2Tertiary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Container(
+            width: 76,
+            height: height,
+            decoration: BoxDecoration(
+              color: podiumColor.withValues(alpha: 0.14),
+              border: Border.all(
+                color: podiumColor.withValues(alpha: 0.45),
+                width: 1.5,
+              ),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(8),
               ),
             ),
-            if (entry.streak > 0) ...[
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  '🔥 ${entry.streak}',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.orange.shade700,
-                    fontSize: AppFontSize.sm,
-                  ),
-                  overflow: TextOverflow.ellipsis,
+            child: Center(
+              child: Text(
+                '#$rank',
+                style: GoogleFonts.syne(
+                  fontWeight: FontWeight.w800,
+                  color: podiumColor,
+                  fontSize: 15,
                 ),
               ),
-            ],
-          ],
-        ),
-        trailing: entry.isCurrentUser
-            ? Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.sm,
-                  vertical: AppSpacing.xs,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(AppBorderRadius.sm),
-                ),
-                child: const Text(
-                  'You',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: AppFontSize.xs,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              )
-            : null,
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _StreakLeaderboard extends ConsumerWidget {
-  const _StreakLeaderboard();
+// ── Leaderboard row (rank 4+) ─────────────────────────────────────────────────
+
+class _LeaderboardRow extends StatelessWidget {
+  final LeaderboardEntry entry;
+  const _LeaderboardRow({required this.entry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: entry.isCurrentUser
+            ? AppColors.accentLime.withValues(alpha: 0.08)
+            : AppColors.surfaceV2,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: entry.isCurrentUser
+              ? AppColors.accentLime.withValues(alpha: 0.35)
+              : AppColors.surfaceV2Elevated,
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 36,
+            child: Text(
+              '#${entry.rank}',
+              style: GoogleFonts.syne(
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+                color: entry.isCurrentUser
+                    ? AppColors.accentLime
+                    : AppColors.textV2Tertiary,
+              ),
+            ),
+          ),
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: AppColors.surfaceV2Elevated,
+            backgroundImage: entry.photoURL != null
+                ? CachedNetworkImageProvider(entry.photoURL!)
+                : null,
+            child: entry.photoURL == null
+                ? Text(
+                    entry.displayName.isNotEmpty
+                        ? entry.displayName[0].toUpperCase()
+                        : '?',
+                    style: GoogleFonts.syne(
+                      color: AppColors.textV2Primary,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  )
+                : null,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  entry.displayName,
+                  style: GoogleFonts.syne(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    color: entry.isCurrentUser
+                        ? AppColors.accentLime
+                        : AppColors.textV2Primary,
+                  ),
+                ),
+                Text(
+                  '🔥${entry.streak} streak',
+                  style: GoogleFonts.outfit(
+                    fontSize: 11,
+                    color: AppColors.textV2Secondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            '${entry.score} pts',
+            style: GoogleFonts.syne(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textV2Primary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Global upsell ─────────────────────────────────────────────────────────────
+
+class _GlobalUpsell extends StatelessWidget {
+  const _GlobalUpsell();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Container(
+          padding: const EdgeInsets.all(28),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceV2,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: AppColors.accentLime.withValues(alpha: 0.30),
+              width: 1.5,
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: AppColors.accentLime.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.public_rounded,
+                  size: 32,
+                  color: AppColors.accentLime,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Global Leaderboard',
+                style: GoogleFonts.syne(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textV2Primary,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Compete with athletes worldwide and see where you rank globally.',
+                style: GoogleFonts.outfit(
+                  fontSize: 14,
+                  color: AppColors.textV2Secondary,
+                  height: 1.5,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                decoration: BoxDecoration(
+                  color: AppColors.accentLime,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  'Unlock for \$5',
+                  style: GoogleFonts.syne(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Find tab — search results ─────────────────────────────────────────────────
+
+class _SearchResultsWidget extends ConsumerWidget {
+  final String query;
+  final Set<String> followedIds;
+  final void Function(String) onFollow;
+  final String? currentUserId;
+
+  const _SearchResultsWidget({
+    required this.query,
+    required this.followedIds,
+    required this.onFollow,
+    this.currentUserId,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final authState = ref.watch(authSessionProvider).value;
-    final userId = authState?.id;
+    final resultsAsync = ref.watch(userSearchProvider(query));
 
-    if (userId == null) {
-      return const Center(child: Text('Please sign in to view leaderboard'));
-    }
-
-    final streakLeaderboardAsync = ref.watch(
-      friendsStreakComparisonProvider(userId),
-    );
-
-    return streakLeaderboardAsync.when(
-      data: (comparisons) {
-        if (comparisons.isEmpty) {
+    return resultsAsync.when(
+      data: (users) {
+        final filtered = users.where((u) => u.id != currentUserId).toList();
+        if (filtered.isEmpty) {
           return Center(
             child: Text(
-              'No streak data available',
-              style: TextStyle(color: AppColors.textSecondaryLight),
+              'No athletes found',
+              style: GoogleFonts.outfit(color: AppColors.textV2Secondary),
             ),
           );
         }
-        return _buildStreakList(context, comparisons);
+        return ListView.builder(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          itemCount: filtered.length,
+          itemBuilder: (ctx, i) => _UserSearchRow(
+            user: filtered[i],
+            isFollowed: followedIds.contains(filtered[i].id),
+            currentUserId: currentUserId,
+            onFollow: () => onFollow(filtered[i].id),
+          ),
+        );
       },
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, stack) => Center(child: Text('Error: $error')),
+      loading: () => const Center(
+        child: CircularProgressIndicator(
+          color: AppColors.primary,
+          strokeWidth: 2,
+        ),
+      ),
+      error: (e, _) => Center(
+        child: Text(
+          'Search failed',
+          style: GoogleFonts.outfit(color: AppColors.textV2Secondary),
+        ),
+      ),
     );
   }
+}
 
-  Widget _buildStreakList(
-    BuildContext context,
-    List<FriendStreakComparison> entries,
-  ) {
-    final top3 = entries.take(3).toList();
-    final rest = entries.skip(3).toList();
+class _UserSearchRow extends ConsumerWidget {
+  final User user;
+  final bool isFollowed;
+  final String? currentUserId;
+  final VoidCallback onFollow;
 
-    return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-      children: [
-        if (top3.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.md),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              if (top3.length > 1)
-                StreakPodiumSpot(entry: top3[1], rank: 2, height: 80),
-              if (top3.isNotEmpty)
-                StreakPodiumSpot(entry: top3[0], rank: 1, height: 100),
-              if (top3.length > 2)
-                StreakPodiumSpot(entry: top3[2], rank: 3, height: 60),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.xl),
-        ],
-        ...rest.map((entry) => StreakListItem(entry: entry)),
-        const SizedBox(height: AppSpacing.lg),
-      ],
+  const _UserSearchRow({
+    required this.user,
+    required this.isFollowed,
+    this.currentUserId,
+    required this.onFollow,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return GestureDetector(
+      onTap: () {
+        HapticManager.light();
+        context.push('/user/${user.id}');
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.surfaceV2Elevated,
+              ),
+              child: ClipOval(
+                child: user.photoURL != null
+                    ? CachedNetworkImage(
+                        imageUrl: user.photoURL!,
+                        fit: BoxFit.cover,
+                      )
+                    : Center(
+                        child: Text(
+                          user.displayName.isNotEmpty
+                              ? user.displayName[0].toUpperCase()
+                              : '?',
+                          style: GoogleFonts.syne(
+                            color: AppColors.textV2Primary,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    user.displayName,
+                    style: GoogleFonts.syne(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: AppColors.textV2Primary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${user.totalWorkouts} workouts',
+                    style: GoogleFonts.outfit(
+                      fontSize: 12,
+                      color: AppColors.textV2Secondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (!isFollowed)
+              GestureDetector(
+                onTap: () async {
+                  if (currentUserId == null) return;
+                  HapticManager.light();
+                  onFollow();
+                  await ref.read(followServiceProvider).followUser(
+                    followerId: currentUserId!,
+                    followeeId: user.id,
+                    isPrivate: user.isPrivate,
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 7,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.accentLime,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    'Follow',
+                    style: GoogleFonts.outfit(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black,
+                    ),
+                  ),
+                ),
+              )
+            else
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 7,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceV2,
+                  border: Border.all(color: AppColors.surfaceV2Active),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  'Following',
+                  style: GoogleFonts.outfit(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textV2Secondary,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

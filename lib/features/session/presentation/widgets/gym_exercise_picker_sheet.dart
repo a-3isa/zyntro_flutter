@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import '../../../../core/data/gym_exercises.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -38,10 +38,10 @@ class _GymExercisePickerSheetState extends State<GymExercisePickerSheet> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: AppColors.surfaceDark,
+          backgroundColor: AppColors.surfaceV2,
           title: const Text(
             'Add custom exercise',
-            style: TextStyle(color: AppColors.textDark),
+            style: TextStyle(color: AppColors.textV2Primary),
           ),
           content: TextField(
             controller: customController,
@@ -53,7 +53,7 @@ class _GymExercisePickerSheetState extends State<GymExercisePickerSheet> {
               onPressed: () => Navigator.of(context).pop(),
               child: const Text(
                 'Cancel',
-                style: TextStyle(color: AppColors.textSecondaryDark),
+                style: TextStyle(color: AppColors.textV2Secondary),
               ),
             ),
             FilledButton(
@@ -90,7 +90,7 @@ class _GymExercisePickerSheetState extends State<GymExercisePickerSheet> {
 
     return SafeArea(
       child: DecoratedBox(
-        decoration: const BoxDecoration(color: AppColors.backgroundDark),
+        decoration: const BoxDecoration(color: AppColors.backgroundV2),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
           child: Column(
@@ -102,13 +102,13 @@ class _GymExercisePickerSheetState extends State<GymExercisePickerSheet> {
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.textDark,
+                  color: AppColors.textV2Primary,
                 ),
               ),
               const SizedBox(height: 8),
               const Text(
                 'Search the exercise database first, then add a custom move only if you need one.',
-                style: TextStyle(color: AppColors.textSecondaryDark),
+                style: TextStyle(color: AppColors.textV2Secondary),
               ),
               const SizedBox(height: 16),
               TextField(
@@ -137,13 +137,13 @@ class _GymExercisePickerSheetState extends State<GymExercisePickerSheet> {
                             title: Text(
                               exercise.name,
                               style: const TextStyle(
-                                color: AppColors.textDark,
+                                color: AppColors.textV2Primary,
                               ),
                             ),
                             subtitle: Text(
                               '${exercise.muscleGroup.displayName} • ${exercise.equipment.map((item) => item.displayName).join(', ')}',
                               style: const TextStyle(
-                                color: AppColors.textSecondaryDark,
+                                color: AppColors.textV2Secondary,
                               ),
                             ),
                             onTap: () {
@@ -194,14 +194,14 @@ class _NoMatchesState extends StatelessWidget {
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
-              color: AppColors.textDark,
+              color: AppColors.textV2Primary,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             'We could not find "$query" in the exercise database.',
             textAlign: TextAlign.center,
-            style: const TextStyle(color: AppColors.textSecondaryDark),
+            style: const TextStyle(color: AppColors.textV2Secondary),
           ),
           const SizedBox(height: 16),
           FilledButton(

@@ -1,7 +1,8 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import 'rep_counter_screen.dart';
@@ -42,16 +43,18 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen> {
   Duration _elapsed = Duration.zero;
   int _reps = 0;
 
-  final TextEditingController _weightController = TextEditingController();
+  double _weight = 0.0;
   final FocusNode _weightFocus = FocusNode();
 
   // Pulse state for TIMING phase (toggled by the same ticking [_timer]).
   bool _pulseOn = false;
 
+  static const List<double> _quickPicks = [40, 60, 80, 100, 120];
+  static const List<double> _increments = [-10, -5, -2.5, 2.5, 5, 10];
+
   @override
   void dispose() {
     _timer?.cancel();
-    _weightController.dispose();
     _weightFocus.dispose();
     super.dispose();
   }
@@ -82,32 +85,24 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen> {
   void _onRepsDone(int reps) {
     setState(() {
       _reps = reps;
+      _weight = 0.0;
       _phase = _ActiveTurnPhase.weight;
     });
-    // Auto-focus the weight field after the phase transition completes.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _weightFocus.requestFocus();
     });
   }
 
   void _submitSet() {
-    final double? weight = double.tryParse(_weightController.text.trim());
-    if (weight == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a valid weight')),
-      );
-      return;
-    }
-    final int duration = _elapsed.inSeconds;
+    HapticFeedback.mediumImpact();
     widget.onSetSubmit(
       reps: _reps,
-      weight: weight,
-      durationSeconds: duration,
+      weight: _weight,
+      durationSeconds: _elapsed.inSeconds,
     );
-    // Reset for the next set.
-    _weightController.clear();
     setState(() {
       _reps = 0;
+      _weight = 0.0;
       _elapsed = Duration.zero;
       _phase = _ActiveTurnPhase.ready;
     });
@@ -119,22 +114,24 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen> {
     return '$minutes:${seconds.toString().padLeft(2, '0')}';
   }
 
+  String _formatWeight(double w) {
+    if (w == w.truncateToDouble()) return w.toInt().toString();
+    return w.toString();
+  }
+
   @override
   Widget build(BuildContext context) {
-    // The reps phase delegates to a full-screen widget of its own.
     if (_phase == _ActiveTurnPhase.reps) {
       return RepCounterScreen(onDone: _onRepsDone);
     }
 
-    return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
-      body: SafeArea(
-        child: Column(
-          children: <Widget>[
-            _buildTopBar(),
-            Expanded(child: _buildPhaseBody()),
-          ],
-        ),
+    return ColoredBox(
+      color: AppColors.backgroundV2,
+      child: Column(
+        children: <Widget>[
+          _buildTopBar(),
+          Expanded(child: _buildPhaseBody()),
+        ],
       ),
     );
   }
@@ -147,8 +144,8 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen> {
           Expanded(
             child: Text(
               widget.exerciseName,
-              style: const TextStyle(
-                color: AppColors.textSecondaryDark,
+              style: TextStyle(
+                color: AppColors.textV2Secondary,
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
               ),
@@ -159,13 +156,13 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen> {
             TextButton(
               onPressed: widget.onTurnEnd,
               style: TextButton.styleFrom(
-                foregroundColor: AppColors.textSecondaryDark,
+                foregroundColor: AppColors.textV2Secondary,
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
-                  side: const BorderSide(
-                    color: AppColors.surfaceSecondaryDark,
+                  side: BorderSide(
+                    color: AppColors.surfaceV2Active,
                   ),
                 ),
               ),
@@ -194,7 +191,7 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen> {
 
   Widget _buildReady() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 48),
       child: Column(
         children: <Widget>[
           Expanded(
@@ -203,48 +200,69 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
                   Text(
-                    'Set ${widget.setNumber}',
-                    style: const TextStyle(
-                      color: AppColors.textTertiaryDark,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 2,
+                    'SET ${widget.setNumber}',
+                    style: GoogleFonts.syne(
+                      color: AppColors.textV2Tertiary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 3,
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
                   Text(
                     widget.exerciseName,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: AppColors.textDark,
+                    style: GoogleFonts.syne(
+                      color: AppColors.textV2Primary,
                       fontSize: 32,
                       fontWeight: FontWeight.w800,
                       height: 1.1,
                     ),
                   ),
+                  const SizedBox(height: 48),
+                  GestureDetector(
+                    onTap: _startTimer,
+                    child: Container(
+                      width: 140,
+                      height: 140,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppColors.accentLime,
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.accentLime.withValues(alpha: 0.35),
+                            blurRadius: 60,
+                            spreadRadius: 0,
+                          ),
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.40),
+                            blurRadius: 32,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: <Widget>[
+                          const Icon(
+                            Icons.play_arrow_rounded,
+                            color: AppColors.backgroundV2,
+                            size: 32,
+                          ),
+                          Text(
+                            'START',
+                            style: GoogleFonts.syne(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.backgroundV2,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ],
-              ),
-            ),
-          ),
-          SizedBox(
-            width: double.infinity,
-            height: 64,
-            child: FilledButton(
-              onPressed: _startTimer,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: AppColors.backgroundDark,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(18),
-                ),
-              ),
-              child: const Text(
-                'START',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 3,
-                ),
               ),
             ),
           ),
@@ -257,150 +275,234 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen> {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: _stopTimer,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 800),
-        curve: Curves.easeInOut,
-        margin: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(
-            width: 2,
-            color: AppColors.primary.withValues(alpha:_pulseOn ? 0.30 : 0.10),
+      child: Stack(
+        alignment: Alignment.center,
+        children: <Widget>[
+          // Outer pulse ring
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 500),
+            width: 260,
+            height: 260,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: AppColors.accentLime
+                    .withValues(alpha: _pulseOn ? 0.20 : 0.06),
+                width: 1.5,
+              ),
+            ),
           ),
-          color: AppColors.surfaceDark.withValues(alpha:0.4),
-        ),
-        child: Center(
-          child: Column(
+          // Inner pulse ring
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 500),
+            width: 220,
+            height: 220,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: AppColors.accentLime
+                    .withValues(alpha: _pulseOn ? 0.12 : 0.04),
+                width: 1.0,
+              ),
+            ),
+          ),
+          Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               Text(
                 _formatDuration(_elapsed),
-                style: const TextStyle(
-                  color: AppColors.textDark,
-                  fontSize: 112,
+                style: GoogleFonts.syne(
+                  color: AppColors.accentLime,
+                  fontSize: 88,
                   fontWeight: FontWeight.w800,
                   height: 1.0,
-                  letterSpacing: -2,
+                  letterSpacing: -5,
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
               Text(
-                'Tap anywhere to stop',
-                style: TextStyle(
-                  color: AppColors.textTertiaryDark,
+                'tap anywhere to stop',
+                style: GoogleFonts.outfit(
+                  color: AppColors.textV2Tertiary,
                   fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: 1,
                 ),
               ),
             ],
           ),
-        ),
+        ],
       ),
     );
   }
 
   Widget _buildWeight() {
+    final textPrimary =
+        AppColors.textV2Primary;
+    final textSecondary =
+        AppColors.textV2Secondary;
+    final textTertiary =
+        AppColors.textV2Tertiary;
+    final surface = AppColors.surfaceV2;
+    final surfaceActive =
+        AppColors.surfaceV2Active;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
+          // Reps badge
           Align(
             alignment: Alignment.centerLeft,
             child: Container(
               padding:
                   const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha:0.15),
+                color: AppColors.accentLime.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(999),
                 border: Border.all(
-                  color: AppColors.primary.withValues(alpha:0.4),
+                  color: AppColors.accentLime.withValues(alpha: 0.40),
                 ),
               ),
               child: Text(
                 '$_reps reps',
-                style: const TextStyle(
-                  color: AppColors.primary,
+                style: GoogleFonts.syne(
+                  color: AppColors.accentLime,
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 28),
-          const Text(
+          const SizedBox(height: 24),
+          // Weight display
+          Text(
             'Weight (kg)',
             style: TextStyle(
-              color: AppColors.textSecondaryDark,
-              fontSize: 14,
+              color: textSecondary,
+              fontSize: 13,
               fontWeight: FontWeight.w600,
+              letterSpacing: 1,
             ),
           ),
-          const SizedBox(height: 12),
-          TextFormField(
-            controller: _weightController,
-            focusNode: _weightFocus,
-            autofocus: true,
-            keyboardType:
-                const TextInputType.numberWithOptions(decimal: true),
-            textInputAction: TextInputAction.done,
-            onFieldSubmitted: (_) => _submitSet(),
-            style: const TextStyle(
-              color: AppColors.textDark,
-              fontSize: 36,
-              fontWeight: FontWeight.w700,
-            ),
-            decoration: InputDecoration(
-              filled: true,
-              fillColor: AppColors.surfaceDark,
-              hintText: '0.0',
-              hintStyle: TextStyle(
-                color: AppColors.textTertiaryDark,
-                fontSize: 36,
-                fontWeight: FontWeight.w700,
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 20,
-                vertical: 18,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(18),
-                borderSide: BorderSide.none,
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(18),
-                borderSide: const BorderSide(
-                  color: AppColors.surfaceSecondaryDark,
-                ),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(18),
-                borderSide: const BorderSide(
-                  color: AppColors.primary,
-                  width: 2,
-                ),
+          const SizedBox(height: 8),
+          Center(
+            child: Text(
+              _formatWeight(_weight),
+              style: GoogleFonts.syne(
+                color: AppColors.accentLime,
+                fontSize: 60,
+                fontWeight: FontWeight.w800,
+                height: 1.1,
               ),
             ),
+          ),
+          const SizedBox(height: 16),
+          // Quick-pick row
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: _quickPicks.map((kg) {
+                final isSelected = _weight == kg;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: GestureDetector(
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      setState(() => _weight = kg);
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? AppColors.accentLime
+                            : surfaceActive,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${kg.toInt()}',
+                        style: GoogleFonts.syne(
+                          color: isSelected
+                              ? AppColors.backgroundV2
+                              : textPrimary,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Increment buttons
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _increments.map((delta) {
+              final isPositive = delta > 0;
+              return GestureDetector(
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  setState(() {
+                    _weight = (_weight + delta).clamp(0.0, 999.0);
+                    // Round to nearest 0.5
+                    _weight = ((_weight * 2).round() / 2).toDouble();
+                  });
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: isPositive
+                        ? AppColors.accentLime.withValues(alpha: 0.12)
+                        : surface,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: isPositive
+                          ? AppColors.accentLime.withValues(alpha: 0.30)
+                          : surfaceActive,
+                    ),
+                  ),
+                  child: Text(
+                    isPositive ? '+$delta' : '$delta',
+                    style: TextStyle(
+                      color: isPositive ? AppColors.accentLime : textTertiary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
           ),
           const Spacer(),
-          SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: FilledButton(
-              onPressed: _submitSet,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: AppColors.backgroundDark,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
+          // Submit button
+          GestureDetector(
+            onTap: _submitSet,
+            child: Container(
+              height: 60,
+              decoration: BoxDecoration(
+                color: AppColors.accentLime,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.accentLime.withValues(alpha: 0.30),
+                    blurRadius: 20,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
               ),
-              child: const Text(
-                'Submit Set',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
+              child: Center(
+                child: Text(
+                  'Submit Set',
+                  style: GoogleFonts.syne(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.backgroundV2,
+                  ),
                 ),
               ),
             ),
