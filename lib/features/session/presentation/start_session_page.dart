@@ -45,6 +45,8 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
   final TextEditingController _exerciseInputController = TextEditingController();
   List<String> _suggestions = [];
 
+  bool _startButtonPressed = false;
+
   // Live friends strip
   List<Map<String, dynamic>> _liveFriends = [];
 
@@ -361,6 +363,13 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
     }
   }
 
+
+  String _getTypeLabel(WorkoutType type) {
+    for (final item in _quickStartTypes) {
+      if (item.type == type) return item.label;
+    }
+    return type.displayName;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1039,45 +1048,69 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
 
   Widget _buildStartSessionCta({required bool canStart}) {
     return GestureDetector(
-      onTap: canStart
-          ? () {
-              HapticManager.medium();
-              if (_selectedType == WorkoutType.gym) {
-                setState(() => _view = 'plan');
-              } else {
-                _handleStartSession();
-              }
-            }
-          : null,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        height: 60,
-        decoration: BoxDecoration(
-          color: canStart ? AppColors.accentLime : AppColors.surfaceV2,
-          borderRadius: BorderRadius.circular(18),
-          border: canStart
-              ? null
-              : Border.all(color: AppColors.surfaceV2Active, width: 1.5),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.play_arrow_rounded,
-              color: canStart ? AppColors.backgroundV2 : AppColors.textV2Tertiary,
-              size: 24,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              canStart ? 'Start Session' : 'Choose a workout type',
-              style: GoogleFonts.syne(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                color: canStart ? AppColors.backgroundV2 : AppColors.textV2Tertiary,
-                letterSpacing: 0.2,
-              ),
-            ),
-          ],
+      onTapDown: (_) => setState(() => _startButtonPressed = true),
+      onTapUp: (_) {
+        setState(() => _startButtonPressed = false);
+        if (_selectedType != null && !_isLoading) {
+          HapticManager.medium();
+          if (_selectedType == WorkoutType.gym) {
+            setState(() => _view = 'plan');
+          } else {
+            _handleStartSession();
+          }
+        }
+      },
+      onTapCancel: () => setState(() => _startButtonPressed = false),
+      child: AnimatedScale(
+        scale: _startButtonPressed ? 0.97 : 1.0,
+        duration: const Duration(milliseconds: 80),
+        curve: AppCurves.press,
+        child: Container(
+          height: 64,
+          decoration: BoxDecoration(
+            color: _selectedType == null
+                ? AppColors.surfaceV2Active
+                : AppColors.accentLime,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: _isLoading
+              ? const Center(
+                  child: SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: AppColors.backgroundV2,
+                    ),
+                  ),
+                )
+              : Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      _selectedType == null
+                          ? 'Select a workout type'
+                          : 'Start ${_getTypeLabel(_selectedType!)} Session',
+                      style: GoogleFonts.syne(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: _selectedType == null
+                            ? AppColors.textV2Tertiary
+                            : AppColors.backgroundV2,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    if (_partnerMode == 'friends' && _selectedFriends.isNotEmpty)
+                      Text(
+                        'with ${_selectedFriends.length} friend${_selectedFriends.length > 1 ? 's' : ''}',
+                        style: GoogleFonts.outfit(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.backgroundV2.withValues(alpha: 0.7),
+                        ),
+                      ),
+                  ],
+                ),
         ),
       ),
     );
