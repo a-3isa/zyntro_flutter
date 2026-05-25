@@ -3,8 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 
 /// Font family constants for premium typography.
 class AppFonts {
-  static const String primary = 'Inter';
-  static String get display => 'Outfit';
+  static const String primary = 'Outfit';
+  static const String display = 'Syne';
 }
 
 /// Premium color scheme for Zyntro - Figma navy and neon-green palette.
@@ -14,9 +14,9 @@ class AppColors {
   static const Color navy800 = Color(0xFF151B3D);
   static const Color navy700 = Color(0xFF1E2749);
 
-  // Figma neon green scale
-  static const Color neonGreen = Color(0xFF39FF14);
-  static const Color neonGreenHover = Color(0xFF2EE00F);
+  // Figma neon green scale — aliased to v2 acid-lime
+  static const Color neonGreen = accentLime;
+  static const Color neonGreenHover = accentLimeDim;
 
   // Figma gray scale
   static const Color gray400 = Color(0xFF8B8B98);
@@ -27,13 +27,13 @@ class AppColors {
   static const Color primaryDark = neonGreenHover;
   static const Color primaryLight = Color(0xFF6CFF52);
   static const Color primaryMuted = navy700;
-  static const Color primaryGlow = Colors.transparent;
+  static const Color primaryGlow   = Color(0x33C8FF00); // lime @ 20%
 
   // Secondary colors - Gray
   static const Color secondary = gray400;
   static const Color secondaryDark = gray300;
   static const Color secondaryLight = Color(0xFFC7C7D1);
-  static const Color secondaryGlow = Colors.transparent;
+  static const Color secondaryGlow = Color(0x1A888888); // grey @ 10%
 
   // Accent colors
   static const Color accent = navy700;
@@ -44,7 +44,7 @@ class AppColors {
   static const Color premium = navy800;
   static const Color premiumDark = navy900;
   static const Color premiumLight = navy700;
-  static const Color premiumGlow = Colors.transparent;
+  static const Color premiumGlow   = Color(0x1AC8FF00); // lime @ 10%
 
   // Semantic colors
   static const Color success = Color(0xFF10B981);
@@ -71,21 +71,21 @@ class AppColors {
   static const Color borderLight = Color(0xFFE2E8F0);
   static const Color borderLightSecondary = Color(0xFFF1F5F9);
 
-  // Dark mode surface colors - Figma navy
-  static const Color backgroundDark = navy900;
-  static const Color surfaceDark = navy800;
-  static const Color surfaceSecondaryDark = navy700;
-  static const Color surfaceElevatedDark = Color(0xFF22305B);
+  // Dark mode surface colors — aliased to v2 true-black tokens
+  static const Color backgroundDark = backgroundV2;
+  static const Color surfaceDark = surfaceV2;
+  static const Color surfaceSecondaryDark = surfaceV2Elevated;
+  static const Color surfaceElevatedDark = surfaceV2Active;
 
-  // Dark mode text colors
-  static const Color textDark = Colors.white;
-  static const Color textSecondaryDark = gray300;
-  static const Color textTertiaryDark = gray400;
-  static const Color textInverseDark = navy900;
+  // Dark mode text colors — aliased to v2 tokens
+  static const Color textDark = textV2Primary;
+  static const Color textSecondaryDark = textV2Secondary;
+  static const Color textTertiaryDark = textV2Tertiary;
+  static const Color textInverseDark = backgroundV2;
 
-  // Dark mode border colors
-  static const Color borderDark = navy700;
-  static const Color borderDarkSecondary = Color(0xFF263156);
+  // Dark mode border colors — aliased to v2 tokens
+  static const Color borderDark = surfaceV2Active;
+  static const Color borderDarkSecondary = surfaceV2Elevated;
 
   // Action color
   static const Color action = neonGreen;
@@ -131,6 +131,54 @@ class AppColors {
   static const List<Color> motivationalGradient = [navy700, neonGreen];
   static const List<Color> achievementGradient = [navy800, neonGreen];
   static const List<Color> streakGradient = [navy700, navy800, neonGreenHover];
+
+  // ── v2 Design tokens (true-black + acid-lime) ──────────────────────────────
+  // Dark mode surfaces
+  static const Color backgroundV2 = Color(0xFF080808);
+  static const Color surfaceV2 = Color(0xFF111111);
+  static const Color surfaceV2Elevated = Color(0xFF1C1C1C);
+  static const Color surfaceV2Active = Color(0xFF242424);
+
+  // Accent
+  static const Color accentLime = Color(0xFFC8FF00);
+  static const Color accentLimeDim = Color(0xFFA6D400);
+
+  // Dark mode text
+  static const Color textV2Primary = Color(0xFFFFFFFF);
+  static const Color textV2Secondary = Color(0xFF888888);
+  static const Color textV2Tertiary = Color(0xFF444444);
+
+  // Semantic (same in both modes)
+  static const Color errorV2 = Color(0xFFFF4D4D);
+  static const Color okV2 = Color(0xFF00D68F);
+  static const Color warnV2 = Color(0xFFFF8C00);
+
+  // Light mode surfaces
+  static const Color backgroundV2Light = Color(0xFFF8F8F8);
+  static const Color surfaceV2Light = Color(0xFFFFFFFF);
+  static const Color surfaceV2ElevatedLight = Color(0xFFF2F2F2);
+  static const Color surfaceV2ActiveLight = Color(0xFFE8E8E8);
+
+  // Light mode accent
+  static const Color accentLimeLight = Color(0xFF8AB000);
+  static const Color accentLimeDimLight = Color(0xFF6E8C00);
+
+  // Light mode text
+  static const Color textV2PrimaryLight = Color(0xFF0A0A0A);
+  static const Color textV2SecondaryLight = Color(0xFF555555);
+  static const Color textV2TertiaryLight = Color(0xFFBBBBBB);
+
+  // Workout type accent colors
+  static const Map<String, Color> typeColors = {
+    'gym': Color(0xFFC8FF00),
+    'cardio': Color(0xFF38BDF8),
+    'hiit': Color(0xFFFF8C00),
+    'cycling': Color(0xFFA78BFA),
+    'yoga': Color(0xFF34D399),
+    'swimming': Color(0xFF22D3EE),
+  };
+
+  static Color typeColor(String type) => typeColors[type] ?? accentLime;
 }
 
 /// Helper class for creating gradients with common configurations.
@@ -201,13 +249,13 @@ class AppGradients {
 
 /// Spacing constants for consistent layout.
 class AppSpacing {
-  static const double xs = 4;
-  static const double sm = 8;
-  static const double md = 12;
-  static const double lg = 16;
-  static const double xl = 24;
-  static const double xxl = 32;
-  static const double xxxl = 48;
+  static const double xs   = 4;
+  static const double sm   = 8;
+  static const double md   = 16;
+  static const double lg   = 24;
+  static const double xl   = 32;
+  static const double xxl  = 48;
+  static const double xxxl = 64;
 }
 
 /// Border radius constants - more rounded for premium feel.
@@ -236,44 +284,32 @@ class AppFontSize {
 /// Shadow definitions - premium glow effects.
 class AppShadows {
   static const List<BoxShadow> sm = [
-    BoxShadow(color: Color(0x0D000000), offset: Offset(0, 2), blurRadius: 4),
+    BoxShadow(color: Color(0x0AC8FF00), offset: Offset(0, 2), blurRadius: 4),
   ];
 
   static const List<BoxShadow> md = [
-    BoxShadow(color: Color(0x1A000000), offset: Offset(0, 4), blurRadius: 12),
+    BoxShadow(color: Color(0x12C8FF00), offset: Offset(0, 4), blurRadius: 12),
   ];
 
   static const List<BoxShadow> lg = [
-    BoxShadow(color: Color(0x26000000), offset: Offset(0, 8), blurRadius: 24),
+    BoxShadow(color: Color(0x18C8FF00), offset: Offset(0, 8), blurRadius: 24),
   ];
 
   static const List<BoxShadow> xl = [
-    BoxShadow(color: Color(0x33000000), offset: Offset(0, 12), blurRadius: 32),
+    BoxShadow(color: Color(0x20C8FF00), offset: Offset(0, 12), blurRadius: 32),
   ];
 
   // Glow effects for buttons and cards
   static List<BoxShadow> primaryGlow = [
-    BoxShadow(
-      color: AppColors.primaryGlow,
-      blurRadius: 20,
-      offset: const Offset(0, 8),
-    ),
-  ];
-
-  static List<BoxShadow> secondaryGlow = [
-    BoxShadow(
-      color: AppColors.secondaryGlow,
-      blurRadius: 20,
-      offset: const Offset(0, 8),
-    ),
+    BoxShadow(color: AppColors.primaryGlow, blurRadius: 20, offset: const Offset(0, 8)),
   ];
 
   static List<BoxShadow> premiumGlow = [
-    BoxShadow(
-      color: AppColors.premiumGlow,
-      blurRadius: 20,
-      offset: const Offset(0, 8),
-    ),
+    BoxShadow(color: AppColors.premiumGlow, blurRadius: 20, offset: const Offset(0, 8)),
+  ];
+
+  static List<BoxShadow> secondaryGlow = [
+    BoxShadow(color: AppColors.secondaryGlow, blurRadius: 20, offset: const Offset(0, 8)),
   ];
 
   static List<BoxShadow> successGlow = [
@@ -321,11 +357,12 @@ class AppDurations {
 
 /// Animation curves for premium feel.
 class AppCurves {
-  static const Curve smooth = Curves.easeInOutCubic;
-  static const Curve bounce = Curves.elasticOut;
-  static const Curve spring = Curves.easeOutBack;
-  static const Curve decelerate = Curves.decelerate;
-  static const Curve premium = Curves.easeOutCubic;
+  static const Curve premium    = Cubic(0.23, 1.00, 0.32, 1.00);
+  static const Curve smooth     = Cubic(0.77, 0.00, 0.175, 1.00);
+  static const Curve spring     = Cubic(0.34, 1.56, 0.64, 1.00);
+  static const Curve decelerate = Cubic(0.00, 0.00, 0.20, 1.00);
+  static const Curve press      = Cubic(0.23, 1.00, 0.32, 1.00);
+  static const Curve bounce     = Cubic(0.34, 1.56, 0.64, 1.00);
 }
 
 /// Animation configuration constants for consistent micro-interactions.
@@ -361,31 +398,31 @@ class AppTheme {
       useMaterial3: true,
       brightness: Brightness.light,
       fontFamily: AppFonts.primary,
-      colorScheme: ColorScheme.light(
-        primary: AppColors.primary,
-        secondary: AppColors.secondary,
-        tertiary: AppColors.accent,
-        surface: AppColors.surfaceLight,
-        error: AppColors.error,
-        onPrimary: AppColors.textInverseDark,
-        onSecondary: AppColors.textInverseLight,
-        onSurface: AppColors.textLight,
-        onError: AppColors.textInverseLight,
+      colorScheme: const ColorScheme.light(
+        primary: AppColors.accentLimeLight,
+        secondary: AppColors.textV2SecondaryLight,
+        tertiary: AppColors.surfaceV2ActiveLight,
+        surface: AppColors.surfaceV2Light,
+        error: AppColors.errorV2,
+        onPrimary: AppColors.textV2PrimaryLight,
+        onSecondary: AppColors.textV2PrimaryLight,
+        onSurface: AppColors.textV2PrimaryLight,
+        onError: AppColors.textV2PrimaryLight,
       ),
-      scaffoldBackgroundColor: AppColors.backgroundLight,
+      scaffoldBackgroundColor: AppColors.backgroundV2Light,
       appBarTheme: AppBarTheme(
-        backgroundColor: AppColors.surfaceLight,
-        foregroundColor: AppColors.textLight,
+        backgroundColor: AppColors.backgroundV2Light,
+        foregroundColor: AppColors.textV2PrimaryLight,
         elevation: 0,
         centerTitle: true,
-        titleTextStyle: GoogleFonts.outfit(
+        titleTextStyle: GoogleFonts.spaceGrotesk(
           fontSize: AppFontSize.lg,
           fontWeight: FontWeight.w600,
-          color: AppColors.textLight,
+          color: AppColors.textV2PrimaryLight,
         ),
       ),
       cardTheme: CardThemeData(
-        color: AppColors.surfaceLight,
+        color: AppColors.surfaceV2Light,
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppBorderRadius.xl),
@@ -393,94 +430,110 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
-          foregroundColor: AppColors.textInverseDark,
+          backgroundColor: AppColors.accentLimeLight,
+          foregroundColor: AppColors.textV2PrimaryLight,
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.xl,
             vertical: AppSpacing.lg,
           ),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppBorderRadius.lg),
+            borderRadius: BorderRadius.circular(AppBorderRadius.md),
           ),
-          textStyle: GoogleFonts.outfit(
+          textStyle: GoogleFonts.spaceGrotesk(
             fontSize: AppFontSize.md,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.surfaceSecondaryLight,
+        fillColor: AppColors.surfaceV2ElevatedLight,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppBorderRadius.lg),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-          borderSide: const BorderSide(color: AppColors.borderLight),
+          borderSide: const BorderSide(color: AppColors.surfaceV2ActiveLight),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-          borderSide: const BorderSide(color: AppColors.primary, width: 2),
+          borderSide: const BorderSide(
+            color: AppColors.accentLimeLight,
+            width: 2,
+          ),
         ),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.lg,
           vertical: AppSpacing.lg,
         ),
-        prefixIconColor: AppColors.textSecondaryLight,
-        hintStyle: const TextStyle(
-          fontFamily: 'Inter',
-          color: AppColors.textTertiaryLight,
-        ),
+        prefixIconColor: AppColors.textV2SecondaryLight,
+        hintStyle: GoogleFonts.dmSans(color: AppColors.textV2TertiaryLight),
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-        backgroundColor: AppColors.surfaceLight,
-        selectedItemColor: AppColors.primary,
-        unselectedItemColor: AppColors.textTertiaryLight,
+        backgroundColor: AppColors.backgroundV2Light,
+        selectedItemColor: AppColors.accentLimeLight,
+        unselectedItemColor: AppColors.textV2SecondaryLight,
       ),
       dividerTheme: const DividerThemeData(
-        color: AppColors.borderLight,
+        color: AppColors.surfaceV2ActiveLight,
         thickness: 1,
       ),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected)
+              ? AppColors.textV2PrimaryLight
+              : AppColors.textV2TertiaryLight,
+        ),
+        trackColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected)
+              ? AppColors.accentLimeLight
+              : AppColors.surfaceV2ActiveLight,
+        ),
+      ),
       textTheme: TextTheme(
-        displayLarge: GoogleFonts.outfit(
+        displayLarge: GoogleFonts.spaceGrotesk(
           fontSize: AppFontSize.hero,
-          fontWeight: FontWeight.bold,
+          fontWeight: FontWeight.w800,
+          color: AppColors.textV2PrimaryLight,
         ),
-        displayMedium: GoogleFonts.outfit(
+        displayMedium: GoogleFonts.spaceGrotesk(
           fontSize: AppFontSize.display,
-          fontWeight: FontWeight.bold,
+          fontWeight: FontWeight.w800,
+          color: AppColors.textV2PrimaryLight,
         ),
-        headlineLarge: GoogleFonts.outfit(
+        headlineLarge: GoogleFonts.spaceGrotesk(
           fontSize: AppFontSize.xxxl,
-          fontWeight: FontWeight.bold,
+          fontWeight: FontWeight.w700,
+          color: AppColors.textV2PrimaryLight,
         ),
-        headlineMedium: GoogleFonts.outfit(
+        headlineMedium: GoogleFonts.spaceGrotesk(
           fontSize: AppFontSize.xxl,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w700,
+          color: AppColors.textV2PrimaryLight,
         ),
-        titleLarge: const TextStyle(
-          fontFamily: 'Inter',
+        titleLarge: GoogleFonts.spaceGrotesk(
           fontSize: AppFontSize.xl,
           fontWeight: FontWeight.w600,
+          color: AppColors.textV2PrimaryLight,
         ),
-        titleMedium: const TextStyle(
-          fontFamily: 'Inter',
+        titleMedium: GoogleFonts.dmSans(
           fontSize: AppFontSize.lg,
-          fontWeight: FontWeight.w500,
+          fontWeight: FontWeight.w600,
+          color: AppColors.textV2PrimaryLight,
         ),
-        bodyLarge: const TextStyle(
-          fontFamily: 'Inter',
+        bodyLarge: GoogleFonts.dmSans(
           fontSize: AppFontSize.md,
+          color: AppColors.textV2PrimaryLight,
         ),
-        bodyMedium: const TextStyle(
-          fontFamily: 'Inter',
+        bodyMedium: GoogleFonts.dmSans(
           fontSize: AppFontSize.sm,
+          color: AppColors.textV2SecondaryLight,
         ),
-        labelLarge: const TextStyle(
-          fontFamily: 'Inter',
+        labelLarge: GoogleFonts.dmSans(
           fontSize: AppFontSize.md,
           fontWeight: FontWeight.w600,
+          color: AppColors.textV2PrimaryLight,
         ),
       ),
     );
@@ -492,128 +545,138 @@ class AppTheme {
       brightness: Brightness.dark,
       fontFamily: AppFonts.primary,
       colorScheme: const ColorScheme.dark(
-        primary: AppColors.neonGreen,
-        secondary: AppColors.gray400,
-        tertiary: AppColors.navy700,
-        surface: AppColors.navy800,
-        error: AppColors.error,
-        onPrimary: AppColors.navy900,
-        onSecondary: AppColors.textDark,
-        onSurface: AppColors.textDark,
-        onError: AppColors.textDark,
+        primary: AppColors.accentLime,
+        secondary: AppColors.textV2Secondary,
+        tertiary: AppColors.surfaceV2Active,
+        surface: AppColors.surfaceV2,
+        error: AppColors.errorV2,
+        onPrimary: AppColors.backgroundV2,
+        onSecondary: AppColors.textV2Primary,
+        onSurface: AppColors.textV2Primary,
+        onError: AppColors.textV2Primary,
       ),
-      scaffoldBackgroundColor: AppColors.navy900,
+      scaffoldBackgroundColor: AppColors.backgroundV2,
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
-        foregroundColor: AppColors.textDark,
+        foregroundColor: AppColors.textV2Primary,
         elevation: 0,
         centerTitle: true,
-        titleTextStyle: GoogleFonts.outfit(
+        titleTextStyle: GoogleFonts.spaceGrotesk(
           fontSize: AppFontSize.lg,
           fontWeight: FontWeight.w600,
-          color: AppColors.textDark,
+          color: AppColors.textV2Primary,
         ),
       ),
       cardTheme: CardThemeData(
-        color: AppColors.surfaceDark,
+        color: AppColors.surfaceV2,
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppBorderRadius.xl),
-          side: BorderSide(color: AppColors.borderDark.withValues(alpha: 0.5)),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
-          foregroundColor: AppColors.textInverseDark,
+          backgroundColor: AppColors.accentLime,
+          foregroundColor: AppColors.backgroundV2,
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.xl,
             vertical: AppSpacing.lg,
           ),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppBorderRadius.lg),
+            borderRadius: BorderRadius.circular(AppBorderRadius.md),
           ),
-          textStyle: GoogleFonts.outfit(
+          textStyle: GoogleFonts.spaceGrotesk(
             fontSize: AppFontSize.md,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.surfaceSecondaryDark,
+        fillColor: AppColors.surfaceV2,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppBorderRadius.lg),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-          borderSide: BorderSide(
-            color: AppColors.borderDark.withValues(alpha: 0.5),
-          ),
+          borderSide: const BorderSide(color: AppColors.surfaceV2Active),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-          borderSide: const BorderSide(color: AppColors.primary, width: 2),
+          borderSide: const BorderSide(color: AppColors.accentLime, width: 2),
         ),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.lg,
           vertical: AppSpacing.lg,
         ),
-        prefixIconColor: AppColors.textSecondaryDark,
-        hintStyle: const TextStyle(
-          fontFamily: 'Inter',
-          color: AppColors.textTertiaryDark,
-        ),
+        prefixIconColor: AppColors.textV2Secondary,
+        hintStyle: GoogleFonts.dmSans(color: AppColors.textV2Tertiary),
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: Colors.transparent,
-        selectedItemColor: AppColors.neonGreen,
-        unselectedItemColor: AppColors.gray400,
+        selectedItemColor: AppColors.accentLime,
+        unselectedItemColor: AppColors.textV2Secondary,
       ),
       dividerTheme: const DividerThemeData(
-        color: AppColors.borderDark,
+        color: AppColors.surfaceV2,
         thickness: 1,
       ),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected)
+              ? AppColors.backgroundV2
+              : AppColors.textV2Tertiary,
+        ),
+        trackColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected)
+              ? AppColors.accentLime
+              : AppColors.surfaceV2Active,
+        ),
+      ),
       textTheme: TextTheme(
-        displayLarge: GoogleFonts.outfit(
+        displayLarge: GoogleFonts.spaceGrotesk(
           fontSize: AppFontSize.hero,
-          fontWeight: FontWeight.bold,
+          fontWeight: FontWeight.w800,
+          color: AppColors.textV2Primary,
         ),
-        displayMedium: GoogleFonts.outfit(
+        displayMedium: GoogleFonts.spaceGrotesk(
           fontSize: AppFontSize.display,
-          fontWeight: FontWeight.bold,
+          fontWeight: FontWeight.w800,
+          color: AppColors.textV2Primary,
         ),
-        headlineLarge: GoogleFonts.outfit(
+        headlineLarge: GoogleFonts.spaceGrotesk(
           fontSize: AppFontSize.xxxl,
-          fontWeight: FontWeight.bold,
+          fontWeight: FontWeight.w700,
+          color: AppColors.textV2Primary,
         ),
-        headlineMedium: GoogleFonts.outfit(
+        headlineMedium: GoogleFonts.spaceGrotesk(
           fontSize: AppFontSize.xxl,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w700,
+          color: AppColors.textV2Primary,
         ),
-        titleLarge: const TextStyle(
-          fontFamily: 'Inter',
+        titleLarge: GoogleFonts.spaceGrotesk(
           fontSize: AppFontSize.xl,
           fontWeight: FontWeight.w600,
+          color: AppColors.textV2Primary,
         ),
-        titleMedium: const TextStyle(
-          fontFamily: 'Inter',
+        titleMedium: GoogleFonts.dmSans(
           fontSize: AppFontSize.lg,
-          fontWeight: FontWeight.w500,
+          fontWeight: FontWeight.w600,
+          color: AppColors.textV2Primary,
         ),
-        bodyLarge: const TextStyle(
-          fontFamily: 'Inter',
+        bodyLarge: GoogleFonts.dmSans(
           fontSize: AppFontSize.md,
+          color: AppColors.textV2Primary,
         ),
-        bodyMedium: const TextStyle(
-          fontFamily: 'Inter',
+        bodyMedium: GoogleFonts.dmSans(
           fontSize: AppFontSize.sm,
+          color: AppColors.textV2Secondary,
         ),
-        labelLarge: const TextStyle(
-          fontFamily: 'Inter',
+        labelLarge: GoogleFonts.dmSans(
           fontSize: AppFontSize.md,
           fontWeight: FontWeight.w600,
+          color: AppColors.textV2Primary,
         ),
       ),
     );
