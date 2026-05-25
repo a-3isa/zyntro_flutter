@@ -562,7 +562,23 @@ class _FeedTabState extends ConsumerState<_FeedTab>
               }
 
               final postIndex = index - 1;
-              return _buildPostCard(filteredPosts[postIndex]);
+              // Skip stagger for items beyond index 10 for performance
+              if (postIndex > 10) {
+                return _buildPostCard(filteredPosts[postIndex]);
+              }
+              return TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0.0, end: 1.0),
+                duration: Duration(milliseconds: 150 + postIndex * 60),
+                curve: AppCurves.premium,
+                builder: (_, v, child) => Opacity(
+                  opacity: v,
+                  child: Transform.translate(
+                    offset: Offset(0, 12 * (1 - v)),
+                    child: child,
+                  ),
+                ),
+                child: _buildPostCard(filteredPosts[postIndex]),
+              );
             },
           ),
         ),
@@ -766,6 +782,58 @@ class _FeedTabState extends ConsumerState<_FeedTab>
               ),
             ),
 
+            // Workout receipt stats row
+            Container(
+              color: s1,
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Workout type chip
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: typeColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          post.type.toUpperCase(),
+                          style: GoogleFonts.outfit(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: typeColor,
+                            letterSpacing: 0.08,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  // Stats row
+                  Row(
+                    children: [
+                      if (post.summary.duration != null)
+                        _PostStat(value: post.summary.duration!, label: 'duration'),
+                      if (post.summary.totalExercises != null)
+                        _PostStat(
+                          value: '${post.summary.totalExercises}',
+                          label: 'exercises',
+                        ),
+                      if (post.summary.totalSets != null)
+                        _PostStat(
+                          value: '${post.summary.totalSets}',
+                          label: 'sets',
+                          isHighlight: true,
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                ],
+              ),
+            ),
+
             // Action row below photo
             Container(
               color: s1,
@@ -794,23 +862,8 @@ class _FeedTabState extends ConsumerState<_FeedTab>
                     ),
                     const SizedBox(width: 12),
                   ],
-                  // Workout type badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: typeColor.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      post.type.toUpperCase(),
-                      style: GoogleFonts.outfit(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: typeColor,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
+                  // Workout type badge (kept for spacing balance)
+                  const SizedBox.shrink(),
                 ],
               ),
             ),
@@ -986,5 +1039,47 @@ class _FeedTabState extends ConsumerState<_FeedTab>
         }
         break;
     }
+  }
+}
+
+/// Compact stat display for the workout receipt row on feed cards.
+class _PostStat extends StatelessWidget {
+  final String value;
+  final String label;
+  final bool isHighlight;
+
+  const _PostStat({
+    required this.value,
+    required this.label,
+    this.isHighlight = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            value,
+            style: GoogleFonts.syne(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: isHighlight ? AppColors.accentLime : AppColors.textV2Primary,
+              height: 1,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: GoogleFonts.outfit(
+              fontSize: 11,
+              color: AppColors.textV2Tertiary,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
