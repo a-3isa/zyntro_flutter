@@ -69,7 +69,7 @@ class _ZyntroButtonState extends State<ZyntroButton>
     );
     _scaleAnimation =
         Tween<double>(begin: 1.0, end: 0.97).animate(
-          CurvedAnimation(parent: _scaleController, curve: Curves.easeInOut),
+          CurvedAnimation(parent: _scaleController, curve: AppCurves.press),
         );
 
     // Icon bounce animation
@@ -88,7 +88,7 @@ class _ZyntroButtonState extends State<ZyntroButton>
       vsync: this,
     );
     _shimmerAnimation = Tween<double>(begin: -1.0, end: 2.0).animate(
-      CurvedAnimation(parent: _shimmerController, curve: Curves.easeInOut),
+      CurvedAnimation(parent: _shimmerController, curve: Curves.linear),
     );
 
     if (widget.loading) {
