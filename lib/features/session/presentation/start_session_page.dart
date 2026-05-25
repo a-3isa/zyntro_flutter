@@ -17,6 +17,7 @@ import '../../../services/session_service.dart';
 import '../../../services/follow_service.dart';
 import '../../../core/models/models.dart';
 import '../../../widgets/zyntro_button.dart';
+import '../../../widgets/pulse_dot.dart';
 import '../../../utils/haptic_manager.dart';
 import '../domain/exercise_plan_item.dart';
 
@@ -44,6 +45,9 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
   final TextEditingController _exerciseInputController = TextEditingController();
   List<String> _suggestions = [];
 
+  // Live friends strip
+  List<Map<String, dynamic>> _liveFriends = [];
+
   // Stats for Train home screen
   int _weekSessions = 0;
   static const int _weekTarget = 5;
@@ -61,6 +65,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
     _loadPreferences();
     _loadMutualFollows();
     _loadStats();
+    _loadLiveFriends();
   }
 
   Future<void> _loadPreferences() async {
@@ -138,6 +143,42 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
       if (mounted) {
         setState(() => _isLoadingFollows = false);
       }
+    }
+  }
+
+  /// Best-effort: checks which mutual follows currently have an active session.
+  /// Fails silently — the strip simply stays hidden if this errors or returns empty.
+  Future<void> _loadLiveFriends() async {
+    try {
+      final authState = ref.read(authSessionProvider);
+      final uid = authState.valueOrNull?.id;
+      if (uid == null) return;
+
+      final follows = await ref.read(followServiceProvider).getMutualFollows(uid);
+      if (follows.isEmpty) return;
+
+      final sessionService = ref.read(sessionServiceProvider);
+      final liveUsers = <Map<String, dynamic>>[];
+
+      for (final user in follows) {
+        try {
+          final activeId = await sessionService.checkActiveSession(user.id);
+          if (activeId != null) {
+            liveUsers.add({
+              'name': user.displayName,
+              'photoURL': user.photoURL,
+            });
+          }
+        } catch (_) {
+          // Skip this user silently
+        }
+      }
+
+      if (mounted && liveUsers.isNotEmpty) {
+        setState(() => _liveFriends = liveUsers);
+      }
+    } catch (_) {
+      // Best-effort: fail silently
     }
   }
 
@@ -484,6 +525,104 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
     );
   }
 
+  // ─── Live friends strip ─────────────────────────────────────────────────────
+
+  Widget _buildLiveStrip() {
+    if (_liveFriends.isEmpty) return const SizedBox.shrink();
+    final names = _liveFriends
+        .take(2)
+        .map((u) => (u['name'] as String).split(' ').first)
+        .join(', ');
+    final extra = _liveFriends.length > 2 ? ' +${_liveFriends.length - 2}' : '';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceV2,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.surfaceV2Active),
+      ),
+      child: Row(
+        children: [
+          // Stacked avatars
+          SizedBox(
+            width: (_liveFriends.length.clamp(1, 3) * 20.0) + 12,
+            height: 28,
+            child: Stack(
+              children: [
+                for (int i = 0; i < _liveFriends.length.clamp(0, 3); i++)
+                  Positioned(
+                    left: i * 20.0,
+                    child: Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                            color: AppColors.backgroundV2, width: 2),
+                      ),
+                      child: ClipOval(
+                        child: _liveFriends[i]['photoURL'] != null
+                            ? CachedNetworkImage(
+                                imageUrl:
+                                    _liveFriends[i]['photoURL'] as String,
+                                fit: BoxFit.cover,
+                                errorWidget: (_, url, e) => _avatarFallback(
+                                    _liveFriends[i]['name'] as String),
+                              )
+                            : _avatarFallback(
+                                _liveFriends[i]['name'] as String),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              '$names$extra ${_liveFriends.length == 1 ? 'is' : 'are'} training now',
+              style: GoogleFonts.outfit(
+                fontSize: 13,
+                color: AppColors.textV2Secondary,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 8),
+          PulseDot(color: const Color(0xFFFF4D4D), size: 6),
+          const SizedBox(width: 6),
+          Text(
+            'LIVE',
+            style: GoogleFonts.outfit(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFFFF4D4D),
+              letterSpacing: 0.08,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _avatarFallback(String name) {
+    return Container(
+      color: AppColors.surfaceV2Elevated,
+      child: Center(
+        child: Text(
+          name.isNotEmpty ? name[0].toUpperCase() : '?',
+          style: const TextStyle(
+            color: AppColors.textV2Primary,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+
   // ─── Home (Train) view ──────────────────────────────────────────────────────
 
   Widget _buildHomeView() {
@@ -512,7 +651,9 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                     ),
                     const SizedBox(height: 20),
                     _buildWeekCard(),
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 20),
+                    _buildLiveStrip(),
+                    const SizedBox(height: 8),
                     _buildSectionLabel('WORKOUT TYPE'),
                     const SizedBox(height: 12),
                     _buildTypeSelectionGrid(),
