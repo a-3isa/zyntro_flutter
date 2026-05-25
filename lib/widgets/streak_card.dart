@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../core/theme/app_theme.dart';
 import '../services/user_service.dart';
@@ -26,9 +27,11 @@ class StreakCard extends StatefulWidget {
 }
 
 class _StreakCardState extends State<StreakCard>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
+  late AnimationController _countController;
+  late Animation<int> _countAnim;
 
   @override
   void initState() {
@@ -46,11 +49,21 @@ class _StreakCardState extends State<StreakCard>
     ]).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
 
     _controller.repeat();
+
+    _countController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    _countAnim = IntTween(begin: 0, end: widget.days).animate(
+      CurvedAnimation(parent: _countController, curve: AppCurves.premium),
+    );
+    _countController.forward();
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _countController.dispose();
     super.dispose();
   }
 
@@ -132,30 +145,37 @@ class _StreakCardState extends State<StreakCard>
                       ),
                       const SizedBox(height: 4),
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          // Gradient text for days count
-                          Text(
-                            '${widget.days}',
-                            style: TextStyle(
-                              fontSize: isSmallScreen
-                                  ? AppFontSize.xl
-                                  : AppFontSize.xxl,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.accentLime,
+                          AnimatedBuilder(
+                            animation: _countAnim,
+                            builder: (context, _) => Text(
+                              '${_countAnim.value}',
+                              style: GoogleFonts.syne(
+                                fontSize: 52,
+                                fontWeight: FontWeight.w900,
+                                color: const Color(0xFFFF8C00),
+                                letterSpacing: -2,
+                                height: 1,
+                              ),
                             ),
                           ),
-                          Text(
-                            ' Days 🔥',
-                            style: TextStyle(
-                              fontSize: isSmallScreen
-                                  ? AppFontSize.xl
-                                  : AppFontSize.xxl,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textV2Primary,
-                            ),
+                          const Padding(
+                            padding: EdgeInsets.only(bottom: 4, left: 4),
+                            child: Text('🔥', style: TextStyle(fontSize: 32)),
                           ),
                         ],
                       ),
+                      Text(
+                        'day streak',
+                        style: GoogleFonts.outfit(
+                          fontSize: 12,
+                          color: AppColors.textV2Tertiary,
+                          letterSpacing: 0.04,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      _buildWeekDots(),
                     ],
                   ),
                 ),
@@ -234,6 +254,55 @@ class _StreakCardState extends State<StreakCard>
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildWeekDots() {
+    final now = DateTime.now();
+    final weekdayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    final todayIndex = now.weekday - 1; // 0=Mon, 6=Sun
+    final streakDays = widget.days.clamp(0, 7);
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: List.generate(7, (i) {
+        final isPast = i < todayIndex;
+        final isToday = i == todayIndex;
+        final isDone = isPast && (todayIndex - i) <= streakDays;
+
+        return TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.0, end: 1.0),
+          duration: Duration(milliseconds: 300 + i * 40),
+          curve: AppCurves.spring,
+          builder: (_, v, child) => Transform.scale(scale: v, child: child),
+          child: Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              color: isToday
+                  ? const Color(0xFFFF8C00)
+                  : isDone
+                      ? const Color(0x33FF8C00)
+                      : AppColors.surfaceV2Elevated,
+            ),
+            child: Center(
+              child: Text(
+                weekdayLabels[i],
+                style: GoogleFonts.outfit(
+                  fontSize: 11,
+                  fontWeight: isToday ? FontWeight.w700 : FontWeight.w500,
+                  color: isToday
+                      ? Colors.black
+                      : isDone
+                          ? const Color(0xFFFF8C00)
+                          : AppColors.textV2Tertiary,
+                ),
+              ),
+            ),
+          ),
+        );
+      }),
     );
   }
 
