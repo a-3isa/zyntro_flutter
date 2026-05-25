@@ -554,62 +554,119 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
       childAspectRatio: 1.05,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      children: _quickStartTypes.map((item) {
-        final isSelected = _selectedType == item.type;
-        final color = _getTypeColor(item.type);
-        final icon = _getIconData(item.type.icon);
-        return GestureDetector(
-          onTap: () {
-            HapticManager.selection();
-            setState(() => _selectedType = item.type);
-            _savePreferences();
-          },
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            decoration: BoxDecoration(
-              color: isSelected ? AppColors.surfaceV2Elevated : AppColors.surfaceV2,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: isSelected ? color.withValues(alpha: 0.55) : AppColors.surfaceV2Active,
-                width: 1.5,
-              ),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: isSelected ? 0.2 : 0.12),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(icon, size: 22, color: color),
-                ),
-                const SizedBox(height: 7),
-                Text(
-                  item.label,
-                  style: GoogleFonts.outfit(
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                    fontSize: 12,
-                    color: isSelected ? AppColors.textV2Primary : AppColors.textV2Secondary,
-                  ),
-                ),
-                if (isSelected) ...[
-                  const SizedBox(height: 4),
-                  Container(
-                    width: 4, height: 4,
-                    decoration: const BoxDecoration(
-                      color: AppColors.accentLime,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ],
-              ],
-            ),
+      children: _quickStartTypes
+          .map((item) => _buildTypeCard(item.type, item.label))
+          .toList(),
+    );
+  }
+
+  Widget _buildTypeCard(WorkoutType type, String label) {
+    final isSelected = _selectedType == type;
+    final typeColor = _getTypeColor(type);
+    final icon = _getIconData(type.icon);
+
+    return GestureDetector(
+      onTap: () {
+        HapticManager.selection();
+        setState(() => _selectedType = type);
+        _savePreferences();
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: AppCurves.press,
+        decoration: BoxDecoration(
+          color: isSelected
+              ? typeColor.withValues(alpha: 0.15)
+              : AppColors.surfaceV2.withValues(alpha: 0.8),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? typeColor : AppColors.surfaceV2Active,
+            width: isSelected ? 1.5 : 1,
           ),
-        );
-      }).toList(),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: typeColor.withValues(alpha: 0.2),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  )
+                ]
+              : [],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Stack(
+            children: [
+              // Diagonal shimmer accent
+              Positioned(
+                top: -20,
+                right: -10,
+                child: Transform.rotate(
+                  angle: 0.6,
+                  child: Container(
+                    width: 40,
+                    height: 120,
+                    color: typeColor.withValues(alpha: 0.04),
+                  ),
+                ),
+              ),
+              // Left accent bar
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                child: Container(width: 3, color: typeColor),
+              ),
+              // Content
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 10, 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(icon, color: typeColor, size: 18),
+                        const SizedBox(width: 5),
+                        Flexible(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 5, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: typeColor.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              label.toUpperCase(),
+                              style: GoogleFonts.outfit(
+                                fontSize: 8,
+                                fontWeight: FontWeight.w700,
+                                color: typeColor,
+                                letterSpacing: 0.08,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      label,
+                      style: GoogleFonts.syne(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textV2Primary,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
