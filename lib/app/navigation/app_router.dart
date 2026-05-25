@@ -174,6 +174,28 @@ CustomTransitionPage<T> buildModalPageTransition<T>({
   );
 }
 
+/// Simple slide-from-right page transition (280 ms, AppCurves.premium).
+CustomTransitionPage<void> _slidePage(
+  GoRouterState state,
+  Widget child,
+) {
+  return CustomTransitionPage<void>(
+    key: state.pageKey,
+    transitionDuration: const Duration(milliseconds: 280),
+    reverseTransitionDuration: const Duration(milliseconds: 280),
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      return SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(1.0, 0.0),
+          end: Offset.zero,
+        ).animate(CurvedAnimation(parent: animation, curve: AppCurves.premium)),
+        child: child,
+      );
+    },
+    child: child,
+  );
+}
+
 /// GoRouter provider with auth-based redirects and premium transitions.
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authSessionProvider);
@@ -265,7 +287,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Auth flow routes
       GoRoute(
         path: AppRoutes.splash,
-        builder: (context, state) => const SplashPage(),
+        pageBuilder: (context, state) => _slidePage(state, const SplashPage()),
       ),
       GoRoute(
         path: AppRoutes.login,
