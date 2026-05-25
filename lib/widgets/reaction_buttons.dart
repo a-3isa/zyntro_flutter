@@ -104,13 +104,13 @@ class _ReactionButtonsState extends State<ReactionButtons>
     });
   }
 
-  // Get gradient colors for selected reaction
+  // Get gradient colors for selected reaction — stays on the navy + neon system.
   List<Color> _getGradientColors(ReactionType type) {
     switch (type) {
       case ReactionType.fire:
         return [AppColors.neonGreen, AppColors.action];
       case ReactionType.strong:
-        return [AppColors.surfaceV2Active, AppColors.surfaceV2Elevated];
+        return [AppColors.navy700, AppColors.navy800];
       case ReactionType.clap:
         return [AppColors.warmBorder, AppColors.neonGreenHover];
     }

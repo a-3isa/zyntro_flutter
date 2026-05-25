@@ -140,13 +140,17 @@ class _ZyntroButtonState extends State<ZyntroButton>
       case ZyntroButtonVariant.destructive:
         return Colors.white;
       case ZyntroButtonVariant.premium:
-        return AppColors.textV2Primary;
+        // Premium uses textDark on the navy premiumGradient background.
+        return AppColors.textDark;
       case ZyntroButtonVariant.outline:
         return AppColors.accentLime;
       case ZyntroButtonVariant.ghost:
         return AppColors.textV2Secondary;
     }
   }
+
+  /// Gradient used by the premium variant — based on [AppColors.premiumGradient].
+  List<Color> get _premiumGradientColors => AppColors.premiumGradient;
 
   List<BoxShadow>? _getBoxShadow() {
     if (widget.variant == ZyntroButtonVariant.primary && !_isPressed) {

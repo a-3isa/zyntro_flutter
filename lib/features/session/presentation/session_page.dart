@@ -9,6 +9,7 @@ import '../../../app/navigation/app_router.dart';
 import '../../../core/constants/constants.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../utils/haptic_manager.dart';
+import '../../../widgets/zyntro_button.dart';
 import '../../auth/auth_providers.dart';
 
 // ── WorkoutType color map ────────────────────────────────────────────────────
@@ -93,43 +94,17 @@ class SessionPage extends ConsumerWidget {
                   _WeeklyRingCard(uid: uid),
                   const SizedBox(height: 16),
 
-                  // Start Session button
-                  GestureDetector(
-                    onTap: () {
+                  // Start Session button — premium variant signals high-energy CTA.
+                  ZyntroButton(
+                    title: 'Start Session',
+                    variant: ZyntroButtonVariant.premium,
+                    size: ZyntroButtonSize.lg,
+                    fullWidth: true,
+                    leftIcon: const Icon(Icons.play_arrow_rounded),
+                    onPressed: () {
                       HapticManager.medium();
                       context.push(AppRoutes.startSession);
                     },
-                    child: Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: AppColors.accentLime,
-                        borderRadius: BorderRadius.circular(18),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x25C8FF00),
-                            blurRadius: 40,
-                            spreadRadius: 0,
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.play_arrow_rounded,
-                              color: AppColors.backgroundV2, size: 20),
-                          const SizedBox(width: 10),
-                          Text(
-                            'Start Session',
-                            style: GoogleFonts.syne(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.backgroundV2,
-                              letterSpacing: -0.3,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
                   ),
                   const SizedBox(height: 28),
 
@@ -202,6 +177,15 @@ class SessionPage extends ConsumerWidget {
                         ),
                       );
                     },
+                  ),
+                  const SizedBox(height: 12),
+                  // Secondary CTA — links to full workout history (primary variant).
+                  ZyntroButton(
+                    title: 'Explore Workouts',
+                    variant: ZyntroButtonVariant.primary,
+                    size: ZyntroButtonSize.md,
+                    fullWidth: true,
+                    onPressed: () => context.push(AppRoutes.startSession),
                   ),
                   const SizedBox(height: 28),
 
