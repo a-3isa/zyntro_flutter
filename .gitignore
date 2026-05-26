@@ -74,6 +74,8 @@ codemagic.secrets
 # Local workspace artifacts
 .codex/
 .worktrees/
+.superpowers/
+.claude/skills/
 Thumbs.db
 *.tmp
 

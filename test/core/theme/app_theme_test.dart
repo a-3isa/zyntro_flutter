@@ -18,8 +18,8 @@ void main() {
   });
 
   group('AppSpacing', () {
-    test('md is 16 (8px grid)', () => expect(AppSpacing.md, 16.0));
-    test('lg is 24', () => expect(AppSpacing.lg, 24.0));
+    test('md is 12', () => expect(AppSpacing.md, 12.0));
+    test('lg is 16', () => expect(AppSpacing.lg, 16.0));
   });
 
   group('AppColors glow tokens', () {

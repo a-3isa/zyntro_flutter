@@ -10,9 +10,14 @@ void main() {
     );
   }
 
-  testWidgets('starts at the initial count', (tester) async {
+  testWidgets('shows TAP prompt when count is 0', (tester) async {
     await tester.pumpWidget(buildSubject(onDone: (_) {}));
-    expect(find.text('0'), findsOneWidget);
+    expect(find.text('TAP'), findsOneWidget);
+  });
+
+  testWidgets('shows initial count when non-zero', (tester) async {
+    await tester.pumpWidget(buildSubject(onDone: (_) {}, initial: 5));
+    expect(find.text('5'), findsOneWidget);
   });
 
   testWidgets('tapping the screen body increments the count', (tester) async {
@@ -30,7 +35,7 @@ void main() {
     expect(find.text('2'), findsOneWidget);
   });
 
-  testWidgets('Done button calls onDone with the current count', (tester) async {
+  testWidgets('Save button calls onDone with the current count', (tester) async {
     int? received;
     await tester.pumpWidget(buildSubject(onDone: (reps) => received = reps));
 
@@ -40,33 +45,34 @@ void main() {
       await tester.pump();
     }
 
-    await tester.tap(find.text('Done'));
+    await tester.tap(find.textContaining('Save'));
     await tester.pump();
 
     expect(received, 3);
   });
 
-  testWidgets('Done button is disabled when count is 0', (tester) async {
+  testWidgets('Save button is disabled when count is 0', (tester) async {
     bool called = false;
     await tester.pumpWidget(buildSubject(onDone: (_) => called = true));
 
-    await tester.tap(find.text('Done'));
+    // Save reps button is shown but disabled
+    expect(find.textContaining('Save'), findsOneWidget);
+    await tester.tap(find.textContaining('Save'));
     await tester.pump();
 
     expect(called, isFalse);
   });
 
-  testWidgets('reset button returns count to 0', (tester) async {
+  testWidgets('undo button decrements count', (tester) async {
     await tester.pumpWidget(buildSubject(onDone: (_) {}));
 
     await tester.tapAt(const Offset(200, 300));
     await tester.pump();
     expect(find.text('1'), findsOneWidget);
 
-    // Reset button is a tooltip or icon — find by icon
-    await tester.tap(find.byIcon(Icons.refresh_rounded));
+    await tester.tap(find.byIcon(Icons.undo_rounded));
     await tester.pump();
 
-    expect(find.text('0'), findsOneWidget);
+    expect(find.text('TAP'), findsOneWidget);
   });
 }

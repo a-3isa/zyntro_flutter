@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zyntro_flutter/app/navigation/app_router.dart';
 import 'package:zyntro_flutter/core/constants/constants.dart';
 import 'package:zyntro_flutter/features/auth/auth_providers.dart';
@@ -32,6 +33,12 @@ void _stubNoActiveSession(MockSessionService sessionService) {
   );
 }
 
+void _stubEmptyUserSessions(MockSessionService sessionService) {
+  when(
+    () => sessionService.getUserSessions(any(), limit: any(named: 'limit')),
+  ).thenAnswer((_) async => []);
+}
+
 GoRouter _buildRouter() {
   return GoRouter(
     initialLocation: AppRoutes.startSession,
@@ -39,13 +46,6 @@ GoRouter _buildRouter() {
       GoRoute(
         path: AppRoutes.startSession,
         builder: (context, state) => const StartSessionPage(),
-      ),
-      GoRoute(
-        path: AppRoutes.gymSessionSetup,
-        builder: (context, state) {
-          final sessionId = state.pathParameters['sessionId']!;
-          return Scaffold(body: Center(child: Text('SETUP:$sessionId')));
-        },
       ),
       GoRoute(
         path: AppRoutes.sessionRoom,
@@ -61,6 +61,7 @@ GoRouter _buildRouter() {
 
 void main() {
   setUpAll(() {
+    SharedPreferences.setMockInitialValues({});
     registerFallbackValue(SessionMode.turnBased);
     registerFallbackValue(SessionPhase.live);
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -69,19 +70,24 @@ void main() {
         });
   });
 
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
+
   tearDownAll(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(SystemChannels.platform, null);
   });
 
   testWidgets(
-    'gym sessions create in setup phase and navigate to the setup route',
+    'gym sessions create in live phase and navigate to the session room',
     (tester) async {
       final sessionService = MockSessionService();
       final followService = MockFollowService();
       final router = _buildRouter();
 
       _stubNoActiveSession(sessionService);
+      _stubEmptyUserSessions(sessionService);
       when(
         () => sessionService.createSession(
           hostId: any(named: 'hostId'),
@@ -120,8 +126,19 @@ void main() {
 
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
-      await tester.ensureVisible(find.text('Start Solo'));
-      await tester.tap(find.text('Start Solo'));
+
+      // Select 'Strength' (gym type) to enable CTA
+      await tester.tap(find.text('Strength'));
+      await tester.pump();
+
+      // Tap 'Start Strength Session' CTA → navigates to plan view
+      await tester.ensureVisible(find.text('Start Strength Session'));
+      await tester.tap(find.text('Start Strength Session'));
+      await tester.pump();
+
+      // In plan view, tap 'Begin Session' (default plan = 11 sets: 4+4+3)
+      await tester.ensureVisible(find.text('Begin Session ⚡  (11 sets)'));
+      await tester.tap(find.text('Begin Session ⚡  (11 sets)'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
@@ -131,11 +148,11 @@ void main() {
           type: 'gym',
           title: 'Gym Session',
           invitedUserIds: any(named: 'invitedUserIds', that: isNull),
-          phase: SessionPhase.setup,
+          phase: SessionPhase.live,
           buddyPairId: any(named: 'buddyPairId', that: isNull),
         ),
       ).called(1);
-      expect(find.text('SETUP:session-123'), findsOneWidget);
+      expect(find.text('ROOM:session-123:gym'), findsOneWidget);
     },
   );
 
@@ -147,6 +164,7 @@ void main() {
       final router = _buildRouter();
 
       _stubNoActiveSession(sessionService);
+      _stubEmptyUserSessions(sessionService);
       when(
         () => sessionService.createSession(
           hostId: any(named: 'hostId'),
@@ -185,10 +203,10 @@ void main() {
 
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
-      await tester.tap(find.text('Running'));
+      await tester.tap(find.text('Cardio'));
       await tester.pump();
-      await tester.ensureVisible(find.text('Start Solo'));
-      await tester.tap(find.text('Start Solo'));
+      await tester.ensureVisible(find.text('Start Cardio Session'));
+      await tester.tap(find.text('Start Cardio Session'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
@@ -214,6 +232,7 @@ void main() {
       final router = _buildRouter();
 
       _stubNoActiveSession(sessionService);
+      _stubEmptyUserSessions(sessionService);
       when(
         () => sessionService.createSession(
           hostId: any(named: 'hostId'),
@@ -256,8 +275,10 @@ void main() {
 
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
-      await tester.ensureVisible(find.text('Start Solo'));
-      await tester.tap(find.text('Start Solo'));
+      await tester.tap(find.text('Cardio'));
+      await tester.pump();
+      await tester.ensureVisible(find.text('Start Cardio Session'));
+      await tester.tap(find.text('Start Cardio Session'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
@@ -271,11 +292,14 @@ void main() {
   );
 
   testWidgets(
-    'respects the initial workout type when the page is opened from a quick start route',
+    'persists workout type and restores it from SharedPreferences on next open',
     (tester) async {
+      SharedPreferences.setMockInitialValues({'last_workout_type': 'running'});
+
       final sessionService = MockSessionService();
       final followService = MockFollowService();
 
+      _stubEmptyUserSessions(sessionService);
       when(() => followService.getMutualFollows(any())).thenAnswer(
         (_) async => const [],
       );
@@ -298,16 +322,16 @@ void main() {
               ),
             ),
           ],
-          child: const MaterialApp(
-            home: StartSessionPage(initialType: WorkoutType.running),
-          ),
+          child: const MaterialApp(home: StartSessionPage()),
         ),
       );
 
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
 
-      expect(find.text('Start Solo'), findsOneWidget);
+      // Saved 'running' type maps to 'Cardio' label; CTA should read 'Start Cardio Session'
+      expect(find.text('Cardio'), findsOneWidget);
+      expect(find.text('Start Cardio Session'), findsOneWidget);
     },
   );
 }

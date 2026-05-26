@@ -10,9 +10,9 @@ void main() {
       expect(
         AppRouteLocations.mainTab(
           MainShellTab.social,
-          socialTab: SocialTab.leaderboard,
+          socialTab: SocialTab.board,
         ),
-        '/?tab=social&socialTab=leaderboard',
+        '/?tab=social&socialTab=board',
       );
     });
 

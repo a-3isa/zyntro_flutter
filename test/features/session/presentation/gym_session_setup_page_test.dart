@@ -210,7 +210,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 10));
 
-      expect(find.text('Gym session setup'), findsOneWidget);
+      expect(find.text('Gym Session Setup'), findsOneWidget);
       expect(
         find.text(
           'Prepare your plan before jumping into the live room.',

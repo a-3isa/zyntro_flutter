@@ -104,6 +104,9 @@ class AppRouteLocations {
     required SessionPhase phase,
     String? audioUrl,
   }) {
+    if (type == WorkoutType.gym.value && phase == SessionPhase.setup) {
+      return gymSessionSetup(sessionId);
+    }
     return sessionRoom(sessionId, type: type, audioUrl: audioUrl);
   }
 }

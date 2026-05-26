@@ -17,23 +17,25 @@ void main() {
     expect(AppColors.neonGreenHover, const Color(0xFF2EE00F));
     expect(AppColors.gray400, const Color(0xFF8B8B98));
     expect(AppColors.gray300, const Color(0xFFA0A0AC));
-    expect(AppColors.primaryGlow, Colors.transparent);
-    expect(AppColors.secondaryGlow, Colors.transparent);
-    expect(AppColors.premiumGlow, Colors.transparent);
+    // Glow tokens updated to lime-tinted values per design overhaul
+    expect(AppColors.primaryGlow, const Color(0x33C8FF00));
+    expect(AppColors.secondaryGlow, const Color(0x1A888888));
+    expect(AppColors.premiumGlow, const Color(0x1AC8FF00));
   });
 
   testWidgets('dark theme maps figma surfaces and accent roles correctly',
       (tester) async {
     final theme = AppTheme.darkTheme;
 
-    expect(theme.scaffoldBackgroundColor, AppColors.navy900);
-    expect(theme.colorScheme.primary, AppColors.neonGreen);
-    expect(theme.colorScheme.surface, AppColors.navy800);
-    expect(theme.colorScheme.secondary, AppColors.gray400);
-    expect(theme.colorScheme.tertiary, AppColors.navy700);
+    expect(theme.scaffoldBackgroundColor, AppColors.backgroundV2);
+    expect(theme.colorScheme.primary, AppColors.accentLime);
+    expect(theme.colorScheme.surface, AppColors.surfaceV2);
+    expect(theme.colorScheme.secondary, AppColors.textV2Secondary);
+    expect(theme.colorScheme.tertiary, AppColors.surfaceV2Active);
     expect(
-        theme.bottomNavigationBarTheme.selectedItemColor, AppColors.neonGreen);
+        theme.bottomNavigationBarTheme.selectedItemColor, AppColors.accentLime);
     expect(
-        theme.bottomNavigationBarTheme.unselectedItemColor, AppColors.gray400);
+        theme.bottomNavigationBarTheme.unselectedItemColor,
+        AppColors.textV2Secondary);
   });
 }
