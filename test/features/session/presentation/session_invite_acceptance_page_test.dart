@@ -106,8 +106,9 @@ void main() {
     final userCacheService = MockUserCacheService();
     final controller = StreamController<Session?>();
 
-    when(() => sessionService.listenToSession('session-1'))
-        .thenAnswer((_) => controller.stream);
+    when(
+      () => sessionService.listenToSession('session-1'),
+    ).thenAnswer((_) => controller.stream);
     when(() => userCacheService.getUser('host-1')).thenAnswer(
       (_) async => User(
         id: 'host-1',
@@ -119,8 +120,9 @@ void main() {
         updatedAt: DateTime(2026),
       ),
     );
-    when(() => userCacheService.warmSessionParticipants(any()))
-        .thenAnswer((_) async {});
+    when(
+      () => userCacheService.warmSessionParticipants(any()),
+    ).thenAnswer((_) async {});
 
     await tester.pumpWidget(
       buildSubject(
@@ -138,46 +140,47 @@ void main() {
     await controller.close();
   });
 
-  testWidgets(
-    'selecting the same type as host shows gym plan editor',
-    (tester) async {
-      final sessionService = MockSessionService();
-      final userCacheService = MockUserCacheService();
-      final controller = StreamController<Session?>();
+  testWidgets('selecting the same type as host shows gym plan editor', (
+    tester,
+  ) async {
+    final sessionService = MockSessionService();
+    final userCacheService = MockUserCacheService();
+    final controller = StreamController<Session?>();
 
-      when(() => sessionService.listenToSession('session-1'))
-          .thenAnswer((_) => controller.stream);
-      when(() => userCacheService.getUser(any())).thenAnswer(
-        (_) async => User(
-          id: 'host-1',
-          displayName: 'Host',
-          isPrivate: false,
-          workoutPreference: WorkoutType.gym,
-          beginnerFlag: false,
-          createdAt: DateTime(2026),
-          updatedAt: DateTime(2026),
-        ),
-      );
-      when(() => userCacheService.warmSessionParticipants(any()))
-          .thenAnswer((_) async {});
+    when(
+      () => sessionService.listenToSession('session-1'),
+    ).thenAnswer((_) => controller.stream);
+    when(() => userCacheService.getUser(any())).thenAnswer(
+      (_) async => User(
+        id: 'host-1',
+        displayName: 'Host',
+        isPrivate: false,
+        workoutPreference: WorkoutType.gym,
+        beginnerFlag: false,
+        createdAt: DateTime(2026),
+        updatedAt: DateTime(2026),
+      ),
+    );
+    when(
+      () => userCacheService.warmSessionParticipants(any()),
+    ).thenAnswer((_) async {});
 
-      await tester.pumpWidget(
-        buildSubject(
-          sessionService: sessionService,
-          userCacheService: userCacheService,
-        ),
-      );
+    await tester.pumpWidget(
+      buildSubject(
+        sessionService: sessionService,
+        userCacheService: userCacheService,
+      ),
+    );
 
-      controller.add(makeSession());
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 500));
+    controller.add(makeSession());
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
 
-      // Gym is pre-selected since it's the host's type — plan editor should appear
-      expect(find.byKey(const Key('gym_plan_editor')), findsAny);
+    // Gym is pre-selected since it's the host's type — plan editor should appear
+    expect(find.byKey(const Key('gym_plan_editor')), findsAny);
 
-      await controller.close();
-    },
-  );
+    await controller.close();
+  });
 
   testWidgets(
     'selecting a different type shows parallel info card instead of plan editor',
@@ -186,8 +189,9 @@ void main() {
       final userCacheService = MockUserCacheService();
       final controller = StreamController<Session?>();
 
-      when(() => sessionService.listenToSession('session-1'))
-          .thenAnswer((_) => controller.stream);
+      when(
+        () => sessionService.listenToSession('session-1'),
+      ).thenAnswer((_) => controller.stream);
       when(() => userCacheService.getUser(any())).thenAnswer(
         (_) async => User(
           id: 'host-1',
@@ -199,8 +203,9 @@ void main() {
           updatedAt: DateTime(2026),
         ),
       );
-      when(() => userCacheService.warmSessionParticipants(any()))
-          .thenAnswer((_) async {});
+      when(
+        () => userCacheService.warmSessionParticipants(any()),
+      ).thenAnswer((_) async {});
 
       await tester.pumpWidget(
         buildSubject(
@@ -232,8 +237,9 @@ void main() {
       final userCacheService = MockUserCacheService();
       final controller = StreamController<Session?>();
 
-      when(() => sessionService.listenToSession('session-1'))
-          .thenAnswer((_) => controller.stream);
+      when(
+        () => sessionService.listenToSession('session-1'),
+      ).thenAnswer((_) => controller.stream);
       when(() => userCacheService.getUser(any())).thenAnswer(
         (_) async => User(
           id: 'host-1',
@@ -245,8 +251,9 @@ void main() {
           updatedAt: DateTime(2026),
         ),
       );
-      when(() => userCacheService.warmSessionParticipants(any()))
-          .thenAnswer((_) async {});
+      when(
+        () => userCacheService.warmSessionParticipants(any()),
+      ).thenAnswer((_) async {});
 
       await tester.pumpWidget(
         buildSubject(
@@ -256,9 +263,7 @@ void main() {
       );
 
       // Session where invitee-1 is already a participant
-      controller.add(
-        makeSession(participants: ['host-1', 'invitee-1']),
-      );
+      controller.add(makeSession(participants: ['host-1', 'invitee-1']));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
 
@@ -268,4 +273,126 @@ void main() {
       await controller.close();
     },
   );
+
+  testWidgets(
+    'joining with different workout type submits a ready personal plan directly',
+    (tester) async {
+      final sessionService = MockSessionService();
+      final userCacheService = MockUserCacheService();
+      final controller = StreamController<Session?>();
+
+      when(
+        () => sessionService.listenToSession('session-1'),
+      ).thenAnswer((_) => controller.stream);
+      when(() => userCacheService.getUser(any())).thenAnswer(
+        (_) async => User(
+          id: 'host-1',
+          displayName: 'Host',
+          isPrivate: false,
+          workoutPreference: WorkoutType.gym,
+          beginnerFlag: false,
+          createdAt: DateTime(2026),
+          updatedAt: DateTime(2026),
+        ),
+      );
+      when(
+        () => userCacheService.warmSessionParticipants(any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => sessionService.acceptInvite(
+          sessionId: any(named: 'sessionId'),
+          userId: any(named: 'userId'),
+          chosenWorkoutType: any(named: 'chosenWorkoutType'),
+          plan: any(named: 'plan'),
+        ),
+      ).thenAnswer((_) async {});
+
+      await tester.pumpWidget(
+        buildSubject(
+          sessionService: sessionService,
+          userCacheService: userCacheService,
+        ),
+      );
+
+      controller.add(makeSession());
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      await tester.tap(find.text('Running'));
+      await tester.pump();
+      await tester.ensureVisible(find.text('Join Session'));
+      await tester.tap(find.text('Join Session'));
+      await tester.pump();
+
+      final submittedPlan =
+          verify(
+                () => sessionService.acceptInvite(
+                  sessionId: 'session-1',
+                  userId: 'invitee-1',
+                  chosenWorkoutType: WorkoutType.running.value,
+                  plan: captureAny(named: 'plan'),
+                ),
+              ).captured.single
+              as GymSessionPlan;
+
+      expect(submittedPlan.userId, 'invitee-1');
+      expect(submittedPlan.workoutType, WorkoutType.running);
+      expect(submittedPlan.isReady, isTrue);
+      expect(submittedPlan.stages, isNotEmpty);
+
+      await controller.close();
+    },
+  );
+
+  testWidgets('decline action records declined invite status', (tester) async {
+    final sessionService = MockSessionService();
+    final userCacheService = MockUserCacheService();
+    final controller = StreamController<Session?>();
+
+    when(
+      () => sessionService.listenToSession('session-1'),
+    ).thenAnswer((_) => controller.stream);
+    when(
+      () => sessionService.declineInvite(
+        sessionId: any(named: 'sessionId'),
+        userId: any(named: 'userId'),
+      ),
+    ).thenAnswer((_) async {});
+    when(() => userCacheService.getUser(any())).thenAnswer(
+      (_) async => User(
+        id: 'host-1',
+        displayName: 'Host',
+        isPrivate: false,
+        workoutPreference: WorkoutType.gym,
+        beginnerFlag: false,
+        createdAt: DateTime(2026),
+        updatedAt: DateTime(2026),
+      ),
+    );
+    when(
+      () => userCacheService.warmSessionParticipants(any()),
+    ).thenAnswer((_) async {});
+
+    await tester.pumpWidget(
+      buildSubject(
+        sessionService: sessionService,
+        userCacheService: userCacheService,
+      ),
+    );
+
+    controller.add(makeSession());
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.byTooltip('Decline'));
+    await tester.pump();
+
+    verify(
+      () => sessionService.declineInvite(
+        sessionId: 'session-1',
+        userId: 'invitee-1',
+      ),
+    ).called(1);
+
+    await controller.close();
+  });
 }

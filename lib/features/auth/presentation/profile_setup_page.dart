@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
-
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/constants.dart';
 import '../../../app/navigation/app_router.dart';
@@ -146,9 +145,8 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
                 // Header
                 Text(
                   'Set Up Your Profile',
-                  style: GoogleFonts.syne(
-                    fontSize: AppFontSize.xxl,
-                    fontWeight: FontWeight.w800,
+                  style: AppTextStyles.h3.copyWith(
+                    fontWeight: FontWeight.w700,
                     color: AppColors.textV2Primary,
                   ),
                   textAlign: TextAlign.center,
@@ -156,8 +154,7 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
                 const SizedBox(height: AppSpacing.sm),
                 Text(
                   "Let's personalize your experience",
-                  style: GoogleFonts.outfit(
-                    fontSize: AppFontSize.md,
+                  style: AppTextStyles.bodyLarge.copyWith(
                     color: AppColors.textV2Secondary,
                   ),
                   textAlign: TextAlign.center,
@@ -234,8 +231,7 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
                         const SizedBox(height: AppSpacing.md),
                         Text(
                           'Profile photo from ${_authProvider == 'google' ? 'Google' : 'Facebook'}',
-                          style: GoogleFonts.outfit(
-                            fontSize: AppFontSize.sm,
+                          style: AppTextStyles.body.copyWith(
                             color: AppColors.textV2Secondary,
                           ),
                         ),
@@ -263,8 +259,7 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
 
                 Text(
                   'What type of workouts do you prefer?',
-                  style: GoogleFonts.outfit(
-                    fontSize: AppFontSize.md,
+                  style: AppTextStyles.bodyLarge.copyWith(
                     fontWeight: FontWeight.w600,
                     color: AppColors.textV2Primary,
                   ),
@@ -303,9 +298,8 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
                   const SizedBox(height: AppSpacing.sm),
                   Text(
                     _uploadStatus,
-                    style: GoogleFonts.outfit(
+                    style: AppTextStyles.body.copyWith(
                       color: AppColors.textV2Secondary,
-                      fontSize: AppFontSize.sm,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -387,10 +381,9 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
             ),
             child: Text(
               type.value.toUpperCase(),
-              style: GoogleFonts.outfit(
+              style: AppTextStyles.body.copyWith(
                 color: isSelected ? AppColors.backgroundV2 : AppColors.textV2Secondary,
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                fontSize: AppFontSize.sm,
               ),
             ),
           ),
@@ -417,15 +410,14 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
               children: [
                 Text(
                   "I'm new to fitness",
-                  style: GoogleFonts.outfit(
+                  style: AppTextStyles.body.copyWith(
                     fontWeight: FontWeight.w600,
                     color: AppColors.textV2Primary,
                   ),
                 ),
                 Text(
                   "We'll provide extra guidance and tips",
-                  style: GoogleFonts.outfit(
-                    fontSize: AppFontSize.sm,
+                  style: AppTextStyles.body.copyWith(
                     color: AppColors.textV2Secondary,
                   ),
                 ),

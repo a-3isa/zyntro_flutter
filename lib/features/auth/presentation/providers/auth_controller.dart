@@ -117,6 +117,7 @@ class AuthController {
     String? photoUrl,
     String? avatarConfig,
     String? authProvider,
+    int? trainingDaysPerWeek,
   }) async {
     final result = await _useCase.createUserProfile(
       userId: userId,
@@ -126,6 +127,7 @@ class AuthController {
       photoUrl: photoUrl,
       avatarConfig: avatarConfig,
       authProvider: authProvider,
+      trainingDaysPerWeek: trainingDaysPerWeek,
     );
     await _resolveVoid(result);
   }

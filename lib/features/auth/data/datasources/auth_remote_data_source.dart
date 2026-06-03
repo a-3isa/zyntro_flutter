@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
@@ -99,16 +100,28 @@ class AuthRemoteDataSource {
 
   Future<AuthUserModel?> signInWithGoogle() async {
     try {
-      final provider = fb.GoogleAuthProvider();
-      final credential = await _auth.signInWithProvider(provider);
-      final user = credential.user;
+      // serverClientId must be the web/server OAuth client (client_type 3 in google-services.json).
+      // GMS needs this to issue an idToken that Firebase Auth can verify.
+      const serverClientId =
+          '146147804221-i1dgf7t2t2lf9puara1ukeskar1gtbkt.apps.googleusercontent.com';
+      final googleSignIn = GoogleSignIn(serverClientId: serverClientId);
+      final googleUser = await googleSignIn.signIn();
+      if (googleUser == null) return null; // user dismissed picker
 
+      final googleAuth = await googleUser.authentication;
+      final credential = fb.GoogleAuthProvider.credential(
+        idToken: googleAuth.idToken,
+        accessToken: googleAuth.accessToken,
+      );
+
+      final result = await _auth.signInWithCredential(credential);
+      final user = result.user;
       if (user == null) return null;
 
       await _ensureProfileExists(
         userId: user.uid,
-        displayName: user.displayName ?? 'User',
-        photoUrl: user.photoURL,
+        displayName: user.displayName ?? googleUser.displayName ?? 'User',
+        photoUrl: user.photoURL ?? googleUser.photoUrl,
         authProvider: 'google',
       );
 
@@ -120,6 +133,12 @@ class AuthRemoteDataSource {
     } on AuthDataException {
       rethrow;
     } catch (e) {
+      debugPrint('[GoogleSignIn] error type: ${e.runtimeType} | $e');
+      // PlatformException code sign_in_canceled means user dismissed
+      final msg = e.toString();
+      if (msg.contains('sign_in_canceled') || msg.contains('canceled')) {
+        return null;
+      }
       throw AuthDataException.unknown(
         'Google Sign-In failed. Please try again.',
       );
@@ -294,6 +313,7 @@ class AuthRemoteDataSource {
     String? photoUrl,
     String? avatarConfig,
     String? authProvider,
+    int? trainingDaysPerWeek,
   }) async {
     try {
       final docRef = _firestore.collection('users').doc(userId);
@@ -308,6 +328,8 @@ class AuthRemoteDataSource {
         'beginnerFlag': beginnerFlag,
         'authProvider': authProvider ?? 'email',
         'updatedAt': FieldValue.serverTimestamp(),
+        if (trainingDaysPerWeek != null)
+          'trainingDaysPerWeek': trainingDaysPerWeek,
       };
 
       final existing = snapshot.data();

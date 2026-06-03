@@ -68,4 +68,25 @@ void main() {
       expect(NotificationPreferences.fromMap(prefs.toMap()).toMap(), prefs.toMap());
     });
   });
+
+  group('session invite payload', () {
+    test('contains one-to-one invite dialog fields', () {
+      final expiresAt = DateTime(2026, 1, 1, 12, 0, 30);
+      final payload = NotificationService.sessionInvitePayload(
+        sessionId: 'session-1',
+        hostId: 'host-1',
+        hostName: 'Coach Alex',
+        sessionType: 'gym',
+        expiresAt: expiresAt,
+      );
+
+      expect(payload['type'], 'session_invite');
+      expect(payload['sessionId'], 'session-1');
+      expect(payload['hostId'], 'host-1');
+      expect(payload['hostName'], 'Coach Alex');
+      expect(payload['sessionType'], 'gym');
+      expect(payload['expiresAt'], expiresAt.toIso8601String());
+      expect(payload['context'], 'one_to_one');
+    });
+  });
 }

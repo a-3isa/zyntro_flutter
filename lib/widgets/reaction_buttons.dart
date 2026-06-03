@@ -104,15 +104,14 @@ class _ReactionButtonsState extends State<ReactionButtons>
     });
   }
 
-  // Get gradient colors for selected reaction — stays on the navy + neon system.
   List<Color> _getGradientColors(ReactionType type) {
     switch (type) {
       case ReactionType.fire:
-        return [AppColors.neonGreen, AppColors.action];
+        return [AppColors.neonGreen, AppColors.navy700];
       case ReactionType.strong:
-        return [AppColors.navy700, AppColors.navy800];
+        return [AppColors.navy800, AppColors.navy700];
       case ReactionType.clap:
-        return [AppColors.warmBorder, AppColors.neonGreenHover];
+        return [AppColors.navy700, AppColors.neonGreen];
     }
   }
 
@@ -141,7 +140,7 @@ class _ReactionButtonsState extends State<ReactionButtons>
           _buildReactionButton(
             type: ReactionType.fire,
             emoji: '🔥',
-            color: AppColors.neonGreen,
+            color: AppColors.accentLime,
             label: 'Fire',
             buttonPadding: buttonPadding,
             emojiSize: emojiSize,
@@ -196,8 +195,8 @@ class _ReactionButtonsState extends State<ReactionButtons>
             gradient: isSelected
                 ? LinearGradient(
                     colors: [
-                      AppColors.neonGreen.withValues(alpha: 0.14),
-                      AppColors.neonGreen.withValues(alpha: 0.05),
+                      AppColors.accentLime.withValues(alpha: 0.14),
+                      AppColors.accentLime.withValues(alpha: 0.05),
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -207,7 +206,7 @@ class _ReactionButtonsState extends State<ReactionButtons>
             borderRadius: BorderRadius.circular(AppBorderRadius.lg),
             border: Border.all(
               color: isSelected
-                  ? AppColors.neonGreen
+                  ? AppColors.accentLime
                   : AppColors.gray400.withValues(alpha: 0.3),
               width: isSelected ? 2 : 1,
             ),
@@ -231,9 +230,7 @@ class _ReactionButtonsState extends State<ReactionButtons>
                     fontWeight: isSelected
                         ? FontWeight.bold
                         : FontWeight.normal,
-                    color: isSelected
-                        ? color
-                        : AppColors.textV2Secondary,
+                    color: isSelected ? color : AppColors.textV2Secondary,
                   ),
                 ),
               ],

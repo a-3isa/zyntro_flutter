@@ -1,11 +1,9 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:google_fonts/google_fonts.dart';
-
 import '../../../app/navigation/app_route_locations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/models/models.dart';
@@ -25,12 +23,14 @@ import '../../../widgets/shimmer_widgets.dart';
 import '../../../widgets/connection_status_widget.dart';
 import '../../../services/storage_service.dart';
 import '../../../widgets/session_error_banner.dart';
-import '../../../widgets/celebration_overlay.dart';
 import '../../../utils/haptic_manager.dart';
 import 'widgets/active_turn_screen.dart';
 import 'widgets/waiting_turn_screen.dart';
 import 'widgets/parallel_gym_view.dart';
 import 'widgets/parallel_cardio_view.dart';
+import 'widgets/gym_exercise_picker_sheet.dart';
+import '../domain/gym_session_plan.dart';
+import '../domain/turn_plan_progress.dart';
 
 /// Tracks real-time progress for a participant in a session.
 class ParticipantProgress {
@@ -89,7 +89,7 @@ class SessionRoomPage extends ConsumerStatefulWidget {
   final String sessionId;
   final String type;
   final String? initialAudioUrl;
-  final List<String>? plannedExercises;
+  final List<PlannedExercise>? plannedExercises;
 
   const SessionRoomPage({
     super.key,
@@ -132,6 +132,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   // Local exercises state
   final List<Exercise> _exercises = [];
   String? _currentExercise;
+  int _currentSetDuration = 0;
   bool _isLogging = false;
 
   // Turn-based active session state machine
@@ -139,7 +140,12 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   int _currentSetNumber = 1; // which set the active user is on
 
   // Planned exercises (passed from start session page)
-  List<String> _plannedExercises = [];
+  List<PlannedExercise> _plannedExercises = [];
+  String? _currentExerciseId;
+  bool _isRecordingToggleInFlight = false;
+  bool _stopRecordingAfterStart = false;
+  bool _isProcessingBotTurn = false;
+  String? _lastBotTurnKey;
 
   // Inactivity timer — terminates session after 10 minutes without logging
   Timer? _inactivityTimer;
@@ -189,16 +195,12 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   final Set<String> _processedVoiceEvents = {};
   DateTime? _lastProcessedEventTime;
 
-
   // Participant progress tracking
   final Map<String, ParticipantProgress> _participantProgress = {};
 
   // Session mode flags
   bool _isSoloSession = false;
 
-  // Set milestone tracking for animations
-  int _lastMilestoneAchieved = 0;
-  final List<int> _milestones = [5, 10, 15, 20, 25, 30, 40, 50];
   final int _eventLimit = 50;
   final List<TimelineEvent> _localPendingEvents = [];
 
@@ -231,9 +233,11 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     }
 
     // Load planned exercises if provided
-    if (widget.plannedExercises != null && widget.plannedExercises!.isNotEmpty) {
-      _plannedExercises = List<String>.from(widget.plannedExercises!);
-      _currentTurnExercise = _plannedExercises[0];
+    if (widget.plannedExercises != null &&
+        widget.plannedExercises!.isNotEmpty) {
+      _plannedExercises = List<PlannedExercise>.from(widget.plannedExercises!);
+      _currentTurnExercise = _plannedExercises[0].name;
+      _currentExerciseId = _plannedExercises[0].id;
     }
 
     _initPresence();
@@ -318,6 +322,38 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         });
       }
     });
+  }
+
+  void _applySharedClockStart(DateTime? startedAt) {
+    if (startedAt == null || !mounted) return;
+    if (_sessionStartTime?.isAtSameMomentAs(startedAt) ?? false) return;
+
+    final elapsed = DateTime.now().difference(startedAt);
+    setState(() {
+      _sessionStartTime = startedAt;
+      _elapsedTime = elapsed.isNegative ? Duration.zero : elapsed;
+    });
+  }
+
+  Future<void> _ensureSharedClockStarted(Session session) async {
+    if (session.sharedClockStartedAt != null) {
+      _applySharedClockStart(session.sharedClockStartedAt);
+      return;
+    }
+    if (_sessionStartTime == null && mounted) {
+      setState(() {
+        _sessionStartTime = DateTime.now();
+        _elapsedTime = Duration.zero;
+      });
+    }
+
+    try {
+      await ref
+          .read(sessionServiceProvider)
+          .startSharedSessionClock(widget.sessionId);
+    } catch (e) {
+      debugPrint('[SessionRoom] Failed to start shared session clock: $e');
+    }
   }
 
   Future<void> _initPresence() async {
@@ -493,7 +529,9 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   Future<void> _terminateSessionInactive() async {
     final uid = ref.read(authSessionProvider).valueOrNull?.id;
     if (uid == null || !mounted) return;
-    await ref.read(sessionServiceProvider).endSession(widget.sessionId, uid, null);
+    await ref
+        .read(sessionServiceProvider)
+        .endSession(widget.sessionId, uid, null);
     if (mounted) {
       context.go(AppRouteLocations.mainTab(MainShellTab.feed));
     }
@@ -521,7 +559,9 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       case AppLifecycleState.hidden:
         presenceService.setAway(widget.sessionId, uid);
         // Terminate session when app is fully closed
-        ref.read(sessionServiceProvider).endSession(widget.sessionId, uid, null);
+        ref
+            .read(sessionServiceProvider)
+            .endSession(widget.sessionId, uid, null);
         break;
     }
   }
@@ -638,34 +678,6 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       _participantProgress.clear();
       _participantProgress.addAll(newProgress);
     });
-
-    // Check for milestones
-    _checkMilestones();
-  }
-
-  /// Check for set milestones and show achievement notification.
-  void _checkMilestones() {
-    final totalSets = _participantProgress.values.fold<int>(
-      0,
-      (sum, p) => sum + p.totalSets,
-    );
-
-    for (final milestone in _milestones) {
-      if (totalSets >= milestone && _lastMilestoneAchieved < milestone) {
-        _lastMilestoneAchieved = milestone;
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('ðŸŽ¯ $milestone sets completed! Keep going!'),
-              behavior: SnackBarBehavior.floating,
-              backgroundColor: AppColors.success,
-            ),
-          );
-          HapticFeedback.heavyImpact();
-        }
-        break; // Only show one milestone at a time
-      }
-    }
   }
 
   Future<void> _processAudioQueue(String senderName) async {
@@ -692,19 +704,23 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   /// Wrapper that lets new turn-based/parallel widgets submit a set
   /// with explicit parameters. Reuses the existing controller-based flow
   /// by mutating the controllers and delegating to [_handleLogSetFromControllers].
-  Future<void> _handleLogSet({
+  Future<bool> _handleLogSet({
     required String exercise,
     required double weight,
     required int reps,
+    String? exerciseId,
+    int durationSeconds = 0,
   }) async {
     _currentExercise = exercise;
+    _currentExerciseId = exerciseId;
+    _currentSetDuration = durationSeconds;
     _weightController.text = weight.toString();
     _repsController.text = reps.toString();
-    await _handleLogSetFromControllers();
+    return _handleLogSetFromControllers();
   }
 
-  Future<void> _handleLogSetFromControllers() async {
-    if (_currentExercise == null) return;
+  Future<bool> _handleLogSetFromControllers() async {
+    if (_currentExercise == null) return false;
 
     final weight = double.tryParse(_weightController.text);
     final reps = int.tryParse(_repsController.text);
@@ -713,7 +729,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter valid weight and reps')),
       );
-      return;
+      return false;
     }
 
     // Check availability based on turn-based rules
@@ -730,7 +746,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("It's not your turn yet! â³")),
       );
-      return;
+      return false;
     }
 
     // Add to recent exercises for autocomplete
@@ -744,7 +760,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     try {
       final authState = ref.read(authSessionProvider);
       final uid = authState.valueOrNull?.id;
-      if (uid == null) return;
+      if (uid == null) return false;
 
       // Add to local exercises
       final existingIndex = _exercises.indexWhere(
@@ -754,7 +770,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         _exercises[existingIndex] = _exercises[existingIndex].copyWith(
           sets: [
             ..._exercises[existingIndex].sets,
-            SetData(weight: weight, reps: reps),
+            SetData(weight: weight, reps: reps, durationSeconds: _currentSetDuration),
           ],
         );
       } else {
@@ -762,7 +778,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           Exercise(
             id: DateTime.now().millisecondsSinceEpoch.toString(),
             name: _currentExercise!,
-            sets: [SetData(weight: weight, reps: reps)],
+            sets: [SetData(weight: weight, reps: reps, durationSeconds: _currentSetDuration)],
           ),
         );
       }
@@ -781,7 +797,12 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           userId: uid,
           text: '$_currentExercise: ${weight}kg x $reps reps',
           timestamp: DateTime.now(),
-          data: {'exercise': _currentExercise, 'weight': weight, 'reps': reps},
+          data: {
+            'exercise': _currentExercise,
+            if (_currentExerciseId != null) 'exerciseId': _currentExerciseId,
+            'weight': weight,
+            'reps': reps,
+          },
         );
 
         setState(() {
@@ -801,6 +822,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           'text': '$_currentExercise: ${weight}kg x $reps reps',
           'data': {
             'exercise': _currentExercise,
+            if (_currentExerciseId != null) 'exerciseId': _currentExerciseId,
             'weight': weight,
             'reps': reps,
           },
@@ -821,6 +843,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                 text: '$_currentExercise: ${weight}kg x $reps reps',
                 data: {
                   'exercise': _currentExercise,
+                  if (_currentExerciseId != null)
+                    'exerciseId': _currentExerciseId,
                   'weight': weight,
                   'reps': reps,
                 },
@@ -838,6 +862,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
               'text': '$_currentExercise: ${weight}kg x $reps reps',
               'data': {
                 'exercise': _currentExercise,
+                if (_currentExerciseId != null)
+                  'exerciseId': _currentExerciseId,
                 'weight': weight,
                 'reps': reps,
               },
@@ -860,17 +886,24 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
 
       // Advance planned exercise list (per-set cycling through plan)
       if (_plannedExercises.isNotEmpty) {
-        final totalLogged = _participantProgress.values
-            .fold<int>(0, (s, p) => s + p.totalSets);
+        final totalLogged = _participantProgress.values.fold<int>(
+          0,
+          (s, p) => s + p.totalSets,
+        );
         // Figure out which exercise index we're on based on total sets and sets per exercise
         // Simple approach: advance to next exercise every time current exercise's sets match plan order
         final nextIndex = (totalLogged) % _plannedExercises.length;
-        if (_plannedExercises[nextIndex] != _currentTurnExercise) {
-          setState(() => _currentTurnExercise = _plannedExercises[nextIndex]);
+        final nextExercise = _plannedExercises[nextIndex];
+        if (nextExercise.name != _currentTurnExercise) {
+          setState(() {
+            _currentTurnExercise = nextExercise.name;
+            _currentExerciseId = nextExercise.id;
+          });
         }
       }
 
       setState(() {});
+      return true;
     } finally {
       setState(() => _isLogging = false);
     }
@@ -890,6 +923,159 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     _durationController.text = minutes.toString();
     _paceController.clear();
     await _handleLogCardioFromControllers();
+  }
+
+  Map<String, Map<String, int>> _completedSetsByUserAndExercise(
+    List<TimelineEvent> events,
+  ) {
+    final counts = <String, Map<String, int>>{};
+    for (final event in events) {
+      if (event.type != SessionEventType.setLogged) continue;
+      final exerciseKey =
+          event.data?['exerciseId']?.toString() ??
+          event.data?['exercise']?.toString();
+      if (exerciseKey == null || exerciseKey.isEmpty) continue;
+      final userCounts = counts.putIfAbsent(
+        event.userId,
+        () => <String, int>{},
+      );
+      userCounts[exerciseKey] = (userCounts[exerciseKey] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  GymSessionPlan _localPlanFor(String userId, GymSessionPlanSource source) {
+    return GymSessionPlan(
+      userId: userId,
+      workoutType: _workoutType,
+      source: source,
+      isReady: true,
+      exercises: List<PlannedExercise>.from(_plannedExercises),
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  Future<void> _handleTurnAfterLoggedSet({
+    required Session session,
+    required String currentUserId,
+    required Map<String, GymSessionPlan> plans,
+    required Map<String, Map<String, int>> counts,
+    PlannedExercise? plannedExercise,
+  }) async {
+    if (session.derivedMode != SessionMode.turnBased || _isSoloSession) return;
+
+    if (plans.isEmpty || plannedExercise == null) {
+      await ref
+          .read(sessionServiceProvider)
+          .switchTurn(widget.sessionId, currentUserId);
+      return;
+    }
+
+    final nextCounts = <String, Map<String, int>>{
+      for (final entry in counts.entries)
+        entry.key: Map<String, int>.from(entry.value),
+    };
+    nextCounts[currentUserId] = TurnPlanProgress.incrementedCounts(
+      counts: nextCounts[currentUserId] ?? const {},
+      exercise: plannedExercise,
+    );
+
+    final nextActiveUserId = TurnPlanProgress.nextActiveParticipant(
+      currentUserId: currentUserId,
+      participants: session.participants,
+      plans: plans,
+      completedSetsByUserAndExercise: nextCounts,
+    );
+    if (nextActiveUserId != null && nextActiveUserId != currentUserId) {
+      await ref
+          .read(sessionServiceProvider)
+          .switchTurn(widget.sessionId, currentUserId);
+    } else {
+      setState(() {});
+    }
+  }
+
+  void _scheduleBotTurnIfNeeded({
+    required Session session,
+    required Map<String, GymSessionPlan> plans,
+    required List<TimelineEvent> events,
+  }) {
+    if (session.partnerKind != PairedPartnerKind.bot ||
+        session.activeUserId != pairedBotFriendId ||
+        _isProcessingBotTurn) {
+      return;
+    }
+
+    final botPlan = plans[pairedBotFriendId];
+    if (botPlan == null) return;
+    final counts = _completedSetsByUserAndExercise(events);
+    final botState = TurnPlanProgress.participantState(
+      botPlan,
+      counts[pairedBotFriendId] ?? const {},
+    );
+    final botExercise = botState.currentExercise;
+    if (botState.isComplete || botExercise == null) return;
+
+    final turnKey =
+        '${session.id}:${botExercise.id}:${botState.currentSetNumber}';
+    if (_lastBotTurnKey == turnKey) return;
+    _lastBotTurnKey = turnKey;
+    _isProcessingBotTurn = true;
+
+    Future<void>(() async {
+      final bot = BotFriend.gymSimulation();
+      await Future<void>.delayed(Duration(seconds: bot.gymSetSeconds));
+      if (!mounted) return;
+      final latestSession = ref
+          .read(currentSessionProvider(widget.sessionId))
+          .valueOrNull;
+      if (latestSession?.activeUserId != pairedBotFriendId) {
+        _isProcessingBotTurn = false;
+        return;
+      }
+
+      try {
+        await ref
+            .read(sessionServiceProvider)
+            .addSessionEvent(
+              sessionId: widget.sessionId,
+              type: SessionEventType.setLogged,
+              userId: pairedBotFriendId,
+              text:
+                  '${botExercise.name}: ${bot.gymWeightKg}kg x ${bot.gymReps} reps',
+              data: {
+                'exercise': botExercise.name,
+                'exerciseId': botExercise.id,
+                'weight': bot.gymWeightKg,
+                'reps': bot.gymReps,
+                'durationSeconds': bot.gymSetSeconds,
+                'simulated': true,
+              },
+            );
+
+        final nextCounts = <String, Map<String, int>>{
+          for (final entry in counts.entries)
+            entry.key: Map<String, int>.from(entry.value),
+        };
+        nextCounts[pairedBotFriendId] = TurnPlanProgress.incrementedCounts(
+          counts: nextCounts[pairedBotFriendId] ?? const {},
+          exercise: botExercise,
+        );
+        final nextActiveUserId = TurnPlanProgress.nextActiveParticipant(
+          currentUserId: pairedBotFriendId,
+          participants: latestSession?.participants ?? session.participants,
+          plans: plans,
+          completedSetsByUserAndExercise: nextCounts,
+        );
+        if (nextActiveUserId != null && nextActiveUserId != pairedBotFriendId) {
+          await ref
+              .read(sessionServiceProvider)
+              .switchTurn(widget.sessionId, pairedBotFriendId);
+        }
+      } finally {
+        _isProcessingBotTurn = false;
+      }
+    });
   }
 
   /// Handle logging a cardio activity entry.
@@ -1060,12 +1246,27 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
 
   // Voice recording handlers
   Future<void> _toggleRecording() async {
+    if (_isRecordingToggleInFlight) {
+      if (!_isRecording) _stopRecordingAfterStart = true;
+      return;
+    }
+    _isRecordingToggleInFlight = true;
     final voiceService = ref.read(voiceRecordingServiceProvider);
 
-    if (_isRecording) {
-      await _stopAndUploadRecording(voiceService);
-    } else {
-      await _startRecording(voiceService);
+    try {
+      if (_isRecording) {
+        await _stopAndUploadRecording(voiceService);
+      } else {
+        await _startRecording(voiceService);
+      }
+    } finally {
+      _isRecordingToggleInFlight = false;
+      if (_stopRecordingAfterStart && _isRecording) {
+        _stopRecordingAfterStart = false;
+        await _toggleRecording();
+      } else {
+        _stopRecordingAfterStart = false;
+      }
     }
   }
 
@@ -1138,7 +1339,15 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     HapticFeedback.selectionClick();
 
     final path = await voiceService.stopRecording();
-    if (path == null) return;
+    if (path == null) {
+      if (mounted) {
+        setState(() {
+          _isRecording = false;
+          _recordingDuration = Duration.zero;
+        });
+      }
+      return;
+    }
 
     setState(() {
       _isUploadingVoice = true;
@@ -1246,7 +1455,13 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         );
       }
     } finally {
-      if (mounted) setState(() => _isUploadingVoice = false);
+      if (mounted) {
+        setState(() {
+          _isUploadingVoice = false;
+          _isRecording = false;
+          _recordingDuration = Duration.zero;
+        });
+      }
     }
   }
 
@@ -1303,27 +1518,108 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     if (session == null || uid == null) {
       return _buildInputSection();
     }
-    // Solo sessions keep the legacy monolithic form.
+    // Solo sessions: with a plan, always show the turn view (user is always active).
     if (_isSoloSession) {
+      if (_plannedExercises.isNotEmpty) {
+        final events = [
+          ...?ref.watch(sessionEventsProvider(widget.sessionId)).valueOrNull,
+          ..._localPendingEvents,
+        ];
+        final soloPlans = {
+          uid: _localPlanFor(uid, GymSessionPlanSource.hostTemplate),
+        };
+        final counts = _completedSetsByUserAndExercise(events);
+        if (TurnPlanProgress.isSessionComplete(
+          plans: soloPlans,
+          completedSetsByUserAndExercise: counts,
+        )) {
+          return _buildPlanCompleteView(session, uid, soloPlans);
+        }
+        return _buildActiveTurnView(
+          session, uid, soloPlans, soloPlans[uid],
+          counts[uid] ?? const {}, counts,
+        );
+      }
       return _buildInputSection();
     }
-    return _buildSessionBody(session, uid);
+
+    final events = [
+      ...?ref.watch(sessionEventsProvider(widget.sessionId)).valueOrNull,
+      ..._localPendingEvents,
+    ];
+    final plans = <String, GymSessionPlan>{};
+    for (final participantId in session.participants) {
+      final plan = ref
+          .watch(
+            gymSessionPlanProvider((
+              sessionId: widget.sessionId,
+              userId: participantId,
+            )),
+          )
+          .valueOrNull;
+      if (plan != null && plan.exercises.isNotEmpty) {
+        plans[participantId] = plan;
+      }
+    }
+
+    if (_plannedExercises.isNotEmpty && !plans.containsKey(uid)) {
+      plans[uid] = _localPlanFor(uid, GymSessionPlanSource.hostTemplate);
+    }
+    if (session.partnerKind == PairedPartnerKind.bot &&
+        _plannedExercises.isNotEmpty &&
+        !plans.containsKey(pairedBotFriendId)) {
+      plans[pairedBotFriendId] = SessionService.botGymPlanFromHostPlan(
+        plans[uid] ?? _localPlanFor(uid, GymSessionPlanSource.hostTemplate),
+      );
+    }
+
+    if (session.activeUserId == pairedBotFriendId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _scheduleBotTurnIfNeeded(
+          session: session,
+          plans: plans,
+          events: events,
+        );
+      });
+    }
+
+    return _buildSessionBody(session, uid, plans, events);
   }
 
   /// Main dispatch: switches on [Session.derivedMode] and the participant's
   /// workout type to pick between the turn-based and parallel widget trees.
-  Widget _buildSessionBody(Session session, String currentUserId) {
+  Widget _buildSessionBody(
+    Session session,
+    String currentUserId,
+    Map<String, GymSessionPlan> plans,
+    List<TimelineEvent> events,
+  ) {
     switch (session.derivedMode) {
       case SessionMode.turnBased:
+        final counts = _completedSetsByUserAndExercise(events);
+        if (plans.isNotEmpty &&
+            TurnPlanProgress.isSessionComplete(
+              plans: plans,
+              completedSetsByUserAndExercise: counts,
+            )) {
+          return _buildPlanCompleteView(session, currentUserId, plans);
+        }
         final isMyTurn = session.activeUserId == currentUserId;
         if (isMyTurn) {
-          return _buildActiveTurnView(session, currentUserId);
+          return _buildActiveTurnView(
+            session,
+            currentUserId,
+            plans,
+            plans[currentUserId],
+            counts[currentUserId] ?? const {},
+            counts,
+          );
         } else {
-          return _buildWaitingTurnView(session, currentUserId);
+          return _buildWaitingTurnView(session, currentUserId, plans, counts);
         }
       case SessionMode.parallel:
-        final myType =
-            session.participantTypes[currentUserId] ?? widget.type;
+        final myType = session.participantTypes[currentUserId] ?? widget.type;
         final workoutType = WorkoutType.fromString(myType);
         if (workoutType.isCardio || workoutType.requiresDistanceTracking) {
           return _buildParallelCardioView(session, currentUserId);
@@ -1333,35 +1629,86 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     }
   }
 
-  Widget _buildActiveTurnView(Session session, String currentUserId) {
-    final exerciseName = _currentTurnExercise ?? 'Workout';
+  Widget _buildActiveTurnView(
+    Session session,
+    String currentUserId,
+    Map<String, GymSessionPlan> plans,
+    GymSessionPlan? plan,
+    Map<String, int> currentUserCounts,
+    Map<String, Map<String, int>> allCounts,
+  ) {
+    final plannedState = plan != null
+        ? TurnPlanProgress.participantState(plan, currentUserCounts)
+        : null;
+    final plannedExercise = plannedState?.currentExercise;
+    final exerciseName =
+        plannedExercise?.name ?? _currentTurnExercise ?? 'Workout';
+    final setNumber = plannedState?.currentSetNumber ?? _currentSetNumber;
+
+    // Pre-fill last reps/weight for this exercise so users don't re-enter if unchanged
+    final exerciseEntry = _exercises.firstWhere(
+      (e) => e.name == exerciseName,
+      orElse: () => Exercise(id: '', name: exerciseName, sets: const []),
+    );
+    final lastSet = exerciseEntry.sets.isNotEmpty ? exerciseEntry.sets.last : null;
+
     return ActiveTurnScreen(
       exerciseName: exerciseName,
-      setNumber: _currentSetNumber,
-      onSetSubmit: ({
-        required int reps,
-        required double weight,
-        required int durationSeconds,
-      }) {
-        _handleLogSet(exercise: exerciseName, weight: weight, reps: reps);
-        if (mounted) {
-          setState(() => _currentSetNumber += 1);
-        }
-      },
-      onTurnEnd: () {
-        ref
-            .read(sessionServiceProvider)
-            .switchTurn(widget.sessionId, currentUserId);
-      },
+      setNumber: setNumber,
+      lastReps: lastSet?.reps ?? 0,
+      lastWeight: lastSet?.weight ?? 0.0,
+      onTimerStart: () => _ensureSharedClockStarted(session),
+      onSetSubmit:
+          ({
+            required int reps,
+            required double weight,
+            required int durationSeconds,
+          }) async {
+            final logged = await _handleLogSet(
+              exercise: exerciseName,
+              exerciseId: plannedExercise?.id,
+              weight: weight,
+              reps: reps,
+              durationSeconds: durationSeconds,
+            );
+            if (!logged) return;
+            await _handleTurnAfterLoggedSet(
+              session: session,
+              currentUserId: currentUserId,
+              plans: plans,
+              counts: allCounts,
+              plannedExercise: plannedExercise,
+            );
+            if (mounted && plannedExercise == null) {
+              setState(() => _currentSetNumber += 1);
+            }
+          },
     );
   }
 
-  Widget _buildWaitingTurnView(Session session, String currentUserId) {
+  Widget _buildWaitingTurnView(
+    Session session,
+    String currentUserId,
+    Map<String, GymSessionPlan> plans,
+    Map<String, Map<String, int>> counts,
+  ) {
     final partnerId = session.activeUserId;
-    final partnerProgress =
-        partnerId != null ? _participantProgress[partnerId] : null;
-    final partnerCurrentExercise = partnerProgress?.currentExercise ?? '';
-    final partnerSetNumber = (partnerProgress?.totalSets ?? 0) + 1;
+    final partnerProgress = partnerId != null
+        ? _participantProgress[partnerId]
+        : null;
+    final partnerPlan = partnerId != null ? plans[partnerId] : null;
+    final partnerState = partnerPlan != null
+        ? TurnPlanProgress.participantState(
+            partnerPlan,
+            counts[partnerId] ?? const {},
+          )
+        : null;
+    final partnerCurrentExercise =
+        partnerState?.currentExercise?.name ??
+        partnerProgress?.currentExercise ??
+        '';
+    final partnerSetNumber =
+        partnerState?.currentSetNumber ?? (partnerProgress?.totalSets ?? 0) + 1;
 
     return FutureBuilder<User?>(
       future: partnerId != null
@@ -1382,9 +1729,173 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           onRecordVoice: _toggleRecording,
           isRecording: _isRecording,
           recordingDuration: _recordingDuration,
+          activeStatusLabel: '$partnerName is active',
+          waitingStatusLabel: 'You are waiting',
         );
       },
     );
+  }
+
+  Widget _buildPlanCompleteView(
+    Session session,
+    String currentUserId,
+    Map<String, GymSessionPlan> plans,
+  ) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Icon(
+              Icons.check_circle_rounded,
+              color: AppColors.accentLime,
+              size: 64,
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              'Plan complete',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppColors.textV2Primary,
+                fontSize: 28,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Finish the session or add another exercise.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppColors.textV2Secondary,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: _handleFinishSession,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.accentLime,
+                foregroundColor: AppColors.backgroundV2,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              child: const Text('Finish Session'),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton(
+              onPressed: () => _openLateAddPicker(
+                session: session,
+                currentUserId: currentUserId,
+                plans: plans,
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.textV2Primary,
+                side: const BorderSide(color: AppColors.surfaceV2Active),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              child: const Text('Add Exercise'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openLateAddPicker({
+    required Session session,
+    required String currentUserId,
+    required Map<String, GymSessionPlan> plans,
+  }) async {
+    PlannedExercise? pickedExercise;
+    final uid = ref.read(authSessionProvider).valueOrNull?.id;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.85,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (context2, scrollController) => GymExercisePickerSheet(
+          userId: uid,
+          onExerciseSelected: (exercise) {
+            pickedExercise = exercise;
+            Navigator.of(ctx).pop();
+          },
+        ),
+      ),
+    );
+    if (pickedExercise == null) return;
+
+    final currentPlan =
+        plans[currentUserId] ??
+        _localPlanFor(currentUserId, GymSessionPlanSource.personal);
+    final nextOrder = currentPlan.exercises.isEmpty
+        ? 0
+        : currentPlan.exercises
+                  .map((exercise) => exercise.order)
+                  .reduce((a, b) => a > b ? a : b) +
+              1;
+    final picked = pickedExercise!;
+    final exercise = picked.source == PlannedExerciseSource.catalog
+        ? PlannedExercise.catalog(
+            id: 'extra_${DateTime.now().microsecondsSinceEpoch}',
+            exerciseId: picked.exerciseId!,
+            name: picked.name,
+            plannedSets: picked.plannedSets,
+            order: nextOrder,
+            muscleGroup: picked.muscleGroup,
+            equipment: picked.equipment,
+          )
+        : PlannedExercise.custom(
+            id: 'extra_${DateTime.now().microsecondsSinceEpoch}',
+            name: picked.name,
+            plannedSets: picked.plannedSets,
+            order: nextOrder,
+            personalExerciseId: picked.personalExerciseId,
+            muscleGroup: picked.muscleGroup,
+            equipment: picked.equipment,
+          );
+    final updatedPlan = GymSessionPlan(
+      userId: currentPlan.userId,
+      workoutType: currentPlan.workoutType,
+      source: currentPlan.source,
+      isReady: true,
+      exercises: [...currentPlan.exercises, exercise],
+      stages: currentPlan.stages,
+      targets: currentPlan.targets,
+      updatedAt: DateTime.now(),
+    );
+
+    await ref
+        .read(sessionServiceProvider)
+        .saveGymPlan(sessionId: widget.sessionId, plan: updatedPlan);
+    if (session.partnerKind == PairedPartnerKind.bot &&
+        currentUserId == session.hostId) {
+      await ref
+          .read(sessionServiceProvider)
+          .saveGymPlan(
+            sessionId: widget.sessionId,
+            plan: SessionService.botGymPlanFromHostPlan(updatedPlan),
+          );
+    }
+    if (session.derivedMode == SessionMode.turnBased &&
+        session.activeUserId != null &&
+        session.activeUserId != currentUserId) {
+      await ref
+          .read(sessionServiceProvider)
+          .switchTurn(widget.sessionId, session.activeUserId!);
+    }
+    if (mounted) {
+      setState(() {
+        _plannedExercises = updatedPlan.exercises;
+        _currentTurnExercise = exercise.name;
+        _currentExerciseId = exercise.id;
+      });
+    }
   }
 
   Widget _buildParallelGymView(Session session, String currentUserId) {
@@ -1392,10 +1903,10 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       (p) => p != currentUserId,
       orElse: () => '',
     );
-    final partnerProgress =
-        partnerId.isNotEmpty ? _participantProgress[partnerId] : null;
-    final partnerType =
-        session.participantTypes[partnerId] ?? 'gym';
+    final partnerProgress = partnerId.isNotEmpty
+        ? _participantProgress[partnerId]
+        : null;
+    final partnerType = session.participantTypes[partnerId] ?? 'gym';
 
     final partner = ParallelPartnerData(
       name: 'Partner',
@@ -1412,16 +1923,17 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     return ParallelGymView(
       exerciseName: exerciseName,
       setNumber: _currentSetNumber,
-      onSetSubmit: ({
-        required int reps,
-        required double weight,
-        required int durationSeconds,
-      }) {
-        _handleLogSet(exercise: exerciseName, weight: weight, reps: reps);
-        if (mounted) {
-          setState(() => _currentSetNumber += 1);
-        }
-      },
+      onSetSubmit:
+          ({
+            required int reps,
+            required double weight,
+            required int durationSeconds,
+          }) {
+            _handleLogSet(exercise: exerciseName, weight: weight, reps: reps);
+            if (mounted) {
+              setState(() => _currentSetNumber += 1);
+            }
+          },
       partner: partner,
     );
   }
@@ -1431,12 +1943,11 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       (p) => p != currentUserId,
       orElse: () => '',
     );
-    final partnerProgress =
-        partnerId.isNotEmpty ? _participantProgress[partnerId] : null;
-    final partnerType =
-        session.participantTypes[partnerId] ?? 'gym';
-    final myType =
-        session.participantTypes[currentUserId] ?? widget.type;
+    final partnerProgress = partnerId.isNotEmpty
+        ? _participantProgress[partnerId]
+        : null;
+    final partnerType = session.participantTypes[partnerId] ?? 'gym';
+    final myType = session.participantTypes[currentUserId] ?? widget.type;
 
     final partner = ParallelPartnerData(
       name: 'Partner',
@@ -1451,17 +1962,18 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
 
     return ParallelCardioView(
       activityType: myType,
-      onCardioLog: ({
-        required double distanceKm,
-        required int durationSeconds,
-        required String activityType,
-      }) {
-        _handleLogCardio(
-          distance: distanceKm,
-          durationSeconds: durationSeconds,
-          activityType: activityType,
-        );
-      },
+      onCardioLog:
+          ({
+            required double distanceKm,
+            required int durationSeconds,
+            required String activityType,
+          }) {
+            _handleLogCardio(
+              distance: distanceKm,
+              durationSeconds: durationSeconds,
+              activityType: activityType,
+            );
+          },
       partner: partner,
     );
   }
@@ -1677,13 +2189,19 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                   label: 'Log Amount',
                   hint: 'Adds this set to your workout',
                   child: BounceAnimation(
-                    onTap: (_currentExercise != null && !_isLogging) ? _handleLogSetFromControllers : null,
+                    onTap: (_currentExercise != null && !_isLogging)
+                        ? _handleLogSetFromControllers
+                        : null,
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 16),
+                      constraints: const BoxConstraints(minHeight: 56),
                       decoration: BoxDecoration(
                         gradient: (_currentExercise != null && !_isLogging)
                             ? LinearGradient(
-                                colors: [AppColors.primary, AppColors.primaryDark],
+                                colors: [
+                                  AppColors.primary,
+                                  AppColors.primaryDark,
+                                ],
                               )
                             : null,
                         color: (_currentExercise != null && !_isLogging)
@@ -1710,7 +2228,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                                 'LOG SET',
                                 style: TextStyle(
                                   fontFamily: 'Outfit',
-                                  fontWeight: FontWeight.w900,
+                                  fontWeight: FontWeight.w700,
                                   fontSize: 14,
                                   letterSpacing: 2,
                                   color: Colors.white,
@@ -1757,7 +2275,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                           fontFamily: 'Outfit',
                           color: AppColors.warning,
                           fontSize: 11,
-                          fontWeight: FontWeight.w900,
+                          fontWeight: FontWeight.w700,
                           letterSpacing: 1,
                         ),
                       ),
@@ -2052,13 +2570,18 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
             children: [
               Expanded(
                 child: BounceAnimation(
-                  onTap: (_cardioActivityType != null && !_isLogging) ? _handleLogCardioFromControllers : null,
+                  onTap: (_cardioActivityType != null && !_isLogging)
+                      ? _handleLogCardioFromControllers
+                      : null,
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     decoration: BoxDecoration(
                       gradient: (_cardioActivityType != null && !_isLogging)
                           ? LinearGradient(
-                              colors: [AppColors.primary, AppColors.primaryDark],
+                              colors: [
+                                AppColors.primary,
+                                AppColors.primaryDark,
+                              ],
                             )
                           : null,
                       color: (_cardioActivityType != null && !_isLogging)
@@ -2085,7 +2608,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                               'LOG ACTIVITY',
                               style: TextStyle(
                                 fontFamily: 'Outfit',
-                                fontWeight: FontWeight.w900,
+                                fontWeight: FontWeight.w700,
                                 fontSize: 14,
                                 letterSpacing: 2,
                                 color: Colors.white,
@@ -2113,7 +2636,9 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                   ),
                   child: Semantics(
                     button: true,
-                    label: _isRecording ? 'Stop Recording' : 'Record Voice Note',
+                    label: _isRecording
+                        ? 'Stop Recording'
+                        : 'Record Voice Note',
                     child: Icon(
                       _isRecording ? Icons.stop_rounded : Icons.mic_rounded,
                       color: _isRecording ? AppColors.error : AppColors.primary,
@@ -2128,6 +2653,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       ),
     );
   }
+
   Future<void> _handleFinishSession() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -2170,14 +2696,32 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     }
 
     // Create summary object matching the model definition
+    final elapsed = _sessionStartTime != null
+        ? DateTime.now().difference(_sessionStartTime!)
+        : _elapsedTime;
     final summary = SessionSummary(
       activityType: _cardioActivityType,
-      duration: _formatElapsedTime(_elapsedTime),
+      duration: _formatElapsedTime(elapsed),
       totalSets: totalSets,
+      totalExercises: _exercises.length,
       totalVolume: totalVolume,
       distance: totalDistance,
       exercises: _exercises
-          .map((e) => ExerciseSummary(name: e.name, sets: e.sets.length))
+          .map(
+            (e) => ExerciseSummary(
+              name: e.name,
+              sets: e.sets.length,
+              setDetails: e.sets
+                  .map(
+                    (s) => SetSummary(
+                      reps: s.reps,
+                      weight: s.weight,
+                      durationSeconds: s.durationSeconds,
+                    ),
+                  )
+                  .toList(),
+            ),
+          )
           .toList(),
       activeCalories: null, // Could estimate if needed
     );
@@ -2189,15 +2733,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           .endSession(widget.sessionId, uid, summary);
 
       if (mounted) {
-        await showCelebration(
-          context,
-          title: 'Workout Complete!',
-          subtitle: 'Great work — keep the momentum going',
-          emoji: '💪',
-        );
-        if (mounted) {
-          context.push(AppRouteLocations.sessionRecap(widget.sessionId));
-        }
+        context.push(AppRouteLocations.sessionRecap(widget.sessionId));
       }
     } catch (e) {
       if (mounted) {
@@ -2207,13 +2743,12 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       }
     }
   }
+
   Widget _buildAnimatedBackground() {
     return Stack(
       children: [
         // Deep obsidian base
-        Container(
-          color: const Color(0xFF020617),
-        ),
+        Container(color: const Color(0xFF020617)),
 
         // Base gradient for depth
         Container(
@@ -2273,7 +2808,6 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
             ),
           ),
         ),
-
       ],
     );
   }
@@ -2300,6 +2834,22 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
 
     if (shouldShowSkeleton) {
       return const SessionRoomSkeleton();
+    }
+
+    // Seed the elapsed timer from the shared workout clock once the first
+    // active set timer has started.
+    // ref.listen only fires on changes; if the provider was cached before
+    // this widget's first build, the listener never fires for the initial value.
+    if (_sessionStartTime == null) {
+      sessionAsync.whenData((session) {
+        if (session != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              _applySharedClockStart(session.sharedClockStartedAt);
+            }
+          });
+        }
+      });
     }
 
     // Monitor events for auto-play using ref.listen
@@ -2357,14 +2907,11 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       next.whenData(_updateParticipantProgressFromMap);
     });
 
-    // Update session start time when session data loads
+    // Update session clock when the first set timer start reaches Firestore.
     ref.listen(currentSessionProvider(widget.sessionId), (previous, next) {
       next.whenData((session) {
         if (session != null) {
-          if (_sessionStartTime == null) {
-            _sessionStartTime = session.startedAt;
-            _elapsedTime = DateTime.now().difference(session.startedAt);
-          }
+          _applySharedClockStart(session.sharedClockStartedAt);
           // Detect solo session mode
           if (session.participants.length == 1 && !_isSoloSession) {
             _isSoloSession = true;
@@ -2399,9 +2946,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                     setState(() => _errorMessage = null);
                   },
                 ),
-              Expanded(
-                child: _buildDispatchedInputSection(),
-              ),
+              Expanded(child: _buildDispatchedInputSection()),
             ],
           ),
         ),
@@ -2410,6 +2955,186 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   }
 
   Widget _buildV2SessionHeader(BuildContext context) {
+    final session = ref
+        .watch(currentSessionProvider(widget.sessionId))
+        .valueOrNull;
+    final isBotPartner = session?.partnerKind == PairedPartnerKind.bot;
+    final inviteStatus = session?.invitationStatus;
+    final setupStatusChip = session?.phase == SessionPhase.setup
+        ? Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceV2,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: AppColors.surfaceV2Active),
+            ),
+            child: const Text(
+              'Waiting for workout plans',
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: AppColors.textV2Secondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          )
+        : null;
+
+    Widget buildWorkoutBadge({bool compact = false}) {
+      final label = Text(
+        _workoutType.displayName.toUpperCase(),
+        overflow: compact ? TextOverflow.ellipsis : TextOverflow.clip,
+        style: const TextStyle(
+          color: AppColors.accentLime,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.5,
+        ),
+      );
+
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: AppColors.accentLime.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: AppColors.accentLime.withValues(alpha: 0.3),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _workoutTypeEmoji(_workoutType),
+              style: const TextStyle(fontSize: 13),
+            ),
+            const SizedBox(width: 6),
+            if (compact) Flexible(child: label) else label,
+          ],
+        ),
+      );
+    }
+
+    final homeButton = GestureDetector(
+      onTap: () {
+        HapticManager.light();
+        context.go(AppRouteLocations.mainTab(MainShellTab.feed));
+      },
+      child: const Padding(
+        padding: EdgeInsets.all(8),
+        child: Icon(Icons.home_outlined, color: Colors.white70, size: 22),
+      ),
+    );
+    Widget buildCompactTimer() {
+      final h = _elapsedTime.inHours;
+      final m = _elapsedTime.inMinutes.remainder(60).toString().padLeft(2, '0');
+      final s = _elapsedTime.inSeconds.remainder(60).toString().padLeft(2, '0');
+      final timeStr = h > 0 ? '$h:$m:$s' : '$m:$s';
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.1),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.timer_outlined,
+              size: 11,
+              color: AppColors.accentLime.withValues(alpha: 0.85),
+            ),
+            const SizedBox(width: 5),
+            Text(
+              timeStr,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final botChip = isBotPartner
+        ? Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceV2,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: AppColors.surfaceV2Active),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.smart_toy_outlined,
+                  color: AppColors.accentLime,
+                  size: 15,
+                ),
+                SizedBox(width: 6),
+                Text(
+                  'Zyntro Bot',
+                  style: TextStyle(
+                    color: AppColors.textV2Primary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          )
+        : null;
+    final inviteStatusChip =
+        inviteStatus != null &&
+            session?.partnerKind == PairedPartnerKind.realFriend
+        ? Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceV2,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: AppColors.surfaceV2Active),
+            ),
+            child: Text(
+              'Invite: ${inviteStatus.value}',
+              style: const TextStyle(
+                color: AppColors.textV2Secondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          )
+        : null;
+    final endButton = GestureDetector(
+      onTap: () {
+        HapticManager.heavy();
+        _handleFinishSession();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.error,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: const Text(
+          'End',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+
     return Container(
       padding: EdgeInsets.only(
         top: MediaQuery.paddingOf(context).top + 12,
@@ -2418,85 +3143,84 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         right: 20,
       ),
       color: AppColors.backgroundV2,
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.accentLime.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: AppColors.accentLime.withValues(alpha: 0.3),
-                width: 1,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isCompactHeader = constraints.maxWidth < 420;
+          if (isCompactHeader) {
+            return Row(
               children: [
-                Text(
-                  _workoutTypeEmoji(_workoutType),
-                  style: const TextStyle(fontSize: 13),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  _workoutType.displayName.toUpperCase(),
-                  style: const TextStyle(
-                    color: AppColors.accentLime,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.5,
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        buildWorkoutBadge(),
+                        if (botChip != null) ...[
+                          const SizedBox(width: 8),
+                          botChip,
+                        ],
+                        if (inviteStatusChip != null) ...[
+                          const SizedBox(width: 8),
+                          inviteStatusChip,
+                        ],
+                        if (setupStatusChip != null) ...[
+                          const SizedBox(width: 8),
+                          setupStatusChip,
+                        ],
+                      ],
+                    ),
                   ),
                 ),
+                const SizedBox(width: 8),
+                buildCompactTimer(),
+                const SizedBox(width: 8),
+                homeButton,
+                const SizedBox(width: 4),
+                endButton,
               ],
-            ),
-          ),
-          const Spacer(),
-          GestureDetector(
-            onTap: () {
-              HapticManager.light();
-              context.go(AppRouteLocations.mainTab(MainShellTab.feed));
-            },
-            child: const Padding(
-              padding: EdgeInsets.all(8),
-              child: Icon(Icons.home_outlined, color: Colors.white70, size: 22),
-            ),
-          ),
-          const SizedBox(width: 8),
-          _DominantTimer(
-            elapsed: _elapsedTime,
-            workoutType: _workoutType.displayName,
-          ),
-          const SizedBox(width: 12),
-          GestureDetector(
-            onTap: () {
-              HapticManager.heavy();
-              _handleFinishSession();
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.error,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Text(
-                'End',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ),
-        ],
+            );
+          }
+
+          return Row(
+            children: [
+              buildWorkoutBadge(),
+              if (botChip != null) ...[const SizedBox(width: 8), botChip],
+              if (inviteStatusChip != null) ...[
+                const SizedBox(width: 8),
+                inviteStatusChip,
+              ],
+              if (setupStatusChip != null) ...[
+                const SizedBox(width: 8),
+                setupStatusChip,
+              ],
+              const Spacer(),
+              buildCompactTimer(),
+              const SizedBox(width: 10),
+              homeButton,
+              const SizedBox(width: 4),
+              endButton,
+            ],
+          );
+        },
       ),
     );
   }
 
   Widget _buildV2ProgressRow(BuildContext context) {
-    final totalSets = _participantProgress.values
-        .fold<int>(0, (sum, p) => sum + p.totalSets);
-    final exerciseName = _currentTurnExercise ??
+    final session = ref
+        .watch(currentSessionProvider(widget.sessionId))
+        .valueOrNull;
+    final planStatusLabel = session?.phase == SessionPhase.setup
+        ? 'Plan pending'
+        : 'Plan submitted';
+    final totalSets = _participantProgress.values.fold<int>(
+      0,
+      (sum, p) => sum + p.totalSets,
+    );
+    final exerciseName =
+        _currentTurnExercise ??
+        _currentExercise ??
         (_participantProgress.values.isNotEmpty
             ? _participantProgress.values.first.currentExercise
             : '');
@@ -2527,7 +3251,9 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           ),
           const Spacer(),
           Text(
-            '$totalSets sets',
+            session?.partnerKind == PairedPartnerKind.realFriend
+                ? planStatusLabel
+                : '$totalSets sets',
             style: const TextStyle(
               color: Colors.white38,
               fontSize: 11,
@@ -2540,7 +3266,9 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   }
 
   String _workoutTypeEmoji(WorkoutType type) {
-    if (type == WorkoutType.running || type == WorkoutType.walking) return '\u{1F3C3}';
+    if (type == WorkoutType.running || type == WorkoutType.walking) {
+      return '\u{1F3C3}';
+    }
     if (type == WorkoutType.cycling) return '\u{1F6B4}';
     if (type == WorkoutType.swimming) return '\u{1F3CA}';
     if (type == WorkoutType.yoga) return '\u{1F9D8}';
@@ -2548,7 +3276,6 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     if (type == WorkoutType.sports) return '⚽';
     return '\u{1F4AA}';
   }
-
 
   /// Format elapsed duration as HH:MM:SS
   String _formatElapsedTime(Duration duration) {
@@ -2759,11 +3486,13 @@ class _BounceAnimationState extends State<BounceAnimation>
   @override
   void initState() {
     super.initState();
-    _bounceController = AnimationController(duration: widget.duration, vsync: this);
-    _scaleAnimation = Tween<double>(
-      begin: 1.0,
-      end: widget.scaleDown,
-    ).animate(CurvedAnimation(parent: _bounceController, curve: Curves.easeInOut));
+    _bounceController = AnimationController(
+      duration: widget.duration,
+      vsync: this,
+    );
+    _scaleAnimation = Tween<double>(begin: 1.0, end: widget.scaleDown).animate(
+      CurvedAnimation(parent: _bounceController, curve: Curves.easeInOut),
+    );
   }
 
   @override
@@ -2788,106 +3517,8 @@ class _BounceAnimationState extends State<BounceAnimation>
       onTapCancel: _handleTapCancel,
       child: AnimatedBuilder(
         animation: _scaleAnimation,
-        builder: (context, child) => Transform.scale(
-          scale: _scaleAnimation.value,
-          child: widget.child,
-        ),
-      ),
-    );
-  }
-}
-
-class _DominantTimer extends StatefulWidget {
-  final Duration elapsed;
-  final String workoutType;
-
-  const _DominantTimer({required this.elapsed, required this.workoutType});
-
-  @override
-  State<_DominantTimer> createState() => _DominantTimerState();
-}
-
-class _DominantTimerState extends State<_DominantTimer>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _glowController;
-  late Animation<double> _glowAnim;
-
-  @override
-  void initState() {
-    super.initState();
-    _glowController = AnimationController(
-      duration: const Duration(milliseconds: 1000),
-      vsync: this,
-    )..repeat(reverse: true);
-    _glowAnim = Tween<double>(begin: 20.0, end: 40.0).animate(
-      CurvedAnimation(parent: _glowController, curve: AppCurves.smooth),
-    );
-  }
-
-  @override
-  void dispose() {
-    _glowController.dispose();
-    super.dispose();
-  }
-
-  Color _timerColor(Duration elapsed) {
-    final minutes = elapsed.inMinutes;
-    if (minutes < 45) return AppColors.accentLime;
-    if (minutes < 90) {
-      final t = (minutes - 45) / 45.0;
-      return Color.lerp(AppColors.accentLime, AppColors.warnV2, t)!;
-    }
-    final t = ((minutes - 90) / 30.0).clamp(0.0, 1.0);
-    return Color.lerp(AppColors.warnV2, AppColors.errorV2, t)!;
-  }
-
-  String _format(Duration d) {
-    final h = d.inHours;
-    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return h > 0 ? '$h:$m:$s' : '$m:$s';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _timerColor(widget.elapsed);
-    return AnimatedBuilder(
-      animation: _glowAnim,
-      builder: (context, _) => Container(
-        padding: const EdgeInsets.symmetric(vertical: 24),
-        decoration: BoxDecoration(
-          boxShadow: [
-            BoxShadow(
-              color: color.withValues(alpha: 0.3),
-              blurRadius: _glowAnim.value,
-              spreadRadius: 0,
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Text(
-              _format(widget.elapsed),
-              style: GoogleFonts.syne(
-                fontSize: 64,
-                fontWeight: FontWeight.w900,
-                color: color,
-                letterSpacing: -3,
-                height: 1,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              widget.workoutType.toUpperCase(),
-              style: GoogleFonts.outfit(
-                fontSize: 11,
-                color: AppColors.textV2Tertiary,
-                letterSpacing: 0.12,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
+        builder: (context, child) =>
+            Transform.scale(scale: _scaleAnimation.value, child: widget.child),
       ),
     );
   }

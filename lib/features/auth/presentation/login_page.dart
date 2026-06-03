@@ -3,8 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
-
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../app/navigation/app_router.dart';
 import '../../../utils/validators.dart';
@@ -27,6 +26,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   bool _isLoading = false;
   bool _obscurePassword = true;
   String? _errorMessage;
+  String? _errorSuggestion;
 
   @override
   void dispose() {
@@ -117,6 +117,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         HapticFeedback.heavyImpact();
         setState(() {
           _errorMessage = e.message;
+          _errorSuggestion = 'Confirm credentials and retry, or use password reset.';
         });
       }
     } catch (e) {
@@ -124,6 +125,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         HapticFeedback.heavyImpact();
         setState(() {
           _errorMessage = 'Login failed. Please try again';
+          _errorSuggestion = 'Confirm credentials and retry, or use password reset.';
         });
       }
     } finally {
@@ -160,6 +162,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       if (mounted) {
         HapticFeedback.heavyImpact();
         setState(() {
+          _errorSuggestion = null;
           if (e.toString().contains('network_error')) {
             _errorMessage = 'Network error during Google Sign-In';
           } else if (e.toString().contains('sign_in_canceled')) {
@@ -194,6 +197,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       if (mounted) {
         HapticFeedback.heavyImpact();
         setState(() {
+          _errorSuggestion = null;
           if (e.toString().contains('canceled')) {
             _errorMessage = null;
           } else {
@@ -215,9 +219,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: GoogleFonts.outfit(
+      hintStyle: AppTextStyles.bodyLarge.copyWith(
         color: AppColors.textV2Tertiary,
-        fontSize: 16,
       ),
       prefixIcon: Icon(icon, color: AppColors.textV2Secondary, size: 20),
       suffixIcon: suffix,
@@ -303,9 +306,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 // Heading
                 Text(
                   'Welcome back',
-                  style: GoogleFonts.syne(
+                  style: AppTextStyles.h2.copyWith(
                     fontSize: 34,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                     color: AppColors.textV2Primary,
                     letterSpacing: -1.2,
                     height: 1.1,
@@ -317,8 +320,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 // Subtitle
                 Text(
                   'Sign in to continue your fitness journey',
-                  style: GoogleFonts.outfit(
-                    fontSize: 14,
+                  style: AppTextStyles.body.copyWith(
                     color: AppColors.textV2Secondary,
                     height: 1.5,
                   ),
@@ -330,10 +332,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 if (_errorMessage != null) ...[
                   AuthErrorSurface(
                     message: _errorMessage!,
-                    suggestion:
-                        'Confirm credentials and retry, or use password reset.',
+                    suggestion: _errorSuggestion,
                     onDismiss: () {
-                      setState(() => _errorMessage = null);
+                      setState(() {
+                        _errorMessage = null;
+                        _errorSuggestion = null;
+                      });
                     },
                   ),
                   const SizedBox(height: 20),
@@ -344,9 +348,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
-                  style: GoogleFonts.outfit(
+                  style: AppTextStyles.bodyLarge.copyWith(
                     color: AppColors.textV2Primary,
-                    fontSize: 16,
                   ),
                   decoration: _buildInputDecoration(
                     hint: 'Email',
@@ -362,9 +365,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   controller: _passwordController,
                   obscureText: _obscurePassword,
                   textInputAction: TextInputAction.done,
-                  style: GoogleFonts.outfit(
+                  style: AppTextStyles.bodyLarge.copyWith(
                     color: AppColors.textV2Primary,
-                    fontSize: 16,
                   ),
                   decoration: _buildInputDecoration(
                     hint: 'Password',
@@ -411,8 +413,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       child: Text(
                         'Forgot password?',
-                        style: GoogleFonts.outfit(
-                          fontSize: 14,
+                        style: AppTextStyles.body.copyWith(
                           color: AppColors.textV2Secondary,
                         ),
                       ),
@@ -452,7 +453,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Text(
                         'or sign in with',
-                        style: GoogleFonts.outfit(
+                        style: AppTextStyles.body.copyWith(
                           fontSize: 13,
                           color: AppColors.textV2Tertiary,
                         ),
@@ -500,9 +501,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                         const SizedBox(width: 12),
                         Text(
                           'Continue with Google',
-                          style: GoogleFonts.outfit(
+                          style: AppTextStyles.bodyLarge.copyWith(
                             fontSize: 15,
-                            fontWeight: FontWeight.w500,
                             color: AppColors.textV2Primary,
                           ),
                         ),
@@ -544,9 +544,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                         const SizedBox(width: 12),
                         Text(
                           'Continue with Facebook',
-                          style: GoogleFonts.outfit(
+                          style: AppTextStyles.bodyLarge.copyWith(
                             fontSize: 15,
-                            fontWeight: FontWeight.w500,
                             color: AppColors.textV2Primary,
                           ),
                         ),
@@ -563,8 +562,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   children: [
                     Text(
                       "Don't have an account? ",
-                      style: GoogleFonts.outfit(
-                        fontSize: 14,
+                      style: AppTextStyles.body.copyWith(
                         color: AppColors.textV2Secondary,
                       ),
                     ),
@@ -575,9 +573,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       },
                       child: Text(
                         'Sign Up',
-                        style: GoogleFonts.outfit(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
+                        style: AppTextStyles.label.copyWith(
                           color: AppColors.accentLime,
                         ),
                       ),
@@ -691,8 +687,7 @@ class _EmailVerificationDialogState extends State<_EmailVerificationDialog> {
             // Title
             Text(
               'Verify Your Email',
-              style: GoogleFonts.syne(
-                fontSize: 20,
+              style: AppTextStyles.h4.copyWith(
                 fontWeight: FontWeight.w700,
                 color: AppColors.textV2Primary,
               ),
@@ -702,14 +697,13 @@ class _EmailVerificationDialogState extends State<_EmailVerificationDialog> {
             // Description
             Text(
               "We've sent a verification email to:",
-              style: GoogleFonts.outfit(color: AppColors.textV2Secondary),
+              style: AppTextStyles.body.copyWith(color: AppColors.textV2Secondary),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 6),
             Text(
               widget.email,
-              style: GoogleFonts.outfit(
-                fontWeight: FontWeight.w600,
+              style: AppTextStyles.label.copyWith(
                 color: AppColors.accentLime,
               ),
             ),
@@ -736,7 +730,7 @@ class _EmailVerificationDialogState extends State<_EmailVerificationDialog> {
                   Expanded(
                     child: Text(
                       'Please click the link in the email to verify your account.',
-                      style: GoogleFonts.outfit(
+                      style: AppTextStyles.body.copyWith(
                         fontSize: 13,
                         color: AppColors.info,
                       ),

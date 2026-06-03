@@ -153,6 +153,82 @@ void main() {
       expect(SessionMode.parallel.value, 'parallel');
     });
 
+    test('paired session constants are stable', () {
+      expect(pairedBotFriendId, 'zyntro_bot_friend');
+      expect(pairedInviteTimeout, const Duration(seconds: 30));
+      expect(PairedPartnerKind.bot.value, 'bot');
+      expect(PairedPartnerKind.realFriend.value, 'real_friend');
+    });
+
+    test('Session parses paired friend metadata', () {
+      final session = Session.fromMap(
+        id: 'session-1',
+        data: {
+          'type': 'gym',
+          'title': 'Paired Gym',
+          'hostId': 'host-1',
+          'participants': ['host-1', 'friend-1'],
+          'status': 'active',
+          'phase': 'setup',
+          'partnerKind': 'real_friend',
+          'partnerId': 'friend-1',
+          'invitationStatus': 'pending',
+          'sharedClockStartedAt': DateTime(2026, 1, 1),
+          'participantTypes': {'host-1': 'gym', 'friend-1': 'running'},
+          'createdAt': DateTime(2026, 1, 1),
+          'startedAt': DateTime(2026, 1, 1),
+        },
+      );
+
+      expect(session.partnerKind, PairedPartnerKind.realFriend);
+      expect(session.partnerId, 'friend-1');
+      expect(session.invitationStatus, WorkoutInvitationStatus.pending);
+      expect(session.sharedClockStartedAt, DateTime(2026, 1, 1));
+      expect(session.derivedMode, SessionMode.parallel);
+      expect(session.hasExactlyTwoParticipants, isTrue);
+    });
+
+    test('participant progress serializes type-specific metrics', () {
+      final progress = ParticipantProgress(
+        sessionId: 'session-1',
+        userId: 'runner-1',
+        workoutType: WorkoutType.running,
+        status: ParticipantProgressStatus.active,
+        sharedElapsedSeconds: 42,
+        gymMetrics: const GymProgressMetrics(
+          setSeconds: 7,
+          reps: 8,
+          weightKg: 80,
+        ),
+        timeMetrics: const TimeProgressMetrics(elapsedSeconds: 42),
+        distanceMetrics: const DistanceProgressMetrics(distanceKm: 0.12),
+        roundMetrics: const RoundProgressMetrics(completedRounds: 2),
+        mobilityMetrics: const MobilityProgressMetrics(completedStages: 3),
+        updatedAt: DateTime(2026, 1, 1),
+      );
+
+      final map = progress.toMap();
+
+      expect(map['workoutType'], 'running');
+      expect(map['status'], 'active');
+      expect(map['sharedElapsedSeconds'], 42);
+      expect(map['gymMetrics']['weightKg'], 80);
+      expect(map['timeMetrics']['elapsedSeconds'], 42);
+      expect(map['distanceMetrics']['distanceKm'], 0.12);
+      expect(map['roundMetrics']['completedRounds'], 2);
+      expect(map['mobilityMetrics']['completedStages'], 3);
+    });
+
+    test('bot friend has fixed gym simulation profile', () {
+      final bot = BotFriend.gymSimulation();
+
+      expect(bot.id, pairedBotFriendId);
+      expect(bot.displayName, 'Zyntro Bot');
+      expect(bot.gymSetSeconds, 7);
+      expect(bot.gymReps, 8);
+      expect(bot.gymWeightKg, 80);
+    });
+
     test('Session statuses are correct', () {
       expect(SessionStatus.active.value, 'active');
       expect(SessionStatus.completed.value, 'completed');

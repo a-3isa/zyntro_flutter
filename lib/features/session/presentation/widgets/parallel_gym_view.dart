@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -60,7 +60,8 @@ class ParallelGymView extends StatefulWidget {
     required int reps,
     required double weight,
     required int durationSeconds,
-  }) onSetSubmit;
+  })
+  onSetSubmit;
 
   /// Partner's real-time data (cardio partner or gym partner).
   final ParallelPartnerData partner;
@@ -162,10 +163,7 @@ class _ParallelGymViewState extends State<ParallelGymView> {
           final double partnerHeight = constraints.maxHeight * 0.40;
           return Column(
             children: [
-              SizedBox(
-                height: ownHeight,
-                child: _buildOwnSection(),
-              ),
+              SizedBox(height: ownHeight, child: _buildOwnSection()),
               SizedBox(
                 height: partnerHeight,
                 child: _PartnerCard(
@@ -305,8 +303,7 @@ class _ParallelGymViewState extends State<ParallelGymView> {
           const SizedBox(height: 8),
           TextField(
             controller: _weightController,
-            keyboardType:
-                const TextInputType.numberWithOptions(decimal: true),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
             autofocus: true,
             style: TextStyle(color: AppColors.textV2Primary, fontSize: 22),
             decoration: InputDecoration(
@@ -341,10 +338,7 @@ class _PartnerCard extends StatelessWidget {
   final ParallelPartnerData partner;
   final Color accentColor;
 
-  const _PartnerCard({
-    required this.partner,
-    required this.accentColor,
-  });
+  const _PartnerCard({required this.partner, required this.accentColor});
 
   String _formatDuration(Duration d) {
     final int totalSeconds = d.inSeconds;
@@ -387,13 +381,22 @@ class _PartnerCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const Text(
+              'Partner progress',
+              style: TextStyle(
+                color: AppColors.textV2Secondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 10),
             Row(
               children: [
                 CircleAvatar(
                   radius: 18,
                   backgroundColor: AppColors.surfaceV2,
-                  backgroundImage: partner.photoUrl != null &&
-                          partner.photoUrl!.isNotEmpty
+                  backgroundImage:
+                      partner.photoUrl != null && partner.photoUrl!.isNotEmpty
                       ? CachedNetworkImageProvider(partner.photoUrl!)
                       : null,
                   child: partner.photoUrl == null || partner.photoUrl!.isEmpty
@@ -449,6 +452,15 @@ class _PartnerCard extends StatelessWidget {
               _buildCardioStats()
             else
               _buildGymStats(),
+            const SizedBox(height: 8),
+            const Text(
+              'Shared time',
+              style: TextStyle(
+                color: AppColors.textV2Tertiary,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ],
         ),
       ),
@@ -466,10 +478,7 @@ class _PartnerCard extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: _MetricTile(
-            label: 'PACE',
-            value: partner.averagePace ?? '—',
-          ),
+          child: _MetricTile(label: 'PACE', value: partner.averagePace ?? '—'),
         ),
         const SizedBox(width: 8),
         Expanded(

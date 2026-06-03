@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -21,6 +21,8 @@ class WaitingTurnScreen extends StatefulWidget {
   final Future<void> Function() onRecordVoice;
   final bool isRecording;
   final Duration recordingDuration;
+  final String activeStatusLabel;
+  final String waitingStatusLabel;
 
   const WaitingTurnScreen({
     super.key,
@@ -33,6 +35,8 @@ class WaitingTurnScreen extends StatefulWidget {
     required this.onRecordVoice,
     required this.isRecording,
     required this.recordingDuration,
+    this.activeStatusLabel = 'Partner is active',
+    this.waitingStatusLabel = 'You are waiting',
   });
 
   @override
@@ -95,6 +99,11 @@ class _WaitingTurnScreenState extends State<WaitingTurnScreen>
     await widget.onRecordVoice();
   }
 
+  Future<void> _handleLongPressStop() async {
+    HapticFeedback.selectionClick();
+    await widget.onRecordVoice();
+  }
+
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
@@ -102,29 +111,29 @@ class _WaitingTurnScreenState extends State<WaitingTurnScreen>
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
         child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              _buildPartnerHeader(),
-              const SizedBox(height: 24),
-              _buildTimerCard(),
-              const Spacer(),
-              Center(
-                child: Text(
-                  "Your turn is coming...",
-                  style: TextStyle(
-                    color: AppColors.textV2Tertiary,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: 0.5,
-                  ),
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            _buildPartnerHeader(),
+            const SizedBox(height: 24),
+            _buildTimerCard(),
+            const Spacer(),
+            Center(
+              child: Text(
+                "Your turn is coming...",
+                style: TextStyle(
+                  color: AppColors.textV2Tertiary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0.5,
                 ),
               ),
-              const Spacer(),
-              _buildVoiceButton(),
-            ],
-          ),
+            ),
+            const Spacer(),
+            _buildVoiceButton(),
+          ],
         ),
-      );
+      ),
+    );
   }
 
   Widget _buildPartnerHeader() {
@@ -141,6 +150,15 @@ class _WaitingTurnScreenState extends State<WaitingTurnScreen>
           ),
         ),
         const SizedBox(height: 8),
+        Text(
+          widget.activeStatusLabel,
+          style: const TextStyle(
+            color: AppColors.accentLime,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 8),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
@@ -148,7 +166,7 @@ class _WaitingTurnScreenState extends State<WaitingTurnScreen>
             borderRadius: BorderRadius.circular(999),
           ),
           child: Text(
-            '${widget.partnerCurrentExercise} \u2014 Set ${widget.partnerSetNumber}',
+            '${widget.partnerCurrentExercise} - Set ${widget.partnerSetNumber}',
             style: const TextStyle(
               color: AppColors.textV2Secondary,
               fontSize: 12,
@@ -172,8 +190,9 @@ class _WaitingTurnScreenState extends State<WaitingTurnScreen>
             AnimatedBuilder(
               animation: _glowController,
               builder: (BuildContext context, Widget? _) {
-                final double t =
-                    Curves.easeInOut.transform(_glowController.value);
+                final double t = Curves.easeInOut.transform(
+                  _glowController.value,
+                );
                 final double size = avatarSize + (96 - avatarSize) * t;
                 final double opacity = 0.8 * (1.0 - t);
                 return Container(
@@ -182,7 +201,7 @@ class _WaitingTurnScreenState extends State<WaitingTurnScreen>
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: AppColors.primary.withValues(alpha:opacity),
+                      color: AppColors.primary.withValues(alpha: opacity),
                       width: 3,
                     ),
                   ),
@@ -230,11 +249,9 @@ class _WaitingTurnScreenState extends State<WaitingTurnScreen>
         child: CachedNetworkImage(
           imageUrl: url,
           fit: BoxFit.cover,
-          placeholder: (BuildContext ctx, String url2) => Container(
-            color: AppColors.surfaceV2Elevated,
-          ),
-          errorWidget:
-              (BuildContext ctx, String url2, Object err) => fallback,
+          placeholder: (BuildContext ctx, String url2) =>
+              Container(color: AppColors.surfaceV2Elevated),
+          errorWidget: (BuildContext ctx, String url2, Object err) => fallback,
         ),
       ),
     );
@@ -246,9 +263,7 @@ class _WaitingTurnScreenState extends State<WaitingTurnScreen>
       decoration: BoxDecoration(
         color: AppColors.surfaceV2Elevated,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: AppColors.surfaceV2,
-        ),
+        border: Border.all(color: AppColors.surfaceV2),
       ),
       child: Column(
         children: <Widget>[
@@ -279,22 +294,29 @@ class _WaitingTurnScreenState extends State<WaitingTurnScreen>
 
   Widget _buildVoiceButton() {
     final bool recording = widget.isRecording;
-    final Color buttonColor =
-        recording ? AppColors.error : AppColors.surfaceV2;
-    final Color iconColor =
-        recording ? AppColors.textV2Primary : AppColors.primary;
+    final Color buttonColor = recording ? AppColors.error : AppColors.surfaceV2;
+    final Color iconColor = recording
+        ? AppColors.textV2Primary
+        : AppColors.primary;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
         Text(
+          widget.waitingStatusLabel,
+          style: TextStyle(
+            color: recording ? AppColors.error : AppColors.textV2Secondary,
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
           recording
               ? 'Recording... ${_formatDuration(widget.recordingDuration)}'
               : 'Hold to send a voice note',
           style: TextStyle(
-            color: recording
-                ? AppColors.error
-                : AppColors.textV2Secondary,
+            color: recording ? AppColors.error : AppColors.textV2Secondary,
             fontSize: 13,
             fontWeight: FontWeight.w600,
           ),
@@ -302,6 +324,8 @@ class _WaitingTurnScreenState extends State<WaitingTurnScreen>
         const SizedBox(height: 12),
         GestureDetector(
           onLongPressStart: _handleLongPressStart,
+          onLongPressEnd: (_) => _handleLongPressStop(),
+          onLongPressCancel: _handleLongPressStop,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),
             curve: Curves.easeOut,
@@ -319,7 +343,7 @@ class _WaitingTurnScreenState extends State<WaitingTurnScreen>
               boxShadow: recording
                   ? <BoxShadow>[
                       BoxShadow(
-                        color: AppColors.error.withValues(alpha:0.45),
+                        color: AppColors.error.withValues(alpha: 0.45),
                         blurRadius: 24,
                         spreadRadius: 2,
                       ),

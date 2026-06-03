@@ -1,12 +1,11 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
-import 'package:google_fonts/google_fonts.dart';
 
 import '../../../app/navigation/app_route_locations.dart';
 import '../../../core/constants/constants.dart';
 import '../../../core/models/models.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/auth_providers.dart';
 import '../../../services/session_service.dart';
@@ -17,6 +16,7 @@ import 'widgets/gym_plan_editor.dart';
 /// Interactive gym setup flow before a session goes live.
 class GymSessionSetupPage extends ConsumerStatefulWidget {
   final String sessionId;
+
   /// Pre-seeded exercises (e.g. cloned from host plan on invite acceptance).
   /// When provided, skips the Firestore plan fetch and uses these directly.
   final List<PlannedExercise>? seededExercises;
@@ -38,6 +38,7 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
   bool _isLoadingPlan = true;
   bool _isSavingReady = false;
   bool _isReady = false;
+  bool _readyButtonPressed = false;
 
   @override
   void initState() {
@@ -53,7 +54,9 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
 
   Future<void> _loadInitialPlan() async {
     final authUser = await ref.read(authSessionProvider.future);
-    final session = await ref.read(currentSessionProvider(widget.sessionId).future);
+    final session = await ref.read(
+      currentSessionProvider(widget.sessionId).future,
+    );
     if (!mounted || authUser == null || session == null) {
       if (mounted) {
         setState(() => _isLoadingPlan = false);
@@ -141,7 +144,7 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
       userId: authUser.id,
       source: authUser.id == session.hostId
           ? GymSessionPlanSource.hostTemplate
-          : GymSessionPlanSource.personal,
+          : GymSessionPlanSource.personalCopy,
       isReady: true,
       exercises: _draftExercises,
     );
@@ -210,19 +213,17 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
 
   @override
   Widget build(BuildContext context) {
-    ref.listen<AsyncValue<Session?>>(
-      currentSessionProvider(widget.sessionId),
-      (previous, next) {
-        final session = next.valueOrNull;
-        if (!mounted || _didRedirect) return;
-        if (session == null || session.phase != SessionPhase.live) return;
+    ref.listen<AsyncValue<Session?>>(currentSessionProvider(widget.sessionId), (
+      previous,
+      next,
+    ) {
+      final session = next.valueOrNull;
+      if (!mounted || _didRedirect) return;
+      if (session == null || session.phase != SessionPhase.live) return;
 
-        _didRedirect = true;
-        context.go(
-          AppRouteLocations.sessionRoom(session.id, type: session.type),
-        );
-      },
-    );
+      _didRedirect = true;
+      context.go(AppRouteLocations.sessionRoom(session.id, type: session.type));
+    });
 
     final sessionAsync = ref.watch(currentSessionProvider(widget.sessionId));
 
@@ -268,10 +269,8 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
         const SizedBox(height: 20),
         Text(
           'Preparing your gym session',
-          style: GoogleFonts.syne(
+          style: AppTextStyles.h5.copyWith(
             color: AppColors.textV2Primary,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
             letterSpacing: -0.3,
           ),
           textAlign: TextAlign.center,
@@ -279,10 +278,7 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
         const SizedBox(height: 8),
         Text(
           'Loading the setup details now.',
-          style: GoogleFonts.outfit(
-            color: AppColors.textV2Secondary,
-            fontSize: 14,
-          ),
+          style: AppTextStyles.body.copyWith(color: AppColors.textV2Secondary),
           textAlign: TextAlign.center,
         ),
       ],
@@ -290,6 +286,14 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
   }
 
   Widget _buildSetupShell(Session session) {
+    final authUser = ref.watch(authSessionProvider).valueOrNull;
+    final isInvitedSameGymCopy =
+        authUser != null &&
+        authUser.id != session.hostId &&
+        session.partnerKind == PairedPartnerKind.realFriend &&
+        session.participantTypes[session.hostId] == WorkoutType.gym.value &&
+        session.participantTypes[authUser.id] == WorkoutType.gym.value;
+
     return SingleChildScrollView(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -311,10 +315,8 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
           const SizedBox(height: 20),
           Text(
             'Gym Session Setup',
-            style: GoogleFonts.syne(
+            style: AppTextStyles.h3.copyWith(
               color: AppColors.textV2Primary,
-              fontSize: 24,
-              fontWeight: FontWeight.w800,
               letterSpacing: -0.8,
             ),
             textAlign: TextAlign.center,
@@ -324,18 +326,16 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
             _isReady
                 ? 'Your plan is locked in. We will jump to the live room once everyone is ready.'
                 : 'Prepare your plan before jumping into the live room.',
-            style: GoogleFonts.outfit(
+            style: AppTextStyles.body.copyWith(
               color: AppColors.textV2Secondary,
-              fontSize: 14,
             ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 20),
           Text(
             session.title,
-            style: GoogleFonts.syne(
+            style: AppTextStyles.bodyLarge.copyWith(
               color: AppColors.textV2Primary,
-              fontSize: 16,
               fontWeight: FontWeight.w600,
               letterSpacing: -0.3,
             ),
@@ -361,10 +361,12 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
             Text(
               _isReady
                   ? 'Waiting for the rest of the group to finish setup.'
+                  : isInvitedSameGymCopy
+                  ? 'Review the host gym plan, then adjust only your personal copy.'
                   : 'Each athlete can personalize their own copy of this plan before the room starts.',
-              style: GoogleFonts.outfit(
-                color: AppColors.textV2Secondary,
+              style: AppTextStyles.caption.copyWith(
                 fontSize: 13,
+                color: AppColors.textV2Secondary,
               ),
               textAlign: TextAlign.center,
             ),
@@ -373,34 +375,49 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
               onTap: _isReady || !_isPlanValid || _isSavingReady
                   ? null
                   : () => _markReady(session),
-              child: Container(
-                height: 52,
-                decoration: BoxDecoration(
-                  color: _isReady || !_isPlanValid || _isSavingReady
-                      ? AppColors.surfaceV2Active
-                      : AppColors.accentLime,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Center(
-                  child: _isSavingReady
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppColors.backgroundV2,
+              onTapDown: _isReady || !_isPlanValid || _isSavingReady
+                  ? null
+                  : (_) => setState(() => _readyButtonPressed = true),
+              onTapUp: _isReady || !_isPlanValid || _isSavingReady
+                  ? null
+                  : (_) => setState(() => _readyButtonPressed = false),
+              onTapCancel: _isReady || !_isPlanValid || _isSavingReady
+                  ? null
+                  : () => setState(() => _readyButtonPressed = false),
+              child: AnimatedScale(
+                scale: _readyButtonPressed
+                    ? AppAnimations.buttonPressScale
+                    : 1.0,
+                duration: AppDurations.fast,
+                curve: AppCurves.press,
+                child: Container(
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: _isReady || !_isPlanValid || _isSavingReady
+                        ? AppColors.surfaceV2Active
+                        : AppColors.accentLime,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Center(
+                    child: _isSavingReady
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.backgroundV2,
+                            ),
+                          )
+                        : Text(
+                            _isReady ? 'Ready — Locked in' : 'I\'m Ready',
+                            style: AppTextStyles.label.copyWith(
+                              fontSize: 15,
+                              color: _isReady || !_isPlanValid
+                                  ? AppColors.textV2Tertiary
+                                  : AppColors.backgroundV2,
+                            ),
                           ),
-                        )
-                      : Text(
-                          _isReady ? 'Ready — Locked in' : 'I\'m Ready',
-                          style: GoogleFonts.syne(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: _isReady || !_isPlanValid
-                                ? AppColors.textV2Tertiary
-                                : AppColors.backgroundV2,
-                          ),
-                        ),
+                  ),
                 ),
               ),
             ),
@@ -426,10 +443,8 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
         const SizedBox(height: 16),
         Text(
           title,
-          style: GoogleFonts.syne(
+          style: AppTextStyles.h5.copyWith(
             color: AppColors.textV2Primary,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
             letterSpacing: -0.3,
           ),
           textAlign: TextAlign.center,
@@ -437,10 +452,7 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
         const SizedBox(height: 8),
         Text(
           message,
-          style: GoogleFonts.outfit(
-            color: AppColors.textV2Secondary,
-            fontSize: 14,
-          ),
+          style: AppTextStyles.body.copyWith(color: AppColors.textV2Secondary),
           textAlign: TextAlign.center,
         ),
       ],

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
+import '../core/theme/app_text_styles.dart';
 import '../core/theme/app_theme.dart';
 import '../services/user_service.dart';
 import '../utils/haptic_manager.dart';
@@ -151,9 +151,8 @@ class _StreakCardState extends State<StreakCard>
                             animation: _countAnim,
                             builder: (context, _) => Text(
                               '${_countAnim.value}',
-                              style: GoogleFonts.syne(
+                              style: AppTextStyles.display.copyWith(
                                 fontSize: 52,
-                                fontWeight: FontWeight.w900,
                                 color: const Color(0xFFFF8C00),
                                 letterSpacing: -2,
                                 height: 1,
@@ -168,8 +167,7 @@ class _StreakCardState extends State<StreakCard>
                       ),
                       Text(
                         'day streak',
-                        style: GoogleFonts.outfit(
-                          fontSize: 12,
+                        style: AppTextStyles.caption.copyWith(
                           color: AppColors.textV2Tertiary,
                           letterSpacing: 0.04,
                         ),
@@ -289,7 +287,7 @@ class _StreakCardState extends State<StreakCard>
             child: Center(
               child: Text(
                 weekdayLabels[i],
-                style: GoogleFonts.outfit(
+                style: AppTextStyles.caption.copyWith(
                   fontSize: 11,
                   fontWeight: isToday ? FontWeight.w700 : FontWeight.w500,
                   color: isToday

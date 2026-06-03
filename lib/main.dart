@@ -47,11 +47,17 @@ void main() async {
   // Initialize Stripe
   Stripe.publishableKey = RuntimeEnvironmentValues.stripePublishableKey;
 
-  // Initialize App Check
-  await FirebaseAppCheck.instance.activate(
-    androidProvider: environment.androidProvider,
-    appleProvider: environment.appleProvider,
-  );
+  // Initialize App Check — wrapped so a Play Integrity failure in release
+  // doesn't prevent runApp() from being called.
+  try {
+    await FirebaseAppCheck.instance.activate(
+      androidProvider: environment.androidProvider,
+      appleProvider: environment.appleProvider,
+    );
+  } catch (e, st) {
+    debugPrint('[AppCheck] Activation failed (non-fatal): $e\n$st');
+  }
+
   await _logAndroidAppCheckDebugSecretIfNeeded(environment);
 
   // Register FCM background message handler
@@ -60,13 +66,25 @@ void main() async {
   final container = ProviderContainer();
 
   // Initialize notification service
-  await container.read(notificationServiceProvider).init();
+  try {
+    await container.read(notificationServiceProvider).init();
+  } catch (e, st) {
+    debugPrint('[NotificationService] Init failed (non-fatal): $e\n$st');
+  }
 
   // Initialize storage service
-  await container.read(storageServiceProvider).init();
+  try {
+    await container.read(storageServiceProvider).init();
+  } catch (e, st) {
+    debugPrint('[StorageService] Init failed (non-fatal): $e\n$st');
+  }
 
   // Register offline handlers
-  await registerOfflineHandlers(container);
+  try {
+    await registerOfflineHandlers(container);
+  } catch (e, st) {
+    debugPrint('[OfflineHandlers] Init failed (non-fatal): $e\n$st');
+  }
 
   runApp(
     UncontrolledProviderScope(

@@ -22,12 +22,16 @@ class MockUserCacheService extends Mock implements UserCacheService {}
 
 Widget _buildApp({
   required List<Override> overrides,
+  List<PlannedExercise>? seededExercises,
 }) {
   return ProviderScope(
     overrides: overrides,
-    child: const MaterialApp(
+    child: MaterialApp(
       home: Scaffold(
-        body: GymSessionSetupPage(sessionId: 'session-1'),
+        body: GymSessionSetupPage(
+          sessionId: 'session-1',
+          seededExercises: seededExercises,
+        ),
       ),
     ),
   );
@@ -50,9 +54,9 @@ void main() {
     final userCacheService = MockUserCacheService();
     final controller = StreamController<Session?>();
 
-    when(() => sessionService.listenToSession('session-1')).thenAnswer(
-      (_) => controller.stream,
-    );
+    when(
+      () => sessionService.listenToSession('session-1'),
+    ).thenAnswer((_) => controller.stream);
     when(
       () => sessionService.ensureGymPlan(
         sessionId: 'session-1',
@@ -67,9 +71,9 @@ void main() {
         exercises: [],
       ),
     );
-    when(() => userCacheService.warmSessionParticipants(any())).thenAnswer(
-      (_) async {},
-    );
+    when(
+      () => userCacheService.warmSessionParticipants(any()),
+    ).thenAnswer((_) async {});
 
     await tester.pumpWidget(
       ProviderScope(
@@ -149,9 +153,9 @@ void main() {
         ],
       );
 
-      when(() => sessionService.listenToSession('session-1')).thenAnswer(
-        (_) => controller.stream,
-      );
+      when(
+        () => sessionService.listenToSession('session-1'),
+      ).thenAnswer((_) => controller.stream);
       when(
         () => sessionService.ensureGymPlan(
           sessionId: 'session-1',
@@ -166,9 +170,9 @@ void main() {
           exercises: [],
         ),
       );
-      when(() => userCacheService.warmSessionParticipants(any())).thenAnswer(
-        (_) async {},
-      );
+      when(
+        () => userCacheService.warmSessionParticipants(any()),
+      ).thenAnswer((_) async {});
 
       await tester.pumpWidget(
         ProviderScope(
@@ -212,9 +216,7 @@ void main() {
 
       expect(find.text('Gym Session Setup'), findsOneWidget);
       expect(
-        find.text(
-          'Prepare your plan before jumping into the live room.',
-        ),
+        find.text('Prepare your plan before jumping into the live room.'),
         findsOneWidget,
       );
       expect(find.byType(GymPlanEditor), findsOneWidget);
@@ -249,9 +251,9 @@ void main() {
     final userCacheService = MockUserCacheService();
     final controller = StreamController<Session?>();
 
-    when(() => sessionService.listenToSession('session-1')).thenAnswer(
-      (_) => controller.stream,
-    );
+    when(
+      () => sessionService.listenToSession('session-1'),
+    ).thenAnswer((_) => controller.stream);
     when(
       () => sessionService.ensureGymPlan(
         sessionId: 'session-1',
@@ -266,9 +268,9 @@ void main() {
         exercises: [],
       ),
     );
-    when(() => userCacheService.warmSessionParticipants(any())).thenAnswer(
-      (_) async {},
-    );
+    when(
+      () => userCacheService.warmSessionParticipants(any()),
+    ).thenAnswer((_) async {});
 
     await tester.pumpWidget(
       _buildApp(
@@ -317,6 +319,10 @@ void main() {
     await tester.tap(find.text('Bench Press'));
     await tester.pumpAndSettle();
 
+    // 2-step picker: confirm set count to complete selection
+    await tester.tap(find.text('Confirm'));
+    await tester.pumpAndSettle();
+
     expect(find.text('Bench Press'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Remove exercise'));
@@ -326,4 +332,111 @@ void main() {
 
     await controller.close();
   });
+
+  testWidgets(
+    'invited same-gym user reviews and personalizes a copied host plan',
+    (tester) async {
+      final sessionService = MockSessionService();
+      final userCacheService = MockUserCacheService();
+      final controller = StreamController<Session?>();
+
+      final hostExercise = PlannedExercise.custom(
+        id: 'host-squat',
+        name: 'Back Squat',
+        plannedSets: 4,
+        order: 0,
+        muscleGroup: 'Legs',
+      );
+
+      when(
+        () => sessionService.listenToSession('session-1'),
+      ).thenAnswer((_) => controller.stream);
+      when(
+        () => userCacheService.warmSessionParticipants(any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => sessionService.saveGymPlan(
+          sessionId: 'session-1',
+          plan: any(named: 'plan'),
+        ),
+      ).thenAnswer((_) async {});
+      when(
+        () => sessionService.setGymPlanReady(
+          sessionId: 'session-1',
+          userId: 'friend-1',
+          isReady: true,
+        ),
+      ).thenAnswer((_) async {});
+
+      await tester.pumpWidget(
+        _buildApp(
+          seededExercises: [hostExercise],
+          overrides: [
+            sessionServiceProvider.overrideWithValue(sessionService),
+            userCacheServiceProvider.overrideWithValue(userCacheService),
+            authSessionProvider.overrideWith(
+              (ref) => Stream.value(
+                const AuthUserEntity(
+                  id: 'friend-1',
+                  email: 'friend@example.com',
+                  displayName: 'Friend',
+                  photoUrl: null,
+                  emailVerified: true,
+                  providerIds: ['password'],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+
+      controller.add(
+        Session(
+          id: 'session-1',
+          type: 'gym',
+          title: 'Gym Setup',
+          hostId: 'host-1',
+          participants: const ['host-1', 'friend-1'],
+          status: SessionStatus.active,
+          phase: SessionPhase.setup,
+          partnerKind: PairedPartnerKind.realFriend,
+          participantTypes: const {'host-1': 'gym', 'friend-1': 'gym'},
+          createdAt: DateTime(2026),
+          startedAt: DateTime(2026),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.text('Back Squat'), findsOneWidget);
+      expect(
+        find.text(
+          'Review the host gym plan, then adjust only your personal copy.',
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byType(DropdownButton<int>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('2').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text("I'm Ready"));
+      await tester.pump();
+
+      final savedPlan =
+          verify(
+                () => sessionService.saveGymPlan(
+                  sessionId: 'session-1',
+                  plan: captureAny(named: 'plan'),
+                ),
+              ).captured.single
+              as GymSessionPlan;
+
+      expect(savedPlan.userId, 'friend-1');
+      expect(savedPlan.source, GymSessionPlanSource.personalCopy);
+      expect(savedPlan.exercises.single.plannedSets, 2);
+
+      await controller.close();
+    },
+  );
 }

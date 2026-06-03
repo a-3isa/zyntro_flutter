@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:google_fonts/google_fonts.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../widgets/reauthentication_dialog.dart';
 import '../../../widgets/widgets.dart';
@@ -203,8 +203,7 @@ class _ChangeEmailPageState extends ConsumerState<ChangeEmailPage> {
                 const SizedBox(width: 16),
                 Text(
                   'Change Email',
-                  style: GoogleFonts.syne(
-                    fontSize: 20,
+                  style: AppTextStyles.h4.copyWith(
                     fontWeight: FontWeight.w700,
                     color: AppColors.textV2Primary,
                   ),

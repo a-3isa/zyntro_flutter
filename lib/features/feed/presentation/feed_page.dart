@@ -4,11 +4,11 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
-
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/feature_flags.dart';
 import '../../../app/navigation/app_router.dart';
+import '../../../app/navigation/app_route_locations.dart';
 import '../../../core/models/models.dart';
 import '../../auth/auth_providers.dart';
 import '../../../services/post_service.dart';
@@ -23,9 +23,9 @@ import '../../moderation/presentation/report_dialog.dart';
 
 /// Feed page showing posts with Public and Following tabs.
 class FeedPage extends ConsumerStatefulWidget {
-  const FeedPage({super.key, this.onSessionTap});
+  const FeedPage({super.key, this.onSocialTap});
 
-  final VoidCallback? onSessionTap;
+  final VoidCallback? onSocialTap;
 
   @override
   ConsumerState<FeedPage> createState() => _FeedPageState();
@@ -56,7 +56,7 @@ class _FeedPageState extends ConsumerState<FeedPage>
           children: [
             _V2FeedHeader(
               onNotificationsTap: () => context.push(AppRoutes.notifications),
-              onSessionTap: widget.onSessionTap,
+              onSocialTap: () => context.go(AppRouteLocations.mainTab(MainShellTab.social)),
               tabController: _tabController,
             ),
             Expanded(
@@ -109,12 +109,12 @@ class _FeedPageState extends ConsumerState<FeedPage>
 /// v2 Feed header: ZYNTRO wordmark + theme toggle + tab pill
 class _V2FeedHeader extends StatelessWidget {
   final VoidCallback onNotificationsTap;
-  final VoidCallback? onSessionTap;
+  final VoidCallback? onSocialTap;
   final TabController tabController;
 
   const _V2FeedHeader({
     required this.onNotificationsTap,
-    this.onSessionTap,
+    this.onSocialTap,
     required this.tabController,
   });
 
@@ -129,9 +129,8 @@ class _V2FeedHeader extends StatelessWidget {
             children: [
               Text(
                 'zyntro',
-                style: GoogleFonts.syne(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
+                style: AppTextStyles.h4.copyWith(
+                  fontWeight: FontWeight.w700,
                   color: AppColors.textV2Primary,
                   letterSpacing: -0.8,
                 ),
@@ -171,9 +170,9 @@ class _V2FeedHeader extends StatelessWidget {
                     ],
                   ),
                 ),
-              ),if (onSessionTap != null) ...[
+              ),if (onSocialTap != null) ...[
                 GestureDetector(
-                  onTap: onSessionTap,
+                  onTap: onSocialTap,
                   child: const Padding(
                     padding: EdgeInsets.all(6),
                     child: Icon(
@@ -206,12 +205,11 @@ class _V2FeedHeader extends StatelessWidget {
               dividerColor: Colors.transparent,
               labelColor: AppColors.textV2Primary,
               unselectedLabelColor: AppColors.textV2Secondary,
-              labelStyle: GoogleFonts.outfit(
+              labelStyle: AppTextStyles.body.copyWith(
                 fontWeight: FontWeight.w600,
                 fontSize: 13,
               ),
-              unselectedLabelStyle: GoogleFonts.outfit(
-                fontWeight: FontWeight.w400,
+              unselectedLabelStyle: AppTextStyles.body.copyWith(
                 fontSize: 13,
               ),
               tabs: const [
@@ -637,13 +635,18 @@ class _FeedTabState extends ConsumerState<_FeedTab>
     const t2 = AppColors.textV2Secondary;
     const s1 = AppColors.surfaceV2;
 
-    return GestureDetector(
+    return _PressableCard(
       onTap: () {
         HapticManager.light();
         context.push('/post/${post.id}');
       },
       child: Container(
-        margin: const EdgeInsets.only(bottom: 1),
+        margin: const EdgeInsets.fromLTRB(AppSpacing.md, 0, AppSpacing.md, AppSpacing.md),
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppBorderRadius.xl),
+          color: AppColors.surfaceV2,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -731,7 +734,7 @@ class _FeedTabState extends ConsumerState<_FeedTab>
                                       authorName.isNotEmpty
                                           ? authorName[0].toUpperCase()
                                           : '?',
-                                      style: GoogleFonts.syne(
+                                      style: AppTextStyles.body.copyWith(
                                         fontSize: 13,
                                         fontWeight: FontWeight.w700,
                                         color: Colors.white,
@@ -744,9 +747,9 @@ class _FeedTabState extends ConsumerState<_FeedTab>
                         Expanded(
                           child: Text(
                             post.title,
-                            style: GoogleFonts.syne(
+                            style: AppTextStyles.h5.copyWith(
                               fontSize: 16,
-                              fontWeight: FontWeight.w800,
+                              fontWeight: FontWeight.w700,
                               color: Colors.white,
                               letterSpacing: -0.4,
                             ),
@@ -782,58 +785,6 @@ class _FeedTabState extends ConsumerState<_FeedTab>
               ),
             ),
 
-            // Workout receipt stats row
-            Container(
-              color: s1,
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Workout type chip
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: typeColor.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          post.type.toUpperCase(),
-                          style: GoogleFonts.outfit(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: typeColor,
-                            letterSpacing: 0.08,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  // Stats row
-                  Row(
-                    children: [
-                      if (post.summary.duration != null)
-                        _PostStat(value: post.summary.duration!, label: 'duration'),
-                      if (post.summary.totalExercises != null)
-                        _PostStat(
-                          value: '${post.summary.totalExercises}',
-                          label: 'exercises',
-                        ),
-                      if (post.summary.totalSets != null)
-                        _PostStat(
-                          value: '${post.summary.totalSets}',
-                          label: 'sets',
-                          isHighlight: true,
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                ],
-              ),
-            ),
-
             // Action row below photo
             Container(
               color: s1,
@@ -854,8 +805,7 @@ class _FeedTabState extends ConsumerState<_FeedTab>
                     const SizedBox(width: 4),
                     Text(
                       '${post.commentsCount}',
-                      style: GoogleFonts.outfit(
-                        fontSize: 12,
+                      style: AppTextStyles.caption.copyWith(
                         fontWeight: FontWeight.w600,
                         color: t2,
                       ),
@@ -1042,43 +992,29 @@ class _FeedTabState extends ConsumerState<_FeedTab>
   }
 }
 
-/// Compact stat display for the workout receipt row on feed cards.
-class _PostStat extends StatelessWidget {
-  final String value;
-  final String label;
-  final bool isHighlight;
 
-  const _PostStat({
-    required this.value,
-    required this.label,
-    this.isHighlight = false,
-  });
+class _PressableCard extends StatefulWidget {
+  const _PressableCard({required this.child, required this.onTap});
+  final Widget child;
+  final VoidCallback onTap;
+  @override
+  State<_PressableCard> createState() => _PressableCardState();
+}
 
+class _PressableCardState extends State<_PressableCard> {
+  bool _pressed = false;
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            value,
-            style: GoogleFonts.syne(
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-              color: isHighlight ? AppColors.accentLime : AppColors.textV2Primary,
-              height: 1,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: GoogleFonts.outfit(
-              fontSize: 11,
-              color: AppColors.textV2Tertiary,
-            ),
-          ),
-        ],
+    return GestureDetector(
+      onTap: widget.onTap,
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      child: AnimatedScale(
+        scale: _pressed ? AppAnimations.cardPressScale : 1.0,
+        duration: AppDurations.fast,
+        curve: AppCurves.press,
+        child: widget.child,
       ),
     );
   }

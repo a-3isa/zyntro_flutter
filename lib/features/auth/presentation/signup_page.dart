@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
-
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../app/navigation/app_router.dart';
 import '../../../utils/validators.dart';
@@ -31,6 +30,7 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   String? _errorMessage;
+  String? _errorSuggestion;
   bool _showPasswordRequirements = false;
   bool _emailValid = false;
   bool _passwordValid = false;
@@ -121,12 +121,18 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
     } on AuthFlowException catch (e) {
       if (mounted) {
         HapticFeedback.heavyImpact();
-        setState(() => _errorMessage = e.message);
+        setState(() {
+          _errorMessage = e.message;
+          _errorSuggestion = 'Review input fields and retry account creation.';
+        });
       }
     } catch (e) {
       if (mounted) {
         HapticFeedback.heavyImpact();
-        setState(() => _errorMessage = 'Sign up failed. Please try again');
+        setState(() {
+          _errorMessage = 'Sign up failed. Please try again';
+          _errorSuggestion = 'Review input fields and retry account creation.';
+        });
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -157,6 +163,7 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
       if (mounted) {
         HapticFeedback.heavyImpact();
         setState(() {
+          _errorSuggestion = null;
           if (e.toString().contains('network_error')) {
             _errorMessage = 'Network error during Google Sign-In';
           } else if (e.toString().contains('sign_in_canceled')) {
@@ -195,6 +202,7 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
       if (mounted) {
         HapticFeedback.heavyImpact();
         setState(() {
+          _errorSuggestion = null;
           if (e.toString().contains('canceled')) {
             _errorMessage = null;
           } else {
@@ -402,17 +410,15 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
                         const SizedBox(height: AppSpacing.xl),
                         Text(
                           'Create Account',
-                          style: GoogleFonts.syne(
-                            fontSize: AppFontSize.xxxl,
-                            fontWeight: FontWeight.w800,
+                          style: AppTextStyles.h2.copyWith(
+                            fontWeight: FontWeight.w700,
                             color: AppColors.textV2Primary,
                           ),
                         ),
                         const SizedBox(height: AppSpacing.sm),
                         Text(
                           'Join Zyntro and start your fitness journey',
-                          style: GoogleFonts.outfit(
-                            fontSize: AppFontSize.md,
+                          style: AppTextStyles.bodyLarge.copyWith(
                             color: AppColors.textV2Secondary,
                           ),
                           textAlign: TextAlign.center,
@@ -426,8 +432,11 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
                   if (_errorMessage != null) ...[
                     AuthErrorSurface(
                       message: _errorMessage!,
-                      suggestion: 'Review input fields and retry account creation.',
-                      onDismiss: () => setState(() => _errorMessage = null),
+                      suggestion: _errorSuggestion,
+                      onDismiss: () => setState(() {
+                        _errorMessage = null;
+                        _errorSuggestion = null;
+                      }),
                     ),
                     const SizedBox(height: AppSpacing.lg),
                   ],
@@ -564,8 +573,7 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
                         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
                         child: Text(
                           'or sign up with',
-                          style: GoogleFonts.outfit(
-                            fontSize: AppFontSize.sm,
+                          style: AppTextStyles.body.copyWith(
                             color: AppColors.textV2Tertiary,
                           ),
                         ),
@@ -600,8 +608,7 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
                           const SizedBox(width: AppSpacing.md),
                           Text(
                             'Sign up with Google',
-                            style: GoogleFonts.outfit(
-                              fontSize: AppFontSize.md,
+                            style: AppTextStyles.bodyLarge.copyWith(
                               fontWeight: FontWeight.w600,
                               color: AppColors.textV2Primary,
                             ),
@@ -637,8 +644,7 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
                           const SizedBox(width: AppSpacing.md),
                           Text(
                             'Sign up with Facebook',
-                            style: GoogleFonts.outfit(
-                              fontSize: AppFontSize.md,
+                            style: AppTextStyles.bodyLarge.copyWith(
                               fontWeight: FontWeight.w600,
                               color: AppColors.textV2Primary,
                             ),
@@ -656,8 +662,7 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
                     children: [
                       Text(
                         'Already have an account? ',
-                        style: GoogleFonts.outfit(
-                          fontSize: AppFontSize.md,
+                        style: AppTextStyles.bodyLarge.copyWith(
                           color: AppColors.textV2Secondary,
                         ),
                       ),
@@ -668,8 +673,7 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
                         },
                         child: Text(
                           'Sign In',
-                          style: GoogleFonts.outfit(
-                            fontSize: AppFontSize.md,
+                          style: AppTextStyles.bodyLarge.copyWith(
                             fontWeight: FontWeight.w600,
                             color: AppColors.accentLime,
                           ),
@@ -722,8 +726,7 @@ class _VerifyEmailDialog extends StatelessWidget {
             const SizedBox(height: AppSpacing.lg),
             Text(
               'Verify Your Email',
-              style: GoogleFonts.syne(
-                fontSize: AppFontSize.xl,
+              style: AppTextStyles.h4.copyWith(
                 fontWeight: FontWeight.w700,
                 color: AppColors.textV2Primary,
               ),
@@ -731,7 +734,7 @@ class _VerifyEmailDialog extends StatelessWidget {
             const SizedBox(height: AppSpacing.md),
             Text(
               "We've sent a verification email to your inbox. Please verify your email to access all features.",
-              style: GoogleFonts.outfit(
+              style: AppTextStyles.body.copyWith(
                 color: AppColors.textV2Secondary,
                 height: 1.5,
               ),

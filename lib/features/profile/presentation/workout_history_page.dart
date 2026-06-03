@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+
+import '../../../core/theme/app_text_styles.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_theme.dart';
@@ -164,8 +165,7 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
                 const SizedBox(width: 16),
                 Text(
                   'Workout History',
-                  style: GoogleFonts.syne(
-                    fontSize: 20,
+                  style: AppTextStyles.h4.copyWith(
                     fontWeight: FontWeight.w700,
                     color: AppColors.textV2Primary,
                   ),
@@ -237,8 +237,7 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
             const SizedBox(height: AppSpacing.lg),
             Text(
               'No workouts yet',
-              style: GoogleFonts.syne(
-                fontSize: AppFontSize.lg,
+              style: AppTextStyles.h5.copyWith(
                 fontWeight: FontWeight.w700,
                 color: AppColors.textV2Primary,
               ),
@@ -268,8 +267,7 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
                 padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, 0),
                 child: Text(
                   'History',
-                  style: GoogleFonts.syne(
-                    fontSize: AppFontSize.lg,
+                  style: AppTextStyles.h5.copyWith(
                     fontWeight: FontWeight.w700,
                     color: AppColors.textV2Primary,
                   ),
@@ -354,7 +352,7 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
                 ),
                 child: Text(
                   workout.type.toUpperCase(),
-                  style: GoogleFonts.outfit(
+                  style: AppTextStyles.caption.copyWith(
                     color: AppColors.accentLime,
                     fontWeight: FontWeight.w700,
                     fontSize: 10,
@@ -369,9 +367,8 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
           ),
           Text(
             workout.title,
-            style: GoogleFonts.syne(
+            style: AppTextStyles.h4.copyWith(
               color: AppColors.textV2Primary,
-              fontSize: 20,
               fontWeight: FontWeight.w700,
             ),
             maxLines: 2,
@@ -478,8 +475,7 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
           padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
           child: Text(
             date,
-            style: GoogleFonts.outfit(
-              fontSize: AppFontSize.md,
+            style: AppTextStyles.bodyLarge.copyWith(
               fontWeight: FontWeight.w700,
               color: AppColors.textV2Primary,
             ),

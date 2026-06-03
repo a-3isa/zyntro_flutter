@@ -112,6 +112,10 @@ class Session {
   final SessionPhase phase;
   final String? buddyPairId;
   final String? activeUserId;
+  final PairedPartnerKind? partnerKind;
+  final String? partnerId;
+  final WorkoutInvitationStatus? invitationStatus;
+  final DateTime? sharedClockStartedAt;
   final SessionSummary? summary;
   final DateTime createdAt;
   final DateTime startedAt;
@@ -129,6 +133,10 @@ class Session {
     this.phase = SessionPhase.live,
     this.buddyPairId,
     this.activeUserId,
+    this.partnerKind,
+    this.partnerId,
+    this.invitationStatus,
+    this.sharedClockStartedAt,
     this.summary,
     required this.createdAt,
     required this.startedAt,
@@ -145,11 +153,20 @@ class Session {
     return SessionMode.parallel;
   }
 
+  bool get hasExactlyTwoParticipants => participants.length == 2;
+
   factory Session.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+    return Session.fromMap(id: doc.id, data: data);
+  }
+
+  factory Session.fromMap({
+    required String id,
+    required Map<String, dynamic> data,
+  }) {
     final rawTypes = data['participantTypes'] as Map<String, dynamic>?;
     return Session(
-      id: doc.id,
+      id: id,
       type: data['type'] ?? 'strength',
       title: data['title'] ?? '',
       hostId: data['hostId'] ?? '',
@@ -159,15 +176,160 @@ class Session {
       phase: SessionPhase.fromString(data['phase'] ?? 'live'),
       buddyPairId: data['buddyPairId'],
       activeUserId: data['activeUserId'],
+      partnerKind: data['partnerKind'] != null
+          ? PairedPartnerKind.fromString(data['partnerKind'] as String)
+          : null,
+      partnerId: data['partnerId'],
+      invitationStatus: data['invitationStatus'] != null
+          ? WorkoutInvitationStatus.fromString(
+              data['invitationStatus'] as String,
+            )
+          : null,
+      sharedClockStartedAt: _dateTimeFromValue(data['sharedClockStartedAt']),
       summary: data['summary'] != null
           ? SessionSummary.fromMap(data['summary'] as Map<String, dynamic>)
           : null,
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      startedAt: (data['startedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      endedAt: (data['endedAt'] as Timestamp?)?.toDate(),
+      createdAt: _dateTimeFromValue(data['createdAt']) ?? DateTime.now(),
+      startedAt: _dateTimeFromValue(data['startedAt']) ?? DateTime.now(),
+      endedAt: _dateTimeFromValue(data['endedAt']),
       participantTypes: rawTypes != null
           ? rawTypes.map((k, v) => MapEntry(k, v as String))
           : const {},
+    );
+  }
+}
+
+DateTime? _dateTimeFromValue(Object? value) {
+  if (value == null) return null;
+  if (value is DateTime) return value;
+  if (value is Timestamp) return value.toDate();
+  if (value is String) return DateTime.tryParse(value);
+  return null;
+}
+
+class DistanceProgressMetrics {
+  final double distanceKm;
+
+  const DistanceProgressMetrics({required this.distanceKm});
+
+  Map<String, dynamic> toMap() {
+    return {'distanceKm': distanceKm};
+  }
+}
+
+class GymProgressMetrics {
+  final int setSeconds;
+  final int reps;
+  final double weightKg;
+
+  const GymProgressMetrics({
+    required this.setSeconds,
+    required this.reps,
+    required this.weightKg,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {'setSeconds': setSeconds, 'reps': reps, 'weightKg': weightKg};
+  }
+}
+
+class TimeProgressMetrics {
+  final int elapsedSeconds;
+
+  const TimeProgressMetrics({required this.elapsedSeconds});
+
+  Map<String, dynamic> toMap() {
+    return {'elapsedSeconds': elapsedSeconds};
+  }
+}
+
+class RoundProgressMetrics {
+  final int completedRounds;
+
+  const RoundProgressMetrics({required this.completedRounds});
+
+  Map<String, dynamic> toMap() {
+    return {'completedRounds': completedRounds};
+  }
+}
+
+class MobilityProgressMetrics {
+  final int completedStages;
+
+  const MobilityProgressMetrics({required this.completedStages});
+
+  Map<String, dynamic> toMap() {
+    return {'completedStages': completedStages};
+  }
+}
+
+class ParticipantProgress {
+  final String sessionId;
+  final String userId;
+  final WorkoutType workoutType;
+  final ParticipantProgressStatus status;
+  final int sharedElapsedSeconds;
+  final GymProgressMetrics? gymMetrics;
+  final TimeProgressMetrics? timeMetrics;
+  final DistanceProgressMetrics? distanceMetrics;
+  final RoundProgressMetrics? roundMetrics;
+  final MobilityProgressMetrics? mobilityMetrics;
+  final DateTime updatedAt;
+
+  const ParticipantProgress({
+    required this.sessionId,
+    required this.userId,
+    required this.workoutType,
+    required this.status,
+    required this.sharedElapsedSeconds,
+    this.gymMetrics,
+    this.timeMetrics,
+    this.distanceMetrics,
+    this.roundMetrics,
+    this.mobilityMetrics,
+    required this.updatedAt,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'sessionId': sessionId,
+      'userId': userId,
+      'workoutType': workoutType.value,
+      'status': status.value,
+      'sharedElapsedSeconds': sharedElapsedSeconds,
+      if (gymMetrics != null) 'gymMetrics': gymMetrics!.toMap(),
+      if (timeMetrics != null) 'timeMetrics': timeMetrics!.toMap(),
+      if (distanceMetrics != null) 'distanceMetrics': distanceMetrics!.toMap(),
+      if (roundMetrics != null) 'roundMetrics': roundMetrics!.toMap(),
+      if (mobilityMetrics != null)
+        'mobilityMetrics': mobilityMetrics!.toMap(),
+      'updatedAt': Timestamp.fromDate(updatedAt),
+    };
+  }
+}
+
+class BotFriend {
+  final String id;
+  final String displayName;
+  final int gymSetSeconds;
+  final int gymReps;
+  final double gymWeightKg;
+
+  const BotFriend({
+    required this.id,
+    required this.displayName,
+    required this.gymSetSeconds,
+    required this.gymReps,
+    required this.gymWeightKg,
+  });
+
+  factory BotFriend.gymSimulation() {
+    return const BotFriend(
+      id: pairedBotFriendId,
+      displayName: 'Zyntro Bot',
+      gymSetSeconds: 7,
+      gymReps: 8,
+      gymWeightKg: 80,
     );
   }
 }
@@ -344,20 +506,62 @@ class SessionSummary {
   }
 }
 
+/// Per-set detail stored inside an ExerciseSummary.
+class SetSummary {
+  final int reps;
+  final double weight;
+  final int durationSeconds;
+
+  SetSummary({
+    required this.reps,
+    required this.weight,
+    required this.durationSeconds,
+  });
+
+  factory SetSummary.fromMap(Map<String, dynamic> data) {
+    return SetSummary(
+      reps: data['reps'] ?? 0,
+      weight: (data['weight'] as num?)?.toDouble() ?? 0.0,
+      durationSeconds: data['durationSeconds'] ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'reps': reps,
+    'weight': weight,
+    'durationSeconds': durationSeconds,
+  };
+}
+
 /// Exercise summary for session recap.
 class ExerciseSummary {
   final String name;
   final int sets;
+  final List<SetSummary> setDetails;
 
-  ExerciseSummary({required this.name, required this.sets});
+  ExerciseSummary({
+    required this.name,
+    required this.sets,
+    this.setDetails = const [],
+  });
 
   factory ExerciseSummary.fromMap(Map<String, dynamic> data) {
-    return ExerciseSummary(name: data['name'] ?? '', sets: data['sets'] ?? 0);
+    return ExerciseSummary(
+      name: data['name'] ?? '',
+      sets: data['sets'] ?? 0,
+      setDetails: (data['setDetails'] as List<dynamic>?)
+              ?.map((e) => SetSummary.fromMap(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+    );
   }
 
-  Map<String, dynamic> toMap() {
-    return {'name': name, 'sets': sets};
-  }
+  Map<String, dynamic> toMap() => {
+    'name': name,
+    'sets': sets,
+    if (setDetails.isNotEmpty)
+      'setDetails': setDetails.map((s) => s.toMap()).toList(),
+  };
 }
 
 /// Timeline event model for session room.
@@ -520,11 +724,22 @@ class SetData {
   final double weight;
   final int reps;
   final int? rpe;
+  final int durationSeconds;
 
-  SetData({required this.weight, required this.reps, this.rpe});
+  SetData({
+    required this.weight,
+    required this.reps,
+    this.rpe,
+    this.durationSeconds = 0,
+  });
 
   Map<String, dynamic> toMap() {
-    return {'weight': weight, 'reps': reps, if (rpe != null) 'rpe': rpe};
+    return {
+      'weight': weight,
+      'reps': reps,
+      if (rpe != null) 'rpe': rpe,
+      'durationSeconds': durationSeconds,
+    };
   }
 }
 

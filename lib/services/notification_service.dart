@@ -252,6 +252,25 @@ class NotificationService {
        _localNotifications = FlutterLocalNotificationsPlugin(),
        _messaging = FirebaseMessaging.instance;
 
+  static Map<String, dynamic> sessionInvitePayload({
+    required String sessionId,
+    required String hostId,
+    required String hostName,
+    required String sessionType,
+    required DateTime expiresAt,
+  }) {
+    return {
+      'type': NotificationType.sessionInvite.value,
+      'sessionId': sessionId,
+      'hostId': hostId,
+      'hostName': hostName,
+      'byUserName': hostName,
+      'sessionType': sessionType,
+      'expiresAt': expiresAt.toIso8601String(),
+      'context': 'one_to_one',
+    };
+  }
+
   String get _pushDeliveryUrl {
     final projectId = Firebase.app().options.projectId;
     return 'https://us-central1-$projectId.cloudfunctions.net/deliverNotificationPush';
@@ -703,6 +722,8 @@ class NotificationService {
     required String inviterName,
     required String sessionId,
     required String sessionType,
+    String? hostId,
+    DateTime? expiresAt,
     int groupSize = 0,
     String? otherParticipantNames,
   }) async {
@@ -734,12 +755,13 @@ class NotificationService {
       message = '$inviterName invited you to a $sessionType session!';
     }
 
-    final data = {
-      'sessionId': sessionId,
-      'sessionType': sessionType,
-      'byUserName': inviterName,
-      'groupSize': groupSize,
-    };
+    final data = sessionInvitePayload(
+      sessionId: sessionId,
+      hostId: hostId ?? '',
+      hostName: inviterName,
+      sessionType: sessionType,
+      expiresAt: expiresAt ?? DateTime.now().add(pairedInviteTimeout),
+    )..['groupSize'] = groupSize;
 
     await Future.wait([
       createNotification(

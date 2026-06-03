@@ -12,6 +12,8 @@ import '../utils/offline_manager.dart';
 import '../features/auth/auth_providers.dart';
 import 'notification_service.dart';
 import 'user_cache_service.dart';
+import 'session_analytics_service.dart';
+import 'follow_service.dart';
 
 /// Session service for managing workout sessions.
 /// Matches React Native sessionService.ts behavior.
@@ -20,6 +22,133 @@ class SessionService {
   final Ref _ref;
 
   SessionService(this._firestore, this._ref);
+
+  static List<String> validatePairedParticipants(List<String> participants) {
+    if (participants.length != 2) {
+      throw ArgumentError('Paired sessions require exactly two participants');
+    }
+    return List.unmodifiable(participants);
+  }
+
+  static void validateOneToOneInvitees(List<String>? invitedUserIds) {
+    if (invitedUserIds != null && invitedUserIds.length > 1) {
+      throw ArgumentError('Paired sessions allow exactly one invited friend');
+    }
+  }
+
+  static SessionMode derivePairedSessionMode(
+    Map<String, String> participantTypes,
+  ) {
+    final types = participantTypes.values.toSet();
+    if (types.length == 1 && types.single == WorkoutType.gym.value) {
+      return SessionMode.turnBased;
+    }
+    return SessionMode.parallel;
+  }
+
+  static Map<String, dynamic> sharedClockStartFields({
+    required Map<String, String> participantTypes,
+  }) {
+    return {
+      'mode': derivePairedSessionMode(participantTypes).value,
+      'participantTypes': Map<String, String>.from(participantTypes),
+    };
+  }
+
+  static bool isParticipantPlanOwner({
+    required String planUserId,
+    required String requesterId,
+  }) {
+    return planUserId == requesterId;
+  }
+
+  static GymSessionPlan copyHostGymPlanForInvitee({
+    required GymSessionPlan hostPlan,
+    required String inviteeId,
+  }) {
+    return GymSessionPlan(
+      userId: inviteeId,
+      source: GymSessionPlanSource.personalCopy,
+      isReady: false,
+      workoutType: hostPlan.workoutType,
+      stages: List<PlannedWorkoutStage>.from(hostPlan.stages),
+      targets: Map<String, dynamic>.from(hostPlan.targets),
+      exercises: hostPlan.exercises
+          .map((exercise) => PlannedExercise.fromMap(exercise.toMap()))
+          .toList(),
+      updatedAt: hostPlan.updatedAt,
+    );
+  }
+
+  static GymSessionPlan copyGymPlanForParticipant({
+    required GymSessionPlan sourcePlan,
+    required String userId,
+    required GymSessionPlanSource source,
+    bool isReady = true,
+  }) {
+    return GymSessionPlan(
+      userId: userId,
+      source: source,
+      isReady: isReady,
+      workoutType: sourcePlan.workoutType,
+      stages: List<PlannedWorkoutStage>.from(sourcePlan.stages),
+      targets: Map<String, dynamic>.from(sourcePlan.targets),
+      exercises: sourcePlan.exercises
+          .map((exercise) => PlannedExercise.fromMap(exercise.toMap()))
+          .toList(),
+      updatedAt: sourcePlan.updatedAt,
+    );
+  }
+
+  static GymSessionPlan botGymPlanFromHostPlan(GymSessionPlan hostPlan) {
+    return copyGymPlanForParticipant(
+      sourcePlan: hostPlan,
+      userId: pairedBotFriendId,
+      source: GymSessionPlanSource.personalCopy,
+    );
+  }
+
+  static Map<String, dynamic> participantCompletionRecord({
+    required String sessionId,
+    required String userId,
+    required GymSessionPlan plan,
+    required ParticipantProgress progress,
+  }) {
+    return {
+      'sessionId': sessionId,
+      'userId': userId,
+      'workoutType': plan.workoutType.value,
+      'plan': plan.toMap(),
+      'progress': progress.toMap(),
+      'completedAt': progress.updatedAt,
+    };
+  }
+
+  static Map<String, dynamic> botProgressSummaryFor(WorkoutType workoutType) {
+    switch (workoutType) {
+      case WorkoutType.running:
+      case WorkoutType.walking:
+        return {'primaryMetric': 'distance', 'distanceKm': 0.12};
+      case WorkoutType.cycling:
+        return {'primaryMetric': 'distance', 'distanceKm': 0.4};
+      case WorkoutType.swimming:
+        return {'primaryMetric': 'distance', 'distanceMeters': 25};
+      case WorkoutType.yoga:
+        return {'primaryMetric': 'stage_completion', 'completedStages': 1};
+      case WorkoutType.hiit:
+      case WorkoutType.sports:
+      case WorkoutType.other:
+        return {'primaryMetric': 'rounds', 'completedRounds': 1};
+      case WorkoutType.gym:
+        final bot = BotFriend.gymSimulation();
+        return {
+          'primaryMetric': 'set',
+          'setSeconds': bot.gymSetSeconds,
+          'reps': bot.gymReps,
+          'weightKg': bot.gymWeightKg,
+        };
+    }
+  }
 
   /// Check if user already has an active session.
   /// Matches RN checkActiveSession.
@@ -51,6 +180,7 @@ class SessionService {
     List<String>? invitedUserIds,
     SessionPhase phase = SessionPhase.live,
   }) async {
+    validateOneToOneInvitees(invitedUserIds);
     // Check for existing active session
     final existingSessionId = await checkActiveSession(hostId);
     if (existingSessionId != null) {
@@ -67,6 +197,33 @@ class SessionService {
     final batch = _firestore.batch();
     final sessionRef = _firestore.collection('sessions').doc();
     final sessionId = sessionRef.id;
+    final inviteExpiresAt = DateTime.now().add(pairedInviteTimeout);
+    final invitedFriendId = invitedUserIds != null && invitedUserIds.isNotEmpty
+        ? invitedUserIds.single
+        : null;
+
+    if (invitedFriendId != null) {
+      final canInvite = await _ref
+          .read(followServiceProvider)
+          .canInviteToPairedSession(hostId: hostId, inviteeId: invitedFriendId);
+      if (!canInvite) {
+        await _ref
+            .read(sessionAnalyticsServiceProvider)
+            .trackPairedSessionEvent(
+              SessionAnalyticsService.pairedSessionEventPayload(
+                eventName:
+                    PairedSessionAnalyticsEvent.inviteEligibilityRejected,
+                sessionId: '',
+                hostId: hostId,
+                partnerId: invitedFriendId,
+                partnerKind: PairedPartnerKind.realFriend.value,
+                mode: SessionMode.turnBased.value,
+                extra: {'workoutType': type},
+              ),
+            );
+        throw Exception('Selected friend is not eligible for a paired invite.');
+      }
+    }
 
     // Batch: session doc + start event
     batch.set(sessionRef, {
@@ -75,6 +232,13 @@ class SessionService {
       'hostId': hostId,
       'participants': [hostId],
       'invitedUserIds': invitedUserIds ?? [],
+      if (invitedFriendId != null)
+        'partnerKind': PairedPartnerKind.realFriend.value,
+      if (invitedFriendId != null) 'partnerId': invitedFriendId,
+      if (invitedFriendId != null)
+        'invitationStatus': WorkoutInvitationStatus.pending.value,
+      if (invitedFriendId != null)
+        'inviteExpiresAt': Timestamp.fromDate(inviteExpiresAt),
       'status': 'active',
       'createdAt': FieldValue.serverTimestamp(),
       'startedAt': FieldValue.serverTimestamp(),
@@ -127,24 +291,24 @@ class SessionService {
       );
     }
 
-    // Notify invited users with enhanced group context and error tracking
+    // Notify the invited user with paired-session context and error tracking.
     if (invitedUserIds != null && invitedUserIds.isNotEmpty) {
       final totalInvites = invitedUserIds.length;
 
-      // Fetch all invited user names for group context
+      // Fetch invited user names for the paired invite payload.
       final invitedUserNames = <String>[];
       for (final uid in invitedUserIds) {
         final user = await _ref.read(userCacheServiceProvider).getUser(uid);
         invitedUserNames.add(user?.displayName ?? 'User');
       }
 
-      // Create group context message
+      // Keep the existing notification payload shape while enforcing one invitee.
       final int groupSize = (invitedUserIds.length) + 1; // +1 for host
 
       for (int i = 0; i < invitedUserIds.length; i++) {
         final invitedUserId = invitedUserIds[i];
 
-        // Build custom message with group context
+        // Build custom message with paired-session context.
         final otherNamesPreview = invitedUserNames
             .where((name) => name != invitedUserNames[i])
             .take(2)
@@ -158,19 +322,50 @@ class SessionService {
                 inviterName: hostName,
                 sessionId: sessionId,
                 sessionType: type,
+                hostId: hostId,
+                expiresAt: inviteExpiresAt,
                 groupSize: groupSize,
                 otherParticipantNames: otherNamesPreview,
               )
-              .catchError(
-                (e) => debugPrint(
+              .catchError((e) {
+                debugPrint(
                   '[SessionService] Notify error for $invitedUserId: $e',
-                ),
-              ),
+                );
+                return _ref
+                    .read(sessionAnalyticsServiceProvider)
+                    .trackPairedSessionEvent(
+                      SessionAnalyticsService.pairedSessionEventPayload(
+                        eventName:
+                            PairedSessionAnalyticsEvent.inviteDeliveryFailed,
+                        sessionId: sessionId,
+                        hostId: hostId,
+                        partnerId: invitedUserId,
+                        partnerKind: PairedPartnerKind.realFriend.value,
+                        mode: SessionMode.turnBased.value,
+                        extra: {'workoutType': type},
+                      ),
+                    );
+              }),
         );
       }
 
-      // Log group invite summary
-      debugPrint('[SessionService] Group invite: $totalInvites invites sent');
+      debugPrint('[SessionService] Paired invite: $totalInvites invite sent');
+      await _ref
+          .read(sessionAnalyticsServiceProvider)
+          .trackPairedSessionEvent(
+            SessionAnalyticsService.pairedSessionEventPayload(
+              eventName: PairedSessionAnalyticsEvent.inviteCreated,
+              sessionId: sessionId,
+              hostId: hostId,
+              partnerId: invitedUserIds.single,
+              partnerKind: PairedPartnerKind.realFriend.value,
+              mode: derivePairedSessionMode({
+                hostId: type,
+                invitedUserIds.single: type,
+              }).value,
+              extra: {'workoutType': type},
+            ),
+          );
     }
 
     // Warm cache for participants (host and invited users will be fetched eventually)
@@ -185,6 +380,106 @@ class SessionService {
     _ref.read(userCacheServiceProvider).warmSessionParticipants(sessionId);
 
     return sessionId;
+  }
+
+  Future<String> createBotPairedSession({
+    required String hostId,
+    required String type,
+    required String title,
+    required GymSessionPlan plan,
+  }) async {
+    final existingSessionId = await checkActiveSession(hostId);
+    if (existingSessionId != null) {
+      throw Exception(
+        'You already have an active session. Please end it before starting a new one.',
+      );
+    }
+
+    final sessionRef = _firestore.collection('sessions').doc();
+    final sessionId = sessionRef.id;
+    final batch = _firestore.batch();
+    final participants = validatePairedParticipants([
+      hostId,
+      pairedBotFriendId,
+    ]);
+    final hostPlan = copyGymPlanForParticipant(
+      sourcePlan: plan,
+      userId: hostId,
+      source: GymSessionPlanSource.hostTemplate,
+    );
+    final botPlan = botGymPlanFromHostPlan(hostPlan);
+    final hostPlanRef = sessionRef.collection('plans').doc(hostId);
+    final botPlanRef = sessionRef.collection('plans').doc(pairedBotFriendId);
+
+    batch.set(sessionRef, {
+      'type': type,
+      'title': title,
+      'hostId': hostId,
+      'participants': participants,
+      'invitedUserIds': [],
+      'status': SessionStatus.active.value,
+      'phase': SessionPhase.live.value,
+      'partnerKind': PairedPartnerKind.bot.value,
+      'partnerId': pairedBotFriendId,
+      'invitationStatus': WorkoutInvitationStatus.accepted.value,
+      'participantTypes': {hostId: type, pairedBotFriendId: type},
+      'mode': SessionMode.turnBased.value,
+      'createdAt': FieldValue.serverTimestamp(),
+      'startedAt': FieldValue.serverTimestamp(),
+      'activeUserId': hostId,
+      'botProfile': BotFriend.gymSimulation().gymReps,
+    });
+    batch.set(hostPlanRef, hostPlan.toMap());
+    batch.set(botPlanRef, botPlan.toMap());
+
+    await withRetryCircuitBreakerVoid(
+      () => batch.commit(),
+      operationType: 'bot_session_create',
+      maxFailures: 5,
+      cooldownDuration: const Duration(seconds: 30),
+    );
+
+    await _ref
+        .read(sessionAnalyticsServiceProvider)
+        .trackPairedSessionEvent(
+          SessionAnalyticsService.pairedSessionEventPayload(
+            eventName: PairedSessionAnalyticsEvent.botSessionStarted,
+            sessionId: sessionId,
+            hostId: hostId,
+            partnerId: pairedBotFriendId,
+            partnerKind: PairedPartnerKind.bot.value,
+            mode: derivePairedSessionMode({
+              hostId: type,
+              pairedBotFriendId: type,
+            }).value,
+            extra: {'workoutType': type},
+          ),
+        );
+
+    _ref.read(userCacheServiceProvider).warmSessionParticipants(sessionId);
+    return sessionId;
+  }
+
+  /// Starts the shared workout clock once, when the first active set timer starts.
+  Future<void> startSharedSessionClock(String sessionId) async {
+    final sessionRef = _firestore.collection('sessions').doc(sessionId);
+
+    await withRetryCircuitBreakerVoid(
+      () => _firestore.runTransaction<void>((transaction) async {
+        final snapshot = await transaction.get(sessionRef);
+        final data = snapshot.data();
+        if (data == null) {
+          throw Exception('Session not found: $sessionId');
+        }
+        if (data['sharedClockStartedAt'] != null) return;
+        transaction.update(sessionRef, {
+          'sharedClockStartedAt': FieldValue.serverTimestamp(),
+        });
+      }),
+      operationType: 'session_clock_start',
+      maxFailures: 5,
+      cooldownDuration: const Duration(seconds: 30),
+    );
   }
 
   /// Join an existing session.
@@ -225,16 +520,55 @@ class SessionService {
     required String chosenWorkoutType,
     GymSessionPlan? plan,
   }) async {
+    final sessionRef = _firestore.collection('sessions').doc(sessionId);
+    final sessionDoc = await sessionRef.get();
+    final sessionData = sessionDoc.data();
+    final inviteExpiresAt = sessionData?['inviteExpiresAt'];
+    final expiresAt = inviteExpiresAt is Timestamp
+        ? inviteExpiresAt.toDate()
+        : inviteExpiresAt is DateTime
+        ? inviteExpiresAt
+        : null;
+    if (expiresAt != null && DateTime.now().isAfter(expiresAt)) {
+      await sessionRef.update({
+        'invitationStatus': WorkoutInvitationStatus.expired.value,
+      });
+      await _ref
+          .read(sessionAnalyticsServiceProvider)
+          .trackPairedSessionEvent(
+            SessionAnalyticsService.pairedSessionEventPayload(
+              eventName: PairedSessionAnalyticsEvent.inviteExpired,
+              sessionId: sessionId,
+              hostId: (sessionData?['hostId'] ?? '').toString(),
+              partnerId: userId,
+              partnerKind: PairedPartnerKind.realFriend.value,
+              mode: SessionMode.turnBased.value,
+              extra: {'workoutType': chosenWorkoutType},
+            ),
+          );
+      throw Exception('This invite has expired.');
+    }
+
     final user = await _ref.read(userCacheServiceProvider).getUser(userId);
     final userName = user?.displayName ?? 'User';
 
     final batch = _firestore.batch();
-    final sessionRef = _firestore.collection('sessions').doc(sessionId);
+    final hostId = (sessionData?['hostId'] ?? '').toString();
+    final hostType = (sessionData?['type'] ?? chosenWorkoutType).toString();
+    final participantTypes = {
+      if (hostId.isNotEmpty) hostId: hostType,
+      userId: chosenWorkoutType,
+    };
+    final startFields = sharedClockStartFields(
+      participantTypes: participantTypes,
+    );
 
     // Add to participants + record chosen type atomically
     batch.update(sessionRef, {
       'participants': FieldValue.arrayUnion([userId]),
       'participantTypes.$userId': chosenWorkoutType,
+      'invitationStatus': WorkoutInvitationStatus.accepted.value,
+      'mode': startFields['mode'],
     });
 
     final planRef = sessionRef.collection('plans').doc(userId);
@@ -245,12 +579,13 @@ class SessionService {
     } else {
       // Non-gym or no plan supplied — create a stub plan and mark ready immediately
       // so setGymPlanReady's "everyone ready?" check can pass
-      batch.set(planRef, GymSessionPlan(
-        userId: userId,
-        source: GymSessionPlanSource.personal,
-        isReady: true,
-        exercises: const [],
-      ).toMap());
+      batch.set(
+        planRef,
+        GymSessionPlan.defaultPersonalPlan(
+          userId: userId,
+          workoutType: WorkoutType.fromString(chosenWorkoutType),
+        ).toMap(),
+      );
     }
 
     // Join event
@@ -272,6 +607,58 @@ class SessionService {
     );
 
     _ref.read(userCacheServiceProvider).warmSessionParticipants(sessionId);
+    await _ref
+        .read(sessionAnalyticsServiceProvider)
+        .trackPairedSessionEvent(
+          SessionAnalyticsService.pairedSessionEventPayload(
+            eventName: PairedSessionAnalyticsEvent.inviteAccepted,
+            sessionId: sessionId,
+            hostId: hostId,
+            partnerId: userId,
+            partnerKind: PairedPartnerKind.realFriend.value,
+            mode: startFields['mode'] as String,
+            extra: {'workoutType': chosenWorkoutType},
+          ),
+        );
+    if (startFields['mode'] == SessionMode.parallel.value) {
+      await _ref
+          .read(sessionAnalyticsServiceProvider)
+          .trackPairedSessionEvent(
+            SessionAnalyticsService.pairedSessionEventPayload(
+              eventName: PairedSessionAnalyticsEvent.mixedSessionStarted,
+              sessionId: sessionId,
+              hostId: hostId,
+              partnerId: userId,
+              partnerKind: PairedPartnerKind.realFriend.value,
+              mode: SessionMode.parallel.value,
+              extra: {'participantTypes': participantTypes},
+            ),
+          );
+    }
+  }
+
+  Future<void> declineInvite({
+    required String sessionId,
+    required String userId,
+  }) async {
+    await withRetry(
+      () => _firestore.collection('sessions').doc(sessionId).update({
+        'invitationStatus': WorkoutInvitationStatus.declined.value,
+        'declinedBy': userId,
+      }),
+    );
+    await _ref
+        .read(sessionAnalyticsServiceProvider)
+        .trackPairedSessionEvent(
+          SessionAnalyticsService.pairedSessionEventPayload(
+            eventName: PairedSessionAnalyticsEvent.inviteDeclined,
+            sessionId: sessionId,
+            hostId: '',
+            partnerId: userId,
+            partnerKind: PairedPartnerKind.realFriend.value,
+            mode: SessionMode.turnBased.value,
+          ),
+        );
   }
 
   /// Pause the session (host only).
@@ -444,11 +831,13 @@ class SessionService {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      // 4. Update user workout score (+10 points)
-      batch.update(_firestore.collection('users').doc(participantId), {
-        'workoutScore': FieldValue.increment(10),
-        'totalWorkouts': FieldValue.increment(1),
-      });
+      if (participantId == userId) {
+        // Client rules only permit users to update their own aggregate stats.
+        batch.update(_firestore.collection('users').doc(participantId), {
+          'workoutScore': FieldValue.increment(10),
+          'totalWorkouts': FieldValue.increment(1),
+        });
+      }
     }
 
     await withRetryCircuitBreakerVoid(
@@ -487,6 +876,23 @@ class SessionService {
         .collection('plans')
         .doc(plan.userId)
         .set(plan.toMap());
+    await _ref
+        .read(sessionAnalyticsServiceProvider)
+        .trackPairedSessionEvent(
+          SessionAnalyticsService.pairedSessionEventPayload(
+            eventName: PairedSessionAnalyticsEvent.planModified,
+            sessionId: sessionId,
+            hostId: plan.userId,
+            partnerId: plan.userId,
+            partnerKind: PairedPartnerKind.realFriend.value,
+            mode: SessionMode.turnBased.value,
+            extra: {
+              'planUserId': plan.userId,
+              'workoutType': plan.workoutType,
+              'source': plan.source.value,
+            },
+          ),
+        );
   }
 
   /// Ensure a participant has a personal gym plan for the setup flow.
@@ -512,18 +918,37 @@ class SessionService {
     }
 
     final hostPlan = GymSessionPlan.fromMap(hostPlanSnapshot.data()!);
-    final clonedPlan = GymSessionPlan(
-      userId: userId,
-      source: userId == hostId
-          ? GymSessionPlanSource.hostTemplate
-          : GymSessionPlanSource.personal,
-      isReady: false,
-      exercises: hostPlan.exercises
-          .map((exercise) => PlannedExercise.fromMap(exercise.toMap()))
-          .toList(),
-    );
+    final clonedPlan = userId == hostId
+        ? GymSessionPlan(
+            userId: userId,
+            source: GymSessionPlanSource.hostTemplate,
+            isReady: false,
+            workoutType: hostPlan.workoutType,
+            stages: List<PlannedWorkoutStage>.from(hostPlan.stages),
+            targets: Map<String, dynamic>.from(hostPlan.targets),
+            exercises: hostPlan.exercises
+                .map((exercise) => PlannedExercise.fromMap(exercise.toMap()))
+                .toList(),
+            updatedAt: hostPlan.updatedAt,
+          )
+        : copyHostGymPlanForInvitee(hostPlan: hostPlan, inviteeId: userId);
 
     await userPlanRef.set(clonedPlan.toMap());
+    if (userId != hostId) {
+      await _ref
+          .read(sessionAnalyticsServiceProvider)
+          .trackPairedSessionEvent(
+            SessionAnalyticsService.pairedSessionEventPayload(
+              eventName: PairedSessionAnalyticsEvent.planCopied,
+              sessionId: sessionId,
+              hostId: hostId,
+              partnerId: userId,
+              partnerKind: PairedPartnerKind.realFriend.value,
+              mode: SessionMode.turnBased.value,
+              extra: {'workoutType': clonedPlan.workoutType},
+            ),
+          );
+    }
     return clonedPlan;
   }
 
@@ -537,16 +962,32 @@ class SessionService {
     final plansCollection = sessionRef.collection('plans');
     final userPlanRef = plansCollection.doc(userId);
 
+    bool allParticipantsReady = false;
+    String hostId = '';
+    String partnerId = '';
+    String mode = SessionMode.turnBased.value;
+
     await _firestore.runTransaction<void>((transaction) async {
       final sessionSnapshot = await transaction.get(sessionRef);
       final sessionData = sessionSnapshot.data();
       if (sessionData == null) {
         throw Exception('Session not found: $sessionId');
       }
+      hostId = (sessionData['hostId'] ?? '').toString();
+      final participantTypes =
+          (sessionData['participantTypes'] as Map<String, dynamic>?)?.map(
+            (key, value) => MapEntry(key, value.toString()),
+          ) ??
+          const <String, String>{};
+      mode = derivePairedSessionMode(participantTypes).value;
 
       final participants =
           (sessionData['participants'] as List<dynamic>?)?.cast<String>() ??
           const <String>[];
+      partnerId = participants.firstWhere(
+        (participantId) => participantId != userId,
+        orElse: () => '',
+      );
       final currentPhase = SessionPhase.fromString(
         sessionData['phase'] as String? ?? SessionPhase.live.value,
       );
@@ -554,7 +995,9 @@ class SessionService {
       final userPlanSnapshot = await transaction.get(userPlanRef);
       final userPlanData = userPlanSnapshot.data();
       if (!userPlanSnapshot.exists || userPlanData == null) {
-        throw StateError('Gym plan must exist before readiness can be updated.');
+        throw StateError(
+          'Gym plan must exist before readiness can be updated.',
+        );
       }
       transaction.update(userPlanRef, {'isReady': isReady});
 
@@ -571,14 +1014,46 @@ class SessionService {
             : false;
       }
 
-      if (currentPhase == SessionPhase.setup &&
+      allParticipantsReady =
           participants.isNotEmpty &&
           participants.every(
             (participantId) => planReadiness[participantId] == true,
-          )) {
+          );
+
+      if (currentPhase == SessionPhase.setup && allParticipantsReady) {
         transaction.update(sessionRef, {'phase': SessionPhase.live.value});
       }
     });
+
+    await _ref
+        .read(sessionAnalyticsServiceProvider)
+        .trackPairedSessionEvent(
+          SessionAnalyticsService.pairedSessionEventPayload(
+            eventName: PairedSessionAnalyticsEvent.planReady,
+            sessionId: sessionId,
+            hostId: hostId,
+            partnerId: partnerId,
+            partnerKind: PairedPartnerKind.realFriend.value,
+            mode: mode,
+            extra: {'planUserId': userId, 'isReady': isReady},
+          ),
+        );
+
+    if (isReady && !allParticipantsReady) {
+      await _ref
+          .read(sessionAnalyticsServiceProvider)
+          .trackPairedSessionEvent(
+            SessionAnalyticsService.pairedSessionEventPayload(
+              eventName: PairedSessionAnalyticsEvent.readinessBlocked,
+              sessionId: sessionId,
+              hostId: hostId,
+              partnerId: partnerId,
+              partnerKind: PairedPartnerKind.realFriend.value,
+              mode: mode,
+              extra: {'waitingOnPlan': true},
+            ),
+          );
+    }
   }
 
   /// Listen to a user's gym setup plan.
@@ -614,16 +1089,19 @@ class SessionService {
 
   /// Switch turn to the next participant.
   /// Matches RN switchTurn (for turn_based mode only).
-  /// Uses round-robin cycling to support 3+ participants.
+  /// Paired gym sessions switch turns only between exactly two gym participants.
   Future<void> switchTurn(String sessionId, String currentUserId) async {
     final session = await getSession(sessionId);
     if (session == null) return;
 
-    // Handle edge cases
-    if (session.participants.isEmpty) return;
-    if (session.participants.length == 1) {
-      return; // Single participant, no turn switch needed
-    }
+    if (session.participants.length != 2) return;
+    final allGym = session.participants.every(
+      (participantId) =>
+          session.participantTypes[participantId] == WorkoutType.gym.value ||
+          session.participantTypes[participantId] == null &&
+              session.type == WorkoutType.gym.value,
+    );
+    if (!allGym) return;
 
     // Find current participant's index
     final currentIndex = session.participants.indexOf(currentUserId);
@@ -649,11 +1127,15 @@ class SessionService {
       });
     });
 
+    // Event is authored by the current user (required by security rules:
+    // request.resource.data.userId == request.auth.uid).
+    // The next participant is stored in data so UI can display correctly.
     await addSessionEvent(
       sessionId: sessionId,
       type: SessionEventType.turnSwitch,
-      userId: nextUserId,
+      userId: currentUserId,
       text: "$nextUserName's turn!",
+      data: {'nextUserId': nextUserId, 'nextUserName': nextUserName},
     );
 
     // Notify the next participant that it's their turn
@@ -890,14 +1372,13 @@ final currentSessionProvider = StreamProvider.family<Session?, String>((
 
 /// Stream provider for a participant's gym setup plan.
 final gymSessionPlanProvider =
-    StreamProvider.family<GymSessionPlan?, ({String sessionId, String userId})>((
-      ref,
-      params,
-    ) {
-      return ref
-          .watch(sessionServiceProvider)
-          .listenToGymPlan(params.sessionId, params.userId);
-    });
+    StreamProvider.family<GymSessionPlan?, ({String sessionId, String userId})>(
+      (ref, params) {
+        return ref
+            .watch(sessionServiceProvider)
+            .listenToGymPlan(params.sessionId, params.userId);
+      },
+    );
 
 /// Stream provider for session events.
 final sessionEventsProvider =

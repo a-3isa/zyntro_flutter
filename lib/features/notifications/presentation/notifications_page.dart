@@ -2,10 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:timeago/timeago.dart' as timeago;
-import 'package:google_fonts/google_fonts.dart';
-
 import '../../../app/navigation/app_route_locations.dart';
 import '../../../core/constants/constants.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/auth_providers.dart';
 import '../../../services/notification_service.dart';
@@ -106,9 +105,9 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                 Expanded(
                   child: Text(
                     'Notifications',
-                    style: GoogleFonts.syne(
+                    style: AppTextStyles.h3.copyWith(
                       fontSize: 22,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w700,
                       color: AppColors.textV2Primary,
                       letterSpacing: -0.5,
                     ),
@@ -196,7 +195,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                       const SizedBox(height: AppSpacing.md),
                       Text(
                         'Failed to load notifications',
-                        style: GoogleFonts.outfit(
+                        style: AppTextStyles.bodyLarge.copyWith(
                           color: AppColors.textV2Secondary,
                         ),
                       ),
@@ -273,8 +272,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: Text(
         label,
-        style: GoogleFonts.outfit(
-          fontSize: 10,
+        style: AppTextStyles.caption.copyWith(
           fontWeight: FontWeight.w700,
           color: AppColors.textV2Tertiary,
           letterSpacing: 2,
@@ -306,16 +304,16 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
           const SizedBox(height: AppSpacing.lg),
           Text(
             'All clear',
-            style: GoogleFonts.syne(
+            style: AppTextStyles.h3.copyWith(
               fontSize: 22,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w700,
               color: AppColors.textV2Primary,
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(
             "You'll see updates here when they arrive",
-            style: GoogleFonts.outfit(color: AppColors.textV2Secondary),
+            style: AppTextStyles.bodyLarge.copyWith(color: AppColors.textV2Secondary),
           ),
         ],
       ),
@@ -418,7 +416,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
               ),
               title: Text(
                 notification.title,
-                style: GoogleFonts.syne(
+                style: AppTextStyles.body.copyWith(
                   fontWeight: notification.read
                       ? FontWeight.w500
                       : FontWeight.w600,
@@ -434,7 +432,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                     notification.message,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.outfit(
+                    style: AppTextStyles.caption.copyWith(
                       color: AppColors.textV2Secondary,
                       fontSize: 11,
                       height: 1.3,

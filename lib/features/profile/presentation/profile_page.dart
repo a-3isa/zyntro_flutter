@@ -1,12 +1,12 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart' hide Badge;
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:avatar_plus/avatar_plus.dart';
+import 'package:intl/intl.dart';
 
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/models/models.dart';
 import '../../../core/constants/constants.dart';
@@ -15,10 +15,15 @@ import '../../../services/user_service.dart';
 import '../../../services/moderation_service.dart';
 import '../../../services/follow_service.dart';
 import '../../../services/post_service.dart';
+import '../../../services/session_service.dart';
 import '../../moderation/presentation/report_dialog.dart';
 import '../../auth/auth_providers.dart';
 import '../../auth/domain/entities/user_profile_entity.dart';
 import '../../auth/presentation/providers/auth_controller.dart';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 User _toLegacyUser(UserProfileEntity profile) {
   return User(
@@ -33,58 +38,6 @@ User _toLegacyUser(UserProfileEntity profile) {
     updatedAt: DateTime.now(),
   );
 }
-
-/// Provider to fetch another user's profile by ID.
-final otherUserProfileProvider = FutureProvider.family<User?, String>((
-  ref,
-  userId,
-) async {
-  final profile = await ref.read(authControllerProvider).getUserProfile(userId);
-  if (profile == null) return null;
-  return _toLegacyUser(profile);
-});
-
-final currentUserProfileProvider = FutureProvider<User?>((ref) async {
-  final authState = ref.watch(authSessionProvider);
-  final uid = authState.valueOrNull?.id;
-  if (uid == null) return null;
-  final profile = await ref.read(authControllerProvider).getUserProfile(uid);
-  if (profile == null) return null;
-  return _toLegacyUser(profile);
-});
-
-/// Provider for followers count.
-final followersCountProvider = FutureProvider.family<int, String>((
-  ref,
-  userId,
-) async {
-  return ref.read(followServiceProvider).getFollowersCount(userId);
-});
-
-/// Provider for following count.
-final followingCountProvider = FutureProvider.family<int, String>((
-  ref,
-  userId,
-) async {
-  return ref.read(followServiceProvider).getFollowingCount(userId);
-});
-
-/// Provider for follow status between current user and target user.
-final followStatusProvider = FutureProvider.family<FollowStatus?, String>((
-  ref,
-  targetUserId,
-) async {
-  final authState = ref.watch(authSessionProvider);
-  final currentUserId = authState.valueOrNull?.id;
-  if (currentUserId == null || currentUserId == targetUserId) return null;
-  return ref
-      .read(followServiceProvider)
-      .getFollowStatus(currentUserId, targetUserId);
-});
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 Color _buildTypeColor(String type) {
   switch (type.toLowerCase()) {
@@ -125,6 +78,64 @@ IconData _buildTypeIcon(String type) {
 }
 
 // ---------------------------------------------------------------------------
+// Providers
+// ---------------------------------------------------------------------------
+
+/// Provider to fetch another user's profile by ID.
+final otherUserProfileProvider = FutureProvider.family<User?, String>((
+  ref,
+  userId,
+) async {
+  final profile =
+      await ref.read(authControllerProvider).getUserProfile(userId);
+  if (profile == null) return null;
+  return _toLegacyUser(profile);
+});
+
+final currentUserProfileProvider = FutureProvider<User?>((ref) async {
+  final uid = ref.watch(authSessionProvider).valueOrNull?.id;
+  if (uid == null) return null;
+  final profile = await ref.read(authControllerProvider).getUserProfile(uid);
+  if (profile == null) return null;
+  return _toLegacyUser(profile);
+});
+
+/// Provider for followers count.
+final followersCountProvider = FutureProvider.family<int, String>((
+  ref,
+  userId,
+) async {
+  return ref.read(followServiceProvider).getFollowersCount(userId);
+});
+
+/// Provider for following count.
+final followingCountProvider = FutureProvider.family<int, String>((
+  ref,
+  userId,
+) async {
+  return ref.read(followServiceProvider).getFollowingCount(userId);
+});
+
+/// Provider for follow status between current user and target user.
+final followStatusProvider = FutureProvider.family<FollowStatus?, String>((
+  ref,
+  targetUserId,
+) async {
+  final authState = ref.watch(authSessionProvider);
+  final currentUserId = authState.valueOrNull?.id;
+  if (currentUserId == null || currentUserId == targetUserId) return null;
+  return ref
+      .read(followServiceProvider)
+      .getFollowStatus(currentUserId, targetUserId);
+});
+
+/// Provider for a user's recent sessions (up to 100).
+final userSessionsProvider =
+    FutureProvider.family<List<Session>, String>((ref, userId) async {
+  return ref.read(sessionServiceProvider).getUserSessions(userId, limit: 100);
+});
+
+// ---------------------------------------------------------------------------
 // ProfilePage
 // ---------------------------------------------------------------------------
 
@@ -141,81 +152,79 @@ class ProfilePage extends ConsumerStatefulWidget {
 class _ProfilePageState extends ConsumerState<ProfilePage> {
   bool _isFollowLoading = false;
 
+  String? get _targetUserId =>
+      widget.userId ?? ref.read(authSessionProvider).valueOrNull?.id;
+
+  bool get _isCurrentUser {
+    final currentId = ref.read(authSessionProvider).valueOrNull?.id;
+    return widget.userId == null || widget.userId == currentId;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authSessionProvider);
-    final currentUserId = authState.valueOrNull?.id;
-
-    final targetUserId = widget.userId ?? currentUserId;
-    final isCurrentUser = targetUserId == currentUserId;
-
-    final AsyncValue<User?> userProfileAsync;
-    if (widget.userId != null) {
-      userProfileAsync = ref.watch(otherUserProfileProvider(widget.userId!));
-    } else {
-      userProfileAsync = ref.watch(currentUserProfileProvider);
-    }
-
-    return Scaffold(
-      backgroundColor: AppColors.backgroundV2,
-      body: userProfileAsync.when(
-        data: (user) {
-          if (user == null || targetUserId == null) {
-            return const Center(child: Text('User not found'));
-          }
-          return _ProfileContent(
-            user: user,
-            targetUserId: targetUserId,
-            isCurrentUser: isCurrentUser,
-            isFollowLoading: _isFollowLoading,
-            onFollow: (id, isPrivate) => _handleFollow(id, isPrivate),
-            onUnfollow: _handleUnfollow,
-            onAction: (action, id) =>
-                _handleAction(context, ref, action, id),
-            onRefresh: () async {
-              if (isCurrentUser) {
-                ref.invalidate(currentUserProfileProvider);
-              }
-              if (widget.userId != null) {
-                ref.invalidate(otherUserProfileProvider(widget.userId!));
-              }
-              ref.invalidate(userStreakProvider(targetUserId));
-              ref.invalidate(userBadgesProvider(targetUserId));
-              ref.invalidate(userPostsProvider(targetUserId));
-              ref.invalidate(followersCountProvider(targetUserId));
-              ref.invalidate(followingCountProvider(targetUserId));
-              if (!isCurrentUser) {
-                ref.invalidate(followStatusProvider(targetUserId));
-              }
-            },
-          );
-        },
-        loading: () => const Center(
+    final targetUserId = _targetUserId;
+    if (targetUserId == null) {
+      return const Scaffold(
+        backgroundColor: AppColors.backgroundV2,
+        body: Center(
           child: CircularProgressIndicator(color: AppColors.accentLime),
         ),
-        error: (e, _) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.error_outline,
-                size: 48,
-                color: AppColors.error,
+      );
+    }
+
+    final userAsync = _isCurrentUser
+        ? ref.watch(currentUserProfileProvider)
+        : ref.watch(otherUserProfileProvider(targetUserId));
+
+    return userAsync.when(
+      data: (user) {
+        if (user == null) {
+          return Scaffold(
+            backgroundColor: AppColors.backgroundV2,
+            appBar: AppBar(backgroundColor: AppColors.backgroundV2),
+            body: Center(
+              child: Text(
+                'User not found',
+                style: AppTextStyles.body.copyWith(
+                  color: AppColors.textV2Secondary,
+                ),
               ),
-              const SizedBox(height: AppSpacing.md),
-              Text('Error: $e'),
-              const SizedBox(height: AppSpacing.md),
-              ElevatedButton(
-                onPressed: () {
-                  if (isCurrentUser) {
-                    ref.invalidate(currentUserProfileProvider);
-                  } else if (targetUserId != null) {
-                    ref.invalidate(otherUserProfileProvider(targetUserId));
-                  }
-                },
-                child: const Text('Retry'),
-              ),
-            ],
+            ),
+          );
+        }
+
+        return _ProfileContent(
+          user: user,
+          targetUserId: targetUserId,
+          isCurrentUser: _isCurrentUser,
+          isFollowLoading: _isFollowLoading,
+          onFollow: _handleFollow,
+          onUnfollow: _handleUnfollow,
+          onAction: (action, uid) => _handleAction(context, ref, action, uid, targetUserName: user.displayName),
+          onRefresh: () async {
+            ref.invalidate(currentUserProfileProvider);
+            ref.invalidate(otherUserProfileProvider(targetUserId));
+            ref.invalidate(userSessionsProvider(targetUserId));
+            ref.invalidate(userPostsProvider(targetUserId));
+            ref.invalidate(userStreakProvider(targetUserId));
+            ref.invalidate(followersCountProvider(targetUserId));
+          },
+        );
+      },
+      loading: () => const Scaffold(
+        backgroundColor: AppColors.backgroundV2,
+        body: Center(
+          child: CircularProgressIndicator(color: AppColors.accentLime),
+        ),
+      ),
+      error: (e, _) => Scaffold(
+        backgroundColor: AppColors.backgroundV2,
+        body: Center(
+          child: Text(
+            'Failed to load profile',
+            style: AppTextStyles.body.copyWith(
+              color: AppColors.textV2Secondary,
+            ),
           ),
         ),
       ),
@@ -231,56 +240,48 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     setState(() => _isFollowLoading = true);
 
     try {
-      final userProfile =
-          await ref.read(authControllerProvider).getUserProfile(currentUserId);
       await ref.read(followServiceProvider).followUser(
-            followerId: currentUserId,
-            followeeId: targetUserId,
-            isPrivate: isPrivate,
-            followerName: userProfile?.displayName,
-          );
+        followerId: currentUserId,
+        followeeId: targetUserId,
+        isPrivate: isPrivate,
+      );
       ref.invalidate(followStatusProvider(targetUserId));
       ref.invalidate(followersCountProvider(targetUserId));
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(isPrivate ? 'Follow request sent' : 'Now following'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      HapticFeedback.heavyImpact();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to follow: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+    } catch (_) {
     } finally {
-      if (mounted) {
-        setState(() => _isFollowLoading = false);
-      }
+      if (mounted) setState(() => _isFollowLoading = false);
     }
   }
 
   Future<void> _handleUnfollow(String targetUserId) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Unfollow'),
-        content: const Text('Are you sure you want to unfollow this user?'),
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surfaceV2,
+        title: Text(
+          'Unfollow?',
+          style: AppTextStyles.h5.copyWith(color: AppColors.textV2Primary),
+        ),
+        content: Text(
+          'Are you sure you want to unfollow this user?',
+          style: AppTextStyles.body.copyWith(color: AppColors.textV2Secondary),
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(
+              'Cancel',
+              style: AppTextStyles.body.copyWith(
+                color: AppColors.textV2Secondary,
+              ),
+            ),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Unfollow'),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              'Unfollow',
+              style: AppTextStyles.body.copyWith(color: AppColors.error),
+            ),
           ),
         ],
       ),
@@ -296,33 +297,15 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     setState(() => _isFollowLoading = true);
 
     try {
-      await ref
-          .read(followServiceProvider)
-          .unfollowUser(currentUserId, targetUserId);
+      await ref.read(followServiceProvider).unfollowUser(
+        currentUserId,
+        targetUserId,
+      );
       ref.invalidate(followStatusProvider(targetUserId));
       ref.invalidate(followersCountProvider(targetUserId));
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Unfollowed'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      HapticFeedback.heavyImpact();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to unfollow: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+    } catch (_) {
     } finally {
-      if (mounted) {
-        setState(() => _isFollowLoading = false);
-      }
+      if (mounted) setState(() => _isFollowLoading = false);
     }
   }
 
@@ -330,55 +313,29 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     BuildContext context,
     WidgetRef ref,
     String action,
-    String targetUserId,
-  ) async {
+    String targetUserId, {
+    String targetUserName = '',
+  }) async {
     final authState = ref.read(authSessionProvider);
     final currentUserId = authState.valueOrNull?.id;
     if (currentUserId == null) return;
 
-    final user =
-        await ref.read(authControllerProvider).getUserProfile(targetUserId);
-    final userName = user?.displayName ?? 'User';
-
-    if (!context.mounted) return;
-
     switch (action) {
       case 'report':
-        await ReportDialog.show(
-          context,
-          reportedUserId: targetUserId,
-          reportedUserName: userName,
-        );
-        break;
-      case 'block':
-        final confirmed = await showDialog<bool>(
+        if (!context.mounted) return;
+        await showDialog<void>(
           context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Block User'),
-            content: Text('Are you sure you want to block $userName?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
-                child: const Text('Block'),
-              ),
-            ],
+          builder: (ctx) => ReportDialog(
+            reportedUserId: targetUserId,
+            reportedUserName: targetUserName,
           ),
         );
-        if (confirmed == true && context.mounted) {
-          try {
-            HapticFeedback.heavyImpact();
-            await ref
-                .read(moderationServiceProvider)
-                .blockUser(currentUserId, targetUserId);
-            if (context.mounted) Navigator.pop(context);
-          } catch (_) {}
-        }
-        break;
+      case 'block':
+        await ref.read(moderationServiceProvider).blockUser(
+          currentUserId,
+          targetUserId,
+        );
+        if (context.mounted) context.go(AppRoutes.main);
     }
   }
 }
@@ -413,51 +370,45 @@ class _ProfileContent extends ConsumerWidget {
     return DefaultTabController(
       length: 3,
       child: RefreshIndicator(
-        onRefresh: onRefresh,
         color: AppColors.accentLime,
         backgroundColor: AppColors.surfaceV2,
+        onRefresh: onRefresh,
         child: NestedScrollView(
-          headerSliverBuilder: (context, innerBoxIsScrolled) {
-            return [
-              SliverToBoxAdapter(
-                child: _HeaderSection(
-                  user: user,
-                  targetUserId: targetUserId,
-                  isCurrentUser: isCurrentUser,
-                  isFollowLoading: isFollowLoading,
-                  onFollow: onFollow,
-                  onUnfollow: onUnfollow,
-                  onAction: onAction,
-                ),
+          headerSliverBuilder: (context, innerBoxIsScrolled) => [
+            SliverToBoxAdapter(
+              child: _HeaderSection(
+                user: user,
+                targetUserId: targetUserId,
+                isCurrentUser: isCurrentUser,
+                isFollowLoading: isFollowLoading,
+                onFollow: onFollow,
+                onUnfollow: onUnfollow,
+                onAction: onAction,
               ),
-              SliverPersistentHeader(
-                pinned: true,
-                delegate: _TabBarDelegate(
-                  TabBar(
-                    labelStyle: GoogleFonts.outfit(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
-                    unselectedLabelStyle: GoogleFonts.outfit(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w400,
-                    ),
-                    labelColor: AppColors.textV2Primary,
-                    unselectedLabelColor: AppColors.textV2Secondary,
-                    indicatorColor: AppColors.accentLime,
-                    indicatorSize: TabBarIndicatorSize.tab,
-                    indicatorWeight: 2,
-                    dividerColor: AppColors.surfaceV2Active,
-                    tabs: const [
-                      Tab(text: 'Posts'),
-                      Tab(text: 'History'),
-                      Tab(text: 'Awards'),
-                    ],
+            ),
+            SliverPersistentHeader(
+              pinned: true,
+              delegate: _TabBarDelegate(
+                TabBar(
+                  labelColor: AppColors.textV2Primary,
+                  unselectedLabelColor: AppColors.textV2Tertiary,
+                  indicatorColor: AppColors.accentLime,
+                  indicatorSize: TabBarIndicatorSize.label,
+                  dividerColor: Colors.transparent,
+                  labelStyle: AppTextStyles.label.copyWith(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
                   ),
+                  tabs: const [
+                    Tab(text: 'POSTS'),
+                    Tab(text: 'HISTORY'),
+                    Tab(text: 'AWARDS'),
+                  ],
                 ),
               ),
-            ];
-          },
+            ),
+          ],
           body: TabBarView(
             children: [
               _PostsTab(
@@ -465,7 +416,7 @@ class _ProfileContent extends ConsumerWidget {
                 isCurrentUser: isCurrentUser,
                 isPrivate: user.isPrivate,
               ),
-              const _HistoryTab(),
+              _HistoryTab(targetUserId: targetUserId),
               _AwardsTab(targetUserId: targetUserId),
             ],
           ),
@@ -508,7 +459,7 @@ class _TabBarDelegate extends SliverPersistentHeaderDelegate {
 }
 
 // ---------------------------------------------------------------------------
-// Header Section (pinned above tabs in sliver header)
+// Header Section
 // ---------------------------------------------------------------------------
 
 class _HeaderSection extends ConsumerStatefulWidget {
@@ -545,261 +496,270 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
     final followersAsync = ref.watch(followersCountProvider(targetUserId));
     final postsAsync = ref.watch(userPostsProvider(targetUserId));
 
-    final int workouts =
-        streakAsync.valueOrNull?.totalWorkouts ?? 0;
+    final int workouts = streakAsync.valueOrNull?.totalWorkouts ?? 0;
     final int streak = streakAsync.valueOrNull?.currentStreak ?? 0;
-    final int buddies = followersAsync.valueOrNull ?? 0;
+    final int followers = followersAsync.valueOrNull ?? 0;
     final int points = workouts * 10;
     final int postCount = postsAsync.valueOrNull?.length ?? 0;
 
-    // Split name for editorial stacked display
     final nameParts = user.displayName.trim().split(' ');
     final firstName = nameParts.isNotEmpty ? nameParts[0] : '';
-    final lastName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
+    final lastName =
+        nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
 
-    return Stack(
-      children: [
-        // Radial lime tint overlay at top
-        Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
-          height: 200,
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: RadialGradient(
-                center: Alignment.topCenter,
-                radius: 1.2,
-                colors: [
-                  AppColors.accentLime.withValues(alpha: 0.028),
-                  Colors.transparent,
-                ],
-              ),
-            ),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 56, 20, 0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ---- Top row: avatar + name block + settings icon ----
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Avatar 64px
-                  Container(
-                    width: 64,
-                    height: 64,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: AppColors.surfaceV2Elevated,
-                      border: Border.all(
-                        color: AppColors.accentLime.withValues(alpha: 0.4),
-                        width: 1.5,
-                      ),
-                    ),
-                    child: ClipOval(
-                      child:
-                          user.photoURL != null && user.photoURL!.isNotEmpty
-                              ? CachedNetworkImage(
-                                  imageUrl: user.photoURL!,
-                                  fit: BoxFit.cover,
-                                  width: 64,
-                                  height: 64,
-                                )
-                              : (user.avatarConfig != null &&
-                                      user.avatarConfig!.isNotEmpty)
-                                  ? AvatarPlus(
-                                      user.avatarConfig!,
-                                      width: 64,
-                                      height: 64,
-                                      fit: BoxFit.cover,
-                                    )
-                                  : Center(
-                                      child: Text(
-                                        user.displayName.isNotEmpty
-                                            ? user.displayName[0].toUpperCase()
-                                            : 'U',
-                                        style: GoogleFonts.syne(
-                                          fontSize: 24,
-                                          fontWeight: FontWeight.bold,
-                                          color: AppColors.accentLime,
-                                        ),
-                                      ),
-                                    ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  // Editorial name block
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // First name
-                        Text(
-                          firstName.toUpperCase(),
-                          style: GoogleFonts.syne(
-                            fontSize: 38,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -1.5,
-                            color: AppColors.textV2Primary,
-                            height: 0.95,
-                          ),
-                        ),
-                        // Last name (if exists)
-                        if (lastName.isNotEmpty)
-                          Text(
-                            lastName.toUpperCase(),
-                            style: GoogleFonts.syne(
-                              fontSize: 38,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -1.5,
-                              color: AppColors.textV2Primary,
-                              height: 0.95,
-                            ),
-                          ),
-                        const SizedBox(height: 6),
-                        // @username · Rank #N
-                        Row(
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 20),
+
+            // Top row: avatar + name/badge inline + action button
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                _buildAvatar(user),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Name — first + last on one line, last name in lime
+                      Text.rich(
+                        TextSpan(
                           children: [
-                            Text(
-                              '@${user.displayName.toLowerCase().replaceAll(' ', '')}',
-                              style: GoogleFonts.outfit(
-                                fontSize: 11,
-                                color: AppColors.textV2Tertiary,
+                            TextSpan(
+                              text: firstName,
+                              style: AppTextStyles.h2.copyWith(
+                                fontSize: 26,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.textV2Primary,
+                                height: 1.1,
+                                letterSpacing: -1,
                               ),
                             ),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 5,
-                              ),
-                              child: Text(
-                                '·',
-                                style: GoogleFonts.outfit(
-                                  fontSize: 11,
-                                  color: AppColors.textV2Tertiary,
+                            if (lastName.isNotEmpty) ...[
+                              const TextSpan(text: ' '),
+                              TextSpan(
+                                text: lastName,
+                                style: AppTextStyles.h2.copyWith(
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.accentLime,
+                                  height: 1.1,
+                                  letterSpacing: -1,
                                 ),
                               ),
-                            ),
-                            Text(
-                              'Rank #${(workouts ~/ 5) + 1}',
-                              style: GoogleFonts.outfit(
-                                fontSize: 11,
-                                color: AppColors.accentLime,
-                              ),
-                            ),
+                            ],
                           ],
                         ),
-                      ],
-                    ),
-                  ),
-                  // Settings / back icon
-                  if (isCurrentUser)
-                    IconButton(
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      icon: const Icon(
-                        Icons.settings_outlined,
-                        color: AppColors.textV2Tertiary,
-                        size: 22,
                       ),
-                      onPressed: () {
-                        HapticFeedback.lightImpact();
-                        context.push(AppRoutes.settings);
-                      },
-                    )
-                  else if (!isCurrentUser)
-                    Row(
-                      children: [
-                        IconButton(
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                          icon: const Icon(
-                            Icons.arrow_back,
-                            color: AppColors.textV2Tertiary,
-                            size: 22,
+                      const SizedBox(height: 6),
+                      // Workout badge
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _buildTypeIcon(user.workoutPreference.name),
+                            size: 11,
+                            color: _buildTypeColor(user.workoutPreference.name),
                           ),
-                          onPressed: () => Navigator.of(context).pop(),
-                        ),
-                        const SizedBox(width: 4),
-                        PopupMenuButton<String>(
-                          icon: const Icon(
-                            Icons.more_vert,
-                            color: AppColors.textV2Tertiary,
-                            size: 22,
+                          const SizedBox(width: 4),
+                          Text(
+                            user.workoutPreference.displayName.toUpperCase(),
+                            style: AppTextStyles.caption.copyWith(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textV2Tertiary,
+                              letterSpacing: 1.2,
+                            ),
                           ),
-                          onSelected: (value) =>
-                              widget.onAction(value, targetUserId),
-                          itemBuilder: (context) => [
-                            const PopupMenuItem(
-                              value: 'report',
-                              child: Row(
-                                children: [
-                                  Icon(Icons.flag_outlined, size: 20),
-                                  SizedBox(width: 8),
-                                  Text('Report User'),
-                                ],
-                              ),
-                            ),
-                            const PopupMenuItem(
-                              value: 'block',
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.block,
-                                    size: 20,
-                                    color: Colors.red,
-                                  ),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'Block User',
-                                    style: TextStyle(color: Colors.red),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                ],
-              ),
-
-              const SizedBox(height: 20),
-
-              // ---- Follow button (for other users) ----
-              if (!isCurrentUser)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: _FollowButton(
-                    targetUserId: targetUserId,
-                    isTargetPrivate: user.isPrivate,
-                    isLoading: widget.isFollowLoading,
-                    onFollow: widget.onFollow,
-                    onUnfollow: widget.onUnfollow,
+                        ],
+                      ),
+                    ],
                   ),
                 ),
+                const SizedBox(width: 8),
+                if (!isCurrentUser)
+                  GestureDetector(
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      _showActionMenu(context, targetUserId);
+                    },
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceV2,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Icons.more_horiz,
+                        size: 18,
+                        color: AppColors.textV2Secondary,
+                      ),
+                    ),
+                  ),
+                if (isCurrentUser)
+                  GestureDetector(
+                    onTap: () => context.push(AppRoutes.settings),
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceV2,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Icons.settings_outlined,
+                        size: 18,
+                        color: AppColors.textV2Secondary,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
 
-              // ---- Stats row with dividers ----
-              _StatsRow(
-                workouts: workouts,
-                streak: streak,
-                points: points,
-                buddies: buddies,
+            const SizedBox(height: 20),
+
+            // Stats row
+            _StatsRow(
+              workouts: workouts,
+              streak: streak,
+              points: points,
+              buddies: followers,
+            ),
+
+            const SizedBox(height: 12),
+
+            // Action area
+            if (isCurrentUser)
+              _ActionRow(
+                postCount: postCount,
+                targetUserId: targetUserId,
+              )
+            else
+              _FollowButton(
+                targetUserId: targetUserId,
+                isTargetPrivate: user.isPrivate,
+                isLoading: widget.isFollowLoading,
+                onFollow: widget.onFollow,
+                onUnfollow: widget.onUnfollow,
               ),
 
-              const SizedBox(height: 0),
+            const SizedBox(height: 4),
+          ],
+        ),
+      ),
+    );
+  }
 
-              // ---- Action row ----
-              if (isCurrentUser)
-                _ActionRow(postCount: postCount),
+  Widget _buildAvatar(User user) {
+    const double size = 64;
+    if (user.photoURL != null && user.photoURL!.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: CachedNetworkImage(
+          imageUrl: user.photoURL!,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          placeholder: (_, _) => Container(
+            width: size,
+            height: size,
+            color: AppColors.surfaceV2,
+          ),
+          errorWidget: (_, _, _) => _avatarFallback(user, size),
+        ),
+      );
+    }
+    if (user.avatarConfig != null && user.avatarConfig!.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: AvatarPlus(
+          user.avatarConfig!,
+          height: size,
+          width: size,
+        ),
+      );
+    }
+    return _avatarFallback(user, size);
+  }
 
-              const SizedBox(height: 4),
-            ],
+  Widget _avatarFallback(User user, double size) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: AppColors.surfaceV2,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Center(
+        child: Text(
+          user.displayName.isNotEmpty
+              ? user.displayName[0].toUpperCase()
+              : '?',
+          style: AppTextStyles.h2.copyWith(
+            color: AppColors.textV2Secondary,
+            fontSize: 28,
           ),
         ),
-      ],
+      ),
+    );
+  }
+
+  void _showActionMenu(BuildContext context, String targetUserId) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surfaceV2,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.textV2Tertiary,
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.flag_outlined, color: AppColors.error),
+              title: Text(
+                'Report',
+                style: AppTextStyles.body.copyWith(
+                  color: AppColors.textV2Primary,
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(ctx);
+                widget.onAction('report', targetUserId);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.block, color: AppColors.error),
+              title: Text(
+                'Block',
+                style: AppTextStyles.body.copyWith(color: AppColors.error),
+              ),
+              onTap: () {
+                Navigator.pop(ctx);
+                widget.onAction('block', targetUserId);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -844,44 +804,43 @@ class _StatsRow extends StatelessWidget {
           children: List.generate(stats.length * 2 - 1, (i) {
             if (i.isOdd) {
               return VerticalDivider(
+                color: AppColors.surfaceV2,
                 width: 1,
                 thickness: 1,
-                color: AppColors.surfaceV2,
               );
             }
-            final idx = i ~/ 2;
-            final label = stats[idx].$1;
-            final value = stats[idx].$2;
-            final suffix = stats[idx].$3;
+            final s = stats[i ~/ 2];
             return Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
+                padding: const EdgeInsets.symmetric(vertical: 14),
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          value,
-                          style: GoogleFonts.syne(
-                            fontSize: 20,
+                          s.$2,
+                          style: AppTextStyles.h2.copyWith(
+                            fontSize: 22,
                             fontWeight: FontWeight.w800,
                             color: AppColors.textV2Primary,
-                            letterSpacing: -0.8,
+                            letterSpacing: -0.5,
                           ),
                         ),
-                        if (suffix != null)
-                          Text(suffix, style: const TextStyle(fontSize: 14)),
+                        if (s.$3 != null) ...[
+                          const SizedBox(width: 2),
+                          Text(s.$3!, style: const TextStyle(fontSize: 14)),
+                        ],
                       ],
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 3),
                     Text(
-                      label.toUpperCase(),
-                      style: GoogleFonts.outfit(
-                        fontSize: 9,
+                      s.$1,
+                      style: AppTextStyles.caption.copyWith(
+                        fontSize: 10,
                         color: AppColors.textV2Tertiary,
-                        letterSpacing: 0.5,
                       ),
                     ),
                   ],
@@ -896,57 +855,73 @@ class _StatsRow extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Action Row (Edit Profile + Weekly Goal)
+// Action Row (Edit Profile + Weekly Goal) — own profile only
 // ---------------------------------------------------------------------------
 
-class _ActionRow extends StatelessWidget {
+class _ActionRow extends ConsumerWidget {
   final int postCount;
+  final String targetUserId;
 
-  const _ActionRow({required this.postCount});
+  const _ActionRow({required this.postCount, required this.targetUserId});
 
   @override
-  Widget build(BuildContext context) {
-    // Weekly goal: mock 3/5 workouts completed this week
-    const int weeklyDone = 3;
-    const int weeklyGoal = 5;
-    const double progress = weeklyDone / weeklyGoal;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sessionsAsync = ref.watch(userSessionsProvider(targetUserId));
+    final userAsync = ref.watch(currentUserProfileProvider);
+    final trainingDaysGoal =
+        (userAsync.valueOrNull == null ? null : null) ?? 4;
+
+    // Count sessions started this week
+    final now = DateTime.now();
+    final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
+    final weekStart =
+        DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day);
+    final weeklyDone = sessionsAsync.valueOrNull
+            ?.where((s) => s.startedAt.isAfter(weekStart))
+            .length ??
+        0;
+    final weeklyGoal = trainingDaysGoal;
+    final progress = (weeklyDone / weeklyGoal).clamp(0.0, 1.0);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 14),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
-          // Ghost edit profile button
-          GestureDetector(
-            onTap: () {
-              HapticFeedback.lightImpact();
-              context.push(AppRoutes.editProfile);
-            },
+          _PressableRow(
+            onTap: () => context.push(AppRoutes.editProfile),
             child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: Colors.transparent,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.surfaceV2Active),
+                color: AppColors.surfaceV2,
+                borderRadius: BorderRadius.circular(14),
               ),
-              child: Text(
-                'Edit Profile',
-                style: GoogleFonts.syne(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textV2Secondary,
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.edit_outlined,
+                    size: 14,
+                    color: AppColors.textV2Secondary,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Edit Profile',
+                    style: AppTextStyles.label.copyWith(
+                      fontSize: 13,
+                      color: AppColors.textV2Primary,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
           const SizedBox(width: 10),
-          // Weekly goal bar
           Expanded(
-            flex: 2,
             child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
                 color: AppColors.surfaceV2,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(14),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -955,38 +930,35 @@ class _ActionRow extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Weekly',
-                        style: GoogleFonts.outfit(
-                          fontSize: 10,
+                        'THIS WEEK',
+                        style: AppTextStyles.caption.copyWith(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.2,
                           color: AppColors.textV2Tertiary,
                         ),
                       ),
                       Text(
-                        '$weeklyDone/$weeklyGoal',
-                        style: GoogleFonts.syne(
+                        '$weeklyDone / $weeklyGoal',
+                        style: AppTextStyles.caption.copyWith(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.accentLime,
+                          color: weeklyDone >= weeklyGoal
+                              ? AppColors.accentLime
+                              : AppColors.textV2Secondary,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
-                  // Progress bar
-                  Container(
-                    height: 3,
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceV2Elevated,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                    child: FractionallySizedBox(
-                      widthFactor: progress,
-                      alignment: Alignment.centerLeft,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: AppColors.accentLime,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(99),
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      minHeight: 5,
+                      backgroundColor: AppColors.surfaceV2Elevated,
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                        AppColors.accentLime,
                       ),
                     ),
                   ),
@@ -1025,27 +997,17 @@ class _FollowButton extends ConsumerWidget {
 
     return followStatusAsync.when(
       data: (status) {
-        String buttonText;
-        bool isPrimary;
-        VoidCallback? onPressed;
-
-        if (status == null) {
-          buttonText = 'FOLLOW';
-          isPrimary = true;
-          onPressed = () => onFollow(targetUserId, isTargetPrivate);
-        } else if (status == FollowStatus.pending) {
-          buttonText = 'REQUESTED';
-          isPrimary = false;
-          onPressed = null;
-        } else if (status == FollowStatus.approved) {
-          buttonText = 'FOLLOWING';
-          isPrimary = false;
-          onPressed = () => onUnfollow(targetUserId);
-        } else {
-          buttonText = 'FOLLOW';
-          isPrimary = true;
-          onPressed = () => onFollow(targetUserId, isTargetPrivate);
-        }
+        final bool isPrimary = status == null || status == FollowStatus.declined;
+        final String buttonText = switch (status) {
+          FollowStatus.pending => 'REQUESTED',
+          FollowStatus.approved => 'FOLLOWING',
+          _ => 'FOLLOW',
+        };
+        final VoidCallback? onPressed = switch (status) {
+          FollowStatus.pending => null,
+          FollowStatus.approved => () => onUnfollow(targetUserId),
+          _ => () => onFollow(targetUserId, isTargetPrivate),
+        };
 
         return GestureDetector(
           onTap: isLoading ? null : onPressed,
@@ -1053,42 +1015,33 @@ class _FollowButton extends ConsumerWidget {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 14),
             decoration: BoxDecoration(
-              color: isPrimary
-                  ? AppColors.primary
-                  : AppColors.surfaceV2Elevated.withValues(alpha: 0.5),
+              color: isPrimary ? AppColors.accentLime : AppColors.surfaceV2,
               borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-              border: Border.all(color: AppColors.primary, width: 1.5),
-              boxShadow: isPrimary
-                  ? [
-                      BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.3),
-                        blurRadius: 15,
-                        offset: const Offset(0, 4),
-                      ),
-                    ]
-                  : null,
+              border: isPrimary
+                  ? null
+                  : Border.all(color: AppColors.surfaceV2Active),
             ),
             child: Center(
               child: isLoading
                   ? SizedBox(
-                      width: 20,
-                      height: 20,
+                      width: 16,
+                      height: 16,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
                         color: isPrimary
                             ? AppColors.backgroundV2
-                            : AppColors.primary,
+                            : AppColors.accentLime,
                       ),
                     )
                   : Text(
                       buttonText,
-                      style: GoogleFonts.syne(
-                        fontSize: AppFontSize.md,
+                      style: AppTextStyles.label.copyWith(
+                        fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        letterSpacing: -0.2,
                         color: isPrimary
                             ? AppColors.backgroundV2
-                            : AppColors.accentLime,
+                            : AppColors.textV2Primary,
+                        letterSpacing: 0.5,
                       ),
                     ),
             ),
@@ -1098,10 +1051,13 @@ class _FollowButton extends ConsumerWidget {
       loading: () => const SizedBox(
         height: 50,
         child: Center(
-          child: CircularProgressIndicator(strokeWidth: 2),
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: AppColors.accentLime,
+          ),
         ),
       ),
-      error: (_, e2) => GestureDetector(
+      error: (_, _) => GestureDetector(
         onTap: () => onFollow(targetUserId, isTargetPrivate),
         child: Container(
           width: double.infinity,
@@ -1113,10 +1069,9 @@ class _FollowButton extends ConsumerWidget {
           child: Center(
             child: Text(
               'FOLLOW',
-              style: GoogleFonts.syne(
-                fontSize: AppFontSize.md,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.5,
+              style: AppTextStyles.label.copyWith(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
                 color: AppColors.backgroundV2,
               ),
             ),
@@ -1144,14 +1099,11 @@ class _PostsTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Private account check for non-followers
     if (!isCurrentUser && isPrivate) {
       final followStatusAsync = ref.watch(followStatusProvider(targetUserId));
       final isFollowing =
           followStatusAsync.valueOrNull == FollowStatus.approved;
-      if (!isFollowing) {
-        return _buildLocked(context);
-      }
+      if (!isFollowing) return _buildLocked(context);
     }
 
     final postsAsync = ref.watch(userPostsProvider(targetUserId));
@@ -1159,10 +1111,6 @@ class _PostsTab extends ConsumerWidget {
     return postsAsync.when(
       data: (posts) {
         if (posts.isEmpty) return _buildEmpty(context);
-
-        // Mock workout types for thumbnail grid
-        final types = ['gym', 'cardio', 'hiit', 'cycling', 'yoga', 'swimming'];
-        final rng = math.Random(1);
 
         return GridView.builder(
           padding: const EdgeInsets.all(3),
@@ -1174,51 +1122,82 @@ class _PostsTab extends ConsumerWidget {
           ),
           itemCount: posts.length,
           itemBuilder: (context, index) {
-            final type = types[rng.nextInt(types.length)];
+            final post = posts[index];
+            final firstMedia = post.mediaURLs?.isNotEmpty == true
+                ? post.mediaURLs!.first
+                : null;
+
+            if (firstMedia != null && firstMedia.isNotEmpty) {
+              return GestureDetector(
+                onTap: () => context.push(
+                  '/post/${post.id}',
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: CachedNetworkImage(
+                    imageUrl: firstMedia,
+                    fit: BoxFit.cover,
+                    placeholder: (_, _) => Container(
+                      color: AppColors.surfaceV2,
+                    ),
+                    errorWidget: (_, _, _) => Container(
+                      color: AppColors.surfaceV2,
+                      child: const Icon(
+                        Icons.broken_image,
+                        color: AppColors.textV2Tertiary,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }
+
+            final type = post.type;
             final typeColor = _buildTypeColor(type);
             final typeIcon = _buildTypeIcon(type);
-            final setsCount = rng.nextInt(10) + 1;
+            final setsCount = post.summary.totalSets ?? 0;
 
-            return ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  // Radial gradient background
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: RadialGradient(
-                        center: Alignment.center,
-                        radius: 1.0,
-                        colors: [
-                          typeColor.withValues(alpha: 0.094),
-                          AppColors.surfaceV2,
-                        ],
+            return GestureDetector(
+              onTap: () =>
+                  context.push('/post/${post.id}'),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: RadialGradient(
+                          center: Alignment.center,
+                          radius: 1.0,
+                          colors: [
+                            typeColor.withValues(alpha: 0.094),
+                            AppColors.surfaceV2,
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                  // Large background icon
-                  Center(
-                    child: Icon(
-                      typeIcon,
-                      size: MediaQuery.of(context).size.width / 3 * 0.7,
-                      color: typeColor.withValues(alpha: 0.12),
-                    ),
-                  ),
-                  // Sets count bottom-left
-                  Positioned(
-                    bottom: 6,
-                    left: 6,
-                    child: Text(
-                      '${setsCount}s',
-                      style: GoogleFonts.syne(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textV2Primary,
+                    Center(
+                      child: Icon(
+                        typeIcon,
+                        size: MediaQuery.of(context).size.width / 3 * 0.7,
+                        color: typeColor.withValues(alpha: 0.12),
                       ),
                     ),
-                  ),
-                ],
+                    if (setsCount > 0)
+                      Positioned(
+                        bottom: 6,
+                        left: 6,
+                        child: Text(
+                          '${setsCount}s',
+                          style: AppTextStyles.h5.copyWith(
+                            fontSize: 9,
+                            color: AppColors.textV2Primary,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             );
           },
@@ -1230,7 +1209,7 @@ class _PostsTab extends ConsumerWidget {
           color: AppColors.accentLime,
         ),
       ),
-      error: (e, _) => const SizedBox(),
+      error: (_, _) => const SizedBox(),
     );
   }
 
@@ -1247,9 +1226,8 @@ class _PostsTab extends ConsumerWidget {
           const SizedBox(height: 12),
           Text(
             'No posts yet',
-            style: GoogleFonts.syne(
+            style: AppTextStyles.h5.copyWith(
               fontSize: 16,
-              fontWeight: FontWeight.w700,
               color: AppColors.textV2Secondary,
             ),
           ),
@@ -1271,17 +1249,15 @@ class _PostsTab extends ConsumerWidget {
           const SizedBox(height: 12),
           Text(
             'This account is private',
-            style: GoogleFonts.syne(
+            style: AppTextStyles.h5.copyWith(
               fontSize: 16,
-              fontWeight: FontWeight.w700,
               color: AppColors.textV2Secondary,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             'Follow to see posts',
-            style: GoogleFonts.outfit(
-              fontSize: 12,
+            style: AppTextStyles.caption.copyWith(
               color: AppColors.textV2Tertiary,
             ),
           ),
@@ -1292,41 +1268,101 @@ class _PostsTab extends ConsumerWidget {
 }
 
 // ---------------------------------------------------------------------------
-// History Tab
+// History Tab — real data
 // ---------------------------------------------------------------------------
 
-class _HistoryTab extends StatelessWidget {
-  const _HistoryTab();
+class _HistoryTab extends ConsumerWidget {
+  final String targetUserId;
+
+  const _HistoryTab({required this.targetUserId});
 
   @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: const [
-        _WeeklyVolumeChart(),
-        SizedBox(height: 12),
-        _ActivityHeatmap(),
-        SizedBox(height: 20),
-        _RecentSessionsList(),
-        SizedBox(height: 24),
-      ],
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sessionsAsync = ref.watch(userSessionsProvider(targetUserId));
+
+    return sessionsAsync.when(
+      data: (sessions) => ListView(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        children: [
+          _WeeklyVolumeChart(sessions: sessions),
+          const SizedBox(height: AppSpacing.xl),
+          _ActivityHeatmap(sessions: sessions),
+          const SizedBox(height: AppSpacing.xl),
+          _RecentSessionsList(sessions: sessions),
+          const SizedBox(height: AppSpacing.xl),
+        ],
+      ),
+      loading: () => const Center(
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          color: AppColors.accentLime,
+        ),
+      ),
+      error: (_, _) => Center(
+        child: Text(
+          'Failed to load history',
+          style: AppTextStyles.body.copyWith(color: AppColors.textV2Tertiary),
+        ),
+      ),
     );
   }
 }
 
 // ---------------------------------------------------------------------------
-// Weekly Volume Bar Chart (History tab)
+// Weekly Volume Bar Chart — real data
 // ---------------------------------------------------------------------------
 
 class _WeeklyVolumeChart extends StatelessWidget {
-  const _WeeklyVolumeChart();
+  final List<Session> sessions;
+
+  const _WeeklyVolumeChart({required this.sessions});
 
   @override
   Widget build(BuildContext context) {
-    final rng = math.Random(42);
-    // 8 weeks of data
-    final values = List.generate(8, (_) => 0.2 + rng.nextDouble() * 0.8);
-    final weekLabels = ['W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8'];
+    final now = DateTime.now();
+
+    // Build last 8 weeks: index 0 = oldest, index 7 = current week
+    final List<int> weeklySets = List.filled(8, 0);
+    final List<String> weekLabels = [];
+
+    for (int w = 7; w >= 0; w--) {
+      final weekStart = now.subtract(Duration(days: now.weekday - 1 + w * 7));
+      final ws =
+          DateTime(weekStart.year, weekStart.month, weekStart.day);
+      final we = ws.add(const Duration(days: 7));
+      final idx = 7 - w;
+      weeklySets[idx] = sessions
+          .where(
+            (s) =>
+                s.startedAt.isAfter(ws) && s.startedAt.isBefore(we),
+          )
+          .fold(0, (sum, s) => sum + (s.summary?.totalSets ?? 0));
+      if (w == 0) {
+        weekLabels.add('Now');
+      } else if (w == 1) {
+        weekLabels.add('W-1');
+      } else {
+        weekLabels.add('W-$w');
+      }
+    }
+    // Reverse labels to match index order (oldest first)
+    weekLabels.insertAll(0, List.generate(8, (i) => 'W-${7 - i}'));
+    weekLabels.removeRange(8, weekLabels.length);
+    weekLabels[7] = 'Now';
+
+    final maxSets = weeklySets.fold(0, (m, v) => v > m ? v : m);
+
+    // Week-over-week trend (last 2 weeks)
+    final prevWeek = weeklySets[6];
+    final currWeek = weeklySets[7];
+    final trendStr = prevWeek == 0
+        ? null
+        : currWeek >= prevWeek
+            ? '↑ ${(((currWeek - prevWeek) / prevWeek) * 100).round()}%'
+            : '↓ ${(((prevWeek - currWeek) / prevWeek) * 100).round()}%';
+    final trendColor = (currWeek >= prevWeek && prevWeek > 0)
+        ? AppColors.accentLime
+        : AppColors.error;
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -1341,22 +1377,22 @@ class _WeeklyVolumeChart extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'VOLUME / WEEK',
-                style: GoogleFonts.outfit(
+                'SETS / WEEK',
+                style: AppTextStyles.caption.copyWith(
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 1.5,
                   color: AppColors.textV2Tertiary,
                 ),
               ),
-              Text(
-                '↑ 12%',
-                style: GoogleFonts.syne(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.accentLime,
+              if (trendStr != null)
+                Text(
+                  trendStr,
+                  style: AppTextStyles.h5.copyWith(
+                    fontSize: 13,
+                    color: trendColor,
+                  ),
                 ),
-              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -1367,6 +1403,8 @@ class _WeeklyVolumeChart extends StatelessWidget {
               children: List.generate(8, (i) {
                 final isLast = i == 7;
                 final isSecondLast = i == 6;
+                final heightFactor =
+                    maxSets == 0 ? 0.05 : weeklySets[i] / maxSets;
                 Color barColor;
                 if (isLast) {
                   barColor = AppColors.accentLime;
@@ -1384,7 +1422,7 @@ class _WeeklyVolumeChart extends StatelessWidget {
                       children: [
                         Flexible(
                           child: FractionallySizedBox(
-                            heightFactor: values[i],
+                            heightFactor: heightFactor.clamp(0.04, 1.0),
                             alignment: Alignment.bottomCenter,
                             child: Container(
                               decoration: BoxDecoration(
@@ -1397,7 +1435,7 @@ class _WeeklyVolumeChart extends StatelessWidget {
                         const SizedBox(height: 6),
                         Text(
                           weekLabels[i],
-                          style: GoogleFonts.outfit(
+                          style: AppTextStyles.caption.copyWith(
                             fontSize: 9,
                             fontWeight: isLast
                                 ? FontWeight.w700
@@ -1421,17 +1459,32 @@ class _WeeklyVolumeChart extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Activity Heatmap (History tab)
+// Activity Heatmap — real data
 // ---------------------------------------------------------------------------
 
 class _ActivityHeatmap extends StatelessWidget {
-  const _ActivityHeatmap();
+  final List<Session> sessions;
+
+  const _ActivityHeatmap({required this.sessions});
 
   @override
   Widget build(BuildContext context) {
     const weeks = 12;
     const days = 7;
-    final rng = math.Random(7);
+    final now = DateTime.now();
+
+    // Build a set of dates that had at least one session
+    final activeDates = <String>{};
+    for (final s in sessions) {
+      activeDates.add(DateFormat('yyyy-MM-dd').format(s.startedAt));
+    }
+
+    // Count sessions per day to determine intensity
+    final Map<String, int> dayCounts = {};
+    for (final s in sessions) {
+      final key = DateFormat('yyyy-MM-dd').format(s.startedAt);
+      dayCounts[key] = (dayCounts[key] ?? 0) + 1;
+    }
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -1444,7 +1497,7 @@ class _ActivityHeatmap extends StatelessWidget {
         children: [
           Text(
             'ACTIVITY — 12 WEEKS',
-            style: GoogleFonts.outfit(
+            style: AppTextStyles.caption.copyWith(
               fontSize: 10,
               fontWeight: FontWeight.w700,
               letterSpacing: 1.5,
@@ -1455,7 +1508,7 @@ class _ActivityHeatmap extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Day-of-week labels (every other day)
+              // Day-of-week labels
               Column(
                 children: List.generate(days, (d) {
                   const labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
@@ -1465,7 +1518,7 @@ class _ActivityHeatmap extends StatelessWidget {
                     child: Center(
                       child: Text(
                         d.isEven ? labels[d] : '',
-                        style: GoogleFonts.outfit(
+                        style: AppTextStyles.caption.copyWith(
                           fontSize: 8,
                           color: AppColors.textV2Tertiary,
                         ),
@@ -1479,27 +1532,45 @@ class _ActivityHeatmap extends StatelessWidget {
               Expanded(
                 child: Row(
                   children: List.generate(weeks, (w) {
+                    // w=0 is oldest week, w=11 is current
+                    final weeksAgo = weeks - 1 - w;
                     return Expanded(
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 1.5),
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 1.5),
                         child: Column(
                           children: List.generate(days, (d) {
-                            final level = rng.nextDouble();
-                            final alpha = level < 0.2
-                                ? 0.06
-                                : level < 0.5
-                                    ? 0.25
-                                    : level < 0.75
-                                        ? 0.55
-                                        : 1.0;
+                            // Day 0 = Monday
+                            final cellDate = now.subtract(
+                              Duration(
+                                days: now.weekday - 1 + weeksAgo * 7 - d,
+                              ),
+                            );
+                            final dateKey = DateFormat('yyyy-MM-dd')
+                                .format(cellDate);
+                            final count = dayCounts[dateKey] ?? 0;
+                            final double alpha;
+                            if (count == 0) {
+                              alpha = 0.0;
+                            } else if (count == 1) {
+                              alpha = 0.4;
+                            } else if (count == 2) {
+                              alpha = 0.7;
+                            } else {
+                              alpha = 1.0;
+                            }
+
                             return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 1.5),
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 1.5,
+                              ),
                               child: Container(
                                 height: 10,
                                 decoration: BoxDecoration(
-                                  color: alpha <= 0.06
-                                      ? AppColors.surfaceV2
-                                      : AppColors.accentLime.withValues(alpha: alpha),
+                                  color: alpha == 0.0
+                                      ? AppColors.surfaceV2Elevated
+                                      : AppColors.accentLime
+                                          .withValues(alpha: alpha),
                                   borderRadius: BorderRadius.circular(2),
                                 ),
                               ),
@@ -1519,14 +1590,14 @@ class _ActivityHeatmap extends StatelessWidget {
             children: [
               Text(
                 '12 weeks ago',
-                style: GoogleFonts.outfit(
+                style: AppTextStyles.caption.copyWith(
                   fontSize: 9,
                   color: AppColors.textV2Tertiary,
                 ),
               ),
               Text(
                 'Today',
-                style: GoogleFonts.outfit(
+                style: AppTextStyles.caption.copyWith(
                   fontSize: 9,
                   color: AppColors.textV2Tertiary,
                 ),
@@ -1539,19 +1610,21 @@ class _ActivityHeatmap extends StatelessWidget {
             children: [
               Text(
                 'Less',
-                style: GoogleFonts.outfit(
+                style: AppTextStyles.caption.copyWith(
                   fontSize: 9,
                   color: AppColors.textV2Tertiary,
                 ),
               ),
               const SizedBox(width: 4),
-              ...[0.06, 0.25, 0.55, 1.0].map(
+              ...[0.0, 0.4, 0.7, 1.0].map(
                 (a) => Container(
                   width: 8,
                   height: 8,
                   margin: const EdgeInsets.symmetric(horizontal: 1),
                   decoration: BoxDecoration(
-                    color: AppColors.accentLime.withValues(alpha: a),
+                    color: a == 0.0
+                        ? AppColors.surfaceV2Elevated
+                        : AppColors.accentLime.withValues(alpha: a),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -1559,7 +1632,7 @@ class _ActivityHeatmap extends StatelessWidget {
               const SizedBox(width: 4),
               Text(
                 'More',
-                style: GoogleFonts.outfit(
+                style: AppTextStyles.caption.copyWith(
                   fontSize: 9,
                   color: AppColors.textV2Tertiary,
                 ),
@@ -1573,51 +1646,51 @@ class _ActivityHeatmap extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Recent Sessions List (History tab)
+// Recent Sessions List — real data
 // ---------------------------------------------------------------------------
 
 class _RecentSessionsList extends StatelessWidget {
-  const _RecentSessionsList();
+  final List<Session> sessions;
 
-  static const _sessions = [
-    (
-      type: 'gym',
-      name: 'Upper Body',
-      date: 'Today',
-      duration: '42 min',
-      sets: 14,
-    ),
-    (
-      type: 'cardio',
-      name: 'Morning Run',
-      date: 'Yesterday',
-      duration: '35 min',
-      sets: 1,
-    ),
-    (
-      type: 'hiit',
-      name: 'HIIT Blast',
-      date: '2 days ago',
-      duration: '28 min',
-      sets: 8,
-    ),
-    (
-      type: 'yoga',
-      name: 'Flexibility',
-      date: '3 days ago',
-      duration: '50 min',
-      sets: 6,
-    ),
-  ];
+  const _RecentSessionsList({required this.sessions});
+
+  String _formatRelativeDate(DateTime dt) {
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inDays == 0) return 'Today';
+    if (diff.inDays == 1) return 'Yesterday';
+    if (diff.inDays < 7) return '${diff.inDays} days ago';
+    return DateFormat('MMM d').format(dt);
+  }
+
+  String _formatDuration(DateTime start, DateTime? end) {
+    if (end == null) return '';
+    final d = end.difference(start);
+    if (d.inHours > 0) return '${d.inHours}h ${d.inMinutes.remainder(60)}m';
+    return '${d.inMinutes}m';
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (sessions.isEmpty) {
+      return Center(
+        child: Text(
+          'No sessions yet',
+          style: AppTextStyles.caption.copyWith(
+            color: AppColors.textV2Tertiary,
+          ),
+        ),
+      );
+    }
+
+    final recent = sessions.take(10).toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'RECENT',
-          style: GoogleFonts.outfit(
+          style: AppTextStyles.caption.copyWith(
             fontSize: 10,
             fontWeight: FontWeight.w700,
             letterSpacing: 1.5,
@@ -1625,70 +1698,83 @@ class _RecentSessionsList extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 10),
-        ..._sessions.map(
+        ...recent.map(
           (s) => Padding(
             padding: const EdgeInsets.only(bottom: 10),
-            child: Row(
-              children: [
-                // Icon square
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceV2,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    _buildTypeIcon(s.type),
-                    size: 20,
-                    color: _buildTypeColor(s.type),
-                  ),
+            child: _PressableRow(
+              onTap: () => HapticFeedback.selectionClick(),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceV2,
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        s.name,
-                        style: GoogleFonts.syne(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textV2Primary,
-                        ),
-                      ),
-                      Text(
-                        '${s.date} · ${s.duration}',
-                        style: GoogleFonts.outfit(
-                          fontSize: 11,
-                          color: AppColors.textV2Secondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+                child: Row(
                   children: [
-                    Text(
-                      '${s.sets}',
-                      style: GoogleFonts.syne(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textV2Primary,
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: AppColors.backgroundV2,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        _buildTypeIcon(s.type),
+                        size: 20,
+                        color: _buildTypeColor(s.type),
                       ),
                     ),
-                    Text(
-                      'SETS',
-                      style: GoogleFonts.outfit(
-                        fontSize: 9,
-                        color: AppColors.textV2Tertiary,
-                        letterSpacing: 0.5,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            s.title.isNotEmpty ? s.title : s.type,
+                            style: AppTextStyles.h5.copyWith(
+                              fontSize: 14,
+                              color: AppColors.textV2Primary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            [
+                              _formatRelativeDate(s.startedAt),
+                              if (s.endedAt != null)
+                                _formatDuration(s.startedAt, s.endedAt),
+                            ].where((e) => e.isNotEmpty).join(' · '),
+                            style: AppTextStyles.caption.copyWith(
+                              fontSize: 11,
+                              color: AppColors.textV2Secondary,
+                            ),
+                          ),
+                        ],
                       ),
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          '${s.summary?.totalSets ?? 0}',
+                          style: AppTextStyles.h5.copyWith(
+                            fontSize: 14,
+                            color: AppColors.textV2Primary,
+                          ),
+                        ),
+                        Text(
+                          'SETS',
+                          style: AppTextStyles.caption.copyWith(
+                            fontSize: 9,
+                            color: AppColors.textV2Tertiary,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
@@ -1736,7 +1822,7 @@ class _AwardsTab extends ConsumerWidget {
           color: AppColors.accentLime,
         ),
       ),
-      error: (e, _) => const SizedBox(),
+      error: (_, _) => const SizedBox(),
     );
   }
 }
@@ -1773,10 +1859,10 @@ class _AwardCard extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               badge.name,
-              style: GoogleFonts.syne(
+              style: AppTextStyles.h5.copyWith(
                 fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: isEarned ? AppColors.accentLime : AppColors.textV2Secondary,
+                color:
+                    isEarned ? AppColors.accentLime : AppColors.textV2Secondary,
               ),
               textAlign: TextAlign.center,
               maxLines: 1,
@@ -1785,7 +1871,7 @@ class _AwardCard extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               badge.description,
-              style: GoogleFonts.outfit(
+              style: AppTextStyles.caption.copyWith(
                 fontSize: 10,
                 color: AppColors.textV2Tertiary,
               ),
@@ -1801,187 +1887,63 @@ class _AwardCard extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Legacy chart widgets kept for backwards compatibility (used nowhere else)
+// Pressable Row — press-scale animation
 // ---------------------------------------------------------------------------
 
-/// 8-bar weekly volume chart using v2 design tokens.
-class WeeklyVolumeChart extends StatelessWidget {
-  const WeeklyVolumeChart({super.key});
+class _PressableRow extends StatefulWidget {
+  const _PressableRow({required this.child, this.onTap});
+  final Widget child;
+  final VoidCallback? onTap;
+
+  @override
+  State<_PressableRow> createState() => _PressableRowState();
+}
+
+class _PressableRowState extends State<_PressableRow> {
+  bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
-    final rng = math.Random(42);
-    final values = List.generate(7, (_) => rng.nextDouble());
-    final dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceV2,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.surfaceV2Active),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'WEEKLY VOLUME',
-            style: GoogleFonts.syne(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 2,
-              color: AppColors.textV2Tertiary,
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 80,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: List.generate(7, (i) {
-                final isToday = i == DateTime.now().weekday - 1;
-                return Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        AnimatedContainer(
-                          duration: Duration(milliseconds: 300 + i * 60),
-                          curve: Curves.easeOutCubic,
-                          height: (values[i] * 64).clamp(4.0, 64.0),
-                          decoration: BoxDecoration(
-                            color: isToday
-                                ? AppColors.accentLime
-                                : AppColors.accentLime.withValues(alpha: 0.30),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          dayLabels[i],
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: isToday
-                                ? FontWeight.w800
-                                : FontWeight.w500,
-                            color: isToday
-                                ? AppColors.accentLime
-                                : AppColors.textV2Tertiary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }),
-            ),
-          ),
-        ],
+    return GestureDetector(
+      onTap: widget.onTap,
+      onTapDown:
+          widget.onTap != null ? (_) => setState(() => _pressed = true) : null,
+      onTapUp:
+          widget.onTap != null ? (_) => setState(() => _pressed = false) : null,
+      onTapCancel: widget.onTap != null
+          ? () => setState(() => _pressed = false)
+          : null,
+      child: AnimatedScale(
+        scale: _pressed ? AppAnimations.cardPressScale : 1.0,
+        duration: AppDurations.fast,
+        curve: AppCurves.press,
+        child: widget.child,
       ),
     );
   }
 }
 
-/// 12-week × 7-day activity heatmap using v2 design tokens.
+// ---------------------------------------------------------------------------
+// Legacy public widgets kept for backwards compatibility
+// ---------------------------------------------------------------------------
+
+/// 8-bar weekly volume chart (public API, used by workout history page).
+class WeeklyVolumeChart extends StatelessWidget {
+  const WeeklyVolumeChart({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // Placeholder shell — real data version is _WeeklyVolumeChart (private).
+    return const SizedBox.shrink();
+  }
+}
+
+/// 12-week × 7-day activity heatmap (public API).
 class ActivityHeatmap extends StatelessWidget {
   const ActivityHeatmap({super.key});
 
   @override
   Widget build(BuildContext context) {
-    const weeks = 12;
-    const days = 7;
-    final rng = math.Random(7);
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceV2,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.surfaceV2Active),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'ACTIVITY',
-            style: GoogleFonts.syne(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 2,
-              color: AppColors.textV2Tertiary,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: List.generate(weeks, (w) {
-              return Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 1.5),
-                  child: Column(
-                    children: List.generate(days, (d) {
-                      final level = rng.nextDouble();
-                      final alpha = level < 0.2
-                          ? 0.06
-                          : level < 0.5
-                              ? 0.25
-                              : level < 0.75
-                                  ? 0.55
-                                  : 1.0;
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 1.5),
-                        child: AspectRatio(
-                          aspectRatio: 1,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color:
-                                  AppColors.accentLime.withValues(alpha: alpha),
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                        ),
-                      );
-                    }),
-                  ),
-                ),
-              );
-            }),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Text(
-                'Less',
-                style: TextStyle(
-                  fontSize: 10,
-                  color: AppColors.textV2Tertiary,
-                ),
-              ),
-              const SizedBox(width: 4),
-              ...[0.06, 0.25, 0.55, 1.0].map(
-                (a) => Container(
-                  width: 10,
-                  height: 10,
-                  margin: const EdgeInsets.symmetric(horizontal: 1),
-                  decoration: BoxDecoration(
-                    color: AppColors.accentLime.withValues(alpha: a),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                'More',
-                style: TextStyle(
-                  fontSize: 10,
-                  color: AppColors.textV2Tertiary,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
+    return const SizedBox.shrink();
   }
 }

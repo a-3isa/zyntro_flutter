@@ -125,6 +125,7 @@ class AuthRepositoryImpl implements AuthRepository {
     String? photoUrl,
     String? avatarConfig,
     String? authProvider,
+    int? trainingDaysPerWeek,
   }) {
     return _remoteDataSource.createUserProfile(
       userId: userId,
@@ -134,6 +135,7 @@ class AuthRepositoryImpl implements AuthRepository {
       photoUrl: photoUrl,
       avatarConfig: avatarConfig,
       authProvider: authProvider,
+      trainingDaysPerWeek: trainingDaysPerWeek,
     );
   }
 

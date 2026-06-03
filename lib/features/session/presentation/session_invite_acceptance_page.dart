@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -159,9 +159,7 @@ class _SessionInviteAcceptancePageState
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(ctx).viewInsets.bottom,
-        ),
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
         child: GymExercisePickerSheet(
           onExerciseSelected: (exercise) {
             Navigator.of(ctx).pop();
@@ -274,13 +272,20 @@ class _SessionInviteAcceptancePageState
           userId: uid,
           source: session.hostId == uid
               ? GymSessionPlanSource.hostTemplate
-              : GymSessionPlanSource.personal,
+              : GymSessionPlanSource.personalCopy,
           isReady: false,
           exercises: _reindex(_exercises),
         );
+      } else {
+        planToSubmit = GymSessionPlan.defaultPersonalPlan(
+          userId: uid,
+          workoutType: selectedType,
+        );
       }
 
-      await ref.read(sessionServiceProvider).acceptInvite(
+      await ref
+          .read(sessionServiceProvider)
+          .acceptInvite(
             sessionId: widget.sessionId,
             userId: uid,
             chosenWorkoutType: selectedType.value,
@@ -300,10 +305,24 @@ class _SessionInviteAcceptancePageState
   }
 
   void _navigateToNextScreen(WorkoutType type) {
-    context.go(AppRouteLocations.sessionRoom(
-      widget.sessionId,
-      type: type.value,
-    ));
+    context.go(
+      AppRouteLocations.sessionRoom(widget.sessionId, type: type.value),
+    );
+  }
+
+  Future<void> _handleDecline() async {
+    final uid = ref.read(authSessionProvider).valueOrNull?.id;
+    if (uid != null) {
+      await ref
+          .read(sessionServiceProvider)
+          .declineInvite(sessionId: widget.sessionId, userId: uid);
+    }
+    if (!mounted) return;
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go(AppRouteLocations.main);
+    }
   }
 
   void _handleAlreadyParticipant(Session session, String uid) {
@@ -317,11 +336,13 @@ class _SessionInviteAcceptancePageState
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      context.go(AppRouteLocations.sessionEntry(
-        sessionId: widget.sessionId,
-        type: type.value,
-        phase: session.phase,
-      ));
+      context.go(
+        AppRouteLocations.sessionEntry(
+          sessionId: widget.sessionId,
+          type: type.value,
+          phase: session.phase,
+        ),
+      );
     });
   }
 
@@ -387,7 +408,8 @@ class _SessionInviteAcceptancePageState
           loading: () => _buildLoading(),
           error: (err, _) => _buildError(
             message: 'Could not load this invite.\n$err',
-            onRetry: () => ref.refresh(currentSessionProvider(widget.sessionId)),
+            onRetry: () =>
+                ref.refresh(currentSessionProvider(widget.sessionId)),
           ),
           data: (session) {
             if (session == null) {
@@ -449,8 +471,11 @@ class _SessionInviteAcceptancePageState
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.error_outline_rounded,
-              size: 56, color: AppColors.error),
+          const Icon(
+            Icons.error_outline_rounded,
+            size: 56,
+            color: AppColors.error,
+          ),
           const SizedBox(height: 16),
           Text(
             message,
@@ -466,10 +491,7 @@ class _SessionInviteAcceptancePageState
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 28,
-                vertical: 12,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
             ),
             onPressed: onRetry,
             child: Text(retryLabel),
@@ -526,8 +548,9 @@ class _SessionInviteAcceptancePageState
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 24),
                       child: Center(
-                        child:
-                            CircularProgressIndicator(color: AppColors.primary),
+                        child: CircularProgressIndicator(
+                          color: AppColors.primary,
+                        ),
                       ),
                     )
                   else
@@ -562,15 +585,14 @@ class _SessionInviteAcceptancePageState
                 ? null
                 : () {
                     HapticFeedback.lightImpact();
-                    if (context.canPop()) {
-                      context.pop();
-                    } else {
-                      context.go(AppRouteLocations.main);
-                    }
+                    _handleDecline();
                   },
             tooltip: 'Decline',
-            icon: const Icon(Icons.close_rounded,
-                color: AppColors.textV2Primary, size: 22),
+            icon: const Icon(
+              Icons.close_rounded,
+              color: AppColors.textV2Primary,
+              size: 22,
+            ),
             style: IconButton.styleFrom(
               backgroundColor: AppColors.surfaceV2Elevated,
               padding: const EdgeInsets.all(10),
@@ -607,9 +629,7 @@ class _SessionInviteAcceptancePageState
       decoration: BoxDecoration(
         color: AppColors.surfaceV2,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: gradient.first.withValues(alpha: 0.25),
-        ),
+        border: Border.all(color: gradient.first.withValues(alpha: 0.25)),
         boxShadow: [
           BoxShadow(
             color: gradient.first.withValues(alpha: 0.08),
@@ -745,8 +765,8 @@ class _SessionInviteAcceptancePageState
                     color: isSelected
                         ? Colors.white.withValues(alpha: 0.2)
                         : (isHostType
-                            ? gradient.first.withValues(alpha: 0.4)
-                            : Colors.white.withValues(alpha: 0.05)),
+                              ? gradient.first.withValues(alpha: 0.4)
+                              : Colors.white.withValues(alpha: 0.05)),
                     width: isSelected ? 2 : 1,
                   ),
                   boxShadow: isSelected
@@ -775,8 +795,7 @@ class _SessionInviteAcceptancePageState
                           child: Icon(
                             _iconForWorkout(type.icon),
                             size: 30,
-                            color:
-                                isSelected ? Colors.white : gradient.first,
+                            color: isSelected ? Colors.white : gradient.first,
                           ),
                         ),
                         const SizedBox(height: 10),
@@ -813,9 +832,7 @@ class _SessionInviteAcceptancePageState
                           child: Text(
                             'HOST',
                             style: TextStyle(
-                              color: isSelected
-                                  ? Colors.white
-                                  : gradient.first,
+                              color: isSelected ? Colors.white : gradient.first,
                               fontSize: 9,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 0.5,

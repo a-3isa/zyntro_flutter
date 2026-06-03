@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'app_text_styles.dart';
 
 /// Font family constants for premium typography.
 class AppFonts {
@@ -9,12 +9,12 @@ class AppFonts {
 
 /// Premium color scheme for Zyntro - Figma navy and neon-green palette.
 class AppColors {
-  // Figma navy scale
+  // Figma navy scale — legacy, kept for gradientStart/accent/premium; use v2 surface tokens in new code
   static const Color navy900 = Color(0xFF0A0E27);
   static const Color navy800 = Color(0xFF151B3D);
   static const Color navy700 = Color(0xFF1E2749);
 
-  // Figma neon green scale
+  // Figma neon green scale — legacy, kept for compatibility; use accentLime/accentLimeDim in new code
   static const Color neonGreen = Color(0xFF39FF14);
   static const Color neonGreenHover = Color(0xFF2EE00F);
 
@@ -22,9 +22,9 @@ class AppColors {
   static const Color gray400 = Color(0xFF8B8B98);
   static const Color gray300 = Color(0xFFA0A0AC);
 
-  // Primary colors - Neon Green
-  static const Color primary = neonGreen;
-  static const Color primaryDark = neonGreenHover;
+  // Primary colors - Acid Lime (v2)
+  static const Color primary = accentLime;
+  static const Color primaryDark = accentLimeDim;
   static const Color primaryLight = Color(0xFF6CFF52);
   static const Color primaryMuted = navy700;
   static const Color primaryGlow   = Color(0x33C8FF00); // lime @ 20%
@@ -88,14 +88,14 @@ class AppColors {
   static const Color borderDarkSecondary = surfaceV2Elevated;
 
   // Action color
-  static const Color action = neonGreen;
+  static const Color action = accentLime;
   static const Color actionLight = primaryLight;
-  static const Color actionDark = neonGreenHover;
+  static const Color actionDark = accentLimeDim;
 
   // Warm accent colors for streak cards
-  static const Color warmBackground = navy700;
-  static const Color warmBorder = neonGreen;
-  static const Color warmAccent = gray300;
+  static const Color warmBackground = surfaceV2Elevated;
+  static const Color warmBorder = accentLime;
+  static const Color warmAccent = textV2Secondary;
 
   // Gradient colors for splash
   static const Color gradientStart = navy900;
@@ -110,27 +110,27 @@ class AppColors {
   static const Color white = Colors.white;
   static const Color text = textLight;
 
-  // Gradient presets
-  static const List<Color> primaryGradient = [neonGreen, neonGreenHover];
-  static const List<Color> secondaryGradient = [navy700, navy800];
-  static const List<Color> premiumGradient = [navy800, navy700];
+  // Gradient presets (v2 — true-black + acid-lime)
+  static const List<Color> primaryGradient = [accentLime, accentLimeDim];
+  static const List<Color> secondaryGradient = [surfaceV2Elevated, surfaceV2];
+  static const List<Color> premiumGradient = [surfaceV2, surfaceV2Elevated];
   static const List<Color> splashGradient = [
-    splashGradientBlue,
-    splashGradientNavy,
-    splashGradientTeal,
-    splashGradientGreen,
+    backgroundV2,
+    surfaceV2,
+    surfaceV2Elevated,
+    surfaceV2Active,
   ];
-  static const List<Color> cardGradient = [navy800, navy700];
+  static const List<Color> cardGradient = [surfaceV2, surfaceV2Elevated];
 
   static const List<Color> successGradient = [
     Color(0xFF10B981),
     Color(0xFF34D399),
   ];
 
-  // Additional gradients
-  static const List<Color> motivationalGradient = [navy700, neonGreen];
-  static const List<Color> achievementGradient = [navy800, neonGreen];
-  static const List<Color> streakGradient = [navy700, navy800, neonGreenHover];
+  // Additional gradients (v2)
+  static const List<Color> motivationalGradient = [surfaceV2Elevated, accentLime];
+  static const List<Color> achievementGradient = [surfaceV2, accentLime];
+  static const List<Color> streakGradient = [surfaceV2Elevated, surfaceV2, accentLimeDim];
 
   // ── v2 Design tokens (true-black + acid-lime) ──────────────────────────────
   // Dark mode surfaces
@@ -415,11 +415,7 @@ class AppTheme {
         foregroundColor: AppColors.textV2PrimaryLight,
         elevation: 0,
         centerTitle: true,
-        titleTextStyle: GoogleFonts.syne(
-          fontSize: AppFontSize.lg,
-          fontWeight: FontWeight.w600,
-          color: AppColors.textV2PrimaryLight,
-        ),
+        titleTextStyle: AppTextStyles.h5.copyWith(color: AppColors.textV2PrimaryLight),
       ),
       cardTheme: CardThemeData(
         color: AppColors.surfaceV2Light,
@@ -439,10 +435,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppBorderRadius.md),
           ),
-          textStyle: GoogleFonts.syne(
-            fontSize: AppFontSize.md,
-            fontWeight: FontWeight.w700,
-          ),
+          textStyle: AppTextStyles.label,
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -468,7 +461,7 @@ class AppTheme {
           vertical: AppSpacing.lg,
         ),
         prefixIconColor: AppColors.textV2SecondaryLight,
-        hintStyle: GoogleFonts.outfit(color: AppColors.textV2TertiaryLight),
+        hintStyle: AppTextStyles.body.copyWith(color: AppColors.textV2TertiaryLight),
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: AppColors.backgroundV2Light,
@@ -492,49 +485,16 @@ class AppTheme {
         ),
       ),
       textTheme: TextTheme(
-        displayLarge: GoogleFonts.syne(
-          fontSize: AppFontSize.hero,
-          fontWeight: FontWeight.w800,
-          color: AppColors.textV2PrimaryLight,
-        ),
-        displayMedium: GoogleFonts.syne(
-          fontSize: AppFontSize.display,
-          fontWeight: FontWeight.w800,
-          color: AppColors.textV2PrimaryLight,
-        ),
-        headlineLarge: GoogleFonts.syne(
-          fontSize: AppFontSize.xxxl,
-          fontWeight: FontWeight.w700,
-          color: AppColors.textV2PrimaryLight,
-        ),
-        headlineMedium: GoogleFonts.syne(
-          fontSize: AppFontSize.xxl,
-          fontWeight: FontWeight.w700,
-          color: AppColors.textV2PrimaryLight,
-        ),
-        titleLarge: GoogleFonts.syne(
-          fontSize: AppFontSize.xl,
-          fontWeight: FontWeight.w600,
-          color: AppColors.textV2PrimaryLight,
-        ),
-        titleMedium: GoogleFonts.outfit(
-          fontSize: AppFontSize.lg,
-          fontWeight: FontWeight.w600,
-          color: AppColors.textV2PrimaryLight,
-        ),
-        bodyLarge: GoogleFonts.outfit(
-          fontSize: AppFontSize.md,
-          color: AppColors.textV2PrimaryLight,
-        ),
-        bodyMedium: GoogleFonts.outfit(
-          fontSize: AppFontSize.sm,
-          color: AppColors.textV2SecondaryLight,
-        ),
-        labelLarge: GoogleFonts.outfit(
-          fontSize: AppFontSize.md,
-          fontWeight: FontWeight.w600,
-          color: AppColors.textV2PrimaryLight,
-        ),
+        displayLarge: AppTextStyles.display.copyWith(color: AppColors.textV2PrimaryLight),
+        displayMedium: AppTextStyles.h1.copyWith(color: AppColors.textV2PrimaryLight),
+        headlineLarge: AppTextStyles.h2.copyWith(color: AppColors.textV2PrimaryLight),
+        headlineMedium: AppTextStyles.h3.copyWith(color: AppColors.textV2PrimaryLight),
+        titleLarge: AppTextStyles.h4.copyWith(color: AppColors.textV2PrimaryLight),
+        titleMedium: AppTextStyles.h5.copyWith(color: AppColors.textV2PrimaryLight),
+        bodyLarge: AppTextStyles.bodyLarge.copyWith(color: AppColors.textV2PrimaryLight),
+        bodyMedium: AppTextStyles.body.copyWith(color: AppColors.textV2SecondaryLight),
+        labelLarge: AppTextStyles.label.copyWith(color: AppColors.textV2PrimaryLight),
+        labelSmall: AppTextStyles.caption.copyWith(color: AppColors.textV2SecondaryLight),
       ),
     );
   }
@@ -561,11 +521,7 @@ class AppTheme {
         foregroundColor: AppColors.textV2Primary,
         elevation: 0,
         centerTitle: true,
-        titleTextStyle: GoogleFonts.syne(
-          fontSize: AppFontSize.lg,
-          fontWeight: FontWeight.w600,
-          color: AppColors.textV2Primary,
-        ),
+        titleTextStyle: AppTextStyles.h5.copyWith(color: AppColors.textV2Primary),
       ),
       cardTheme: CardThemeData(
         color: AppColors.surfaceV2,
@@ -585,10 +541,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppBorderRadius.md),
           ),
-          textStyle: GoogleFonts.syne(
-            fontSize: AppFontSize.md,
-            fontWeight: FontWeight.w700,
-          ),
+          textStyle: AppTextStyles.label,
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -611,7 +564,7 @@ class AppTheme {
           vertical: AppSpacing.lg,
         ),
         prefixIconColor: AppColors.textV2Secondary,
-        hintStyle: GoogleFonts.outfit(color: AppColors.textV2Tertiary),
+        hintStyle: AppTextStyles.body.copyWith(color: AppColors.textV2Tertiary),
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: Colors.transparent,
@@ -635,49 +588,16 @@ class AppTheme {
         ),
       ),
       textTheme: TextTheme(
-        displayLarge: GoogleFonts.syne(
-          fontSize: AppFontSize.hero,
-          fontWeight: FontWeight.w800,
-          color: AppColors.textV2Primary,
-        ),
-        displayMedium: GoogleFonts.syne(
-          fontSize: AppFontSize.display,
-          fontWeight: FontWeight.w800,
-          color: AppColors.textV2Primary,
-        ),
-        headlineLarge: GoogleFonts.syne(
-          fontSize: AppFontSize.xxxl,
-          fontWeight: FontWeight.w700,
-          color: AppColors.textV2Primary,
-        ),
-        headlineMedium: GoogleFonts.syne(
-          fontSize: AppFontSize.xxl,
-          fontWeight: FontWeight.w700,
-          color: AppColors.textV2Primary,
-        ),
-        titleLarge: GoogleFonts.syne(
-          fontSize: AppFontSize.xl,
-          fontWeight: FontWeight.w600,
-          color: AppColors.textV2Primary,
-        ),
-        titleMedium: GoogleFonts.outfit(
-          fontSize: AppFontSize.lg,
-          fontWeight: FontWeight.w600,
-          color: AppColors.textV2Primary,
-        ),
-        bodyLarge: GoogleFonts.outfit(
-          fontSize: AppFontSize.md,
-          color: AppColors.textV2Primary,
-        ),
-        bodyMedium: GoogleFonts.outfit(
-          fontSize: AppFontSize.sm,
-          color: AppColors.textV2Secondary,
-        ),
-        labelLarge: GoogleFonts.outfit(
-          fontSize: AppFontSize.md,
-          fontWeight: FontWeight.w600,
-          color: AppColors.textV2Primary,
-        ),
+        displayLarge: AppTextStyles.display.copyWith(color: AppColors.textV2Primary),
+        displayMedium: AppTextStyles.h1.copyWith(color: AppColors.textV2Primary),
+        headlineLarge: AppTextStyles.h2.copyWith(color: AppColors.textV2Primary),
+        headlineMedium: AppTextStyles.h3.copyWith(color: AppColors.textV2Primary),
+        titleLarge: AppTextStyles.h4.copyWith(color: AppColors.textV2Primary),
+        titleMedium: AppTextStyles.h5.copyWith(color: AppColors.textV2Primary),
+        bodyLarge: AppTextStyles.bodyLarge.copyWith(color: AppColors.textV2Primary),
+        bodyMedium: AppTextStyles.body.copyWith(color: AppColors.textV2Secondary),
+        labelLarge: AppTextStyles.label.copyWith(color: AppColors.textV2Primary),
+        labelSmall: AppTextStyles.caption.copyWith(color: AppColors.textV2Secondary),
       ),
     );
   }

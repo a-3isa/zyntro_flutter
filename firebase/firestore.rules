@@ -13,6 +13,32 @@ service cloud.firestore {
       return participants != null && participants.hasAny([userId]);
     }
 
+    function isPlanOwner(planUserId) {
+      return planUserId == request.auth.uid;
+    }
+
+    function isMutualApprovedFollow(hostId, inviteeId) {
+      return exists(/databases/$(database)/documents/follows/$(hostId + '_' + inviteeId)) &&
+        exists(/databases/$(database)/documents/follows/$(inviteeId + '_' + hostId)) &&
+        get(/databases/$(database)/documents/follows/$(hostId + '_' + inviteeId)).data.status == 'approved' &&
+        get(/databases/$(database)/documents/follows/$(inviteeId + '_' + hostId)).data.status == 'approved';
+    }
+
+    function isNotBlockedPair(hostId, inviteeId) {
+      return !exists(/databases/$(database)/documents/blocks/$(hostId + '_' + inviteeId)) &&
+        !exists(/databases/$(database)/documents/blocks/$(inviteeId + '_' + hostId));
+    }
+
+    function hasValidPairedInviteEligibility() {
+      return !request.resource.data.keys().hasAny(['invitedUserIds']) ||
+        request.resource.data.invitedUserIds.size() == 0 ||
+        (
+          request.resource.data.invitedUserIds.size() == 1 &&
+          isMutualApprovedFollow(request.resource.data.hostId, request.resource.data.invitedUserIds[0]) &&
+          isNotBlockedPair(request.resource.data.hostId, request.resource.data.invitedUserIds[0])
+        );
+    }
+
     function isModerator() {
       return isAuthenticated() &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isModerator == true;
@@ -53,6 +79,14 @@ service cloud.firestore {
     function isSessionMember(sessionId) {
       let path = /databases/$(database)/documents/sessions/$(sessionId);
       return existsAfter(path) && hasParticipant(getAfter(path).data.participants, request.auth.uid);
+    }
+
+    function isBotSessionHost(sessionId) {
+      let path = /databases/$(database)/documents/sessions/$(sessionId);
+      return existsAfter(path) &&
+        getAfter(path).data.partnerKind == 'bot' &&
+        getAfter(path).data.hostId == request.auth.uid &&
+        hasParticipant(getAfter(path).data.participants, request.auth.uid);
     }
 
     function isApprovedEventJoinUpdate(eventId) {
@@ -97,7 +131,8 @@ service cloud.firestore {
         hasParticipant(resource.data.participants, request.auth.uid);
       allow create: if isAuthenticated() &&
         request.resource.data.hostId == request.auth.uid &&
-        hasParticipant(request.resource.data.participants, request.auth.uid);
+        hasParticipant(request.resource.data.participants, request.auth.uid) &&
+        hasValidPairedInviteEligibility();
       allow update: if isAuthenticated() && (
         hasParticipant(resource.data.participants, request.auth.uid) ||
         hasParticipant(request.resource.data.participants, request.auth.uid)
@@ -108,18 +143,38 @@ service cloud.firestore {
         allow read: if isSessionMember(sessionId);
         allow create: if isAuthenticated() &&
           isSessionMember(sessionId) &&
-          request.resource.data.userId == request.auth.uid;
+          (
+            request.resource.data.userId == request.auth.uid ||
+            (
+              isBotSessionHost(sessionId) &&
+              request.resource.data.userId == 'zyntro_bot_friend'
+            )
+          );
         allow update, delete: if false;
       }
 
       match /plans/{planUserId} {
         allow read: if isSessionMember(sessionId);
-        allow create: if isOwner(planUserId) &&
+        allow create: if (
+          isOwner(planUserId) &&
+          isPlanOwner(planUserId) &&
           isSessionMember(sessionId) &&
-          request.resource.data.userId == planUserId;
-        allow update: if isOwner(planUserId) &&
+          request.resource.data.userId == planUserId
+        ) || (
+          isBotSessionHost(sessionId) &&
+          planUserId == 'zyntro_bot_friend' &&
+          request.resource.data.userId == planUserId
+        );
+        allow update: if (
+          isOwner(planUserId) &&
+          isPlanOwner(planUserId) &&
           isSessionMember(sessionId) &&
-          request.resource.data.userId == planUserId;
+          request.resource.data.userId == planUserId
+        ) || (
+          isBotSessionHost(sessionId) &&
+          planUserId == 'zyntro_bot_friend' &&
+          request.resource.data.userId == planUserId
+        );
         allow delete: if false;
       }
 
@@ -211,9 +266,13 @@ service cloud.firestore {
 
     match /workouts/{workoutId} {
       allow read: if isAuthenticated();
+      // Verify membership via the workout's own participants field.
+      // Using isSessionMember (which calls getAfter) is unreliable when the
+      // session document is also updated in the same batched write.
       allow create: if isAuthenticated() &&
         request.resource.data.sessionId is string &&
-        isSessionMember(request.resource.data.sessionId);
+        request.resource.data.participants != null &&
+        request.resource.data.participants.hasAny([request.auth.uid]);
       allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
     }
 
@@ -223,6 +282,30 @@ service cloud.firestore {
 
     match /pushTokens/{tokenId} {
       allow read, create, update, delete: if false;
+    }
+
+    // Exercise catalog — shared read, moderator-only write (T013)
+    match /exerciseCatalog/{exerciseId} {
+      allow read: if isAuthenticated() && resource.data.isActive == true;
+      allow create, update, delete: if isModerator();
+    }
+
+    // Personal exercises — owner-only access (T013)
+    match /users/{userId}/personalExercises/{personalExerciseId} {
+      allow read, create, update, delete: if isOwner(userId);
+    }
+
+    // Exercise review submissions — user creates for own exercises,
+    // only moderators may change status (approve/reject/merge) (T013)
+    match /exerciseReviewSubmissions/{submissionId} {
+      allow read: if isAuthenticated() && (
+        resource.data.submittedBy == request.auth.uid ||
+        isModerator()
+      );
+      allow create: if isAuthenticated() &&
+        request.resource.data.submittedBy == request.auth.uid;
+      allow update: if isModerator();
+      allow delete: if false;
     }
   }
 }

@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
-
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../app/navigation/app_router.dart';
 import '../../../widgets/circuit_breaker_status_widget.dart';
@@ -31,20 +30,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  TextStyle _sectionHeader() => GoogleFonts.outfit(
-        fontSize: 10,
+  TextStyle _sectionHeader() => AppTextStyles.caption.copyWith(
         fontWeight: FontWeight.w700,
         letterSpacing: 2,
         color: AppColors.textV2Tertiary,
       );
 
-  TextStyle _rowLabel({bool danger = false}) => GoogleFonts.outfit(
-        fontSize: 14,
+  TextStyle _rowLabel({bool danger = false}) => AppTextStyles.body.copyWith(
         fontWeight: FontWeight.w500,
         color: danger ? AppColors.errorV2 : AppColors.textV2Primary,
       );
 
-  TextStyle _rowSub() => GoogleFonts.outfit(
+  TextStyle _rowSub() => AppTextStyles.caption.copyWith(
         fontSize: 11,
         color: AppColors.textV2Tertiary,
       );
@@ -204,7 +201,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       children: [
                         Text(
                           'Zyntro',
-                          style: GoogleFonts.syne(
+                          style: AppTextStyles.body.copyWith(
                             color: AppColors.textV2Secondary,
                             fontWeight: FontWeight.w600,
                             fontSize: 13,
@@ -213,9 +210,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         const SizedBox(height: 4),
                         Text(
                           'Version 1.0.0',
-                          style: GoogleFonts.outfit(
+                          style: AppTextStyles.caption.copyWith(
                             color: AppColors.textV2Tertiary,
-                            fontSize: 12,
                           ),
                         ),
                       ],
@@ -267,9 +263,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           const SizedBox(width: 14),
           Text(
             'Settings',
-            style: GoogleFonts.syne(
+            style: AppTextStyles.h3.copyWith(
               fontSize: 22,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w700,
               color: AppColors.textV2Primary,
               letterSpacing: -0.5,
             ),
@@ -310,8 +306,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             child: Center(
               child: Text(
                 initial,
-                style: GoogleFonts.syne(
-                  fontSize: 20,
+                style: AppTextStyles.h4.copyWith(
                   fontWeight: FontWeight.w700,
                   color: AppColors.accentLime,
                 ),
@@ -326,8 +321,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               children: [
                 Text(
                   displayName,
-                  style: GoogleFonts.syne(
-                    fontSize: 16,
+                  style: AppTextStyles.bodyLarge.copyWith(
                     fontWeight: FontWeight.w700,
                     color: AppColors.textV2Primary,
                   ),
@@ -335,8 +329,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 const SizedBox(height: 2),
                 Text(
                   '@$username · Rank #4',
-                  style: GoogleFonts.outfit(
-                    fontSize: 12,
+                  style: AppTextStyles.caption.copyWith(
                     color: AppColors.textV2Secondary,
                   ),
                 ),
@@ -359,7 +352,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               ),
               child: Text(
                 'Edit',
-                style: GoogleFonts.syne(
+                style: AppTextStyles.body.copyWith(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
                   color: AppColors.textV2Secondary,
@@ -553,7 +546,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             const SizedBox(width: 8),
             Text(
               'Sign Out',
-              style: GoogleFonts.syne(
+              style: AppTextStyles.h5.copyWith(
                 color: AppColors.textV2Primary,
                 fontWeight: FontWeight.w700,
               ),
@@ -562,14 +555,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         ),
         content: Text(
           'Are you sure you want to sign out?',
-          style: GoogleFonts.outfit(color: AppColors.textV2Secondary),
+          style: AppTextStyles.bodyLarge.copyWith(color: AppColors.textV2Secondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
             child: Text(
               'Cancel',
-              style: GoogleFonts.outfit(color: AppColors.textV2Secondary),
+              style: AppTextStyles.bodyLarge.copyWith(color: AppColors.textV2Secondary),
             ),
           ),
           GestureDetector(
@@ -582,7 +575,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               ),
               child: Text(
                 'Sign Out',
-                style: GoogleFonts.outfit(
+                style: AppTextStyles.bodyLarge.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.w600,
                 ),
@@ -632,8 +625,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               padding: const EdgeInsets.all(16),
               child: Text(
                 'Network Diagnostics',
-                style: GoogleFonts.syne(
-                  fontSize: 20,
+                style: AppTextStyles.h4.copyWith(
                   fontWeight: FontWeight.w700,
                   color: AppColors.textV2Primary,
                 ),
@@ -733,7 +725,7 @@ class _SegmentedSelector extends StatelessWidget {
             ),
             child: Text(
               opt,
-              style: GoogleFonts.syne(
+              style: AppTextStyles.caption.copyWith(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
                 color: isSelected

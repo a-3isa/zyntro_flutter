@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
-
 import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../app/navigation/app_router.dart';
 import '../../../widgets/zyntro_button.dart';
 import '../auth_providers.dart';
@@ -61,9 +60,9 @@ class SplashPage extends ConsumerWidget {
                   // "zyntro" wordmark
                   Text(
                     'zyntro',
-                    style: GoogleFonts.syne(
+                    style: AppTextStyles.display.copyWith(
                       fontSize: 52,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w700,
                       color: AppColors.textV2Primary,
                       letterSpacing: -2.5,
                       height: 1,
@@ -75,10 +74,8 @@ class SplashPage extends ConsumerWidget {
                   // Subtitle
                   Text(
                     'Train. Compete. Dominate.',
-                    style: GoogleFonts.outfit(
-                      fontSize: 15,
+                    style: AppTextStyles.body.copyWith(
                       color: AppColors.textV2Secondary,
-                      height: 1.5,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -113,7 +110,7 @@ class SplashPage extends ConsumerWidget {
                     fullWidth: true,
                     variant: ZyntroButtonVariant.primary,
                     size: ZyntroButtonSize.lg,
-                    onPressed: () => context.go(AppRoutes.onboarding),
+                    onPressed: () => context.go(AppRoutes.signUp),
                   ),
 
                   const SizedBox(height: 16),
@@ -125,8 +122,7 @@ class SplashPage extends ConsumerWidget {
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       child: Text(
                         'Already have an account',
-                        style: GoogleFonts.outfit(
-                          fontSize: 12,
+                        style: AppTextStyles.caption.copyWith(
                           color: AppColors.textV2Tertiary,
                         ),
                         textAlign: TextAlign.center,

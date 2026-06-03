@@ -56,7 +56,7 @@ class _PulseDotState extends State<PulseDot>
           // Pulsing outer ring
           AnimatedBuilder(
             animation: _controller,
-            builder: (_, __) => Opacity(
+            builder: (context, _) => Opacity(
               opacity: _opacityAnim.value,
               child: Transform.scale(
                 scale: _scaleAnim.value,

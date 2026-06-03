@@ -41,6 +41,7 @@ abstract class AuthRepository {
     String? photoUrl,
     String? avatarConfig,
     String? authProvider,
+    int? trainingDaysPerWeek,
   });
 
   Future<void> updateUserProfile({

@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import '../../../app/navigation/app_route_locations.dart';
 import '../../../core/models/models.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/auth_providers.dart';
 import '../../../services/follow_service.dart';
@@ -177,9 +177,9 @@ class _SocialPageState extends ConsumerState<SocialPage>
               children: [
                 Text(
                   'Social',
-                  style: GoogleFonts.syne(
+                  style: AppTextStyles.h3.copyWith(
                     fontSize: 28,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                     letterSpacing: -0.7,
                     color: AppColors.textV2Primary,
                   ),
@@ -201,12 +201,10 @@ class _SocialPageState extends ConsumerState<SocialPage>
                     ),
                     indicatorSize: TabBarIndicatorSize.tab,
                     dividerColor: Colors.transparent,
-                    labelStyle: GoogleFonts.outfit(
-                      fontWeight: FontWeight.w600,
+                    labelStyle: AppTextStyles.label.copyWith(
                       fontSize: 13,
                     ),
-                    unselectedLabelStyle: GoogleFonts.outfit(
-                      fontWeight: FontWeight.w400,
+                    unselectedLabelStyle: AppTextStyles.body.copyWith(
                       fontSize: 13,
                     ),
                     tabs: const [
@@ -264,7 +262,7 @@ class _SocialPageState extends ConsumerState<SocialPage>
               child: Center(
                 child: Text(
                   'No buddies yet.\nSearch for people to follow!',
-                  style: GoogleFonts.outfit(color: AppColors.textV2Secondary),
+                  style: AppTextStyles.body.copyWith(color: AppColors.textV2Secondary),
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -321,10 +319,10 @@ class _SocialPageState extends ConsumerState<SocialPage>
                               buddy.displayName.isNotEmpty
                                   ? buddy.displayName[0].toUpperCase()
                                   : '?',
-                              style: GoogleFonts.syne(
-                                color: AppColors.textV2Primary,
-                                fontWeight: FontWeight.w700,
+                              style: AppTextStyles.h5.copyWith(
                                 fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textV2Primary,
                               ),
                             ),
                           ),
@@ -356,8 +354,7 @@ class _SocialPageState extends ConsumerState<SocialPage>
                 children: [
                   Text(
                     buddy.displayName,
-                    style: GoogleFonts.syne(
-                      fontWeight: FontWeight.w600,
+                    style: AppTextStyles.h5.copyWith(
                       fontSize: 15,
                       color: AppColors.textV2Primary,
                     ),
@@ -365,8 +362,7 @@ class _SocialPageState extends ConsumerState<SocialPage>
                   const SizedBox(height: 2),
                   Text(
                     buddy.isOnline ? 'Online now' : 'Offline',
-                    style: GoogleFonts.outfit(
-                      fontSize: 12,
+                    style: AppTextStyles.caption.copyWith(
                       color: buddy.isOnline
                           ? AppColors.success
                           : AppColors.textV2Secondary,
@@ -392,9 +388,8 @@ class _SocialPageState extends ConsumerState<SocialPage>
                 ),
                 child: Text(
                   'Following',
-                  style: GoogleFonts.outfit(
+                  style: AppTextStyles.label.copyWith(
                     fontSize: 13,
-                    fontWeight: FontWeight.w600,
                     color: AppColors.textV2Secondary,
                   ),
                 ),
@@ -471,15 +466,13 @@ class _SocialPageState extends ConsumerState<SocialPage>
             ),
             child: TextField(
               controller: _searchController,
-              style: GoogleFonts.outfit(
+              style: AppTextStyles.body.copyWith(
                 color: AppColors.textV2Primary,
-                fontSize: 14,
               ),
               decoration: InputDecoration(
                 hintText: 'Find athletes by name…',
-                hintStyle: GoogleFonts.outfit(
+                hintStyle: AppTextStyles.body.copyWith(
                   color: AppColors.textV2Tertiary,
-                  fontSize: 14,
                 ),
                 prefixIcon: const Icon(
                   Icons.search_rounded,
@@ -501,7 +494,7 @@ class _SocialPageState extends ConsumerState<SocialPage>
               ? Center(
                   child: Text(
                     'Search for athletes to follow',
-                    style: GoogleFonts.outfit(color: AppColors.textV2Tertiary),
+                    style: AppTextStyles.body.copyWith(color: AppColors.textV2Tertiary),
                   ),
                 )
               : _SearchResultsWidget(
@@ -581,8 +574,7 @@ class _BoardContentState extends ConsumerState<_BoardContent> {
           alignment: Alignment.center,
           child: Text(
             label,
-            style: GoogleFonts.outfit(
-              fontWeight: FontWeight.w600,
+            style: AppTextStyles.label.copyWith(
               fontSize: 13,
               color: active
                   ? AppColors.textV2Primary
@@ -607,7 +599,7 @@ class _FriendsLeaderboard extends ConsumerWidget {
       return Center(
         child: Text(
           'Please sign in to view leaderboard',
-          style: GoogleFonts.outfit(color: AppColors.textV2Secondary),
+          style: AppTextStyles.body.copyWith(color: AppColors.textV2Secondary),
         ),
       );
     }
@@ -631,8 +623,7 @@ class _FriendsLeaderboard extends ConsumerWidget {
                   const SizedBox(height: 16),
                   Text(
                     'No friends yet',
-                    style: GoogleFonts.syne(
-                      fontSize: 20,
+                    style: AppTextStyles.h4.copyWith(
                       fontWeight: FontWeight.w700,
                       color: AppColors.textV2Primary,
                     ),
@@ -640,7 +631,7 @@ class _FriendsLeaderboard extends ConsumerWidget {
                   const SizedBox(height: 8),
                   Text(
                     'Follow people to see your friends leaderboard',
-                    style: GoogleFonts.outfit(
+                    style: AppTextStyles.body.copyWith(
                       color: AppColors.textV2Secondary,
                     ),
                     textAlign: TextAlign.center,
@@ -666,7 +657,7 @@ class _FriendsLeaderboard extends ConsumerWidget {
             const SizedBox(height: 12),
             Text(
               'Failed to load leaderboard',
-              style: GoogleFonts.outfit(color: AppColors.textV2Secondary),
+              style: AppTextStyles.body.copyWith(color: AppColors.textV2Secondary),
             ),
           ],
         ),
@@ -732,9 +723,8 @@ class _FriendsLeaderboard extends ConsumerWidget {
                 children: [
                   Text(
                     '#${me.rank}',
-                    style: GoogleFonts.syne(
-                      fontSize: 32,
-                      fontWeight: FontWeight.w800,
+                    style: AppTextStyles.h2.copyWith(
+                      fontWeight: FontWeight.w700,
                       color: AppColors.accentLime,
                       height: 1,
                     ),
@@ -746,17 +736,16 @@ class _FriendsLeaderboard extends ConsumerWidget {
                       children: [
                         Text(
                           me.displayName,
-                          style: GoogleFonts.syne(
-                            fontWeight: FontWeight.w700,
+                          style: AppTextStyles.h5.copyWith(
                             fontSize: 15,
+                            fontWeight: FontWeight.w700,
                             color: AppColors.textV2Primary,
                           ),
                         ),
                         const SizedBox(height: 2),
                         Text(
                           '${me.score} pts · 🔥${me.streak}',
-                          style: GoogleFonts.outfit(
-                            fontSize: 12,
+                          style: AppTextStyles.caption.copyWith(
                             color: AppColors.textV2Secondary,
                           ),
                         ),
@@ -765,8 +754,7 @@ class _FriendsLeaderboard extends ConsumerWidget {
                   ),
                   Text(
                     'You',
-                    style: GoogleFonts.outfit(
-                      fontSize: 12,
+                    style: AppTextStyles.caption.copyWith(
                       fontWeight: FontWeight.w700,
                       color: AppColors.accentLime,
                     ),
@@ -881,9 +869,9 @@ class _PodiumSpot extends StatelessWidget {
             width: 76,
             child: Text(
               entry.displayName,
-              style: GoogleFonts.syne(
-                fontWeight: FontWeight.w700,
+              style: AppTextStyles.h5.copyWith(
                 fontSize: 12,
+                fontWeight: FontWeight.w700,
                 color: entry.isCurrentUser
                     ? AppColors.accentLime
                     : AppColors.textV2Primary,
@@ -895,7 +883,7 @@ class _PodiumSpot extends StatelessWidget {
           ),
           Text(
             '${entry.score} pts',
-            style: GoogleFonts.outfit(
+            style: AppTextStyles.caption.copyWith(
               fontSize: 11,
               color: AppColors.textV2Tertiary,
             ),
@@ -917,10 +905,10 @@ class _PodiumSpot extends StatelessWidget {
             child: Center(
               child: Text(
                 '#$rank',
-                style: GoogleFonts.syne(
-                  fontWeight: FontWeight.w800,
-                  color: podiumColor,
+                style: AppTextStyles.h5.copyWith(
                   fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: podiumColor,
                 ),
               ),
             ),
@@ -960,9 +948,9 @@ class _LeaderboardRow extends StatelessWidget {
             width: 36,
             child: Text(
               '#${entry.rank}',
-              style: GoogleFonts.syne(
-                fontWeight: FontWeight.w700,
+              style: AppTextStyles.h4.copyWith(
                 fontSize: 14,
+                fontWeight: FontWeight.w700,
                 color: entry.isCurrentUser
                     ? AppColors.accentLime
                     : AppColors.textV2Tertiary,
@@ -980,10 +968,10 @@ class _LeaderboardRow extends StatelessWidget {
                     entry.displayName.isNotEmpty
                         ? entry.displayName[0].toUpperCase()
                         : '?',
-                    style: GoogleFonts.syne(
-                      color: AppColors.textV2Primary,
-                      fontWeight: FontWeight.w700,
+                    style: AppTextStyles.h5.copyWith(
                       fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textV2Primary,
                     ),
                   )
                 : null,
@@ -995,8 +983,7 @@ class _LeaderboardRow extends StatelessWidget {
               children: [
                 Text(
                   entry.displayName,
-                  style: GoogleFonts.syne(
-                    fontWeight: FontWeight.w600,
+                  style: AppTextStyles.h4.copyWith(
                     fontSize: 14,
                     color: entry.isCurrentUser
                         ? AppColors.accentLime
@@ -1005,7 +992,7 @@ class _LeaderboardRow extends StatelessWidget {
                 ),
                 Text(
                   '🔥${entry.streak} streak',
-                  style: GoogleFonts.outfit(
+                  style: AppTextStyles.caption.copyWith(
                     fontSize: 11,
                     color: AppColors.textV2Secondary,
                   ),
@@ -1015,7 +1002,7 @@ class _LeaderboardRow extends StatelessWidget {
           ),
           Text(
             '${entry.score} pts',
-            style: GoogleFonts.syne(
+            style: AppTextStyles.h5.copyWith(
               fontSize: 13,
               fontWeight: FontWeight.w700,
               color: AppColors.textV2Primary,
@@ -1066,19 +1053,16 @@ class _GlobalUpsell extends StatelessWidget {
               const SizedBox(height: 20),
               Text(
                 'Global Leaderboard',
-                style: GoogleFonts.syne(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
+                style: AppTextStyles.h4.copyWith(
+                  fontWeight: FontWeight.w700,
                   color: AppColors.textV2Primary,
                 ),
               ),
               const SizedBox(height: 10),
               Text(
                 'Compete with athletes worldwide and see where you rank globally.',
-                style: GoogleFonts.outfit(
-                  fontSize: 14,
+                style: AppTextStyles.body.copyWith(
                   color: AppColors.textV2Secondary,
-                  height: 1.5,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -1092,7 +1076,7 @@ class _GlobalUpsell extends StatelessWidget {
                 ),
                 child: Text(
                   'Unlock for \$5',
-                  style: GoogleFonts.syne(
+                  style: AppTextStyles.h5.copyWith(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
                     color: Colors.black,
@@ -1134,7 +1118,7 @@ class _SearchResultsWidget extends ConsumerWidget {
           return Center(
             child: Text(
               'No athletes found',
-              style: GoogleFonts.outfit(color: AppColors.textV2Secondary),
+              style: AppTextStyles.body.copyWith(color: AppColors.textV2Secondary),
             ),
           );
         }
@@ -1158,7 +1142,7 @@ class _SearchResultsWidget extends ConsumerWidget {
       error: (e, _) => Center(
         child: Text(
           'Search failed',
-          style: GoogleFonts.outfit(color: AppColors.textV2Secondary),
+          style: AppTextStyles.body.copyWith(color: AppColors.textV2Secondary),
         ),
       ),
     );
@@ -1207,10 +1191,10 @@ class _UserSearchRow extends ConsumerWidget {
                           user.displayName.isNotEmpty
                               ? user.displayName[0].toUpperCase()
                               : '?',
-                          style: GoogleFonts.syne(
-                            color: AppColors.textV2Primary,
-                            fontWeight: FontWeight.w700,
+                          style: AppTextStyles.h5.copyWith(
                             fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textV2Primary,
                           ),
                         ),
                       ),
@@ -1223,8 +1207,7 @@ class _UserSearchRow extends ConsumerWidget {
                 children: [
                   Text(
                     user.displayName,
-                    style: GoogleFonts.syne(
-                      fontWeight: FontWeight.w600,
+                    style: AppTextStyles.h4.copyWith(
                       fontSize: 14,
                       color: AppColors.textV2Primary,
                     ),
@@ -1232,8 +1215,7 @@ class _UserSearchRow extends ConsumerWidget {
                   const SizedBox(height: 2),
                   Text(
                     '${user.totalWorkouts} workouts',
-                    style: GoogleFonts.outfit(
-                      fontSize: 12,
+                    style: AppTextStyles.caption.copyWith(
                       color: AppColors.textV2Secondary,
                     ),
                   ),
@@ -1263,7 +1245,7 @@ class _UserSearchRow extends ConsumerWidget {
                   ),
                   child: Text(
                     'Follow',
-                    style: GoogleFonts.outfit(
+                    style: AppTextStyles.label.copyWith(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
                       color: Colors.black,
@@ -1284,9 +1266,8 @@ class _UserSearchRow extends ConsumerWidget {
                 ),
                 child: Text(
                   'Following',
-                  style: GoogleFonts.outfit(
+                  style: AppTextStyles.label.copyWith(
                     fontSize: 13,
-                    fontWeight: FontWeight.w600,
                     color: AppColors.textV2Secondary,
                   ),
                 ),

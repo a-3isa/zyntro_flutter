@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
-
+import '../../../core/constants/constants.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../app/navigation/app_router.dart';
-import '../../../services/storage_service.dart';
+import '../auth_providers.dart';
+import 'providers/auth_controller.dart';
 
 /// Multi-step onboarding profile setup screen (5 steps).
 class OnboardingPage extends ConsumerStatefulWidget {
@@ -58,10 +57,37 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     setState(() => _step++);
   }
 
-  void _finishOnboarding() {
+  WorkoutType _goalToWorkoutType(int index) {
+    switch (index) {
+      case 0:
+        return WorkoutType.gym;
+      case 1:
+        return WorkoutType.running;
+      case 2:
+        return WorkoutType.hiit;
+      case 3:
+        return WorkoutType.sports;
+      default:
+        return WorkoutType.other;
+    }
+  }
+
+  Future<void> _finishOnboarding() async {
     HapticFeedback.heavyImpact();
-    ref.read(storageServiceProvider).setHasSeenOnboarding(true);
-    context.go(AppRoutes.signUp);
+    final uid = ref.read(authSessionProvider).valueOrNull?.id;
+    if (uid == null) return;
+
+    await ref.read(authControllerProvider).createUserProfile(
+      userId: uid,
+      displayName: _nameController.text.trim(),
+      workoutPreference: _goalToWorkoutType(_selectedGoalIndex),
+      beginnerFlag: false,
+      avatarConfig: _avatarColors[_selectedColorIndex]
+          .toARGB32()
+          .toRadixString(16)
+          .padLeft(8, '0'),
+      trainingDaysPerWeek: _selectedDays,
+    );
   }
 
   @override
@@ -158,21 +184,19 @@ class _ProgressDots extends StatelessWidget {
 // Shared heading builder
 // ---------------------------------------------------------------------------
 
-TextStyle _headingStyle() => GoogleFonts.syne(
-      fontWeight: FontWeight.w800,
+TextStyle _headingStyle() => AppTextStyles.h2.copyWith(
       fontSize: 34,
+      fontWeight: FontWeight.w700,
       color: AppColors.textV2Primary,
       letterSpacing: -1.2,
       height: 1.05,
     );
 
-TextStyle _subStyle() => GoogleFonts.outfit(
-      fontSize: 14,
+TextStyle _subStyle() => AppTextStyles.body.copyWith(
       color: AppColors.textV2Secondary,
     );
 
-TextStyle _bodyStyle() => GoogleFonts.outfit(
-      fontSize: 14,
+TextStyle _bodyStyle() => AppTextStyles.body.copyWith(
       color: AppColors.textV2Secondary,
     );
 
@@ -180,7 +204,7 @@ TextStyle _bodyStyle() => GoogleFonts.outfit(
 // Shared bottom Continue button
 // ---------------------------------------------------------------------------
 
-class _ContinueButton extends StatelessWidget {
+class _ContinueButton extends StatefulWidget {
   final String label;
   final VoidCallback? onPressed;
   final Widget? leftIcon;
@@ -192,35 +216,50 @@ class _ContinueButton extends StatelessWidget {
   });
 
   @override
+  State<_ContinueButton> createState() => _ContinueButtonState();
+}
+
+class _ContinueButtonState extends State<_ContinueButton> {
+  bool _pressed = false;
+
+  @override
   Widget build(BuildContext context) {
-    final enabled = onPressed != null;
+    final enabled = widget.onPressed != null;
     return GestureDetector(
-      onTap: onPressed,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        height: 54,
-        decoration: BoxDecoration(
-          color: enabled ? AppColors.accentLime : AppColors.surfaceV2Elevated,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (leftIcon != null) ...[
-              leftIcon!,
-              const SizedBox(width: 8),
-            ],
-            Text(
-              label,
-              style: GoogleFonts.syne(
-                fontWeight: FontWeight.w700,
-                fontSize: 16,
-                color: enabled
-                    ? AppColors.backgroundV2
-                    : AppColors.textV2Secondary,
+      onTap: widget.onPressed,
+      onTapDown: enabled ? (_) => setState(() => _pressed = true) : null,
+      onTapUp: enabled ? (_) => setState(() => _pressed = false) : null,
+      onTapCancel: enabled ? () => setState(() => _pressed = false) : null,
+      child: AnimatedScale(
+        scale: _pressed ? AppAnimations.buttonPressScale : 1.0,
+        duration: AppDurations.fast,
+        curve: AppCurves.press,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          height: 54,
+          decoration: BoxDecoration(
+            color: enabled ? AppColors.accentLime : AppColors.surfaceV2Elevated,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (widget.leftIcon != null) ...[
+                widget.leftIcon!,
+                const SizedBox(width: 8),
+              ],
+              Text(
+                widget.label,
+                style: AppTextStyles.h5.copyWith(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: enabled
+                      ? AppColors.backgroundV2
+                      : AppColors.textV2Secondary,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -260,25 +299,33 @@ class _StepNameState extends State<_StepName> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 80, 28, 40),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _ProgressDots(currentStep: 0),
-          const SizedBox(height: 32),
-          Text("What's your\nname?", style: _headingStyle()),
-          const SizedBox(height: 12),
-          Text("We'll use this on the leaderboard.", style: _subStyle()),
-          const SizedBox(height: 32),
-          _NameInput(controller: widget.controller),
-          const Spacer(),
-          _ContinueButton(
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(28, 80, 28, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const _ProgressDots(currentStep: 0),
+                const SizedBox(height: 32),
+                Text("What's your\nname?", style: _headingStyle()),
+                const SizedBox(height: 12),
+                Text("We'll use this on the leaderboard.", style: _subStyle()),
+                const SizedBox(height: 32),
+                _NameInput(controller: widget.controller),
+              ],
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(28, 0, 28, 40),
+          child: _ContinueButton(
             label: 'Continue',
             onPressed: _canContinue ? widget.onContinue : null,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -296,18 +343,18 @@ class _NameInput extends StatelessWidget {
         return TextField(
           controller: controller,
           textCapitalization: TextCapitalization.words,
-          style: GoogleFonts.syne(
-            fontWeight: FontWeight.w700,
+          style: AppTextStyles.h3.copyWith(
             fontSize: 22,
+            fontWeight: FontWeight.w700,
             color: AppColors.textV2Primary,
             letterSpacing: -0.5,
           ),
           cursorColor: AppColors.accentLime,
           decoration: InputDecoration(
             hintText: 'Your name',
-            hintStyle: GoogleFonts.syne(
-              fontWeight: FontWeight.w700,
+            hintStyle: AppTextStyles.h3.copyWith(
               fontSize: 22,
+              fontWeight: FontWeight.w700,
               color: AppColors.textV2Tertiary,
               letterSpacing: -0.5,
             ),
@@ -373,87 +420,94 @@ class _StepAvatarColor extends StatelessWidget {
     final selectedColor = colors[selectedIndex];
     final initial = name.isNotEmpty ? name[0].toUpperCase() : 'Z';
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 80, 28, 40),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _ProgressDots(currentStep: 1),
-          const SizedBox(height: 32),
-          Text("Pick your\ncolor.", style: _headingStyle()),
-          const SizedBox(height: 32),
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(28, 80, 28, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const _ProgressDots(currentStep: 1),
+                const SizedBox(height: 32),
+                Text("Pick your\ncolor.", style: _headingStyle()),
+                const SizedBox(height: 32),
 
-          // Avatar preview
-          Center(
-            child: Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.surfaceV2,
-                border: Border.all(color: selectedColor, width: 3),
-              ),
-              child: Center(
-                child: Text(
-                  initial,
-                  style: GoogleFonts.syne(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 28,
-                    color: selectedColor,
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 32),
-
-          // 4x2 color grid
-          GridView.count(
-            crossAxisCount: 4,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            children: List.generate(colors.length, (i) {
-              final isSelected = i == selectedIndex;
-              final color = colors[i];
-              return GestureDetector(
-                onTap: () {
-                  HapticFeedback.selectionClick();
-                  onColorSelected(i);
-                },
-                child: AspectRatio(
-                  aspectRatio: 1,
+                // Avatar preview
+                Center(
                   child: Container(
+                    width: 80,
+                    height: 80,
                     decoration: BoxDecoration(
+                      shape: BoxShape.circle,
                       color: AppColors.surfaceV2,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: isSelected ? color : Colors.transparent,
-                        width: 3,
-                      ),
+                      border: Border.all(color: selectedColor, width: 3),
                     ),
                     child: Center(
-                      child: Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          color: color,
-                          shape: BoxShape.circle,
+                      child: Text(
+                        initial,
+                        style: AppTextStyles.h2.copyWith(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w700,
+                          color: selectedColor,
                         ),
                       ),
                     ),
                   ),
                 ),
-              );
-            }),
-          ),
 
-          const Spacer(),
-          _ContinueButton(label: 'Continue', onPressed: onContinue),
-        ],
-      ),
+                const SizedBox(height: 32),
+
+                // 4x2 color grid
+                GridView.count(
+                  crossAxisCount: 4,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  children: List.generate(colors.length, (i) {
+                    final isSelected = i == selectedIndex;
+                    final color = colors[i];
+                    return GestureDetector(
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        onColorSelected(i);
+                      },
+                      child: AspectRatio(
+                        aspectRatio: 1,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceV2,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: isSelected ? color : Colors.transparent,
+                              width: 3,
+                            ),
+                          ),
+                          child: Center(
+                            child: Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                color: color,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+              ],
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(28, 0, 28, 40),
+          child: _ContinueButton(label: 'Continue', onPressed: onContinue),
+        ),
+      ],
     );
   }
 }
@@ -488,101 +542,108 @@ class _StepGoal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 80, 28, 40),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _ProgressDots(currentStep: 2),
-          const SizedBox(height: 32),
-          Text("What's your\nmain goal?", style: _headingStyle()),
-          const SizedBox(height: 12),
-          Text("Tailor your experience.", style: _subStyle()),
-          const SizedBox(height: 32),
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(28, 80, 28, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const _ProgressDots(currentStep: 2),
+                const SizedBox(height: 32),
+                Text("What's your\nmain goal?", style: _headingStyle()),
+                const SizedBox(height: 12),
+                Text("Tailor your experience.", style: _subStyle()),
+                const SizedBox(height: 32),
 
-          // Goal cards
-          ...List.generate(goals.length, (i) {
-            final isSelected = i == selectedIndex;
-            final goal = goals[i];
-            return Padding(
-              padding: EdgeInsets.only(bottom: i < goals.length - 1 ? 8 : 0),
-              child: GestureDetector(
-                onTap: () {
-                  HapticFeedback.selectionClick();
-                  onGoalSelected(i);
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? AppColors.surfaceV2Elevated
-                        : AppColors.surfaceV2,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: isSelected
-                          ? AppColors.accentLime.withValues(alpha: 0.27)
-                          : Colors.transparent,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Text(goal.emoji,
-                          style: const TextStyle(fontSize: 22)),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                // Goal cards
+                ...List.generate(goals.length, (i) {
+                  final isSelected = i == selectedIndex;
+                  final goal = goals[i];
+                  return Padding(
+                    padding: EdgeInsets.only(bottom: i < goals.length - 1 ? 8 : 0),
+                    child: GestureDetector(
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        onGoalSelected(i);
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? AppColors.surfaceV2Elevated
+                              : AppColors.surfaceV2,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isSelected
+                                ? AppColors.accentLime.withValues(alpha: 0.27)
+                                : Colors.transparent,
+                          ),
+                        ),
+                        child: Row(
                           children: [
-                            Text(
-                              goal.label,
-                              style: GoogleFonts.syne(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15,
-                                color: AppColors.textV2Primary,
+                            Text(goal.emoji,
+                                style: const TextStyle(fontSize: 22)),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    goal.label,
+                                    style: AppTextStyles.h5.copyWith(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.textV2Primary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    goal.desc,
+                                    style: AppTextStyles.caption.copyWith(
+                                      fontSize: 11,
+                                      color: AppColors.textV2Secondary,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            const SizedBox(height: 2),
-                            Text(
-                              goal.desc,
-                              style: GoogleFonts.outfit(
-                                fontSize: 11,
-                                color: AppColors.textV2Secondary,
+                            if (isSelected) ...[
+                              const SizedBox(width: 12),
+                              Container(
+                                width: 18,
+                                height: 18,
+                                decoration: const BoxDecoration(
+                                  color: AppColors.accentLime,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.check,
+                                  size: 12,
+                                  color: Colors.white,
+                                ),
                               ),
-                            ),
+                            ],
                           ],
                         ),
                       ),
-                      if (isSelected) ...[
-                        const SizedBox(width: 12),
-                        Container(
-                          width: 18,
-                          height: 18,
-                          decoration: const BoxDecoration(
-                            color: AppColors.accentLime,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.check,
-                            size: 12,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-            );
-          }),
-
-          const Spacer(),
-          _ContinueButton(label: 'Continue', onPressed: onContinue),
-        ],
-      ),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(28, 0, 28, 40),
+          child: _ContinueButton(label: 'Continue', onPressed: onContinue),
+        ),
+      ],
     );
   }
 }
@@ -604,92 +665,99 @@ class _StepDays extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 80, 28, 40),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _ProgressDots(currentStep: 3),
-          const SizedBox(height: 32),
-          Text("How often\ndo you train?", style: _headingStyle()),
-          const SizedBox(height: 12),
-          Text("Days per week — we'll set your goal.", style: _subStyle()),
-          const SizedBox(height: 48),
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(28, 80, 28, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const _ProgressDots(currentStep: 3),
+                const SizedBox(height: 32),
+                Text("How often\ndo you train?", style: _headingStyle()),
+                const SizedBox(height: 12),
+                Text("Days per week — we'll set your goal.", style: _subStyle()),
+                const SizedBox(height: 48),
 
-          // Big number
-          Center(
-            child: Text(
-              '$selectedDays',
-              style: GoogleFonts.syne(
-                fontWeight: FontWeight.w800,
-                fontSize: 72,
-                color: AppColors.accentLime,
-                letterSpacing: -3,
-              ),
-            ),
-          ),
-          Center(
-            child: Text('days / week', style: _bodyStyle()),
-          ),
-
-          const SizedBox(height: 40),
-
-          // Day selector row (2–7)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(6, (i) {
-              final day = i + 2;
-              final isSelected = day == selectedDays;
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 5),
-                child: GestureDetector(
-                  onTap: () {
-                    HapticFeedback.selectionClick();
-                    onDaysSelected(day);
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? AppColors.accentLime
-                          : AppColors.surfaceV2,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: isSelected
-                          ? [
-                              BoxShadow(
-                                color: AppColors.accentLime.withValues(
-                                  alpha: 0.35,
-                                ),
-                                blurRadius: 12,
-                                spreadRadius: 1,
-                              ),
-                            ]
-                          : null,
-                    ),
-                    child: Center(
-                      child: Text(
-                        '$day',
-                        style: GoogleFonts.syne(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 16,
-                          color: isSelected
-                              ? AppColors.backgroundV2
-                              : AppColors.textV2Secondary,
-                        ),
-                      ),
+                // Big number
+                Center(
+                  child: Text(
+                    '$selectedDays',
+                    style: AppTextStyles.display.copyWith(
+                      fontSize: 72,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.accentLime,
+                      letterSpacing: -3,
                     ),
                   ),
                 ),
-              );
-            }),
-          ),
+                Center(
+                  child: Text('days / week', style: _bodyStyle()),
+                ),
 
-          const Spacer(),
-          _ContinueButton(label: 'Continue', onPressed: onContinue),
-        ],
-      ),
+                const SizedBox(height: 40),
+
+                // Day selector row (2–7)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(6, (i) {
+                    final day = i + 2;
+                    final isSelected = day == selectedDays;
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 5),
+                      child: GestureDetector(
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          onDaysSelected(day);
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? AppColors.accentLime
+                                : AppColors.surfaceV2,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: isSelected
+                                ? [
+                                    BoxShadow(
+                                      color: AppColors.accentLime.withValues(
+                                        alpha: 0.35,
+                                      ),
+                                      blurRadius: 12,
+                                      spreadRadius: 1,
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                          child: Center(
+                            child: Text(
+                              '$day',
+                              style: AppTextStyles.h5.copyWith(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: isSelected
+                                    ? AppColors.backgroundV2
+                                    : AppColors.textV2Secondary,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+              ],
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(28, 0, 28, 40),
+          child: _ContinueButton(label: 'Continue', onPressed: onContinue),
+        ),
+      ],
     );
   }
 }
@@ -715,114 +783,82 @@ class _StepDone extends StatelessWidget {
   Widget build(BuildContext context) {
     final displayName = name.isNotEmpty ? name : 'there';
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 0, 28, 40),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Check circle
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              color: AppColors.accentLime,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.accentLime.withValues(alpha: 0.4),
-                  blurRadius: 24,
-                  spreadRadius: 4,
-                ),
-              ],
-            ),
-            child: const Icon(
-              Icons.check_rounded,
-              size: 36,
-              color: Colors.white,
-            ),
-          ),
-
-          const SizedBox(height: 28),
-
-          Text(
-            "You're in.",
-            style: GoogleFonts.syne(
-              fontWeight: FontWeight.w800,
-              fontSize: 42,
-              color: AppColors.textV2Primary,
-              letterSpacing: -2,
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          Text(
-            "Welcome, $displayName. Training $days days/week. Let's go.",
-            style: _bodyStyle(),
-            textAlign: TextAlign.center,
-          ),
-
-          const SizedBox(height: 40),
-
-          // CTA card
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceV2,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: AppColors.accentLime.withValues(alpha: 0.13),
-              ),
-            ),
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(28, 80, 28, 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'READY TO START?',
-                  style: GoogleFonts.outfit(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 10,
-                    color: AppColors.textV2Tertiary,
-                    letterSpacing: 1.2,
+                Center(
+                  child: Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      color: AppColors.accentLime,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.accentLime.withValues(alpha: 0.4),
+                          blurRadius: 24,
+                          spreadRadius: 4,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.check_rounded,
+                      size: 36,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 28),
                 Text(
-                  'Kick off your first session',
-                  style: GoogleFonts.syne(
+                  "You're in.",
+                  style: AppTextStyles.display.copyWith(
+                    fontSize: 42,
                     fontWeight: FontWeight.w700,
-                    fontSize: 17,
                     color: AppColors.textV2Primary,
+                    letterSpacing: -2,
                   ),
                 ),
-                const SizedBox(height: 16),
-                _ContinueButton(
-                  label: 'Start First Session',
-                  leftIcon: const Icon(
-                    Icons.play_arrow_rounded,
-                    color: AppColors.backgroundV2,
-                    size: 20,
-                  ),
-                  onPressed: onStart,
+                const SizedBox(height: 12),
+                Text(
+                  "Welcome, $displayName. Training $days days/week. Let's go.",
+                  style: _bodyStyle(),
                 ),
               ],
             ),
           ),
-
-          const SizedBox(height: 20),
-
-          GestureDetector(
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(28, 0, 28, 8),
+          child: GestureDetector(
             onTap: onExplore,
-            child: Text(
-              'Explore first →',
-              style: GoogleFonts.outfit(
-                fontSize: 12,
-                color: AppColors.textV2Tertiary,
+            child: Center(
+              child: Text(
+                'Explore first →',
+                style: AppTextStyles.caption.copyWith(
+                  color: AppColors.textV2Tertiary,
+                ),
               ),
             ),
           ),
-        ],
-      ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(28, 0, 28, 40),
+          child: _ContinueButton(
+            label: 'Start First Session',
+            leftIcon: const Icon(
+              Icons.play_arrow_rounded,
+              color: AppColors.backgroundV2,
+              size: 20,
+            ),
+            onPressed: onStart,
+          ),
+        ),
+      ],
     );
   }
 }

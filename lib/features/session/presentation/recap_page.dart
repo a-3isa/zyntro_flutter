@@ -2,9 +2,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/models/models.dart';
 import '../../../core/constants/constants.dart';
@@ -12,7 +12,6 @@ import '../../../services/session_service.dart';
 import '../../../services/post_service.dart';
 import '../../../services/media_service.dart';
 import '../../auth/auth_providers.dart';
-import '../../../app/navigation/app_router.dart';
 import '../../../utils/haptic_manager.dart';
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -38,7 +37,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
   double? _uploadProgress;
   String? _createdPostId;
   bool _shareCardExpanded = false;
-  bool _postedToFeed = false;
+  final bool _postedToFeed = false;
 
   @override
   void initState() {
@@ -48,8 +47,9 @@ class _RecapPageState extends ConsumerState<RecapPage> {
 
   Future<void> _loadSession() async {
     try {
-      final session =
-          await ref.read(sessionServiceProvider).getSession(widget.sessionId);
+      final session = await ref
+          .read(sessionServiceProvider)
+          .getSession(widget.sessionId);
       if (mounted) {
         setState(() {
           _session = session;
@@ -100,27 +100,39 @@ class _RecapPageState extends ConsumerState<RecapPage> {
               ),
               Text(
                 'Add Photo',
-                style: GoogleFonts.syne(
-                  fontSize: 16,
+                style: AppTextStyles.bodyLarge.copyWith(
                   fontWeight: FontWeight.w700,
                   color: AppColors.textV2Primary,
                 ),
               ),
               const SizedBox(height: 16),
               ListTile(
-                leading: const Icon(Icons.camera_alt, color: AppColors.accentLime),
-                title: Text('Take Photo',
-                    style: GoogleFonts.outfit(color: AppColors.textV2Primary)),
+                leading: const Icon(
+                  Icons.camera_alt,
+                  color: AppColors.accentLime,
+                ),
+                title: Text(
+                  'Take Photo',
+                  style: AppTextStyles.body.copyWith(
+                    color: AppColors.textV2Primary,
+                  ),
+                ),
                 onTap: () {
                   Navigator.pop(ctx);
                   _pickPhoto(fromCamera: true);
                 },
               ),
               ListTile(
-                leading:
-                    const Icon(Icons.photo_library, color: AppColors.accentLime),
-                title: Text('Choose from Gallery',
-                    style: GoogleFonts.outfit(color: AppColors.textV2Primary)),
+                leading: const Icon(
+                  Icons.photo_library,
+                  color: AppColors.accentLime,
+                ),
+                title: Text(
+                  'Choose from Gallery',
+                  style: AppTextStyles.body.copyWith(
+                    color: AppColors.textV2Primary,
+                  ),
+                ),
                 onTap: () {
                   Navigator.pop(ctx);
                   _pickPhoto(fromCamera: false);
@@ -128,8 +140,12 @@ class _RecapPageState extends ConsumerState<RecapPage> {
               ),
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: Text('Cancel',
-                    style: GoogleFonts.outfit(color: AppColors.textV2Secondary)),
+                child: Text(
+                  'Cancel',
+                  style: AppTextStyles.body.copyWith(
+                    color: AppColors.textV2Secondary,
+                  ),
+                ),
               ),
             ],
           ),
@@ -148,10 +164,12 @@ class _RecapPageState extends ConsumerState<RecapPage> {
         final size = await file.length();
         if (size > MediaService.maxPhotoSize) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('Image is too large (max 5 MB).'),
-              backgroundColor: AppColors.error,
-            ));
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Image is too large (max 5 MB).'),
+                backgroundColor: AppColors.error,
+              ),
+            );
           }
           return;
         }
@@ -159,12 +177,16 @@ class _RecapPageState extends ConsumerState<RecapPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(e.toString().contains('permission')
-              ? 'Permission denied. Enable access in settings.'
-              : 'Failed to pick photo.'),
-          backgroundColor: AppColors.error,
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              e.toString().contains('permission')
+                  ? 'Permission denied. Enable access in settings.'
+                  : 'Failed to pick photo.',
+            ),
+            backgroundColor: AppColors.error,
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _isPickingPhoto = false);
@@ -204,22 +226,19 @@ class _RecapPageState extends ConsumerState<RecapPage> {
       );
       _createdPostId = postId;
       if (mounted) {
-        setState(() {
-          _isSharing = false;
-          _uploadProgress = null;
-          _postedToFeed = true;
-        });
-        _showPostSuccessDialog(postId);
+        context.go('/?tab=feed');
       }
     } catch (e) {
       if (mounted) {
         if (_createdPostId != null && _selectedPhotoPath != null) {
           _showPhotoUploadRetryDialog(e.toString());
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(_getErrorMessage(e)),
-            backgroundColor: AppColors.error,
-          ));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(_getErrorMessage(e)),
+              backgroundColor: AppColors.error,
+            ),
+          );
         }
         setState(() {
           _isSharing = false;
@@ -249,19 +268,21 @@ class _RecapPageState extends ConsumerState<RecapPage> {
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surfaceV2,
-        title: Text('Photo Upload Failed',
-            style: GoogleFonts.syne(color: AppColors.textV2Primary)),
+        title: Text(
+          'Photo Upload Failed',
+          style: AppTextStyles.h5.copyWith(color: AppColors.textV2Primary),
+        ),
         content: Text(
           'Your post was created, but the photo could not be uploaded.\n\n'
           '${_getErrorMessage(err)}\n\n'
           'Retry the upload or continue without the photo?',
-          style: GoogleFonts.outfit(color: AppColors.textV2Secondary),
+          style: AppTextStyles.body.copyWith(color: AppColors.textV2Secondary),
         ),
         actions: [
           TextButton(
             onPressed: () {
               ctx.pop();
-              _showPostSuccessDialog(_createdPostId!);
+              context.go('/?tab=feed');
             },
             child: const Text('Continue Without Photo'),
           ),
@@ -296,15 +317,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
       if (mounted) setState(() => _uploadProgress = 0.9);
       await postService.updatePostPhoto(_createdPostId!, photoUrl);
       if (mounted) {
-        setState(() => _uploadProgress = 1.0);
-        await Future.delayed(const Duration(milliseconds: 200));
-        if (!mounted) return;
-        setState(() {
-          _isSharing = false;
-          _uploadProgress = null;
-          _postedToFeed = true;
-        });
-        _showPostSuccessDialog(_createdPostId!);
+        context.go('/?tab=feed');
       }
     } catch (e) {
       if (mounted) {
@@ -317,37 +330,6 @@ class _RecapPageState extends ConsumerState<RecapPage> {
     }
   }
 
-  void _showPostSuccessDialog(String postId) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surfaceV2,
-        title: Text('Post Created!',
-            style:
-                GoogleFonts.syne(color: AppColors.textV2Primary)),
-        content: Text('Your workout has been shared to the feed.',
-            style: GoogleFonts.outfit(color: AppColors.textV2Secondary)),
-        actions: [
-          TextButton(
-            onPressed: () {
-              ctx.pop();
-              context.go(AppRoutes.main);
-            },
-            child: const Text('View in Feed'),
-          ),
-          TextButton(
-            onPressed: () {
-              ctx.pop();
-              context.go(AppRoutes.main);
-            },
-            child: const Text('Go Home'),
-          ),
-        ],
-      ),
-    );
-  }
-
   // ── build ─────────────────────────────────────────────────────────────────
 
   @override
@@ -356,7 +338,8 @@ class _RecapPageState extends ConsumerState<RecapPage> {
       return const Scaffold(
         backgroundColor: AppColors.backgroundV2,
         body: Center(
-            child: CircularProgressIndicator(color: AppColors.accentLime)),
+          child: CircularProgressIndicator(color: AppColors.accentLime),
+        ),
       );
     }
 
@@ -367,12 +350,16 @@ class _RecapPageState extends ConsumerState<RecapPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text('Session not found',
-                  style: GoogleFonts.outfit(color: AppColors.textV2Secondary)),
+              Text(
+                'Session not found',
+                style: AppTextStyles.body.copyWith(
+                  color: AppColors.textV2Secondary,
+                ),
+              ),
               const SizedBox(height: 24),
               _GhostButton(
                 label: 'Back to Home',
-                onTap: () => context.go(AppRoutes.main),
+                onTap: () => context.go('/?tab=feed'),
               ),
             ],
           ),
@@ -401,6 +388,12 @@ class _RecapPageState extends ConsumerState<RecapPage> {
 
     final authUser = ref.watch(authSessionProvider).valueOrNull;
     final username = authUser?.displayName ?? 'you';
+    final yourWorkoutType = authUser != null
+        ? session.participantTypes[authUser.id] ?? session.type
+        : session.type;
+    final yourWorkoutTypeLabel = WorkoutType.fromString(
+      yourWorkoutType,
+    ).displayName;
 
     return Scaffold(
       backgroundColor: AppColors.backgroundV2,
@@ -415,7 +408,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
                 child: GestureDetector(
                   onTap: () {
                     HapticManager.light();
-                    context.go(AppRoutes.main);
+                    context.go('/?tab=feed');
                   },
                   child: Container(
                     width: 36,
@@ -424,8 +417,11 @@ class _RecapPageState extends ConsumerState<RecapPage> {
                       color: AppColors.surfaceV2,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.close,
-                        size: 18, color: AppColors.textV2Secondary),
+                    child: const Icon(
+                      Icons.close,
+                      size: 18,
+                      color: AppColors.textV2Secondary,
+                    ),
                   ),
                 ),
               ),
@@ -451,7 +447,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
                             children: [
                               Text(
                                 durationStr,
-                                style: GoogleFonts.outfit(
+                                style: AppTextStyles.caption.copyWith(
                                   fontSize: 13,
                                   color: AppColors.textV2Secondary,
                                 ),
@@ -469,34 +465,37 @@ class _RecapPageState extends ConsumerState<RecapPage> {
                               // Points badge
                               Container(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 5),
+                                  horizontal: 12,
+                                  vertical: 5,
+                                ),
                                 decoration: BoxDecoration(
                                   color: AppColors.surfaceV2,
                                   border: Border.all(
-                                    color: AppColors.accentLime
-                                        .withValues(alpha: 0.13),
+                                    color: AppColors.accentLime.withValues(
+                                      alpha: 0.13,
+                                    ),
                                   ),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    const Icon(Icons.bolt,
-                                        size: 14,
-                                        color: AppColors.accentLime),
+                                    const Icon(
+                                      Icons.bolt,
+                                      size: 14,
+                                      color: AppColors.accentLime,
+                                    ),
                                     const SizedBox(width: 4),
                                     Text(
                                       '+$points',
-                                      style: GoogleFonts.syne(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w800,
+                                      style: AppTextStyles.bodyLarge.copyWith(
                                         color: AppColors.accentLime,
                                       ),
                                     ),
                                     const SizedBox(width: 3),
                                     Text(
                                       'pts',
-                                      style: GoogleFonts.outfit(
+                                      style: AppTextStyles.caption.copyWith(
                                         fontSize: 11,
                                         color: AppColors.textV2Tertiary,
                                       ),
@@ -565,6 +564,56 @@ class _RecapPageState extends ConsumerState<RecapPage> {
                     const SizedBox(height: 16),
 
                     // ── breakdown section ───────────────────────────────────
+                    if (session.participantTypes.isNotEmpty) ...[
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceV2,
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(
+                              color: AppColors.accentLime.withValues(
+                                alpha: 0.14,
+                              ),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.person_outline_rounded,
+                                color: AppColors.accentLime,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Personal workout history',
+                                      style: AppTextStyles.bodyLarge.copyWith(
+                                        color: AppColors.textV2Primary,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Your workout type: $yourWorkoutTypeLabel',
+                                      style: AppTextStyles.caption.copyWith(
+                                        fontSize: 13,
+                                        color: AppColors.textV2Secondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
                     if (exercises.isNotEmpty) ...[
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -579,7 +628,8 @@ class _RecapPageState extends ConsumerState<RecapPage> {
                       child: _ShareCardSection(
                         expanded: _shareCardExpanded,
                         onToggle: () => setState(
-                            () => _shareCardExpanded = !_shareCardExpanded),
+                          () => _shareCardExpanded = !_shareCardExpanded,
+                        ),
                         session: session,
                         durationStr: durationStr,
                         totalExercises: totalExercises,
@@ -617,7 +667,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
                       padding: const EdgeInsets.symmetric(horizontal: 24),
                       child: _GhostButton(
                         label: 'Back to Home',
-                        onTap: () => context.go(AppRoutes.main),
+                        onTap: () => context.go('/?tab=feed'),
                       ),
                     ),
                   ],
@@ -642,9 +692,8 @@ class _DoneHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       'Done.',
-      style: GoogleFonts.syne(
+      style: AppTextStyles.display.copyWith(
         fontSize: 64,
-        fontWeight: FontWeight.w800,
         color: AppColors.textV2Primary,
         letterSpacing: -3,
         height: 0.9,
@@ -681,9 +730,8 @@ class _StatCell extends StatelessWidget {
         children: [
           Text(
             value,
-            style: GoogleFonts.syne(
+            style: AppTextStyles.h1.copyWith(
               fontSize: 34,
-              fontWeight: FontWeight.w800,
               color: AppColors.textV2Primary,
               letterSpacing: -1.5,
               height: 1.0,
@@ -703,7 +751,7 @@ class _StatCell extends StatelessWidget {
               const SizedBox(width: 6),
               Text(
                 label,
-                style: GoogleFonts.outfit(
+                style: AppTextStyles.caption.copyWith(
                   fontSize: 11,
                   color: AppColors.textV2Secondary,
                 ),
@@ -725,11 +773,19 @@ class _BreakdownSection extends StatelessWidget {
 
   const _BreakdownSection({required this.exercises});
 
+  String _fmtWeight(double w) =>
+      w == w.truncateToDouble() ? '${w.toInt()}' : '$w';
+
+  String _fmtDuration(int secs) {
+    if (secs <= 0) return '';
+    final m = secs ~/ 60;
+    final s = secs % 60;
+    if (m > 0) return '${m}m ${s.toString().padLeft(2, '0')}s';
+    return '${s}s';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final maxSets =
-        exercises.fold<int>(0, (m, e) => e.sets > m ? e.sets : m);
-
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -741,7 +797,7 @@ class _BreakdownSection extends StatelessWidget {
         children: [
           Text(
             'BREAKDOWN',
-            style: GoogleFonts.outfit(
+            style: AppTextStyles.caption.copyWith(
               fontSize: 10,
               fontWeight: FontWeight.w700,
               color: AppColors.textV2Tertiary,
@@ -750,57 +806,93 @@ class _BreakdownSection extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           ...exercises.map((ex) {
-            final ratio = maxSets > 0 ? ex.sets / maxSets : 0.0;
+            final hasDetail = ex.setDetails.isNotEmpty;
             return Padding(
-              padding: const EdgeInsets.only(bottom: 14),
+              padding: const EdgeInsets.only(bottom: 18),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Exercise header row
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        ex.name,
-                        style: GoogleFonts.syne(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textV2Primary,
+                      Expanded(
+                        child: Text(
+                          ex.name,
+                          style: AppTextStyles.label.copyWith(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textV2Primary,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      Text(
-                        '${ex.sets} sets',
-                        style: GoogleFonts.outfit(
-                          fontSize: 12,
-                          color: AppColors.textV2Secondary,
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.accentLime.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          '${ex.sets} ${ex.sets == 1 ? 'set' : 'sets'}',
+                          style: AppTextStyles.caption.copyWith(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.accentLime,
+                          ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
-                  LayoutBuilder(
-                    builder: (ctx, constraints) {
-                      return Stack(
-                        children: [
-                          Container(
-                            height: 4,
-                            width: constraints.maxWidth,
-                            decoration: BoxDecoration(
-                              color: AppColors.surfaceV2Elevated,
-                              borderRadius: BorderRadius.circular(99),
+                  // Per-set rows
+                  if (hasDetail) ...[
+                    const SizedBox(height: 8),
+                    ...ex.setDetails.asMap().entries.map((entry) {
+                      final i = entry.key;
+                      final s = entry.value;
+                      final dur = _fmtDuration(s.durationSeconds);
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 5),
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 22,
+                              child: Text(
+                                '${i + 1}',
+                                style: AppTextStyles.caption.copyWith(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.textV2Tertiary,
+                                ),
+                              ),
                             ),
-                          ),
-                          Container(
-                            height: 4,
-                            width: constraints.maxWidth * ratio,
-                            decoration: BoxDecoration(
-                              color: AppColors.accentLime,
-                              borderRadius: BorderRadius.circular(99),
+                            Expanded(
+                              child: Text(
+                                s.weight > 0
+                                    ? '${_fmtWeight(s.weight)} kg × ${s.reps} reps'
+                                    : '${s.reps} reps',
+                                style: AppTextStyles.caption.copyWith(
+                                  fontSize: 13,
+                                  color: AppColors.textV2Secondary,
+                                ),
+                              ),
                             ),
-                          ),
-                        ],
+                            if (dur.isNotEmpty)
+                              Text(
+                                dur,
+                                style: AppTextStyles.caption.copyWith(
+                                  fontSize: 11,
+                                  color: AppColors.textV2Tertiary,
+                                ),
+                              ),
+                          ],
+                        ),
                       );
-                    },
-                  ),
+                    }),
+                  ],
                 ],
               ),
             );
@@ -858,7 +950,7 @@ class _ShareCardSection extends StatelessWidget {
               children: [
                 Text(
                   'SHARE CARD PREVIEW',
-                  style: GoogleFonts.outfit(
+                  style: AppTextStyles.caption.copyWith(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textV2Tertiary,
@@ -889,8 +981,9 @@ class _ShareCardSection extends StatelessWidget {
               border: Border.all(
                 color: AppColors.accentLime.withValues(alpha: 0.13),
               ),
-              borderRadius:
-                  const BorderRadius.vertical(bottom: Radius.circular(20)),
+              borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(20),
+              ),
             ),
             padding: const EdgeInsets.all(18),
             child: Column(
@@ -902,15 +995,14 @@ class _ShareCardSection extends StatelessWidget {
                   children: [
                     Text(
                       'zyntro',
-                      style: GoogleFonts.syne(
+                      style: AppTextStyles.label.copyWith(
                         fontSize: 15,
-                        fontWeight: FontWeight.w800,
                         color: AppColors.accentLime,
                       ),
                     ),
                     Text(
                       DateFormat('MMM d, yyyy').format(session.startedAt),
-                      style: GoogleFonts.outfit(
+                      style: AppTextStyles.caption.copyWith(
                         fontSize: 10,
                         color: AppColors.textV2Tertiary,
                       ),
@@ -921,9 +1013,7 @@ class _ShareCardSection extends StatelessWidget {
                 // Headline
                 Text(
                   'DONE.',
-                  style: GoogleFonts.syne(
-                    fontSize: 48,
-                    fontWeight: FontWeight.w800,
+                  style: AppTextStyles.display.copyWith(
                     color: AppColors.textV2Primary,
                     letterSpacing: -2.5,
                   ),
@@ -931,8 +1021,7 @@ class _ShareCardSection extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(
                   '$durationStr  ·  ${WorkoutType.fromString(session.type).displayName}',
-                  style: GoogleFonts.outfit(
-                    fontSize: 12,
+                  style: AppTextStyles.caption.copyWith(
                     color: AppColors.textV2Secondary,
                   ),
                 ),
@@ -959,16 +1048,15 @@ class _ShareCardSection extends StatelessWidget {
                   children: [
                     Text(
                       '@$username',
-                      style: GoogleFonts.outfit(
+                      style: AppTextStyles.caption.copyWith(
                         fontSize: 11,
                         color: AppColors.textV2Secondary,
                       ),
                     ),
                     Text(
                       '+$points pts',
-                      style: GoogleFonts.syne(
+                      style: AppTextStyles.label.copyWith(
                         fontSize: 13,
-                        fontWeight: FontWeight.w700,
                         color: AppColors.accentLime,
                       ),
                     ),
@@ -995,15 +1083,11 @@ class _CardStat extends StatelessWidget {
       children: [
         Text(
           value,
-          style: GoogleFonts.syne(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: AppColors.textV2Primary,
-          ),
+          style: AppTextStyles.h5.copyWith(color: AppColors.textV2Primary),
         ),
         Text(
           label,
-          style: GoogleFonts.outfit(
+          style: AppTextStyles.caption.copyWith(
             fontSize: 10,
             color: AppColors.textV2Tertiary,
           ),
@@ -1057,13 +1141,15 @@ class _PostToFeedSection extends StatelessWidget {
           postedToFeed
               ? Row(
                   children: [
-                    const Icon(Icons.check_circle,
-                        size: 16, color: AppColors.accentLime),
+                    const Icon(
+                      Icons.check_circle,
+                      size: 16,
+                      color: AppColors.accentLime,
+                    ),
                     const SizedBox(width: 6),
                     Text(
                       'Posted to feed',
-                      style: GoogleFonts.syne(
-                        fontSize: 16,
+                      style: AppTextStyles.bodyLarge.copyWith(
                         fontWeight: FontWeight.w700,
                         color: AppColors.accentLime,
                       ),
@@ -1072,8 +1158,7 @@ class _PostToFeedSection extends StatelessWidget {
                 )
               : Text(
                   'Post to feed',
-                  style: GoogleFonts.syne(
-                    fontSize: 16,
+                  style: AppTextStyles.bodyLarge.copyWith(
                     fontWeight: FontWeight.w700,
                     color: AppColors.textV2Primary,
                   ),
@@ -1086,14 +1171,14 @@ class _PostToFeedSection extends StatelessWidget {
             onTap: (isPickingPhoto || isSharing || postedToFeed)
                 ? null
                 : (selectedPhotoPath != null
-                    ? () => Navigator.push(
+                      ? () => Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => _LocalPhotoViewer(
-                                path: selectedPhotoPath!),
+                            builder: (_) =>
+                                _LocalPhotoViewer(path: selectedPhotoPath!),
                           ),
                         )
-                    : onPhotoTap),
+                      : onPhotoTap),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 300),
               height: 72,
@@ -1123,7 +1208,7 @@ class _PostToFeedSection extends StatelessWidget {
                             )
                           : Text(
                               'Add photo',
-                              style: GoogleFonts.outfit(
+                              style: AppTextStyles.caption.copyWith(
                                 fontSize: 13,
                                 color: AppColors.textV2Tertiary,
                               ),
@@ -1143,8 +1228,11 @@ class _PostToFeedSection extends StatelessWidget {
                                   color: Colors.black54,
                                   shape: BoxShape.circle,
                                 ),
-                                child: const Icon(Icons.close,
-                                    color: Colors.white, size: 14),
+                                child: const Icon(
+                                  Icons.close,
+                                  color: Colors.white,
+                                  size: 14,
+                                ),
                               ),
                             ),
                           ),
@@ -1162,7 +1250,7 @@ class _PostToFeedSection extends StatelessWidget {
               children: [
                 Text(
                   'Friends only',
-                  style: GoogleFonts.outfit(
+                  style: AppTextStyles.caption.copyWith(
                     fontSize: 13,
                     color: AppColors.textV2Secondary,
                   ),
@@ -1195,16 +1283,15 @@ class _PostToFeedSection extends StatelessWidget {
                         uploadProgress! < 0.1
                             ? 'Creating post...'
                             : uploadProgress! < 0.9
-                                ? 'Uploading photo...'
-                                : 'Finalizing...',
-                        style: GoogleFonts.outfit(
-                            fontSize: 12,
-                            color: AppColors.textV2Secondary),
+                            ? 'Uploading photo...'
+                            : 'Finalizing...',
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.textV2Secondary,
+                        ),
                       ),
                       Text(
                         '${(uploadProgress! * 100).toInt()}%',
-                        style: GoogleFonts.syne(
-                          fontSize: 12,
+                        style: AppTextStyles.caption.copyWith(
                           fontWeight: FontWeight.w700,
                           color: AppColors.accentLime,
                         ),
@@ -1219,7 +1306,8 @@ class _PostToFeedSection extends StatelessWidget {
                       minHeight: 4,
                       backgroundColor: AppColors.surfaceV2Active,
                       valueColor: const AlwaysStoppedAnimation<Color>(
-                          AppColors.accentLime),
+                        AppColors.accentLime,
+                      ),
                     ),
                   ),
                 ],
@@ -1253,9 +1341,8 @@ class _PostToFeedSection extends StatelessWidget {
                         )
                       : Text(
                           'Share Workout',
-                          style: GoogleFonts.syne(
+                          style: AppTextStyles.label.copyWith(
                             fontSize: 15,
-                            fontWeight: FontWeight.w800,
                             color: Colors.black,
                           ),
                         ),
@@ -1291,9 +1378,8 @@ class _GhostButton extends StatelessWidget {
         child: Center(
           child: Text(
             label,
-            style: GoogleFonts.syne(
+            style: AppTextStyles.label.copyWith(
               fontSize: 15,
-              fontWeight: FontWeight.w600,
               color: AppColors.textV2Secondary,
             ),
           ),
@@ -1354,9 +1440,7 @@ class _LocalPhotoViewer extends StatelessWidget {
           minScale: 0.5,
           maxScale: 4.0,
           boundaryMargin: const EdgeInsets.all(20),
-          child: Center(
-            child: Image.file(File(path), fit: BoxFit.contain),
-          ),
+          child: Center(child: Image.file(File(path), fit: BoxFit.contain)),
         ),
       ),
     );

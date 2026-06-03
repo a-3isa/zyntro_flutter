@@ -4,9 +4,9 @@ import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/constants.dart';
 import '../../../core/models/models.dart';
@@ -275,8 +275,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                 Expanded(
                   child: Text(
                     'Edit Profile',
-                    style: GoogleFonts.syne(
-                      fontSize: 20,
+                    style: AppTextStyles.h4.copyWith(
                       fontWeight: FontWeight.w700,
                       color: AppColors.textV2Primary,
                     ),
@@ -304,9 +303,8 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                                 )
                               : Text(
                                   'Save',
-                                  style: GoogleFonts.outfit(
+                                  style: AppTextStyles.label.copyWith(
                                     color: AppColors.accentLime,
-                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
                         ),
@@ -315,7 +313,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         child: Text(
                           'Save',
-                          style: GoogleFonts.outfit(color: AppColors.textV2Tertiary),
+                          style: AppTextStyles.body.copyWith(color: AppColors.textV2Tertiary),
                         ),
                       ),
               ],
@@ -454,9 +452,9 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                                                                           user.displayName.isNotEmpty
                                                                               ? user.displayName[0].toUpperCase()
                                                                               : 'U',
-                                                                          style: GoogleFonts.syne(
+                                                                          style: AppTextStyles.display.copyWith(
                                                                             fontSize: 40,
-                                                                            fontWeight: FontWeight.w800,
+                                                                            fontWeight: FontWeight.w700,
                                                                             color: AppColors.accentLime,
                                                                           ),
                                                                         ),
@@ -519,9 +517,8 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                                     const SizedBox(width: AppSpacing.sm),
                                     Text(
                                       'Display Name',
-                                      style: GoogleFonts.outfit(
+                                      style: AppTextStyles.bodyLarge.copyWith(
                                         fontWeight: FontWeight.w600,
-                                        fontSize: AppFontSize.md,
                                         color: AppColors.textV2Primary,
                                       ),
                                     ),
@@ -600,9 +597,8 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                                       const SizedBox(width: AppSpacing.sm),
                                       Text(
                                         'Workout Preference',
-                                        style: GoogleFonts.outfit(
+                                        style: AppTextStyles.bodyLarge.copyWith(
                                           fontWeight: FontWeight.w600,
-                                          fontSize: AppFontSize.md,
                                           color: AppColors.textV2Primary,
                                         ),
                                       ),
@@ -783,10 +779,8 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
         ),
         child: Text(
           title,
-          style: GoogleFonts.outfit(
+          style: AppTextStyles.label.copyWith(
             color: isSelected ? AppColors.backgroundV2 : AppColors.textV2Secondary,
-            fontWeight: FontWeight.w600,
-            fontSize: AppFontSize.sm,
           ),
         ),
       ),

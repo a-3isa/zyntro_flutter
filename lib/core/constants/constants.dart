@@ -221,6 +221,61 @@ enum SessionMode {
   }
 }
 
+/// Paired friend session partner type.
+enum PairedPartnerKind {
+  realFriend('real_friend'),
+  bot('bot');
+
+  final String value;
+  const PairedPartnerKind(this.value);
+
+  static PairedPartnerKind fromString(String value) {
+    return PairedPartnerKind.values.firstWhere(
+      (e) => e.value == value,
+      orElse: () => PairedPartnerKind.realFriend,
+    );
+  }
+}
+
+/// Invitation lifecycle for one-to-one workout sessions.
+enum WorkoutInvitationStatus {
+  pending('pending'),
+  accepted('accepted'),
+  declined('declined'),
+  expired('expired'),
+  cancelled('cancelled');
+
+  final String value;
+  const WorkoutInvitationStatus(this.value);
+
+  static WorkoutInvitationStatus fromString(String value) {
+    return WorkoutInvitationStatus.values.firstWhere(
+      (e) => e.value == value,
+      orElse: () => WorkoutInvitationStatus.pending,
+    );
+  }
+}
+
+/// Live progress state for each participant during a paired session.
+enum ParticipantProgressStatus {
+  waiting('waiting'),
+  active('active'),
+  resting('resting'),
+  paused('paused'),
+  disconnected('disconnected'),
+  completed('completed');
+
+  final String value;
+  const ParticipantProgressStatus(this.value);
+
+  static ParticipantProgressStatus fromString(String value) {
+    return ParticipantProgressStatus.values.firstWhere(
+      (e) => e.value == value,
+      orElse: () => ParticipantProgressStatus.waiting,
+    );
+  }
+}
+
 /// Session phase enum for setup flows before live workouts begin.
 enum SessionPhase {
   setup('setup'),
@@ -239,3 +294,9 @@ enum SessionPhase {
 
 /// App name constant.
 const String appName = 'Zyntro';
+
+/// Stable bot friend participant id for simulated paired workout sessions.
+const String pairedBotFriendId = 'zyntro_bot_friend';
+
+/// Real friend invitations expire if not answered within this period.
+const Duration pairedInviteTimeout = Duration(seconds: 30);

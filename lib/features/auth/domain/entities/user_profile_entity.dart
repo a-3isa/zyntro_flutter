@@ -8,6 +8,7 @@ class UserProfileEntity {
   final bool isPrivate;
   final WorkoutType workoutPreference;
   final bool beginnerFlag;
+  final int? trainingDaysPerWeek;
 
   const UserProfileEntity({
     required this.id,
@@ -17,6 +18,7 @@ class UserProfileEntity {
     required this.isPrivate,
     required this.workoutPreference,
     required this.beginnerFlag,
+    this.trainingDaysPerWeek,
   });
 
   UserProfileEntity copyWith({
@@ -27,6 +29,7 @@ class UserProfileEntity {
     bool? isPrivate,
     WorkoutType? workoutPreference,
     bool? beginnerFlag,
+    int? trainingDaysPerWeek,
   }) {
     return UserProfileEntity(
       id: id ?? this.id,
@@ -36,6 +39,7 @@ class UserProfileEntity {
       isPrivate: isPrivate ?? this.isPrivate,
       workoutPreference: workoutPreference ?? this.workoutPreference,
       beginnerFlag: beginnerFlag ?? this.beginnerFlag,
+      trainingDaysPerWeek: trainingDaysPerWeek ?? this.trainingDaysPerWeek,
     );
   }
 }

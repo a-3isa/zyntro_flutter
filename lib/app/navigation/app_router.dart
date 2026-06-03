@@ -41,7 +41,6 @@ import '../../features/profile/presentation/edit_profile_page.dart';
 import '../../features/moderation/presentation/moderation_queue_page.dart';
 import '../../features/feed/presentation/post_detail_page.dart';
 import '../../features/auth/auth_providers.dart';
-import '../../services/storage_service.dart';
 
 /// Route names for type-safe navigation.
 class AppRoutes {
@@ -175,10 +174,7 @@ CustomTransitionPage<T> buildModalPageTransition<T>({
 }
 
 /// Simple slide-from-right page transition (280 ms, AppCurves.premium).
-CustomTransitionPage<void> _slidePage(
-  GoRouterState state,
-  Widget child,
-) {
+CustomTransitionPage<void> _slidePage(GoRouterState state, Widget child) {
   return CustomTransitionPage<void>(
     key: state.pageKey,
     transitionDuration: const Duration(milliseconds: 280),
@@ -201,7 +197,6 @@ final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authSessionProvider);
   final profileCompleteAsync = ref.watch(authProfileCompletionProvider);
   final rollbackActiveAsync = ref.watch(authMigrationRollbackActiveProvider);
-  final storageService = ref.watch(storageServiceProvider);
 
   return GoRouter(
     navigatorKey: rootNavigatorKey,
@@ -235,24 +230,16 @@ final routerProvider = Provider<GoRouter>((ref) {
         return AppRoutes.login;
       }
 
-      // Logged in but on auth page, go to main
-      // Logged in but on auth page, go to main or profile setup
+      // Logged in: check profile completeness and redirect accordingly
       if (isLoggedIn) {
-        // Check if user has seen onboarding
-        if (!storageService.hasSeenOnboarding) {
-          if (state.matchedLocation != AppRoutes.onboarding) {
-            return AppRoutes.onboarding;
-          }
-          return null;
-        }
-
         if (profileCompleteAsync.hasError) {
           debugPrint(
-            '[Router] Profile completion check failed; routing to profile setup.',
+            '[Router] Profile completion check failed; routing to onboarding.',
           );
-          return state.matchedLocation == AppRoutes.profileSetup
+          return state.matchedLocation == AppRoutes.onboarding ||
+                  state.matchedLocation == AppRoutes.profileSetup
               ? null
-              : AppRoutes.profileSetup;
+              : AppRoutes.onboarding;
         }
 
         // If profile completion check is still loading, don't redirect yet
@@ -263,11 +250,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         final isProfileComplete = profileCompleteAsync.valueOrNull ?? false;
 
         if (!isProfileComplete) {
-          // Determine where they can go if profile is incomplete
-          // Allowed: Onboarding, ProfileSetup
+          // Allowed: Onboarding (new/recovery path), ProfileSetup (legacy fallback)
           if (state.matchedLocation != AppRoutes.onboarding &&
               state.matchedLocation != AppRoutes.profileSetup) {
-            return AppRoutes.profileSetup;
+            return AppRoutes.onboarding;
           }
           return null; // Stay where they are (Onboarding or ProfileSetup)
         }
@@ -431,7 +417,7 @@ final routerProvider = Provider<GoRouter>((ref) {
               state.uri.queryParameters['audioUrl'];
           final plannedExercises =
               (extra?['plannedExercises'] as List<dynamic>?)
-                  ?.cast<String>();
+                  ?.cast<PlannedExercise>();
 
           return buildPremiumPageTransition(
             context: context,

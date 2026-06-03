@@ -5,11 +5,82 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/models/models.dart';
 import '../core/constants/constants.dart';
 
+enum PairedSessionAnalyticsEvent {
+  botSessionStarted('paired_bot_session_started'),
+  botSimulationFailed('paired_bot_simulation_failed'),
+  inviteCreated('paired_invite_created'),
+  inviteEligibilityRejected('paired_invite_eligibility_rejected'),
+  inviteShown('paired_invite_shown'),
+  inviteAccepted('paired_invite_accepted'),
+  inviteDeclined('paired_invite_declined'),
+  inviteExpired('paired_invite_expired'),
+  inviteDeliveryFailed('paired_invite_delivery_failed'),
+  planCopied('paired_plan_copied'),
+  planModified('paired_plan_modified'),
+  planReady('paired_plan_ready'),
+  readinessBlocked('paired_readiness_blocked'),
+  mixedSessionStarted('paired_mixed_session_started'),
+  progressLatency('paired_progress_latency'),
+  partnerDisconnected('paired_partner_disconnected'),
+  completionWrite('paired_completion_write');
+
+  final String value;
+  const PairedSessionAnalyticsEvent(this.value);
+}
+
 /// Analytics service for session data analysis and PR tracking.
 class SessionAnalyticsService {
   final FirebaseFirestore _firestore;
 
   SessionAnalyticsService(this._firestore);
+
+  static Map<String, dynamic> pairedSessionEventPayload({
+    required PairedSessionAnalyticsEvent eventName,
+    required String sessionId,
+    required String hostId,
+    required String partnerId,
+    required String partnerKind,
+    required String mode,
+    Map<String, dynamic> extra = const {},
+  }) {
+    return {
+      'type': eventName.value,
+      'sessionId': sessionId,
+      'hostId': hostId,
+      'partnerId': partnerId,
+      'partnerKind': partnerKind,
+      'mode': mode,
+      ...extra.map(
+        (key, value) => MapEntry(key, _serializeAnalyticsValue(value)),
+      ),
+    };
+  }
+
+  static dynamic _serializeAnalyticsValue(dynamic value) {
+    if (value is WorkoutType) return value.value;
+    if (value is Enum) return value.name;
+    if (value is Map) {
+      return value.map(
+        (key, nestedValue) =>
+            MapEntry(key.toString(), _serializeAnalyticsValue(nestedValue)),
+      );
+    }
+    if (value is Iterable) {
+      return value.map(_serializeAnalyticsValue).toList();
+    }
+    return value;
+  }
+
+  Future<void> trackPairedSessionEvent(Map<String, dynamic> payload) async {
+    try {
+      await _firestore.collection('analytics').add({
+        ...payload,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint('[SessionAnalyticsService] Error tracking paired event: $e');
+    }
+  }
 
   // ==================== SESSION DATA CALCULATION ====================
 

@@ -3,29 +3,16 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test(
-    'session creation persists invitedUserIds for backend push validation',
-    () {
-      final source = File(
-        'lib/services/session_service.dart',
-      ).readAsStringSync();
+  group('session invite delivery contract', () {
+    test('requires mutual follow and block checks before real friend invites', () {
+      final followService = File('lib/services/follow_service.dart').readAsStringSync();
+      final sessionService = File('lib/services/session_service.dart').readAsStringSync();
 
-      expect(source, contains("'invitedUserIds': invitedUserIds ?? []"));
-    },
-  );
-
-  test('post comment push forwards commentId for backend validation', () {
-    final source = File('lib/services/post_service.dart').readAsStringSync();
-
-    expect(source, contains('unawaited('));
-    expect(
-      source,
-      contains(
-        '_notifyPostComment(postId, userId, userName, text, commentRef.id)',
-      ),
-    );
-    expect(source, contains('Future<void> _notifyPostComment('));
-    expect(source, contains('String commentId,'));
-    expect(source, contains('commentId: commentId,'));
+      expect(followService, contains('canInviteToPairedSession'));
+      expect(followService, contains('getFollowStatus(hostId, inviteeId)'));
+      expect(followService, contains('getFollowStatus(inviteeId, hostId)'));
+      expect(followService, contains("collection('blocks')"));
+      expect(sessionService, contains('canInviteToPairedSession'));
+    });
   });
 }

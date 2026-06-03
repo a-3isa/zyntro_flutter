@@ -76,6 +76,11 @@ codemagic.secrets
 .worktrees/
 .superpowers/
 .claude/skills/
+.specify/
+specs/
+.agents/
 Thumbs.db
 *.tmp
 
+.claude/
+.codex/

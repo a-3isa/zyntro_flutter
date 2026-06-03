@@ -3,10 +3,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
-
 import '../../../app/navigation/app_router.dart';
 import '../../../core/constants/constants.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../utils/haptic_manager.dart';
 import '../../../widgets/zyntro_button.dart';
@@ -75,9 +74,9 @@ class SessionPage extends ConsumerWidget {
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
                 child: Text(
                   'Train',
-                  style: GoogleFonts.syne(
+                  style: AppTextStyles.h2.copyWith(
                     fontSize: 28,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                     color: AppColors.textV2Primary,
                     letterSpacing: -0.8,
                   ),
@@ -111,8 +110,7 @@ class SessionPage extends ConsumerWidget {
                   // QUICK START section
                   Text(
                     'QUICK START',
-                    style: GoogleFonts.outfit(
-                      fontSize: 10,
+                    style: AppTextStyles.caption.copyWith(
                       fontWeight: FontWeight.w700,
                       color: AppColors.textV2Tertiary,
                       letterSpacing: 2,
@@ -165,8 +163,7 @@ class SessionPage extends ConsumerWidget {
                               const SizedBox(height: 7),
                               Text(
                                 type.displayName,
-                                style: GoogleFonts.outfit(
-                                  fontSize: 10,
+                                style: AppTextStyles.caption.copyWith(
                                   fontWeight: FontWeight.w600,
                                   color: AppColors.textV2Secondary,
                                 ),
@@ -192,8 +189,7 @@ class SessionPage extends ConsumerWidget {
                   // RECENT section
                   Text(
                     'RECENT',
-                    style: GoogleFonts.outfit(
-                      fontSize: 10,
+                    style: AppTextStyles.caption.copyWith(
                       fontWeight: FontWeight.w700,
                       color: AppColors.textV2Tertiary,
                       letterSpacing: 2,
@@ -206,8 +202,7 @@ class SessionPage extends ConsumerWidget {
                             padding: const EdgeInsets.symmetric(vertical: 20),
                             child: Text(
                               'No sessions yet. Start your first one!',
-                              style: GoogleFonts.outfit(
-                                fontSize: 13,
+                              style: AppTextStyles.body.copyWith(
                                 color: AppColors.textV2Tertiary,
                               ),
                             ),
@@ -303,9 +298,9 @@ class _WeeklyRingCard extends ConsumerWidget {
                   children: [
                     Text(
                       '$done',
-                      style: GoogleFonts.syne(
+                      style: AppTextStyles.h2.copyWith(
                         fontSize: 28,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w700,
                         color: AppColors.textV2Primary,
                         letterSpacing: -1,
                         height: 1,
@@ -313,8 +308,7 @@ class _WeeklyRingCard extends ConsumerWidget {
                     ),
                     Text(
                       'of $goal',
-                      style: GoogleFonts.outfit(
-                        fontSize: 10,
+                      style: AppTextStyles.caption.copyWith(
                         color: AppColors.textV2Tertiary,
                       ),
                     ),
@@ -331,8 +325,7 @@ class _WeeklyRingCard extends ConsumerWidget {
             children: [
               Text(
                 'THIS WEEK',
-                style: GoogleFonts.outfit(
-                  fontSize: 10,
+                style: AppTextStyles.caption.copyWith(
                   fontWeight: FontWeight.w700,
                   color: AppColors.textV2Tertiary,
                   letterSpacing: 1.5,
@@ -341,8 +334,7 @@ class _WeeklyRingCard extends ConsumerWidget {
               const SizedBox(height: 6),
               Text(
                 '$done sessions',
-                style: GoogleFonts.syne(
-                  fontSize: 18,
+                style: AppTextStyles.h5.copyWith(
                   fontWeight: FontWeight.w700,
                   color: AppColors.textV2Primary,
                   letterSpacing: -0.3,
@@ -356,7 +348,7 @@ class _WeeklyRingCard extends ConsumerWidget {
                     children: [
                       Text(
                         '$streak🔥',
-                        style: GoogleFonts.syne(
+                        style: AppTextStyles.bodyLarge.copyWith(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
                           color: AppColors.accentLime,
@@ -364,8 +356,7 @@ class _WeeklyRingCard extends ConsumerWidget {
                       ),
                       Text(
                         'streak',
-                        style: GoogleFonts.outfit(
-                          fontSize: 10,
+                        style: AppTextStyles.caption.copyWith(
                           color: AppColors.textV2Tertiary,
                         ),
                       ),
@@ -377,7 +368,7 @@ class _WeeklyRingCard extends ConsumerWidget {
                     children: [
                       Text(
                         '$total',
-                        style: GoogleFonts.syne(
+                        style: AppTextStyles.bodyLarge.copyWith(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
                           color: AppColors.textV2Primary,
@@ -385,8 +376,7 @@ class _WeeklyRingCard extends ConsumerWidget {
                       ),
                       Text(
                         'total',
-                        style: GoogleFonts.outfit(
-                          fontSize: 10,
+                        style: AppTextStyles.caption.copyWith(
                           color: AppColors.textV2Tertiary,
                         ),
                       ),
@@ -486,7 +476,7 @@ class _RecentSessionRow extends StatelessWidget {
               children: [
                 Text(
                   session.label,
-                  style: GoogleFonts.syne(
+                  style: AppTextStyles.label.copyWith(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: AppColors.textV2Primary,
@@ -495,7 +485,7 @@ class _RecentSessionRow extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   '${session.dateLabel} · ${session.duration}',
-                  style: GoogleFonts.outfit(
+                  style: AppTextStyles.caption.copyWith(
                     fontSize: 11,
                     color: AppColors.textV2Secondary,
                   ),
@@ -505,7 +495,7 @@ class _RecentSessionRow extends StatelessWidget {
           ),
           Text(
             '${session.sets} sets',
-            style: GoogleFonts.syne(
+            style: AppTextStyles.body.copyWith(
               fontSize: 13,
               fontWeight: FontWeight.w700,
               color: AppColors.textV2Secondary,

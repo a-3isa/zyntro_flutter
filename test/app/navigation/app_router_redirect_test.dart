@@ -1,0 +1,193 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:zyntro_flutter/app/navigation/app_router.dart';
+
+// Mirrors the GoRouter redirect closure in app_router.dart so redirect
+// logic can be verified without Firebase or widget-test overhead.
+String? _computeRedirect({
+  required bool isLoggedIn,
+  required bool isLoading,
+  required bool? isProfileComplete, // null = still loading
+  required bool profileHasError,
+  required bool rollbackActive,
+  required String currentLocation,
+}) {
+  final isOnAuthPage = currentLocation == AppRoutes.login ||
+      currentLocation == AppRoutes.signUp ||
+      currentLocation == AppRoutes.splash ||
+      currentLocation == AppRoutes.forgotPassword ||
+      currentLocation == AppRoutes.onboarding;
+
+  if (isLoading) {
+    return currentLocation == AppRoutes.splash ? null : AppRoutes.splash;
+  }
+
+  if (!isLoggedIn && !isOnAuthPage) return AppRoutes.login;
+
+  if (rollbackActive && !isOnAuthPage) return AppRoutes.login;
+
+  if (isLoggedIn) {
+    if (profileHasError) {
+      return currentLocation == AppRoutes.onboarding ||
+              currentLocation == AppRoutes.profileSetup
+          ? null
+          : AppRoutes.onboarding;
+    }
+
+    // Profile check still loading
+    if (isProfileComplete == null) return null;
+
+    if (!isProfileComplete) {
+      if (currentLocation != AppRoutes.onboarding &&
+          currentLocation != AppRoutes.profileSetup) {
+        return AppRoutes.onboarding;
+      }
+      return null;
+    }
+
+    // Profile complete — redirect off auth/onboarding pages to main
+    if (currentLocation == AppRoutes.login ||
+        currentLocation == AppRoutes.signUp ||
+        currentLocation == AppRoutes.splash ||
+        currentLocation == AppRoutes.onboarding ||
+        currentLocation == AppRoutes.profileSetup) {
+      return AppRoutes.main;
+    }
+  }
+
+  return null;
+}
+
+void main() {
+  group('Router redirect — US2: returning user routing', () {
+    // T016: regression — hasSeenOnboarding no longer drives routing; only
+    // server-side isProfileComplete matters.
+    test(
+        'T016: logged-in user with complete profile reaches main '
+        'regardless of hasSeenOnboarding (local flag removed)', () {
+      final result = _computeRedirect(
+        isLoggedIn: true,
+        isLoading: false,
+        isProfileComplete: true,
+        profileHasError: false,
+        rollbackActive: false,
+        currentLocation: AppRoutes.splash,
+      );
+
+      expect(result, AppRoutes.main);
+      expect(result, isNot(AppRoutes.onboarding));
+    });
+
+    // T017: regression — incomplete profile must go to /onboarding, not
+    // /profile-setup (which was the old target).
+    test(
+        'T017: logged-in user with incomplete profile redirects to /onboarding, '
+        'not /profile-setup', () {
+      final result = _computeRedirect(
+        isLoggedIn: true,
+        isLoading: false,
+        isProfileComplete: false,
+        profileHasError: false,
+        rollbackActive: false,
+        currentLocation: AppRoutes.splash,
+      );
+
+      expect(result, AppRoutes.onboarding);
+      expect(result, isNot(AppRoutes.profileSetup));
+    });
+
+    test(
+        'logged-in user with complete profile on main stays on main '
+        '(no redirect)', () {
+      final result = _computeRedirect(
+        isLoggedIn: true,
+        isLoading: false,
+        isProfileComplete: true,
+        profileHasError: false,
+        rollbackActive: false,
+        currentLocation: AppRoutes.main,
+      );
+
+      expect(result, isNull);
+    });
+  });
+
+  group('Router redirect — US3: incomplete profile recovery', () {
+    // T019: a user with an incomplete profile who is on an arbitrary app page
+    // (e.g., main) must be redirected to /onboarding, not /profile-setup.
+    test(
+        'T019: incomplete profile on arbitrary route redirects to '
+        '/onboarding (not /profile-setup)', () {
+      final result = _computeRedirect(
+        isLoggedIn: true,
+        isLoading: false,
+        isProfileComplete: false,
+        profileHasError: false,
+        rollbackActive: false,
+        currentLocation: AppRoutes.main,
+      );
+
+      expect(result, AppRoutes.onboarding);
+      expect(result, isNot(AppRoutes.profileSetup));
+    });
+
+    // T020: a user on /profile-setup with an incomplete profile must NOT be
+    // redirected (ProfileSetupPage stays reachable as legacy fallback).
+    test(
+        'T020: incomplete profile on /profile-setup returns null '
+        '(no redirect loop)', () {
+      final result = _computeRedirect(
+        isLoggedIn: true,
+        isLoading: false,
+        isProfileComplete: false,
+        profileHasError: false,
+        rollbackActive: false,
+        currentLocation: AppRoutes.profileSetup,
+      );
+
+      expect(result, isNull);
+    });
+
+    test(
+        'incomplete profile already on /onboarding stays on /onboarding '
+        '(no redirect loop)', () {
+      final result = _computeRedirect(
+        isLoggedIn: true,
+        isLoading: false,
+        isProfileComplete: false,
+        profileHasError: false,
+        rollbackActive: false,
+        currentLocation: AppRoutes.onboarding,
+      );
+
+      expect(result, isNull);
+    });
+  });
+
+  group('Router redirect — loading and unauthenticated states', () {
+    test('loading state keeps user on splash', () {
+      final result = _computeRedirect(
+        isLoggedIn: false,
+        isLoading: true,
+        isProfileComplete: null,
+        profileHasError: false,
+        rollbackActive: false,
+        currentLocation: AppRoutes.splash,
+      );
+
+      expect(result, isNull);
+    });
+
+    test('unauthenticated user on main redirects to login', () {
+      final result = _computeRedirect(
+        isLoggedIn: false,
+        isLoading: false,
+        isProfileComplete: null,
+        profileHasError: false,
+        rollbackActive: false,
+        currentLocation: AppRoutes.main,
+      );
+
+      expect(result, AppRoutes.login);
+    });
+  });
+}

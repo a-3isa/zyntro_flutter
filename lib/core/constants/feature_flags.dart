@@ -32,6 +32,8 @@
 /// ```
 library;
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 /// Enumeration of all controllable features in the application.
 enum FeatureFlag {
   auth,
@@ -42,6 +44,7 @@ enum FeatureFlag {
   leaderboard,
   payments,
   advancedAnalytics,
+  pairedFriendSessions,
   challengeInvites,
   comments,
   // Security features (MVP Coming Soon)
@@ -49,6 +52,10 @@ enum FeatureFlag {
   twoFactorAuth,
   loginHistory,
 }
+
+final pairedFriendSessionsEnabledProvider = Provider<bool>(
+  (ref) => FeatureFlags.isPairedFriendSessionsEnabled,
+);
 
 /// Static feature configuration class.
 class FeatureFlags {
@@ -89,6 +96,9 @@ class FeatureFlags {
   /// Detailed workout analytics and insights.
   static bool get isAdvancedAnalyticsEnabled => false;
 
+  /// One-to-one bot/friend workout sessions.
+  static bool get isPairedFriendSessionsEnabled => true;
+
   /// Sending invites for challenges.
   static bool get isChallengeInvitesEnabled => false;
 
@@ -127,6 +137,8 @@ class FeatureFlags {
         return isPaymentsEnabled;
       case FeatureFlag.advancedAnalytics:
         return isAdvancedAnalyticsEnabled;
+      case FeatureFlag.pairedFriendSessions:
+        return isPairedFriendSessionsEnabled;
       case FeatureFlag.challengeInvites:
         return isChallengeInvitesEnabled;
       case FeatureFlag.comments:

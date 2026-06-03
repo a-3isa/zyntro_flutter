@@ -11,6 +11,7 @@ class UserProfileModel {
   final bool isPrivate;
   final WorkoutType workoutPreference;
   final bool beginnerFlag;
+  final int? trainingDaysPerWeek;
 
   const UserProfileModel({
     required this.id,
@@ -20,6 +21,7 @@ class UserProfileModel {
     required this.isPrivate,
     required this.workoutPreference,
     required this.beginnerFlag,
+    this.trainingDaysPerWeek,
   });
 
   factory UserProfileModel.fromFirestore(
@@ -37,6 +39,7 @@ class UserProfileModel {
         data['workoutPreference'] as String? ?? 'other',
       ),
       beginnerFlag: data['beginnerFlag'] as bool? ?? false,
+      trainingDaysPerWeek: data['trainingDaysPerWeek'] as int?,
     );
   }
 
@@ -49,6 +52,7 @@ class UserProfileModel {
       isPrivate: isPrivate,
       workoutPreference: workoutPreference,
       beginnerFlag: beginnerFlag,
+      trainingDaysPerWeek: trainingDaysPerWeek,
     );
   }
 }

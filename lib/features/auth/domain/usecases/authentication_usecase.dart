@@ -150,6 +150,7 @@ class AuthenticationUseCase {
     String? photoUrl,
     String? avatarConfig,
     String? authProvider,
+    int? trainingDaysPerWeek,
   }) async {
     if (displayName.trim().length < 2) {
       return Result.failure(
@@ -169,6 +170,7 @@ class AuthenticationUseCase {
         photoUrl: photoUrl,
         avatarConfig: avatarConfig,
         authProvider: authProvider,
+        trainingDaysPerWeek: trainingDaysPerWeek,
       );
       return Result.success<void, AuthFailure>(null);
     } catch (e) {

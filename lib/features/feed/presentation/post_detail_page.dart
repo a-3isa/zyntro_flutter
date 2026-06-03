@@ -3,9 +3,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/feature_flags.dart';
 import '../../../utils/haptic_manager.dart';
@@ -244,8 +244,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                   const SizedBox(width: 16),
                   Text(
                     'Post',
-                    style: GoogleFonts.syne(
-                      fontSize: 20,
+                    style: AppTextStyles.h4.copyWith(
                       fontWeight: FontWeight.w700,
                       color: AppColors.textV2Primary,
                       letterSpacing: -0.4,
@@ -350,16 +349,14 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                           children: [
                             Text(
                               _author?.displayName ?? 'User',
-                              style: GoogleFonts.syne(
-                                fontSize: 14,
+                              style: AppTextStyles.body.copyWith(
                                 fontWeight: FontWeight.w600,
                                 color: AppColors.textV2Primary,
                               ),
                             ),
                             Text(
                               timeago.format(_post!.createdAt),
-                              style: GoogleFonts.outfit(
-                                fontSize: AppFontSize.sm,
+                              style: AppTextStyles.body.copyWith(
                                 color: AppColors.textV2Secondary,
                               ),
                             ),
@@ -418,9 +415,8 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                   // Title
                   Text(
                     _post!.title,
-                    style: GoogleFonts.syne(
-                      fontSize: AppFontSize.xl,
-                      fontWeight: FontWeight.w800,
+                    style: AppTextStyles.h4.copyWith(
+                      fontWeight: FontWeight.w700,
                       color: AppColors.textV2Primary,
                       letterSpacing: -0.5,
                     ),
@@ -754,7 +750,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
               child: Text(
                 tab,
                 textAlign: TextAlign.center,
-                style: GoogleFonts.outfit(
+                style: AppTextStyles.body.copyWith(
                   fontSize: 13,
                   fontWeight: isActive ? FontWeight.w700 : FontWeight.w400,
                   color: isActive ? AppColors.textV2Primary : AppColors.textV2Secondary,
@@ -809,17 +805,15 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
       children: [
         Text(
           value,
-          style: GoogleFonts.syne(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
+          style: AppTextStyles.h5.copyWith(
+            fontWeight: FontWeight.w700,
             color: AppColors.textV2Primary,
           ),
         ),
         const SizedBox(height: 2),
         Text(
           label,
-          style: GoogleFonts.outfit(
-            fontSize: AppFontSize.sm,
+          style: AppTextStyles.body.copyWith(
             color: AppColors.textV2Secondary,
           ),
         ),
@@ -861,7 +855,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                   children: [
                     Text(
                       comment.authorName,
-                      style: GoogleFonts.outfit(
+                      style: AppTextStyles.body.copyWith(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                         color: AppColors.textV2Primary,
@@ -870,8 +864,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                     const SizedBox(width: AppSpacing.sm),
                     Text(
                       timeago.format(comment.createdAt),
-                      style: GoogleFonts.outfit(
-                        fontSize: AppFontSize.xs,
+                      style: AppTextStyles.caption.copyWith(
                         color: AppColors.textV2Tertiary,
                       ),
                     ),
@@ -1055,7 +1048,7 @@ class WorkoutDetailSection extends StatelessWidget {
         child: Center(
           child: Text(
             'No exercise details',
-            style: GoogleFonts.outfit(fontSize: 13, color: AppColors.textV2Tertiary),
+            style: AppTextStyles.body.copyWith(fontSize: 13, color: AppColors.textV2Tertiary),
           ),
         ),
       );
@@ -1070,9 +1063,9 @@ class WorkoutDetailSection extends StatelessWidget {
           children: [
             Text(
               '$totalSets',
-              style: GoogleFonts.syne(
+              style: AppTextStyles.h2.copyWith(
                 fontSize: 28,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w700,
                 color: AppColors.accentLime,
                 letterSpacing: -1,
               ),
@@ -1080,52 +1073,109 @@ class WorkoutDetailSection extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               'total sets',
-              style: GoogleFonts.outfit(fontSize: 12, color: AppColors.textV2Tertiary),
+              style: AppTextStyles.caption.copyWith(color: AppColors.textV2Tertiary),
             ),
           ],
         ),
         const SizedBox(height: 16),
         // Exercise rows
         ...exercises.map((exercise) {
+          final hasDetail = exercise.setDetails.isNotEmpty;
           return Container(
             margin: const EdgeInsets.only(bottom: 2),
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
             decoration: BoxDecoration(
               border: Border(
-                bottom: BorderSide(
-                  color: AppColors.surfaceV2,
-                ),
+                bottom: BorderSide(color: AppColors.surfaceV2),
               ),
             ),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.typeColor(post.type),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    exercise.name,
-                    style: GoogleFonts.outfit(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.textV2Primary,
+                Row(
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppColors.typeColor(post.type),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        exercise.name,
+                        style: AppTextStyles.body.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textV2Primary,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '${exercise.sets} ${exercise.sets == 1 ? 'set' : 'sets'}',
+                      style: AppTextStyles.body.copyWith(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textV2Secondary,
+                      ),
+                    ),
+                  ],
                 ),
-                Text(
-                  '${exercise.sets} sets',
-                  style: GoogleFonts.syne(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textV2Secondary,
-                  ),
-                ),
+                if (hasDetail) ...[
+                  const SizedBox(height: 6),
+                  ...exercise.setDetails.asMap().entries.map((entry) {
+                    final i = entry.key;
+                    final s = entry.value;
+                    final weightStr = s.weight > 0
+                        ? '${s.weight == s.weight.truncateToDouble() ? s.weight.toInt() : s.weight} kg × ${s.reps} reps'
+                        : '${s.reps} reps';
+                    final durStr = s.durationSeconds > 0
+                        ? () {
+                            final m = s.durationSeconds ~/ 60;
+                            final sec = s.durationSeconds % 60;
+                            return m > 0
+                                ? '${m}m ${sec.toString().padLeft(2, '0')}s'
+                                : '${sec}s';
+                          }()
+                        : '';
+                    return Padding(
+                      padding: const EdgeInsets.only(left: 18, bottom: 3),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 18,
+                            child: Text(
+                              '${i + 1}.',
+                              style: TextStyle(
+                                fontSize: AppFontSize.xs,
+                                color: AppColors.textV2Tertiary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: Text(
+                              weightStr,
+                              style: TextStyle(
+                                fontSize: AppFontSize.sm,
+                                color: AppColors.textV2Secondary,
+                              ),
+                            ),
+                          ),
+                          if (durStr.isNotEmpty)
+                            Text(
+                              durStr,
+                              style: TextStyle(
+                                fontSize: AppFontSize.xs,
+                                color: AppColors.textV2Tertiary,
+                              ),
+                            ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
               ],
             ),
           );

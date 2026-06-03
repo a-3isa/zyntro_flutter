@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../app/navigation/app_route_locations.dart';
 import '../../../core/theme/app_theme.dart';
 
@@ -40,9 +41,12 @@ class _MainShellState extends ConsumerState<MainShell> {
   @override
   void didUpdateWidget(covariant MainShell oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.initialTab != widget.initialTab) {
-      _currentIndex = widget.initialTab.index;
-    }
+    // Always sync when GoRouter pushes new props (navigation-driven rebuild).
+    // didUpdateWidget fires on URL changes, not on Riverpod provider rebuilds,
+    // so resetting unconditionally here is safe and fixes the case where the
+    // user reached tab-1 via the FAB (no URL change) but then navigated back
+    // to /?tab=feed from another screen — without this, _currentIndex stays 1.
+    _currentIndex = widget.initialTab.index;
   }
 
   /// Handle scroll notifications to hide/show the navigation bar.
@@ -64,7 +68,7 @@ class _MainShellState extends ConsumerState<MainShell> {
   Widget build(BuildContext context) {
     final isNavBarVisible = ref.watch(navBarVisibleProvider);
     final pages = [
-      FeedPage(onSessionTap: () => setState(() => _currentIndex = 1)),
+      FeedPage(onSocialTap: () => setState(() => _currentIndex = 1)),
       const StartSessionPage(),
       SocialPage(initialTab: widget.initialSocialTab),
       const ProfilePage(),
@@ -126,10 +130,10 @@ class _MainShellState extends ConsumerState<MainShell> {
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
                   _buildNavItem(icon: Icons.home_outlined, activeIcon: Icons.home_rounded, index: 0, label: 'Feed'),
-                  const SizedBox(width: 32), // left side of FAB gap
-                  const SizedBox(width: 60), // FAB itself
-                  const SizedBox(width: 32), // right side of FAB gap
-                  _buildNavItem(icon: Icons.people_outline, activeIcon: Icons.people_rounded, index: 2, label: 'Community'),
+                  // const SizedBox(width: 32), // left side of FAB gap
+                  // const SizedBox(width: 60), // FAB itself
+                  // const SizedBox(width: 32), // right side of FAB gap
+                  // _buildNavItem(icon: Icons.people_outline, activeIcon: Icons.people_rounded, index: 2, label: 'Community'),
                   _buildNavItem(icon: Icons.person_outline, activeIcon: Icons.person_rounded, index: 3, label: 'Profile'),
                 ],
               ),
@@ -142,7 +146,10 @@ class _MainShellState extends ConsumerState<MainShell> {
             right: 0,
             child: Center(
               child: GestureDetector(
-                onTap: () => setState(() => _currentIndex = 1),
+                onTap: () {
+                  ref.read(sessionViewResetProvider.notifier).state++;
+                  setState(() => _currentIndex = 1);
+                },
                 child: AnimatedContainer(
                   duration: AppDurations.fast,
                   width: 60,
@@ -192,6 +199,9 @@ class _MainShellState extends ConsumerState<MainShell> {
       onTap: () {
         HapticFeedback.selectionClick();
         setState(() => _currentIndex = index);
+        // Sync the URL so that routes pushed from this tab (settings, post detail, etc.)
+        // correctly pop back to this tab rather than defaulting to feed.
+        context.go(AppRouteLocations.mainTab(MainShellTab.values[index]));
       },
       behavior: HitTestBehavior.opaque,
       child: SizedBox(

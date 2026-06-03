@@ -4,9 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../app/navigation/app_router.dart';
 import '../../../widgets/zyntro_button.dart';
@@ -228,9 +228,8 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
           Center(
             child: Text(
               'Forgot Password?',
-              style: GoogleFonts.syne(
-                fontSize: AppFontSize.xxxl,
-                fontWeight: FontWeight.w800,
+              style: AppTextStyles.h2.copyWith(
+                fontWeight: FontWeight.w700,
                 color: AppColors.textV2Primary,
               ),
             ),
@@ -240,8 +239,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
 
           Text(
             "Enter your email address and we'll send you a link to reset your password.",
-            style: GoogleFonts.outfit(
-              fontSize: AppFontSize.md,
+            style: AppTextStyles.bodyLarge.copyWith(
               color: AppColors.textV2Secondary,
             ),
             textAlign: TextAlign.center,
@@ -309,8 +307,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 child: Text(
                   'Back to Sign In',
-                  style: GoogleFonts.outfit(
-                    fontSize: AppFontSize.md,
+                  style: AppTextStyles.bodyLarge.copyWith(
                     fontWeight: FontWeight.w500,
                     color: AppColors.accentLime,
                   ),
@@ -344,9 +341,8 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
         Center(
           child: Text(
             'Check Your Email',
-            style: GoogleFonts.syne(
-              fontSize: AppFontSize.xxxl,
-              fontWeight: FontWeight.w800,
+            style: AppTextStyles.h2.copyWith(
+              fontWeight: FontWeight.w700,
               color: AppColors.textV2Primary,
             ),
           ),
@@ -365,8 +361,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
             children: [
               Text(
                 "We've sent a password reset link to:",
-                style: GoogleFonts.outfit(
-                  fontSize: AppFontSize.md,
+                style: AppTextStyles.bodyLarge.copyWith(
                   color: AppColors.textV2Secondary,
                 ),
                 textAlign: TextAlign.center,
@@ -374,8 +369,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
               const SizedBox(height: AppSpacing.sm),
               Text(
                 _emailController.text.trim(),
-                style: GoogleFonts.syne(
-                  fontSize: AppFontSize.lg,
+                style: AppTextStyles.h5.copyWith(
                   fontWeight: FontWeight.w700,
                   color: AppColors.accentLime,
                 ),
@@ -389,8 +383,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
 
         Text(
           "Click the link in the email to reset your password. If you don't see it, check your spam folder.",
-          style: GoogleFonts.outfit(
-            fontSize: AppFontSize.sm,
+          style: AppTextStyles.body.copyWith(
             color: AppColors.textV2Secondary,
           ),
           textAlign: TextAlign.center,

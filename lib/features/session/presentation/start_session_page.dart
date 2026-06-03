@@ -6,12 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-import 'package:google_fonts/google_fonts.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../app/navigation/app_route_locations.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/constants.dart';
+import '../../../core/constants/feature_flags.dart';
 import '../../auth/auth_providers.dart';
 import '../../../services/session_service.dart';
 import '../../../services/follow_service.dart';
@@ -19,7 +20,12 @@ import '../../../core/models/models.dart';
 import '../../../widgets/zyntro_button.dart';
 import '../../../widgets/pulse_dot.dart';
 import '../../../utils/haptic_manager.dart';
-import '../domain/exercise_plan_item.dart';
+import '../domain/gym_session_plan.dart';
+import 'widgets/gym_exercise_picker_sheet.dart';
+
+/// Signals the train screen to reset to its home view.
+/// Increment this value whenever the session FAB is tapped.
+final sessionViewResetProvider = StateProvider<int>((ref) => 0);
 
 /// Train screen — workout type + partner selection + session start.
 class StartSessionPage extends ConsumerStatefulWidget {
@@ -31,7 +37,7 @@ class StartSessionPage extends ConsumerStatefulWidget {
 
 class _StartSessionPageState extends ConsumerState<StartSessionPage> {
   WorkoutType? _selectedType; // null = nothing chosen yet
-  // partner mode: 'solo' | 'friends' | 'random'
+  // partner mode: 'solo' | 'bot' | 'friends' | 'random'
   String _partnerMode = 'solo';
   final Set<String> _selectedFriends = {};
   bool _isLoading = false;
@@ -41,9 +47,8 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
   String _searchQuery = '';
   // views: 'home' | 'plan'
   String _view = 'home';
-  late List<ExercisePlanItem> _plan;
-  final TextEditingController _exerciseInputController = TextEditingController();
-  List<String> _suggestions = [];
+  late List<PlannedExercise> _plan;
+  bool _hasShownWorkoutsPopup = false;
 
   bool _startButtonPressed = false;
 
@@ -63,11 +68,14 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
   @override
   void initState() {
     super.initState();
-    _plan = kDefaultPlan.map((e) => ExercisePlanItem(name: e.name, sets: e.sets)).toList();
+    _plan = [];
     _loadPreferences();
-    _loadMutualFollows();
-    _loadStats();
-    _loadLiveFriends();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _loadMutualFollows();
+      _loadStats();
+      _loadLiveFriends();
+    });
   }
 
   Future<void> _loadPreferences() async {
@@ -87,7 +95,6 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
   @override
   void dispose() {
     _searchController.dispose();
-    _exerciseInputController.dispose();
     super.dispose();
   }
 
@@ -102,7 +109,11 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
       final service = ref.read(sessionServiceProvider);
       final now = DateTime.now();
       final weekStart = now.subtract(Duration(days: now.weekday - 1));
-      final weekStartDate = DateTime(weekStart.year, weekStart.month, weekStart.day);
+      final weekStartDate = DateTime(
+        weekStart.year,
+        weekStart.month,
+        weekStart.day,
+      );
 
       final allSessions = await service.getUserSessions(uid, limit: 20);
       final weekCount = allSessions
@@ -156,7 +167,9 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
       final uid = authState.valueOrNull?.id;
       if (uid == null) return;
 
-      final follows = await ref.read(followServiceProvider).getMutualFollows(uid);
+      final follows = await ref
+          .read(followServiceProvider)
+          .getMutualFollows(uid);
       if (follows.isEmpty) return;
 
       final sessionService = ref.read(sessionServiceProvider);
@@ -223,17 +236,14 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
               children: [
                 Text(
                   'Active Session Found',
-                  style: GoogleFonts.syne(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
+                  style: AppTextStyles.h4.copyWith(
                     color: AppColors.textV2Primary,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'You already have a workout in progress. Resume it or end it to start a new one.',
-                  style: GoogleFonts.outfit(
-                    fontSize: 14,
+                  style: AppTextStyles.body.copyWith(
                     color: AppColors.textV2Secondary,
                     height: 1.5,
                   ),
@@ -268,7 +278,9 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
         if (!mounted) return;
 
         if (action == 'resume') {
-          context.push(AppRouteLocations.sessionRoom(existingSessionId, type: type.value));
+          context.push(
+            AppRouteLocations.sessionRoom(existingSessionId, type: type.value),
+          );
           return;
         } else if (action == 'end') {
           setState(() => _isLoading = true);
@@ -279,22 +291,64 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
       }
 
       // Build invited list from selected friends
-      final invitedIds = _partnerMode == 'friends' && _selectedFriends.isNotEmpty
+      final invitedIds =
+          _partnerMode == 'friends' && _selectedFriends.isNotEmpty
           ? _selectedFriends.toList()
           : null;
-
-      final sessionId = await sessionService.createSession(
-        hostId: uid,
-        type: type.value,
-        title: '${type.displayName} Session',
-        invitedUserIds: invitedIds,
-        phase: SessionPhase.live,
+      // Re-stamp order to match current list position; preserve catalog/custom identity (T025).
+      final plannedExercises = _plan.asMap().entries.map((entry) {
+        final item = entry.value;
+        if (item.source == PlannedExerciseSource.catalog) {
+          return PlannedExercise.catalog(
+            id: item.id,
+            exerciseId: item.exerciseId!,
+            name: item.name,
+            plannedSets: item.plannedSets,
+            order: entry.key,
+            muscleGroup: item.muscleGroup,
+            equipment: item.equipment,
+          );
+        }
+        return PlannedExercise.custom(
+          id: item.id,
+          name: item.name,
+          plannedSets: item.plannedSets,
+          order: entry.key,
+          personalExerciseId: item.personalExerciseId,
+          muscleGroup: item.muscleGroup,
+          equipment: item.equipment,
+        );
+      }).toList();
+      final gymPlan = GymSessionPlan(
+        userId: uid,
+        workoutType: type,
+        source: GymSessionPlanSource.hostTemplate,
+        isReady: true,
+        exercises: plannedExercises,
+        updatedAt: DateTime.now(),
       );
+
+      final sessionId = _partnerMode == 'bot'
+          ? await sessionService.createBotPairedSession(
+              hostId: uid,
+              type: type.value,
+              title: '${type.displayName} Session',
+              plan: gymPlan,
+            )
+          : await sessionService.createSession(
+              hostId: uid,
+              type: type.value,
+              title: '${type.displayName} Session',
+              invitedUserIds: invitedIds,
+              phase: SessionPhase.live,
+            );
 
       await HapticFeedback.mediumImpact();
 
       if (mounted) {
-        context.push(AppRouteLocations.sessionRoom(sessionId, type: type.value));
+        context.push(
+          AppRouteLocations.sessionRoom(sessionId, type: type.value),
+        );
       }
     } catch (e) {
       debugPrint('[StartSessionPage] Failed to start session: $e');
@@ -336,6 +390,22 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
       return 'Check your internet connection and try again.';
     }
 
+    if (normalizedError.contains('not eligible')) {
+      return 'You can only invite one mutual friend who has not blocked you.';
+    }
+
+    if (normalizedError.contains('exactly one invited friend')) {
+      return 'Choose one friend for a paired session.';
+    }
+
+    if (normalizedError.contains('expired')) {
+      return 'That invite expired. Send a new one to train together.';
+    }
+
+    if (normalizedError.contains('delivery')) {
+      return 'Invite delivery failed. Try again in a moment.';
+    }
+
     return 'Failed to start session. Please try again.';
   }
 
@@ -363,7 +433,6 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
     }
   }
 
-
   String _getTypeLabel(WorkoutType type) {
     for (final item in _quickStartTypes) {
       if (item.type == type) return item.label;
@@ -373,19 +442,46 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_view == 'plan') return _buildPlanView();
+    // Reset to home view when the session FAB is tapped from another tab.
+    ref.listen<int>(sessionViewResetProvider, (_, _) {
+      if (_view != 'home') setState(() => _view = 'home');
+    });
+    if (_view == 'plan') {
+      if (!_hasShownWorkoutsPopup) {
+        _hasShownWorkoutsPopup = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _view == 'plan') _showPastWorkoutsPopup();
+        });
+      }
+      return _buildPlanView();
+    }
     return _buildHomeView();
+  }
+
+  void _navigateToPlanView() {
+    setState(() {
+      _view = 'plan';
+      _plan = [];
+      _hasShownWorkoutsPopup = false;
+    });
   }
 
   Color _getTypeColor(WorkoutType type) {
     switch (type.value) {
-      case 'gym': return const Color(0xFFC8FF00);
-      case 'running': return const Color(0xFF38BDF8);
-      case 'cycling': return const Color(0xFFA78BFA);
-      case 'swimming': return const Color(0xFF22D3EE);
-      case 'yoga': return const Color(0xFF34D399);
-      case 'hiit': return const Color(0xFFFF8C00);
-      default: return const Color(0xFF888888);
+      case 'gym':
+        return const Color(0xFFC8FF00);
+      case 'running':
+        return const Color(0xFF38BDF8);
+      case 'cycling':
+        return const Color(0xFFA78BFA);
+      case 'swimming':
+        return const Color(0xFF22D3EE);
+      case 'yoga':
+        return const Color(0xFF34D399);
+      case 'hiit':
+        return const Color(0xFFFF8C00);
+      default:
+        return const Color(0xFF888888);
     }
   }
 
@@ -397,83 +493,94 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
         setState(() {
           if (isSelected) {
             _selectedFriends.remove(user.id);
-          } else if (_selectedFriends.length < 10) {
+          } else {
+            _selectedFriends.clear();
             _selectedFriends.add(user.id);
           }
         });
         HapticManager.light();
       },
       child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
+        duration: const Duration(milliseconds: 200),
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppColors.accentLime.withValues(alpha: 0.1)
+              : AppColors.surfaceV2Elevated.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
             color: isSelected
-                ? AppColors.accentLime.withValues(alpha: 0.1)
-                : AppColors.surfaceV2Elevated.withValues(alpha: 0.4),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isSelected ? AppColors.accentLime.withValues(alpha: 0.4) : Colors.white.withValues(alpha: 0.05),
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: isSelected ? AppColors.accentLime : Colors.white.withValues(alpha: 0.1),
-                    width: 2,
-                  ),
-                ),
-                child: ClipOval(
-                  child: user.photoURL != null
-                      ? CachedNetworkImage(
-                          imageUrl: user.photoURL!,
-                          placeholder: (context, url) => Container(color: AppColors.surfaceV2),
-                          errorWidget: (context, url, error) => _buildAvatarPlaceholder(user),
-                          fit: BoxFit.cover,
-                        )
-                      : _buildAvatarPlaceholder(user),
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      user.displayName,
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                        color: AppColors.textV2Primary,
-                      ),
-                    ),
-                    Text(
-                      '@${user.id.substring(0, 8)}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textV2Tertiary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
-                child: Icon(
-                  isSelected ? Icons.check_circle_rounded : Icons.add_circle_outline_rounded,
-                  key: ValueKey(isSelected),
-                  color: isSelected ? AppColors.accentLime : AppColors.textV2Tertiary,
-                  size: 24,
-                ),
-              ),
-            ],
+                ? AppColors.accentLime.withValues(alpha: 0.4)
+                : Colors.white.withValues(alpha: 0.05),
           ),
         ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isSelected
+                      ? AppColors.accentLime
+                      : Colors.white.withValues(alpha: 0.1),
+                  width: 2,
+                ),
+              ),
+              child: ClipOval(
+                child: user.photoURL != null
+                    ? CachedNetworkImage(
+                        imageUrl: user.photoURL!,
+                        placeholder: (context, url) =>
+                            Container(color: AppColors.surfaceV2),
+                        errorWidget: (context, url, error) =>
+                            _buildAvatarPlaceholder(user),
+                        fit: BoxFit.cover,
+                      )
+                    : _buildAvatarPlaceholder(user),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    user.displayName,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      color: AppColors.textV2Primary,
+                    ),
+                  ),
+                  Text(
+                    '@${user.id.substring(0, 8)}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textV2Tertiary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: Icon(
+                isSelected
+                    ? Icons.check_circle_rounded
+                    : Icons.add_circle_outline_rounded,
+                key: ValueKey(isSelected),
+                color: isSelected
+                    ? AppColors.accentLime
+                    : AppColors.textV2Tertiary,
+                size: 24,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -520,9 +627,17 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(width: 120, height: 16, color: AppColors.surfaceV2Elevated),
+                      Container(
+                        width: 120,
+                        height: 16,
+                        color: AppColors.surfaceV2Elevated,
+                      ),
                       const SizedBox(height: 6),
-                      Container(width: 80, height: 12, color: AppColors.surfaceV2Elevated),
+                      Container(
+                        width: 80,
+                        height: 12,
+                        color: AppColors.surfaceV2Elevated,
+                      ),
                     ],
                   ),
                 ),
@@ -569,19 +684,22 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         border: Border.all(
-                            color: AppColors.backgroundV2, width: 2),
+                          color: AppColors.backgroundV2,
+                          width: 2,
+                        ),
                       ),
                       child: ClipOval(
                         child: _liveFriends[i]['photoURL'] != null
                             ? CachedNetworkImage(
-                                imageUrl:
-                                    _liveFriends[i]['photoURL'] as String,
+                                imageUrl: _liveFriends[i]['photoURL'] as String,
                                 fit: BoxFit.cover,
                                 errorWidget: (_, url, e) => _avatarFallback(
-                                    _liveFriends[i]['name'] as String),
+                                  _liveFriends[i]['name'] as String,
+                                ),
                               )
                             : _avatarFallback(
-                                _liveFriends[i]['name'] as String),
+                                _liveFriends[i]['name'] as String,
+                              ),
                       ),
                     ),
                   ),
@@ -592,7 +710,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
           Expanded(
             child: Text(
               '$names$extra ${_liveFriends.length == 1 ? 'is' : 'are'} training now',
-              style: GoogleFonts.outfit(
+              style: AppTextStyles.caption.copyWith(
                 fontSize: 13,
                 color: AppColors.textV2Secondary,
               ),
@@ -604,7 +722,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
           const SizedBox(width: 6),
           Text(
             'LIVE',
-            style: GoogleFonts.outfit(
+            style: AppTextStyles.caption.copyWith(
               fontSize: 10,
               fontWeight: FontWeight.w700,
               color: const Color(0xFFFF4D4D),
@@ -651,9 +769,8 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                   children: [
                     Text(
                       'Train',
-                      style: GoogleFonts.syne(
+                      style: AppTextStyles.h1.copyWith(
                         fontSize: 34,
-                        fontWeight: FontWeight.w800,
                         color: AppColors.textV2Primary,
                         letterSpacing: -1,
                       ),
@@ -739,7 +856,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                     color: typeColor.withValues(alpha: 0.2),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
-                  )
+                  ),
                 ]
               : [],
         ),
@@ -781,14 +898,16 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                         Flexible(
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 5, vertical: 2),
+                              horizontal: 5,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: typeColor.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
                               label.toUpperCase(),
-                              style: GoogleFonts.outfit(
+                              style: AppTextStyles.caption.copyWith(
                                 fontSize: 8,
                                 fontWeight: FontWeight.w700,
                                 color: typeColor,
@@ -803,9 +922,8 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                     const SizedBox(height: 5),
                     Text(
                       label,
-                      style: GoogleFonts.syne(
+                      style: AppTextStyles.label.copyWith(
                         fontSize: 13,
-                        fontWeight: FontWeight.w700,
                         color: AppColors.textV2Primary,
                       ),
                       overflow: TextOverflow.ellipsis,
@@ -821,9 +939,15 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
   }
 
   Widget _buildPartnerModeRow() {
+    final pairedSessionsEnabled = ref.watch(
+      pairedFriendSessionsEnabledProvider,
+    );
     final modes = [
       (id: 'solo', label: 'Solo', icon: Icons.person_outline_rounded),
-      (id: 'friends', label: 'Friends', icon: Icons.group_outlined),
+      if (pairedSessionsEnabled) ...[
+        (id: 'bot', label: 'Bot', icon: Icons.smart_toy_outlined),
+        (id: 'friends', label: 'Friend', icon: Icons.person_add_alt_1),
+      ],
       (id: 'random', label: 'Random', icon: Icons.shuffle_rounded),
     ];
     return Row(
@@ -833,7 +957,13 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
           child: GestureDetector(
             onTap: () {
               HapticManager.light();
-              setState(() => _partnerMode = m.id);
+              setState(() {
+                _partnerMode = m.id;
+                if (m.id != 'friends') _selectedFriends.clear();
+              });
+              if (m.id == 'friends') {
+                _loadMutualFollows();
+              }
               if (m.id == 'random' && _selectedType != null) {
                 context.push(AppRouteLocations.matchmaking(_selectedType!));
               }
@@ -843,7 +973,9 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
               margin: EdgeInsets.only(right: m.id == 'random' ? 0 : 8),
               padding: const EdgeInsets.symmetric(vertical: 12),
               decoration: BoxDecoration(
-                color: isActive ? AppColors.surfaceV2Elevated : AppColors.surfaceV2,
+                color: isActive
+                    ? AppColors.surfaceV2Elevated
+                    : AppColors.surfaceV2,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: isActive
@@ -854,16 +986,22 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
               ),
               child: Column(
                 children: [
-                  Icon(m.icon,
+                  Icon(
+                    m.icon,
                     size: 20,
-                    color: isActive ? AppColors.accentLime : AppColors.textV2Tertiary,
+                    color: isActive
+                        ? AppColors.accentLime
+                        : AppColors.textV2Tertiary,
                   ),
                   const SizedBox(height: 4),
-                  Text(m.label,
-                    style: GoogleFonts.outfit(
+                  Text(
+                    m.label,
+                    style: AppTextStyles.caption.copyWith(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: isActive ? AppColors.textV2Primary : AppColors.textV2Tertiary,
+                      color: isActive
+                          ? AppColors.textV2Primary
+                          : AppColors.textV2Tertiary,
                     ),
                   ),
                 ],
@@ -888,13 +1026,23 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
             ),
             child: TextField(
               controller: _searchController,
-              style: const TextStyle(color: AppColors.textV2Primary, fontSize: 13),
+              style: const TextStyle(
+                color: AppColors.textV2Primary,
+                fontSize: 13,
+              ),
               decoration: InputDecoration(
                 hintText: 'Search friends...',
                 hintStyle: TextStyle(color: AppColors.textV2Tertiary),
-                prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textV2Tertiary, size: 18),
+                prefixIcon: const Icon(
+                  Icons.search_rounded,
+                  color: AppColors.textV2Tertiary,
+                  size: 18,
+                ),
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
               ),
               onChanged: (v) => setState(() => _searchQuery = v),
             ),
@@ -953,9 +1101,8 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                   children: [
                     Text(
                       '$_weekSessions',
-                      style: GoogleFonts.syne(
+                      style: AppTextStyles.h2.copyWith(
                         fontSize: 28,
-                        fontWeight: FontWeight.w800,
                         color: AppColors.textV2Primary,
                         height: 1.0,
                       ),
@@ -990,9 +1137,8 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                 const SizedBox(height: 6),
                 Text(
                   '$_weekSessions session${_weekSessions == 1 ? '' : 's'}',
-                  style: GoogleFonts.syne(
+                  style: AppTextStyles.h4.copyWith(
                     fontSize: 22,
-                    fontWeight: FontWeight.w800,
                     color: AppColors.textV2Primary,
                     height: 1.1,
                   ),
@@ -1002,18 +1148,16 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                   children: [
                     Text(
                       '$_streakDays 🔥',
-                      style: GoogleFonts.syne(
+                      style: AppTextStyles.label.copyWith(
                         fontSize: 15,
-                        fontWeight: FontWeight.w700,
                         color: AppColors.accentLime,
                       ),
                     ),
                     const SizedBox(width: 16),
                     Text(
                       '$_totalSessions',
-                      style: GoogleFonts.syne(
+                      style: AppTextStyles.label.copyWith(
                         fontSize: 15,
-                        fontWeight: FontWeight.w700,
                         color: AppColors.textV2Primary,
                       ),
                     ),
@@ -1054,7 +1198,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
         if (_selectedType != null && !_isLoading) {
           HapticManager.medium();
           if (_selectedType == WorkoutType.gym) {
-            setState(() => _view = 'plan');
+            _navigateToPlanView();
           } else {
             _handleStartSession();
           }
@@ -1091,20 +1235,18 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                       _selectedType == null
                           ? 'Select a workout type'
                           : 'Start ${_getTypeLabel(_selectedType!)} Session',
-                      style: GoogleFonts.syne(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
+                      style: AppTextStyles.bodyLarge.copyWith(
                         color: _selectedType == null
                             ? AppColors.textV2Tertiary
                             : AppColors.backgroundV2,
                         letterSpacing: -0.3,
                       ),
                     ),
-                    if (_partnerMode == 'friends' && _selectedFriends.isNotEmpty)
+                    if (_partnerMode == 'friends' &&
+                        _selectedFriends.isNotEmpty)
                       Text(
                         'with ${_selectedFriends.length} friend${_selectedFriends.length > 1 ? 's' : ''}',
-                        style: GoogleFonts.outfit(
-                          fontSize: 12,
+                        style: AppTextStyles.caption.copyWith(
                           fontWeight: FontWeight.w500,
                           color: AppColors.backgroundV2.withValues(alpha: 0.7),
                         ),
@@ -1137,18 +1279,20 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
     (type: WorkoutType.swimming, label: 'Swim'),
   ];
 
-
   Widget _buildRecentList() {
     if (_isLoadingStats) {
       return Column(
-        children: List.generate(2, (_) => Container(
-          height: 64,
-          margin: const EdgeInsets.only(bottom: 8),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceV2,
-            borderRadius: BorderRadius.circular(14),
+        children: List.generate(
+          2,
+          (_) => Container(
+            height: 64,
+            margin: const EdgeInsets.only(bottom: 8),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceV2,
+              borderRadius: BorderRadius.circular(14),
+            ),
           ),
-        )),
+        ),
       );
     }
     return Column(
@@ -1209,24 +1353,37 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
 
   Color _getTypeColorByString(String type) {
     switch (type) {
-      case 'gym': return const Color(0xFFC8FF00);
-      case 'running': return const Color(0xFF38BDF8);
-      case 'cycling': return const Color(0xFFA78BFA);
-      case 'swimming': return const Color(0xFF22D3EE);
-      case 'yoga': return const Color(0xFF34D399);
-      case 'hiit': return const Color(0xFFFF8C00);
-      default: return const Color(0xFF888888);
+      case 'gym':
+        return const Color(0xFFC8FF00);
+      case 'running':
+        return const Color(0xFF38BDF8);
+      case 'cycling':
+        return const Color(0xFFA78BFA);
+      case 'swimming':
+        return const Color(0xFF22D3EE);
+      case 'yoga':
+        return const Color(0xFF34D399);
+      case 'hiit':
+        return const Color(0xFFFF8C00);
+      default:
+        return const Color(0xFF888888);
     }
   }
 
   String _workoutIconForType(String type) {
     switch (type) {
-      case 'running': return 'directions_run';
-      case 'cycling': return 'directions_bike';
-      case 'swimming': return 'pool';
-      case 'yoga': return 'self_improvement';
-      case 'hiit': return 'timer';
-      default: return 'fitness_center';
+      case 'running':
+        return 'directions_run';
+      case 'cycling':
+        return 'directions_bike';
+      case 'swimming':
+        return 'pool';
+      case 'yoga':
+        return 'self_improvement';
+      case 'hiit':
+        return 'timer';
+      default:
+        return 'fitness_center';
     }
   }
 
@@ -1243,13 +1400,52 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
     return '${m}m';
   }
 
+  Future<void> _showPastWorkoutsPopup() async {
+    // Gather gym sessions that have at least one exercise in the summary.
+    final gymSessions = _recentSessions
+        .where(
+          (s) =>
+              s.type == 'gym' &&
+              s.summary != null &&
+              (s.summary!.exercises?.isNotEmpty ?? false),
+        )
+        .toList();
+
+    if (gymSessions.isEmpty || !mounted) return;
+
+    final selected = await showModalBottomSheet<Session>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => _PastWorkoutsSheet(sessions: gymSessions),
+    );
+
+    if (selected != null && mounted) {
+      _loadPlanFromSession(selected);
+    }
+  }
+
+  void _loadPlanFromSession(Session session) {
+    const uuid = Uuid();
+    final exercises = session.summary?.exercises ?? [];
+    final loaded = exercises.asMap().entries.map((entry) {
+      final ex = entry.value;
+      return PlannedExercise.custom(
+        id: uuid.v4(),
+        name: ex.name,
+        plannedSets: ex.sets > 0 ? ex.sets.clamp(1, 20) : 3,
+        order: entry.key,
+      );
+    }).toList();
+    setState(() => _plan = loaded);
+  }
+
   Widget _buildPlanView() {
     const bg = AppColors.backgroundV2;
     const s1 = AppColors.surfaceV2;
     const t1 = AppColors.textV2Primary;
     const t2 = AppColors.textV2Secondary;
-    const t3 = AppColors.textV2Tertiary;
-    final totalSets = _plan.fold<int>(0, (sum, e) => sum + e.sets);
+    final totalSets = _plan.fold<int>(0, (sum, e) => sum + e.plannedSets);
 
     return Scaffold(
       backgroundColor: bg,
@@ -1270,16 +1466,19 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                         color: AppColors.surfaceV2,
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: Icon(Icons.arrow_back_rounded, color: t2, size: 18),
+                      child: Icon(
+                        Icons.arrow_back_rounded,
+                        color: t2,
+                        size: 18,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Text(
                       'Plan Session',
-                      style: GoogleFonts.syne(
+                      style: AppTextStyles.h4.copyWith(
                         fontSize: 22,
-                        fontWeight: FontWeight.w800,
                         color: t1,
                         letterSpacing: -0.5,
                       ),
@@ -1287,10 +1486,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                   ),
                   Text(
                     '$totalSets sets total',
-                    style: GoogleFonts.outfit(
-                      fontSize: 12,
-                      color: t2,
-                    ),
+                    style: AppTextStyles.caption.copyWith(color: t2),
                   ),
                 ],
               ),
@@ -1315,98 +1511,95 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                     item: item,
                     index: index,
                     onDelete: () => setState(() => _plan.removeAt(index)),
-                    onSetsChanged: (sets) => setState(() => item.sets = sets),
+                    onSetsChanged: (sets) => setState(() {
+                      // PlannedExercise is immutable — replace entry (T024).
+                      final current = _plan[index];
+                      if (current.source == PlannedExerciseSource.catalog) {
+                        _plan[index] = PlannedExercise.catalog(
+                          id: current.id,
+                          exerciseId: current.exerciseId!,
+                          name: current.name,
+                          plannedSets: sets,
+                          order: current.order,
+                          muscleGroup: current.muscleGroup,
+                          equipment: current.equipment,
+                        );
+                      } else {
+                        _plan[index] = PlannedExercise.custom(
+                          id: current.id,
+                          name: current.name,
+                          plannedSets: sets,
+                          order: current.order,
+                          personalExerciseId: current.personalExerciseId,
+                          muscleGroup: current.muscleGroup,
+                          equipment: current.equipment,
+                        );
+                      }
+                    }),
                   );
                 },
               ),
             ),
-            // Add exercise input
+            // Add exercise button (T019 — replaces inline free-text field)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      color: s1,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: TextField(
-                      controller: _exerciseInputController,
-                      style: GoogleFonts.outfit(fontSize: 14, color: t1),
-                      decoration: InputDecoration(
-                        hintText: 'Add exercise...',
-                        hintStyle: GoogleFonts.outfit(color: t3),
-                        border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 12,
-                        ),
-                        suffixIcon: IconButton(
-                          icon: Icon(Icons.add, color: AppColors.accentLime),
-                          onPressed: _addExercise,
-                        ),
-                      ),
-                      onChanged: (value) {
-                        setState(() {
-                          _suggestions = value.isEmpty
-                              ? []
-                              : kExerciseSuggestions
-                                  .where((s) => s.toLowerCase().contains(value.toLowerCase()))
-                                  .take(4)
-                                  .toList();
-                        });
-                      },
-                      onSubmitted: (_) => _addExercise(),
-                    ),
+              child: GestureDetector(
+                onTap: _openExercisePicker,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: s1,
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  if (_suggestions.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 6,
-                      children: _suggestions.map((s) {
-                        return GestureDetector(
-                          onTap: () {
-                            _exerciseInputController.text = s;
-                            _addExercise();
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 5,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.accentLime.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              s,
-                              style: GoogleFonts.outfit(
-                                fontSize: 11,
-                                color: AppColors.accentLime,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ],
-                ],
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.add, color: AppColors.accentLime, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Add exercise',
+                        style: AppTextStyles.body.copyWith(color: t1),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 12),
             // Begin session button
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: ZyntroButton(
-                title: 'Begin Session ⚡  ($totalSets sets)',
-                fullWidth: true,
-                size: ZyntroButtonSize.lg,
-                variant: ZyntroButtonVariant.primary,
-                loading: _isLoading,
-                onPressed: _isLoading ? null : () {
-                  HapticManager.heavy();
-                  _handleStartSessionWithPlan();
-                },
+              child: Column(
+                children: [
+                  if (_plan.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        'Add at least one exercise to start',
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.textV2Tertiary,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ZyntroButton(
+                    title: _plan.isEmpty
+                        ? 'Add exercises to begin'
+                        : 'Begin Session ⚡  ($totalSets sets)',
+                    fullWidth: true,
+                    size: ZyntroButtonSize.lg,
+                    variant: ZyntroButtonVariant.primary,
+                    loading: _isLoading,
+                    onPressed: _isLoading || _plan.isEmpty
+                        ? null
+                        : () {
+                            HapticManager.heavy();
+                            _handleStartSessionWithPlan();
+                          },
+                  ),
+                ],
               ),
             ),
           ],
@@ -1415,15 +1608,49 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
     );
   }
 
-  void _addExercise() {
-    final name = _exerciseInputController.text.trim();
-    if (name.isEmpty) return;
-    setState(() {
-      _plan.add(ExercisePlanItem(name: name, sets: 3));
-      _exerciseInputController.clear();
-      _suggestions = [];
-    });
-    HapticManager.light();
+  Future<void> _openExercisePicker() async {
+    final authState = ref.read(authSessionProvider);
+    final uid = authState.valueOrNull?.id;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.85,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (_, scrollController) => GymExercisePickerSheet(
+          userId: uid,
+          onExerciseSelected: (exercise) {
+            Navigator.of(ctx).pop();
+            // Rebuild with correct order index; preserve catalog/custom source (T025).
+            final next = _plan.length;
+            final withOrder = exercise.source == PlannedExerciseSource.catalog
+                ? PlannedExercise.catalog(
+                    id: exercise.id,
+                    exerciseId: exercise.exerciseId!,
+                    name: exercise.name,
+                    plannedSets: exercise.plannedSets,
+                    order: next,
+                    muscleGroup: exercise.muscleGroup,
+                    equipment: exercise.equipment,
+                  )
+                : PlannedExercise.custom(
+                    id: exercise.id,
+                    name: exercise.name,
+                    plannedSets: exercise.plannedSets,
+                    order: next,
+                    personalExerciseId: exercise.personalExerciseId,
+                    muscleGroup: exercise.muscleGroup,
+                    equipment: exercise.equipment,
+                  );
+            setState(() => _plan.add(withOrder));
+            HapticManager.light();
+          },
+        ),
+      ),
+    );
   }
 
   Future<void> _handleStartSessionWithPlan() async {
@@ -1437,26 +1664,138 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
       if (uid == null) throw Exception('Not authenticated');
 
       final sessionService = ref.read(sessionServiceProvider);
+      final existingSessionId = await sessionService.checkActiveSession(uid);
 
-      final invitedIds = _partnerMode == 'friends' && _selectedFriends.isNotEmpty
+      if (existingSessionId != null && mounted) {
+        setState(() => _isLoading = false);
+        final action = await showModalBottomSheet<String>(
+          context: context,
+          backgroundColor: Colors.transparent,
+          builder: (ctx) => Container(
+            margin: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceV2Elevated,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Active Session Found',
+                  style: AppTextStyles.h4.copyWith(
+                    color: AppColors.textV2Primary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'You already have a workout in progress. Resume it or end it to start a new one.',
+                  style: AppTextStyles.body.copyWith(
+                    color: AppColors.textV2Secondary,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                ZyntroButton(
+                  title: 'Resume Active Session',
+                  variant: ZyntroButtonVariant.primary,
+                  fullWidth: true,
+                  onPressed: () => Navigator.pop(ctx, 'resume'),
+                ),
+                const SizedBox(height: 8),
+                ZyntroButton(
+                  title: 'End Old & Start New',
+                  variant: ZyntroButtonVariant.destructive,
+                  fullWidth: true,
+                  onPressed: () => Navigator.pop(ctx, 'end'),
+                ),
+                const SizedBox(height: 8),
+                ZyntroButton(
+                  title: 'Cancel',
+                  variant: ZyntroButtonVariant.ghost,
+                  fullWidth: true,
+                  onPressed: () => Navigator.pop(ctx, 'cancel'),
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        );
+
+        if (!mounted) return;
+
+        if (action == 'resume') {
+          context.push(
+            AppRouteLocations.sessionRoom(existingSessionId, type: type.value),
+          );
+          return;
+        } else if (action == 'end') {
+          setState(() => _isLoading = true);
+          await sessionService.endSession(existingSessionId, uid, null);
+        } else {
+          return;
+        }
+      }
+
+      final invitedIds =
+          _partnerMode == 'friends' && _selectedFriends.isNotEmpty
           ? _selectedFriends.toList()
           : null;
-
-      final sessionId = await sessionService.createSession(
-        hostId: uid,
-        type: type.value,
-        title: '${type.displayName} Session',
-        invitedUserIds: invitedIds,
-        phase: SessionPhase.live,
+      // Re-stamp order; preserve catalog/custom identity (T025).
+      final plannedExercises = _plan.asMap().entries.map((entry) {
+        final item = entry.value;
+        if (item.source == PlannedExerciseSource.catalog) {
+          return PlannedExercise.catalog(
+            id: item.id,
+            exerciseId: item.exerciseId!,
+            name: item.name,
+            plannedSets: item.plannedSets,
+            order: entry.key,
+            muscleGroup: item.muscleGroup,
+            equipment: item.equipment,
+          );
+        }
+        return PlannedExercise.custom(
+          id: item.id,
+          name: item.name,
+          plannedSets: item.plannedSets,
+          order: entry.key,
+          personalExerciseId: item.personalExerciseId,
+          muscleGroup: item.muscleGroup,
+          equipment: item.equipment,
+        );
+      }).toList();
+      final gymPlan = GymSessionPlan(
+        userId: uid,
+        workoutType: type,
+        source: GymSessionPlanSource.hostTemplate,
+        isReady: true,
+        exercises: plannedExercises,
+        updatedAt: DateTime.now(),
       );
+
+      final sessionId = _partnerMode == 'bot'
+          ? await sessionService.createBotPairedSession(
+              hostId: uid,
+              type: type.value,
+              title: '${type.displayName} Session',
+              plan: gymPlan,
+            )
+          : await sessionService.createSession(
+              hostId: uid,
+              type: type.value,
+              title: '${type.displayName} Session',
+              invitedUserIds: invitedIds,
+              phase: SessionPhase.live,
+            );
 
       await HapticFeedback.mediumImpact();
 
       if (mounted) {
-        final exerciseNames = _plan.map((e) => e.name).toList();
         context.push(
           AppRouteLocations.sessionRoom(sessionId, type: type.value),
-          extra: {'plannedExercises': exerciseNames},
+          extra: {'plannedExercises': plannedExercises},
         );
       }
     } catch (e) {
@@ -1479,7 +1818,7 @@ class SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       title.toUpperCase(),
-      style: GoogleFonts.outfit(
+      style: AppTextStyles.caption.copyWith(
         fontSize: 10,
         fontWeight: FontWeight.w700,
         color: AppColors.textV2Tertiary,
@@ -1490,7 +1829,7 @@ class SectionHeader extends StatelessWidget {
 }
 
 class _ExercisePlanRow extends StatelessWidget {
-  final ExercisePlanItem item;
+  final PlannedExercise item;
   final int index;
   final VoidCallback onDelete;
   final ValueChanged<int> onSetsChanged;
@@ -1531,18 +1870,13 @@ class _ExercisePlanRow extends StatelessWidget {
           children: [
             Text(
               '${index + 1}',
-              style: GoogleFonts.syne(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: t3,
-              ),
+              style: AppTextStyles.label.copyWith(fontSize: 13, color: t3),
             ),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
                 item.name,
-                style: GoogleFonts.outfit(
-                  fontSize: 14,
+                style: AppTextStyles.body.copyWith(
                   fontWeight: FontWeight.w500,
                   color: t1,
                 ),
@@ -1552,7 +1886,7 @@ class _ExercisePlanRow extends StatelessWidget {
             Row(
               children: List.generate(6, (i) {
                 final n = i + 1;
-                final isActive = item.sets == n;
+                final isActive = item.plannedSets == n;
                 return GestureDetector(
                   onTap: () => onSetsChanged(n),
                   child: Container(
@@ -1566,7 +1900,7 @@ class _ExercisePlanRow extends StatelessWidget {
                     child: Center(
                       child: Text(
                         '$n',
-                        style: GoogleFonts.syne(
+                        style: AppTextStyles.caption.copyWith(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
                           color: isActive ? AppColors.backgroundV2 : t3,
@@ -1632,3 +1966,163 @@ class _RingPainter extends CustomPainter {
   bool shouldRepaint(_RingPainter old) => old.progress != progress;
 }
 
+class _PastWorkoutsSheet extends StatefulWidget {
+  const _PastWorkoutsSheet({required this.sessions});
+
+  final List<Session> sessions;
+
+  @override
+  State<_PastWorkoutsSheet> createState() => _PastWorkoutsSheetState();
+}
+
+class _PastWorkoutsSheetState extends State<_PastWorkoutsSheet> {
+  int? _selected;
+
+  String _relativeDate(DateTime date) {
+    final diff = DateTime.now().difference(date);
+    if (diff.inDays == 0) return 'Today';
+    if (diff.inDays == 1) return 'Yesterday';
+    if (diff.inDays < 7) return '${diff.inDays} days ago';
+    return '${(diff.inDays / 7).floor()}w ago';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceV2Elevated,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Handle
+          Center(
+            child: Container(
+              margin: const EdgeInsets.only(top: 12),
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.surfaceV2Active,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+            child: Text(
+              'Load a past workout?',
+              style: AppTextStyles.h4.copyWith(
+                color: AppColors.textV2Primary,
+                fontSize: 20,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+            child: Text(
+              'Pick a workout to load into your plan, then tweak or start it as-is.',
+              style: AppTextStyles.body.copyWith(
+                color: AppColors.textV2Secondary,
+                height: 1.4,
+              ),
+            ),
+          ),
+          ...widget.sessions.asMap().entries.map((entry) {
+            final i = entry.key;
+            final session = entry.value;
+            final exercises = session.summary?.exercises ?? [];
+            final isSelected = _selected == i;
+            return GestureDetector(
+              onTap: () => setState(() => _selected = isSelected ? null : i),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                margin: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? AppColors.accentLime.withValues(alpha: 0.1)
+                      : AppColors.surfaceV2,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: isSelected
+                        ? AppColors.accentLime
+                        : Colors.transparent,
+                    width: 1.5,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            session.title.isNotEmpty
+                                ? session.title
+                                : 'Gym Session',
+                            style: AppTextStyles.label.copyWith(
+                              color: AppColors.textV2Primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _relativeDate(session.createdAt),
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.textV2Secondary,
+                            ),
+                          ),
+                          if (exercises.isNotEmpty) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              exercises.map((e) => e.name).join(' · '),
+                              style: AppTextStyles.caption.copyWith(
+                                color: AppColors.textV2Secondary,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    if (isSelected)
+                      const Icon(
+                        Icons.check_circle_rounded,
+                        color: AppColors.accentLime,
+                        size: 22,
+                      ),
+                  ],
+                ),
+              ),
+            );
+          }),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            child: ZyntroButton(
+              title: 'Load',
+              fullWidth: true,
+              variant: ZyntroButtonVariant.primary,
+              onPressed: _selected == null
+                  ? null
+                  : () => Navigator.pop(context, widget.sessions[_selected!]),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
+            child: ZyntroButton(
+              title: 'Start from scratch',
+              fullWidth: true,
+              variant: ZyntroButtonVariant.ghost,
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

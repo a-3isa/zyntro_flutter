@@ -25,6 +25,36 @@ class FollowService {
     return '${followerId}_$followeeId';
   }
 
+  /// Generate block document ID used by moderation service.
+  String _getBlockId(String blockerId, String blockedUserId) {
+    return '${blockerId}_$blockedUserId';
+  }
+
+  /// Real friend workout invites require mutual approved follows and no blocks.
+  Future<bool> canInviteToPairedSession({
+    required String hostId,
+    required String inviteeId,
+  }) async {
+    final hostFollowsInvitee = await getFollowStatus(hostId, inviteeId);
+    final inviteeFollowsHost = await getFollowStatus(inviteeId, hostId);
+    if (hostFollowsInvitee != FollowStatus.approved ||
+        inviteeFollowsHost != FollowStatus.approved) {
+      return false;
+    }
+
+    final hostBlocksInvitee = await _firestore
+        .collection('blocks')
+        .doc(_getBlockId(hostId, inviteeId))
+        .get();
+    if (hostBlocksInvitee.exists) return false;
+
+    final inviteeBlocksHost = await _firestore
+        .collection('blocks')
+        .doc(_getBlockId(inviteeId, hostId))
+        .get();
+    return !inviteeBlocksHost.exists;
+  }
+
   /// Get the follow status between two users.
   /// Matches RN getFollowStatus.
   Future<FollowStatus?> getFollowStatus(

@@ -237,6 +237,17 @@ class PostService {
     return snapshot.docs.map((doc) => Post.fromFirestore(doc)).toList();
   }
 
+  /// Real-time stream of posts by a specific user.
+  Stream<List<Post>> watchUserPosts(String userId, {int limit = 20}) {
+    return _firestore
+        .collection('posts')
+        .where('authorId', isEqualTo: userId)
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map((snap) => snap.docs.map((doc) => Post.fromFirestore(doc)).toList());
+  }
+
   // Prefetch cache
   final Map<String, FeedResult> _prefetchCache = {};
 
@@ -752,12 +763,12 @@ final publicFeedProvider = FutureProvider.autoDispose<List<Post>>((ref) async {
   return ref.watch(postServiceProvider).getPublicFeedPosts();
 });
 
-/// User posts provider.
-final userPostsProvider = FutureProvider.family<List<Post>, String>((
+/// User posts provider — real-time stream so the grid updates without a pull-to-refresh.
+final userPostsProvider = StreamProvider.family<List<Post>, String>((
   ref,
   userId,
-) async {
-  return ref.watch(postServiceProvider).getUserPosts(userId);
+) {
+  return ref.watch(postServiceProvider).watchUserPosts(userId);
 });
 
 /// Comments stream provider.

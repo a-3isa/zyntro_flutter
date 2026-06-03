@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -16,7 +16,8 @@ class ParallelCardioView extends StatefulWidget {
     required double distanceKm,
     required int durationSeconds,
     required String activityType,
-  }) onCardioLog;
+  })
+  onCardioLog;
   final ParallelPartnerData partner;
 
   const ParallelCardioView({
@@ -143,10 +144,7 @@ class _ParallelCardioViewState extends State<ParallelCardioView> {
           Align(
             alignment: Alignment.center,
             child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 6,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
               decoration: BoxDecoration(
                 color: AppColors.primary.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(999),
@@ -225,8 +223,9 @@ class _ParallelCardioViewState extends State<ParallelCardioView> {
             const SizedBox(height: 6),
             TextField(
               controller: _distanceController,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               style: TextStyle(color: AppColors.textV2Primary, fontSize: 18),
               decoration: InputDecoration(
                 filled: true,
@@ -292,10 +291,7 @@ class _CardioPartnerCard extends StatelessWidget {
   final ParallelPartnerData partner;
   final Color accentColor;
 
-  const _CardioPartnerCard({
-    required this.partner,
-    required this.accentColor,
-  });
+  const _CardioPartnerCard({required this.partner, required this.accentColor});
 
   String _formatDuration(Duration d) {
     final int totalSeconds = d.inSeconds;
@@ -344,17 +340,25 @@ class _CardioPartnerCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const Text(
+              'Partner progress',
+              style: TextStyle(
+                color: AppColors.textV2Secondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 10),
             Row(
               children: [
                 CircleAvatar(
                   radius: 18,
                   backgroundColor: AppColors.surfaceV2,
-                  backgroundImage: partner.photoUrl != null &&
-                          partner.photoUrl!.isNotEmpty
+                  backgroundImage:
+                      partner.photoUrl != null && partner.photoUrl!.isNotEmpty
                       ? CachedNetworkImageProvider(partner.photoUrl!)
                       : null,
-                  child: partner.photoUrl == null ||
-                          partner.photoUrl!.isEmpty
+                  child: partner.photoUrl == null || partner.photoUrl!.isEmpty
                       ? Text(
                           partner.name.isNotEmpty
                               ? partner.name[0].toUpperCase()
@@ -407,6 +411,15 @@ class _CardioPartnerCard extends StatelessWidget {
               _buildRaceStats()
             else
               _buildGymStats(),
+            const SizedBox(height: 8),
+            const Text(
+              'Shared time',
+              style: TextStyle(
+                color: AppColors.textV2Tertiary,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ],
         ),
       ),
@@ -424,10 +437,7 @@ class _CardioPartnerCard extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: _MetricTile(
-            label: 'PACE',
-            value: partner.averagePace ?? '—',
-          ),
+          child: _MetricTile(label: 'PACE', value: partner.averagePace ?? '—'),
         ),
         const SizedBox(width: 8),
         Expanded(
@@ -454,7 +464,7 @@ class _CardioPartnerCard extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          'Set ${partner.totalSets}',
+          '${partner.totalSets} sets',
           style: TextStyle(
             color: AppColors.textV2Secondary,
             fontSize: 13,

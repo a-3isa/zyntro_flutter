@@ -67,10 +67,9 @@ class _ZyntroButtonState extends State<ZyntroButton>
       duration: AppDurations.fast,
       vsync: this,
     );
-    _scaleAnimation =
-        Tween<double>(begin: 1.0, end: 0.97).animate(
-          CurvedAnimation(parent: _scaleController, curve: AppCurves.press),
-        );
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.97).animate(
+      CurvedAnimation(parent: _scaleController, curve: AppCurves.press),
+    );
 
     // Icon bounce animation
     _iconController = AnimationController(
@@ -148,9 +147,6 @@ class _ZyntroButtonState extends State<ZyntroButton>
         return AppColors.textV2Secondary;
     }
   }
-
-  /// Gradient used by the premium variant — based on [AppColors.premiumGradient].
-  List<Color> get _premiumGradientColors => AppColors.premiumGradient;
 
   List<BoxShadow>? _getBoxShadow() {
     if (widget.variant == ZyntroButtonVariant.primary && !_isPressed) {
@@ -300,6 +296,9 @@ class _ZyntroButtonState extends State<ZyntroButton>
     final fillColor = _getFillColor();
     final boxShadow = _getBoxShadow();
     final border = _getBorder();
+    final gradient = widget.variant == ZyntroButtonVariant.premium
+        ? const LinearGradient(colors: AppColors.premiumGradient)
+        : null;
 
     Widget content = Semantics(
       label: widget.semanticLabel ?? widget.title,
@@ -324,7 +323,8 @@ class _ZyntroButtonState extends State<ZyntroButton>
               constraints: BoxConstraints(minHeight: _getMinHeight(context)),
               padding: _getPadding(context),
               decoration: BoxDecoration(
-                color: fillColor,
+                color: gradient == null ? fillColor : null,
+                gradient: gradient,
                 borderRadius: BorderRadius.circular(AppBorderRadius.md),
                 border: border,
                 boxShadow: boxShadow,
