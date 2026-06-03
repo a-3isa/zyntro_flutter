@@ -8,12 +8,14 @@ import '../../../core/models/models.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/auth_providers.dart';
+import '../../../services/facebook_link_service.dart';
 import '../../../services/follow_service.dart';
 import '../../../services/leaderboard_service.dart';
 import '../../../services/user_service.dart';
 import '../../../services/user_cache_service.dart';
 import '../../../utils/haptic_manager.dart';
 import '../../../utils/image_cache_manager.dart';
+import 'providers/facebook_friends_provider.dart';
 
 /// Social page with Board, Buddies, and Find tabs.
 class SocialPage extends ConsumerStatefulWidget {
@@ -43,6 +45,7 @@ class _SocialPageState extends ConsumerState<SocialPage>
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   final Set<String> _followedInFind = {};
+  bool _fbBannerDismissed = false;
 
   @override
   void initState() {
@@ -455,8 +458,19 @@ class _SocialPageState extends ConsumerState<SocialPage>
   // ── Find tab ───────────────────────────────────────────────────────────────
 
   Widget _buildFindTab() {
+    final profile = ref.watch(authUserProfileProvider).valueOrNull;
+    final isFbConnected = profile?.isFacebookConnected ?? false;
+
     return Column(
       children: [
+        // Facebook connect banner (shown when not connected and not dismissed)
+        if (!isFbConnected && !_fbBannerDismissed)
+          _buildFacebookConnectBanner(),
+
+        // People You May Know (shown when FB connected)
+        if (isFbConnected) _buildPeopleYouMayKnow(),
+
+        // Search bar
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
           child: Container(
@@ -508,6 +522,233 @@ class _SocialPageState extends ConsumerState<SocialPage>
         ),
       ],
     );
+  }
+
+  Widget _buildFacebookConnectBanner() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1877F2).withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: const Color(0xFF1877F2).withValues(alpha: 0.25),
+          ),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.people_alt_outlined, color: Color(0xFF1877F2), size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Find friends from Facebook',
+                    style: AppTextStyles.body.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textV2Primary,
+                      fontSize: 13,
+                    ),
+                  ),
+                  Text(
+                    'Connect to see who\'s already on Zyntro',
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.textV2Secondary,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: () => _connectFacebookFromFind(),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1877F2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'Connect',
+                  style: AppTextStyles.caption.copyWith(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            GestureDetector(
+              onTap: () => setState(() => _fbBannerDismissed = true),
+              child: const Icon(Icons.close, color: AppColors.textV2Tertiary, size: 16),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPeopleYouMayKnow() {
+    final friendsAsync = ref.watch(facebookFriendsProvider);
+
+    return friendsAsync.when(
+      data: (friends) {
+        if (friends.isEmpty) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'PEOPLE YOU MAY KNOW',
+                style: AppTextStyles.caption.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.5,
+                  fontSize: 10,
+                  color: AppColors.textV2Tertiary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ...friends.take(10).map((user) => _buildFriendRow(user)),
+            ],
+          ),
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (e, st) => const SizedBox.shrink(),
+    );
+  }
+
+  Widget _buildFriendRow(dynamic user) {
+    final isFollowed = _followedInFind.contains(user.id as String);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 2),
+        leading: CircleAvatar(
+          radius: 20,
+          backgroundColor: AppColors.surfaceV2Active,
+          backgroundImage: (user.photoUrl as String?) != null
+              ? CachedNetworkImageProvider(user.photoUrl as String)
+              : null,
+          child: (user.photoUrl as String?) == null
+              ? Text(
+                  (user.displayName as String).isNotEmpty
+                      ? (user.displayName as String)[0].toUpperCase()
+                      : '?',
+                  style: AppTextStyles.body.copyWith(
+                    color: AppColors.accentLime,
+                    fontWeight: FontWeight.w700,
+                  ),
+                )
+              : null,
+        ),
+        title: Text(
+          user.displayName as String,
+          style: AppTextStyles.body.copyWith(
+            fontWeight: FontWeight.w600,
+            color: AppColors.textV2Primary,
+            fontSize: 14,
+          ),
+        ),
+        trailing: isFollowed
+            ? Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceV2Active,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'Following',
+                  style: AppTextStyles.caption.copyWith(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textV2Tertiary,
+                  ),
+                ),
+              )
+            : GestureDetector(
+                onTap: () => _followFacebookFriend(user.id as String),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.accentLime,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'Follow',
+                    style: AppTextStyles.caption.copyWith(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF080808),
+                    ),
+                  ),
+                ),
+              ),
+      ),
+    );
+  }
+
+  Future<void> _followFacebookFriend(String targetUserId) async {
+    final currentUserId = ref.read(authSessionProvider).valueOrNull?.id;
+    if (currentUserId == null) return;
+
+    final targetProfile = ref.read(facebookFriendsProvider).valueOrNull
+        ?.firstWhere((u) => u.id == targetUserId);
+    if (targetProfile == null) return;
+
+    setState(() => _followedInFind.add(targetUserId));
+
+    await ref.read(followServiceProvider).followUser(
+      followerId: currentUserId,
+      followeeId: targetUserId,
+      isPrivate: targetProfile.isPrivate,
+    );
+  }
+
+  Future<void> _connectFacebookFromFind() async {
+    final uid = ref.read(authSessionProvider).valueOrNull?.id;
+    if (uid == null) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final fbService = ref.read(facebookLinkServiceProvider);
+    final result = await fbService.connectFacebook(uid);
+
+    if (!mounted) return;
+    ref.invalidate(authUserProfileProvider);
+    ref.invalidate(facebookFriendsProvider);
+
+    String snack;
+    switch (result) {
+      case FacebookLinkSuccess(:final value):
+        final count = value.length;
+        snack = count > 0
+            ? 'Facebook connected! Found $count friend${count == 1 ? '' : 's'} on Zyntro.'
+            : 'Facebook connected.';
+      case FacebookLinkNoFriendsPermission():
+        snack = 'Facebook connected. Grant friend access to see friends.';
+      case FacebookLinkCancelled():
+        snack = 'Facebook connection cancelled.';
+      case FacebookLinkFailure(:final message):
+        messenger.showSnackBar(SnackBar(
+          content: Text(message),
+          backgroundColor: AppColors.surfaceV2Active,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ));
+        return;
+    }
+
+    messenger.showSnackBar(SnackBar(
+      content: Text(snack),
+      backgroundColor: AppColors.surfaceV2Active,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ));
   }
 }
 

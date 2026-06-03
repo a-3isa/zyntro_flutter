@@ -5,9 +5,11 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../app/navigation/app_router.dart';
+import '../../../services/facebook_link_service.dart';
 import '../../../widgets/circuit_breaker_status_widget.dart';
 import '../../auth/presentation/providers/auth_controller.dart';
 import '../../auth/auth_providers.dart';
+import '../../social/presentation/providers/facebook_friends_provider.dart';
 
 /// Settings page — v2 design (true-black + acid-lime palette).
 class SettingsPage extends ConsumerStatefulWidget {
@@ -149,6 +151,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       },
                     ),
                   ]),
+
+                  // ── Connected Accounts ───────────────────────────────────
+                  _sectionLabel('CONNECTED ACCOUNTS'),
+                  _buildConnectedAccountsCard(context),
 
                   // ── Account ──────────────────────────────────────────────
                   _sectionLabel('ACCOUNT'),
@@ -361,6 +367,183 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // ── Connected Accounts card ───────────────────────────────────────────────
+
+  Widget _buildConnectedAccountsCard(BuildContext context) {
+    final profileAsync = ref.watch(authUserProfileProvider);
+    final isFbConnected = profileAsync.valueOrNull?.isFacebookConnected ?? false;
+
+    return _buildSectionCard([
+      InkWell(
+        onTap: () => isFbConnected
+            ? _confirmDisconnectFacebook(context)
+            : _connectFacebook(context),
+        borderRadius: BorderRadius.circular(18),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1877F2).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.facebook,
+                  color: Color(0xFF1877F2),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Facebook', style: _rowLabel()),
+                    const SizedBox(height: 2),
+                    Text(
+                      isFbConnected ? 'Tap to disconnect' : 'Find friends on Zyntro',
+                      style: _rowSub(),
+                    ),
+                  ],
+                ),
+              ),
+              if (isFbConnected)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.accentLime.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'Connected',
+                    style: AppTextStyles.caption.copyWith(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.accentLime,
+                    ),
+                  ),
+                )
+              else
+                Text(
+                  'Connect',
+                  style: AppTextStyles.body.copyWith(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF1877F2),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    ]);
+  }
+
+  Future<void> _connectFacebook(BuildContext context) async {
+    HapticFeedback.lightImpact();
+    final uid = ref.read(authSessionProvider).valueOrNull?.id;
+    if (uid == null) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final fbService = ref.read(facebookLinkServiceProvider);
+    final result = await fbService.connectFacebook(uid);
+
+    if (!mounted) return;
+    ref.invalidate(authUserProfileProvider);
+    ref.invalidate(facebookFriendsProvider);
+
+    String message;
+    switch (result) {
+      case FacebookLinkSuccess(:final value):
+        final count = value.length;
+        message = count > 0
+            ? 'Facebook connected! Found $count friend${count == 1 ? '' : 's'} on Zyntro.'
+            : 'Facebook connected.';
+      case FacebookLinkNoFriendsPermission():
+        message = 'Facebook connected. Friend access wasn\'t granted — reconnect to see friends.';
+      case FacebookLinkCancelled():
+        message = 'Facebook connection cancelled.';
+      case FacebookLinkFailure(:final message):
+        _showSnackbarMessenger(messenger, message);
+        return;
+    }
+    _showSnackbarMessenger(messenger, message);
+  }
+
+  Future<void> _confirmDisconnectFacebook(BuildContext context) async {
+    HapticFeedback.lightImpact();
+    final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surfaceV2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Disconnect Facebook?',
+          style: AppTextStyles.h5.copyWith(
+            color: AppColors.textV2Primary,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        content: Text(
+          'You won\'t see Facebook friend suggestions after disconnecting.',
+          style: AppTextStyles.bodyLarge.copyWith(color: AppColors.textV2Secondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              'Cancel',
+              style: AppTextStyles.bodyLarge.copyWith(color: AppColors.textV2Secondary),
+            ),
+          ),
+          GestureDetector(
+            onTap: () => Navigator.pop(ctx, true),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.errorV2,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                'Disconnect',
+                style: AppTextStyles.bodyLarge.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      final uid = ref.read(authSessionProvider).valueOrNull?.id;
+      if (uid == null) return;
+      final fbService = ref.read(facebookLinkServiceProvider);
+      await fbService.disconnectFacebook(uid);
+      if (!mounted) return;
+      ref.invalidate(authUserProfileProvider);
+      ref.invalidate(facebookFriendsProvider);
+      _showSnackbarMessenger(messenger, 'Facebook disconnected.');
+    }
+  }
+
+  void _showSnackbarMessenger(ScaffoldMessengerState messenger, String message) {
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: AppColors.surfaceV2Active,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }

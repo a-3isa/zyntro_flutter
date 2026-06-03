@@ -9,6 +9,8 @@ class UserProfileEntity {
   final WorkoutType workoutPreference;
   final bool beginnerFlag;
   final int? trainingDaysPerWeek;
+  final String? facebookUid;
+  final DateTime? facebookConnectedAt;
 
   const UserProfileEntity({
     required this.id,
@@ -19,7 +21,11 @@ class UserProfileEntity {
     required this.workoutPreference,
     required this.beginnerFlag,
     this.trainingDaysPerWeek,
+    this.facebookUid,
+    this.facebookConnectedAt,
   });
+
+  bool get isFacebookConnected => facebookUid != null;
 
   UserProfileEntity copyWith({
     String? id,
@@ -30,6 +36,9 @@ class UserProfileEntity {
     WorkoutType? workoutPreference,
     bool? beginnerFlag,
     int? trainingDaysPerWeek,
+    String? facebookUid,
+    DateTime? facebookConnectedAt,
+    bool clearFacebookUid = false,
   }) {
     return UserProfileEntity(
       id: id ?? this.id,
@@ -40,6 +49,8 @@ class UserProfileEntity {
       workoutPreference: workoutPreference ?? this.workoutPreference,
       beginnerFlag: beginnerFlag ?? this.beginnerFlag,
       trainingDaysPerWeek: trainingDaysPerWeek ?? this.trainingDaysPerWeek,
+      facebookUid: clearFacebookUid ? null : (facebookUid ?? this.facebookUid),
+      facebookConnectedAt: clearFacebookUid ? null : (facebookConnectedAt ?? this.facebookConnectedAt),
     );
   }
 }

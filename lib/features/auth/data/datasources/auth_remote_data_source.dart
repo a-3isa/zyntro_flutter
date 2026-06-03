@@ -163,10 +163,12 @@ class AuthRemoteDataSource {
 
       String? displayName;
       String? photoUrl;
+      String? facebookUserId;
       try {
         final userData = await FacebookAuth.instance.getUserData(
-          fields: 'name,email,picture.width(400).height(400)',
+          fields: 'id,name,email,picture.width(400).height(400)',
         );
+        facebookUserId = userData['id'] as String?;
         displayName = userData['name'] as String?;
         final picture = userData['picture']?['data'];
         photoUrl = picture?['url'] as String?;
@@ -190,6 +192,11 @@ class AuthRemoteDataSource {
         photoUrl: photoUrl ?? user.photoURL,
         authProvider: 'facebook',
       );
+
+      // Store Facebook UID so friend discovery works across all sign-in methods.
+      if (facebookUserId != null) {
+        await _storeFacebookUid(user.uid, facebookUserId);
+      }
 
       await _registerPushNotifications(user.uid);
       return AuthUserModel.fromFirebaseUser(user);
@@ -478,6 +485,17 @@ class AuthRemoteDataSource {
       throw AuthDataException.unknown(
         'Failed to delete account. Please try again.',
       );
+    }
+  }
+
+  Future<void> _storeFacebookUid(String userId, String facebookUserId) async {
+    try {
+      await _firestore.collection('users').doc(userId).set({
+        'facebookUid': facebookUserId,
+        'facebookConnectedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('[AuthRemoteDataSource] _storeFacebookUid failed: $e');
     }
   }
 

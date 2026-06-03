@@ -12,6 +12,8 @@ class UserProfileModel {
   final WorkoutType workoutPreference;
   final bool beginnerFlag;
   final int? trainingDaysPerWeek;
+  final String? facebookUid;
+  final DateTime? facebookConnectedAt;
 
   const UserProfileModel({
     required this.id,
@@ -22,12 +24,15 @@ class UserProfileModel {
     required this.workoutPreference,
     required this.beginnerFlag,
     this.trainingDaysPerWeek,
+    this.facebookUid,
+    this.facebookConnectedAt,
   });
 
   factory UserProfileModel.fromFirestore(
     DocumentSnapshot<Map<String, dynamic>> doc,
   ) {
     final data = doc.data() ?? <String, dynamic>{};
+    final fbConnectedRaw = data['facebookConnectedAt'];
 
     return UserProfileModel(
       id: doc.id,
@@ -40,6 +45,30 @@ class UserProfileModel {
       ),
       beginnerFlag: data['beginnerFlag'] as bool? ?? false,
       trainingDaysPerWeek: data['trainingDaysPerWeek'] as int?,
+      facebookUid: data['facebookUid'] as String?,
+      facebookConnectedAt: fbConnectedRaw is Timestamp
+          ? fbConnectedRaw.toDate()
+          : null,
+    );
+  }
+
+  factory UserProfileModel.fromMap(Map<String, dynamic> data, String id) {
+    final fbConnectedRaw = data['facebookConnectedAt'];
+    return UserProfileModel(
+      id: id,
+      displayName: data['displayName'] as String? ?? '',
+      photoUrl: data['photoURL'] as String?,
+      avatarConfig: data['avatarConfig'] as String?,
+      isPrivate: data['isPrivate'] as bool? ?? false,
+      workoutPreference: WorkoutType.fromString(
+        data['workoutPreference'] as String? ?? 'other',
+      ),
+      beginnerFlag: data['beginnerFlag'] as bool? ?? false,
+      trainingDaysPerWeek: data['trainingDaysPerWeek'] as int?,
+      facebookUid: data['facebookUid'] as String?,
+      facebookConnectedAt: fbConnectedRaw is Timestamp
+          ? fbConnectedRaw.toDate()
+          : null,
     );
   }
 
@@ -53,6 +82,8 @@ class UserProfileModel {
       workoutPreference: workoutPreference,
       beginnerFlag: beginnerFlag,
       trainingDaysPerWeek: trainingDaysPerWeek,
+      facebookUid: facebookUid,
+      facebookConnectedAt: facebookConnectedAt,
     );
   }
 }
