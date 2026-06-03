@@ -81,6 +81,7 @@ specs/
 .agents/
 Thumbs.db
 *.tmp
+keytool_report.txt
 
 .claude/
 .codex/
