@@ -20,6 +20,7 @@ import '../../moderation/presentation/report_dialog.dart';
 import '../../auth/auth_providers.dart';
 import '../../auth/domain/entities/user_profile_entity.dart';
 import '../../auth/presentation/providers/auth_controller.dart';
+import '../../../widgets/fluttermoji_avatar.dart';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -672,9 +673,13 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
 
   Widget _buildAvatar(User user) {
     const double size = 64;
+    final avatarRingColor =
+        FluttermojiAvatar.colorFromAvatarConfig(user.avatarConfig) ??
+        AppColors.accentLime;
+
+    Widget innerAvatar;
     if (user.photoURL != null && user.photoURL!.isNotEmpty) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(20),
+      innerAvatar = ClipOval(
         child: CachedNetworkImage(
           imageUrl: user.photoURL!,
           width: size,
@@ -688,18 +693,27 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
           errorWidget: (_, _, _) => _avatarFallback(user, size),
         ),
       );
-    }
-    if (user.avatarConfig != null && user.avatarConfig!.isNotEmpty) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(20),
+    } else if (user.avatarConfig != null && user.avatarConfig!.isNotEmpty) {
+      innerAvatar = ClipOval(
         child: AvatarPlus(
           user.avatarConfig!,
           height: size,
           width: size,
         ),
       );
+    } else {
+      innerAvatar = ClipOval(child: _avatarFallback(user, size));
     }
-    return _avatarFallback(user, size);
+
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: avatarRingColor, width: 3),
+      ),
+      child: ClipOval(child: innerAvatar),
+    );
   }
 
   Widget _avatarFallback(User user, double size) {
@@ -1007,6 +1021,8 @@ class _FollowButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final followStatusAsync = ref.watch(followStatusProvider(targetUserId));
+    final authState = ref.watch(authSessionProvider);
+    final currentUserId = authState.valueOrNull?.id;
 
     return followStatusAsync.when(
       data: (status) {
@@ -1017,7 +1033,14 @@ class _FollowButton extends ConsumerWidget {
           _ => 'FOLLOW',
         };
         final VoidCallback? onPressed = switch (status) {
-          FollowStatus.pending => null,
+          FollowStatus.pending => currentUserId == null
+              ? null
+              : () async {
+                  await ref
+                      .read(followServiceProvider)
+                      .withdrawFollowRequest(currentUserId, targetUserId);
+                  ref.invalidate(followStatusProvider(targetUserId));
+                },
           FollowStatus.approved => () => onUnfollow(targetUserId),
           _ => () => onFollow(targetUserId, isTargetPrivate),
         };

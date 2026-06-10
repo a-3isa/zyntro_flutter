@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../app/navigation/app_router.dart';
+import '../../../services/exercise_catalog_seed.dart';
 import '../../../services/facebook_link_service.dart';
 import '../../../widgets/circuit_breaker_status_widget.dart';
 import '../../auth/presentation/providers/auth_controller.dart';
@@ -199,6 +202,34 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     ),
                   ]),
 
+                  if (kDebugMode) ...[
+                    _sectionLabel('DEVELOPER'),
+                    _buildSectionCard([
+                      _chevronRow(
+                        label: 'Seed Exercise Catalog (dev only)',
+                        onTap: () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          try {
+                            await seedExerciseCatalog(
+                              FirebaseFirestore.instance,
+                            );
+                            if (!mounted) return;
+                            _showSnackbarMessenger(
+                              messenger,
+                              'Exercise catalog seeded.',
+                            );
+                          } catch (e) {
+                            if (!mounted) return;
+                            _showSnackbarMessenger(
+                              messenger,
+                              'Seed failed: $e',
+                            );
+                          }
+                        },
+                      ),
+                    ]),
+                  ],
+
                   const SizedBox(height: 32),
 
                   // App version footer
@@ -345,9 +376,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           const SizedBox(width: 10),
           // Ghost Edit button
           GestureDetector(
-            onTap: () {
+            onTap: () async {
               HapticFeedback.lightImpact();
-              context.push(AppRoutes.editProfile);
+              await context.push(AppRoutes.editProfile);
+              if (!mounted) return;
+              ref.invalidate(authUserProfileProvider);
             },
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),

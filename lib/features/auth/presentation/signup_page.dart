@@ -7,7 +7,6 @@ import '../../../core/theme/app_theme.dart';
 import '../../../app/navigation/app_router.dart';
 import '../../../utils/validators.dart';
 import '../../../widgets/zyntro_button.dart';
-import '../../../widgets/responsive_center.dart';
 import 'providers/auth_controller.dart';
 import 'widgets/auth_error_surface.dart';
 
@@ -346,345 +345,341 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       backgroundColor: AppColors.backgroundV2,
-      body: ResponsiveCenter(
-        maxContentWidth: true,
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: SafeArea(
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.all(AppSpacing.xl),
-            child: Form(
-              key: _formKey,
-              autovalidateMode: AutovalidateMode.disabled,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const SizedBox(height: AppSpacing.lg),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Form(
+            key: _formKey,
+            autovalidateMode: AutovalidateMode.disabled,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 14),
 
-                  // Back button
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: GestureDetector(
-                      onTap: () {
-                        HapticFeedback.lightImpact();
-                        context.go(AppRoutes.splash);
-                      },
-                      child: Container(
-                        width: 38,
-                        height: 38,
+                // Back button
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: GestureDetector(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      context.go(AppRoutes.splash);
+                    },
+                    child: Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceV2Elevated,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Icons.arrow_back_ios_new,
+                        size: 18,
+                        color: AppColors.textV2Primary,
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                // Header
+                Center(
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 56,
+                        height: 56,
                         decoration: BoxDecoration(
                           color: AppColors.surfaceV2Elevated,
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(14),
                         ),
-                        child: const Icon(
-                          Icons.arrow_back_ios_new,
-                          size: 18,
-                          color: AppColors.textV2Primary,
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: AppSpacing.lg),
-
-                  // Header
-                  Center(
-                    child: Column(
-                      children: [
-                        Container(
-                          width: 72,
-                          height: 72,
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceV2Elevated,
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                          child: const Center(
-                            child: Icon(
-                              Icons.fitness_center,
-                              size: 32,
-                              color: AppColors.accentLime,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.xl),
-                        Text(
-                          'Create Account',
-                          style: AppTextStyles.h2.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textV2Primary,
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.sm),
-                        Text(
-                          'Join Zyntro and start your fitness journey',
-                          style: AppTextStyles.bodyLarge.copyWith(
-                            color: AppColors.textV2Secondary,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: AppSpacing.xxl),
-
-                  if (_errorMessage != null) ...[
-                    AuthErrorSurface(
-                      message: _errorMessage!,
-                      suggestion: _errorSuggestion,
-                      onDismiss: () => setState(() {
-                        _errorMessage = null;
-                        _errorSuggestion = null;
-                      }),
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                  ],
-
-                  // Email field
-                  TextFormField(
-                    controller: _emailController,
-                    focusNode: _emailFocusNode,
-                    keyboardType: TextInputType.emailAddress,
-                    textInputAction: TextInputAction.next,
-                    style: const TextStyle(color: AppColors.textV2Primary),
-                    decoration: _buildInputDecoration(
-                      hint: 'Email',
-                      icon: Icons.email_outlined,
-                      isValid: _emailController.text.isNotEmpty ? _emailValid : null,
-                    ),
-                    validator: (value) {
-                      if (!_emailTouched && !_formSubmitted) return null;
-                      return validateEmail(value);
-                    },
-                    onChanged: (_) {
-                      if (!_emailTouched) setState(() => _emailTouched = true);
-                      _validateFields();
-                    },
-                  ),
-
-                  const SizedBox(height: AppSpacing.lg),
-
-                  // Password field
-                  TextFormField(
-                    controller: _passwordController,
-                    focusNode: _passwordFocusNode,
-                    obscureText: _obscurePassword,
-                    textInputAction: TextInputAction.next,
-                    style: const TextStyle(color: AppColors.textV2Primary),
-                    decoration: _buildInputDecoration(
-                      hint: 'Password',
-                      icon: Icons.lock_outlined,
-                      isValid: _passwordController.text.isNotEmpty ? _passwordValid : null,
-                      suffix: IconButton(
-                        icon: Icon(
-                          _obscurePassword
-                              ? Icons.visibility_off_outlined
-                              : Icons.visibility_outlined,
-                          color: AppColors.textV2Secondary,
-                        ),
-                        onPressed: () {
-                          HapticFeedback.selectionClick();
-                          setState(() => _obscurePassword = !_obscurePassword);
-                        },
-                      ),
-                    ),
-                    validator: (value) {
-                      if (!_passwordTouched && !_formSubmitted) return null;
-                      return validatePassword(value);
-                    },
-                    onChanged: (_) {
-                      if (!_passwordTouched) setState(() => _passwordTouched = true);
-                      _validateFields();
-                      setState(() {});
-                    },
-                  ),
-
-                  if (_showPasswordRequirements && _passwordController.text.isNotEmpty) ...[
-                    const SizedBox(height: AppSpacing.md),
-                    _buildPasswordRequirements(),
-                  ],
-
-                  const SizedBox(height: AppSpacing.lg),
-
-                  // Confirm password
-                  TextFormField(
-                    controller: _confirmPasswordController,
-                    focusNode: _confirmPasswordFocusNode,
-                    obscureText: _obscureConfirmPassword,
-                    textInputAction: TextInputAction.done,
-                    style: const TextStyle(color: AppColors.textV2Primary),
-                    decoration: _buildInputDecoration(
-                      hint: 'Confirm Password',
-                      icon: Icons.lock_outlined,
-                      isValid: _confirmPasswordController.text.isNotEmpty
-                          ? _confirmPasswordValid
-                          : null,
-                      suffix: IconButton(
-                        icon: Icon(
-                          _obscureConfirmPassword
-                              ? Icons.visibility_off_outlined
-                              : Icons.visibility_outlined,
-                          color: AppColors.textV2Secondary,
-                        ),
-                        onPressed: () {
-                          HapticFeedback.selectionClick();
-                          setState(() => _obscureConfirmPassword = !_obscureConfirmPassword);
-                        },
-                      ),
-                    ),
-                    validator: (value) {
-                      if (!_confirmPasswordTouched && !_formSubmitted) return null;
-                      if (value == null || value.isEmpty) return 'Please confirm your password';
-                      if (value != _passwordController.text) return 'Passwords do not match';
-                      return null;
-                    },
-                    onChanged: (_) {
-                      if (!_confirmPasswordTouched) setState(() => _confirmPasswordTouched = true);
-                      _validateFields();
-                    },
-                    onFieldSubmitted: (_) => _handleSignUp(),
-                  ),
-
-                  const SizedBox(height: AppSpacing.xl),
-
-                  // Sign up button
-                  ZyntroButton(
-                    title: _isLoading ? 'Creating Account...' : 'Create Account',
-                    fullWidth: true,
-                    loading: _isLoading,
-                    size: ZyntroButtonSize.lg,
-                    rightIcon: _isLoading ? null : const Icon(Icons.arrow_forward_rounded),
-                    onPressed: _isLoading
-                        ? null
-                        : () {
-                            FocusScope.of(context).unfocus();
-                            _handleSignUp();
-                          },
-                  ),
-
-                  const SizedBox(height: AppSpacing.xl),
-
-                  // Divider
-                  Row(
-                    children: [
-                      Expanded(child: Container(height: 1, color: AppColors.surfaceV2Active)),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                        child: Text(
-                          'or sign up with',
-                          style: AppTextStyles.body.copyWith(
-                            color: AppColors.textV2Tertiary,
-                          ),
-                        ),
-                      ),
-                      Expanded(child: Container(height: 1, color: AppColors.surfaceV2Active)),
-                    ],
-                  ),
-
-                  const SizedBox(height: AppSpacing.xl),
-
-                  // Google Sign In
-                  GestureDetector(
-                    onTap: _isLoading ? null : _handleGoogleSignIn,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceV2Elevated,
-                        borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-                        border: Border.all(color: AppColors.surfaceV2Active),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(Icons.g_mobiledata, size: 24, color: Colors.black87),
-                          ),
-                          const SizedBox(width: AppSpacing.md),
-                          Text(
-                            'Sign up with Google',
-                            style: AppTextStyles.bodyLarge.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textV2Primary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: AppSpacing.lg),
-
-                  // Facebook Sign Up
-                  GestureDetector(
-                    onTap: _isLoading ? null : _handleFacebookSignUp,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceV2Elevated,
-                        borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-                        border: Border.all(color: AppColors.surfaceV2Active),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF1877F2),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(Icons.facebook, size: 24, color: Colors.white),
-                          ),
-                          const SizedBox(width: AppSpacing.md),
-                          Text(
-                            'Sign up with Facebook',
-                            style: AppTextStyles.bodyLarge.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textV2Primary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: AppSpacing.xxl),
-
-                  // Login link
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Already have an account? ',
-                        style: AppTextStyles.bodyLarge.copyWith(
-                          color: AppColors.textV2Secondary,
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () {
-                          HapticFeedback.lightImpact();
-                          context.go(AppRoutes.login);
-                        },
-                        child: Text(
-                          'Sign In',
-                          style: AppTextStyles.bodyLarge.copyWith(
-                            fontWeight: FontWeight.w600,
+                        child: const Center(
+                          child: Icon(
+                            Icons.fitness_center,
+                            size: 26,
                             color: AppColors.accentLime,
                           ),
                         ),
                       ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Create Account',
+                        style: AppTextStyles.h2.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textV2Primary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Join Zyntro and start your fitness journey',
+                        style: AppTextStyles.bodyLarge.copyWith(
+                          color: AppColors.textV2Secondary,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
                     ],
                   ),
+                ),
 
-                  const SizedBox(height: AppSpacing.xl),
+                const Spacer(),
+
+                if (_errorMessage != null) ...[
+                  AuthErrorSurface(
+                    message: _errorMessage!,
+                    suggestion: _errorSuggestion,
+                    onDismiss: () => setState(() {
+                      _errorMessage = null;
+                      _errorSuggestion = null;
+                    }),
+                  ),
+                  const SizedBox(height: 12),
                 ],
-              ),
+
+                // Email field
+                TextFormField(
+                  controller: _emailController,
+                  focusNode: _emailFocusNode,
+                  keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
+                  style: const TextStyle(color: AppColors.textV2Primary),
+                  decoration: _buildInputDecoration(
+                    hint: 'Email',
+                    icon: Icons.email_outlined,
+                    isValid: _emailController.text.isNotEmpty ? _emailValid : null,
+                  ),
+                  validator: (value) {
+                    if (!_emailTouched && !_formSubmitted) return null;
+                    return validateEmail(value);
+                  },
+                  onChanged: (_) {
+                    if (!_emailTouched) setState(() => _emailTouched = true);
+                    _validateFields();
+                  },
+                ),
+
+                const SizedBox(height: AppSpacing.lg),
+
+                // Password field
+                TextFormField(
+                  controller: _passwordController,
+                  focusNode: _passwordFocusNode,
+                  obscureText: _obscurePassword,
+                  textInputAction: TextInputAction.next,
+                  style: const TextStyle(color: AppColors.textV2Primary),
+                  decoration: _buildInputDecoration(
+                    hint: 'Password',
+                    icon: Icons.lock_outlined,
+                    isValid: _passwordController.text.isNotEmpty ? _passwordValid : null,
+                    suffix: IconButton(
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                        color: AppColors.textV2Secondary,
+                      ),
+                      onPressed: () {
+                        HapticFeedback.selectionClick();
+                        setState(() => _obscurePassword = !_obscurePassword);
+                      },
+                    ),
+                  ),
+                  validator: (value) {
+                    if (!_passwordTouched && !_formSubmitted) return null;
+                    return validatePassword(value);
+                  },
+                  onChanged: (_) {
+                    if (!_passwordTouched) setState(() => _passwordTouched = true);
+                    _validateFields();
+                    setState(() {});
+                  },
+                ),
+
+                if (_showPasswordRequirements && _passwordController.text.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  _buildPasswordRequirements(),
+                ],
+
+                const SizedBox(height: AppSpacing.lg),
+
+                // Confirm password
+                TextFormField(
+                  controller: _confirmPasswordController,
+                  focusNode: _confirmPasswordFocusNode,
+                  obscureText: _obscureConfirmPassword,
+                  textInputAction: TextInputAction.done,
+                  style: const TextStyle(color: AppColors.textV2Primary),
+                  decoration: _buildInputDecoration(
+                    hint: 'Confirm Password',
+                    icon: Icons.lock_outlined,
+                    isValid: _confirmPasswordController.text.isNotEmpty
+                        ? _confirmPasswordValid
+                        : null,
+                    suffix: IconButton(
+                      icon: Icon(
+                        _obscureConfirmPassword
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                        color: AppColors.textV2Secondary,
+                      ),
+                      onPressed: () {
+                        HapticFeedback.selectionClick();
+                        setState(() => _obscureConfirmPassword = !_obscureConfirmPassword);
+                      },
+                    ),
+                  ),
+                  validator: (value) {
+                    if (!_confirmPasswordTouched && !_formSubmitted) return null;
+                    if (value == null || value.isEmpty) return 'Please confirm your password';
+                    if (value != _passwordController.text) return 'Passwords do not match';
+                    return null;
+                  },
+                  onChanged: (_) {
+                    if (!_confirmPasswordTouched) setState(() => _confirmPasswordTouched = true);
+                    _validateFields();
+                  },
+                  onFieldSubmitted: (_) => _handleSignUp(),
+                ),
+
+                const SizedBox(height: AppSpacing.lg),
+
+                // Sign up button
+                ZyntroButton(
+                  title: _isLoading ? 'Creating Account...' : 'Create Account',
+                  fullWidth: true,
+                  loading: _isLoading,
+                  size: ZyntroButtonSize.lg,
+                  rightIcon: _isLoading ? null : const Icon(Icons.arrow_forward_rounded),
+                  onPressed: _isLoading
+                      ? null
+                      : () {
+                          FocusScope.of(context).unfocus();
+                          _handleSignUp();
+                        },
+                ),
+
+                const SizedBox(height: AppSpacing.lg),
+
+                // Divider
+                Row(
+                  children: [
+                    Expanded(child: Container(height: 1, color: AppColors.surfaceV2Active)),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                      child: Text(
+                        'or sign up with',
+                        style: AppTextStyles.body.copyWith(
+                          color: AppColors.textV2Tertiary,
+                        ),
+                      ),
+                    ),
+                    Expanded(child: Container(height: 1, color: AppColors.surfaceV2Active)),
+                  ],
+                ),
+
+                const SizedBox(height: AppSpacing.lg),
+
+                // Google Sign In
+                GestureDetector(
+                  onTap: _isLoading ? null : _handleGoogleSignIn,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceV2Elevated,
+                      borderRadius: BorderRadius.circular(AppBorderRadius.lg),
+                      border: Border.all(color: AppColors.surfaceV2Active),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.g_mobiledata, size: 24, color: Colors.black87),
+                        ),
+                        const SizedBox(width: AppSpacing.md),
+                        Text(
+                          'Sign up with Google',
+                          style: AppTextStyles.bodyLarge.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textV2Primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: AppSpacing.md),
+
+                // Facebook Sign Up
+                GestureDetector(
+                  onTap: _isLoading ? null : _handleFacebookSignUp,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceV2Elevated,
+                      borderRadius: BorderRadius.circular(AppBorderRadius.lg),
+                      border: Border.all(color: AppColors.surfaceV2Active),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1877F2),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.facebook, size: 24, color: Colors.white),
+                        ),
+                        const SizedBox(width: AppSpacing.md),
+                        Text(
+                          'Sign up with Facebook',
+                          style: AppTextStyles.bodyLarge.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textV2Primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const Spacer(),
+
+                // Login link
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'Already have an account? ',
+                      style: AppTextStyles.bodyLarge.copyWith(
+                        color: AppColors.textV2Secondary,
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        context.go(AppRoutes.login);
+                      },
+                      child: Text(
+                        'Sign In',
+                        style: AppTextStyles.bodyLarge.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.accentLime,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 16),
+              ],
             ),
           ),
         ),

@@ -137,6 +137,7 @@ class ParticipantAvatar extends StatelessWidget {
             displayName: displayName,
             size: size - 4,
             showGradientBorder: false,
+            ringColor: FluttermojiAvatar.colorFromAvatarConfig(avatarConfig),
           ),
         ),
 

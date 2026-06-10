@@ -112,6 +112,7 @@ class _BuddyChip extends StatelessWidget {
                 displayName: name,
                 size: 32,
                 showGradientBorder: false,
+                ringColor: null,
               ),
               if (isOnline)
                 Positioned(

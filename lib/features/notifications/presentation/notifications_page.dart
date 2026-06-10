@@ -8,9 +8,15 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../widgets/widgets.dart';
 import '../../auth/auth_providers.dart';
+import '../../../services/follow_service.dart';
 import '../../../services/notification_service.dart';
 import '../../../services/session_service.dart';
 import '../../../utils/haptic_manager.dart';
+
+final _notifFollowStatusProvider =
+    FutureProvider.family<FollowStatus?, (String, String)>((ref, ids) async {
+  return ref.read(followServiceProvider).getFollowStatus(ids.$1, ids.$2);
+});
 
 /// Notifications page showing all user notifications grouped by date.
 class NotificationsPage extends ConsumerStatefulWidget {
@@ -417,6 +423,14 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
+                  if (notification.type == NotificationType.followRequest) ...[
+                    Builder(builder: (_) {
+                      final uid =
+                          ref.read(authSessionProvider).valueOrNull?.id;
+                      if (uid == null) return const SizedBox.shrink();
+                      return _buildFollowRequestActions(notification, uid);
+                    }),
+                  ],
                 ],
               ),
               trailing: !notification.read
@@ -433,6 +447,147 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildFollowRequestActions(
+    AppNotification notification,
+    String currentUserId,
+  ) {
+    final fromUserId = notification.data?['fromUserId'] as String?;
+    if (fromUserId == null) return const SizedBox.shrink();
+
+    final actionTaken = notification.data?['actionTaken'] as String?;
+    if (actionTaken != null) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Text(
+          'Request handled',
+          style: AppTextStyles.caption.copyWith(
+            color: AppColors.textV2Tertiary,
+            fontSize: 11,
+          ),
+        ),
+      );
+    }
+
+    final followStatusAsync = ref.watch(
+      _notifFollowStatusProvider((currentUserId, fromUserId)),
+    );
+    final isAlreadyFollowing =
+        followStatusAsync.valueOrNull == FollowStatus.approved;
+
+    final isPrivate = ref.watch(authUserProfileProvider).when(
+      data: (p) => p?.isPrivate ?? false,
+      loading: () => false,
+      error: (_, _) => false,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Wrap(
+        spacing: 8,
+        children: [
+          if (!isAlreadyFollowing)
+            _notifActionButton(
+              label: 'Follow back',
+              filled: true,
+              onPressed: () async {
+                await ref.read(followServiceProvider).followUser(
+                  followerId: currentUserId,
+                  followeeId: fromUserId,
+                  isPrivate: false,
+                );
+                await ref
+                    .read(notificationServiceProvider)
+                    .updateNotificationData(
+                      notification.id,
+                      currentUserId,
+                      {'actionTaken': 'followedBack'},
+                    );
+                ref.invalidate(
+                  _notifFollowStatusProvider((currentUserId, fromUserId)),
+                );
+              },
+            ),
+          if (isPrivate) ...[
+            _notifActionButton(
+              label: 'Accept',
+              filled: false,
+              onPressed: () async {
+                await ref.read(followServiceProvider).acceptFollowRequest(
+                  fromUserId,
+                  currentUserId,
+                );
+                await ref
+                    .read(notificationServiceProvider)
+                    .updateNotificationData(
+                      notification.id,
+                      currentUserId,
+                      {'actionTaken': 'accepted'},
+                    );
+              },
+            ),
+            _notifActionButton(
+              label: 'Decline',
+              filled: false,
+              onPressed: () async {
+                await ref.read(followServiceProvider).declineFollowRequest(
+                  fromUserId,
+                  currentUserId,
+                );
+                await ref
+                    .read(notificationServiceProvider)
+                    .updateNotificationData(
+                      notification.id,
+                      currentUserId,
+                      {'actionTaken': 'declined'},
+                    );
+              },
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _notifActionButton({
+    required String label,
+    required bool filled,
+    required VoidCallback onPressed,
+  }) {
+    const shape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.all(Radius.circular(8)),
+    );
+    const textStyle = TextStyle(fontSize: 12, fontWeight: FontWeight.w700);
+    const minSize = Size(0, 30);
+    const hPad = EdgeInsets.symmetric(horizontal: 12);
+
+    if (filled) {
+      return FilledButton(
+        onPressed: onPressed,
+        style: FilledButton.styleFrom(
+          backgroundColor: AppColors.accentLime,
+          foregroundColor: Colors.black,
+          minimumSize: minSize,
+          padding: hPad,
+          textStyle: textStyle,
+          shape: shape,
+        ),
+        child: Text(label),
+      );
+    }
+    return OutlinedButton(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.textV2Primary,
+        minimumSize: minSize,
+        padding: hPad,
+        textStyle: textStyle,
+        side: const BorderSide(color: AppColors.surfaceV2Active),
+        shape: shape,
+      ),
+      child: Text(label),
     );
   }
 
@@ -478,7 +633,10 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         break;
 
       case NotificationType.followRequest:
-        context.push('/profile/follow-requests');
+        final fromUserId = data?['fromUserId'] as String?;
+        if (fromUserId != null) {
+          context.push('/user/$fromUserId');
+        }
         break;
 
       case NotificationType.followAccepted:

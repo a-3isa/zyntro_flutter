@@ -17,6 +17,7 @@ dependencies:
   flutter_facebook_auth: ^7.1.1
   cloud_firestore: ^5.6.2
   firebase_storage: ^12.4.2
+  firebase_analytics: ^11.0.0
   
   # Navigation
   go_router: ^14.8.1

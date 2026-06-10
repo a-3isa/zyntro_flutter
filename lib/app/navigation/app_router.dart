@@ -41,6 +41,7 @@ import '../../features/profile/presentation/edit_profile_page.dart';
 import '../../features/moderation/presentation/moderation_queue_page.dart';
 import '../../features/feed/presentation/post_detail_page.dart';
 import '../../features/auth/auth_providers.dart';
+import '../../features/auth/domain/entities/auth_user_entity.dart';
 
 /// Route names for type-safe navigation.
 class AppRoutes {
@@ -193,19 +194,38 @@ CustomTransitionPage<void> _slidePage(GoRouterState state, Widget child) {
 }
 
 /// GoRouter provider with auth-based redirects and premium transitions.
+/// The router is created once and re-evaluates its redirect via [refreshListenable]
+/// when auth state changes, preventing the GoRouter rebuild that caused a
+/// splash-frame flash on every auth event.
 final routerProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authSessionProvider);
-  final profileCompleteAsync = ref.watch(authProfileCompletionProvider);
-  final rollbackActiveAsync = ref.watch(authMigrationRollbackActiveProvider);
+  // Mutable closure vars updated by ref.listen — the redirect callback always
+  // reads current values without the GoRouter being recreated.
+  var authState = const AsyncValue<AuthUserEntity?>.loading();
+  var profileComplete = const AsyncValue<bool>.loading();
+  var rollbackActive = const AsyncValue<bool>.data(false);
+
+  ref.listen<AsyncValue<AuthUserEntity?>>(authSessionProvider, (_, next) {
+    authState = next;
+    authChangeNotifier.trigger();
+  });
+  ref.listen<AsyncValue<bool>>(authProfileCompletionProvider, (_, next) {
+    profileComplete = next;
+    authChangeNotifier.trigger();
+  });
+  ref.listen<AsyncValue<bool>>(authMigrationRollbackActiveProvider, (_, next) {
+    rollbackActive = next;
+    authChangeNotifier.trigger();
+  });
 
   return GoRouter(
     navigatorKey: rootNavigatorKey,
     initialLocation: AppRoutes.splash,
+    refreshListenable: authChangeNotifier,
     debugLogDiagnostics: shouldEnableRouterDiagnostics(isDebugMode: kDebugMode),
     redirect: (context, state) {
       final isLoggedIn = authState.valueOrNull != null;
       final isLoading = authState.isLoading;
-      final rollbackActive = rollbackActiveAsync.valueOrNull ?? false;
+      final isRollbackActive = rollbackActive.valueOrNull ?? false;
       final isOnAuthPage =
           state.matchedLocation == AppRoutes.login ||
           state.matchedLocation == AppRoutes.signUp ||
@@ -226,13 +246,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
 
       // Guardrail: if rollback is active, keep navigation on auth entry routes.
-      if (rollbackActive && !isOnAuthPage) {
+      if (isRollbackActive && !isOnAuthPage) {
         return AppRoutes.login;
       }
 
       // Logged in: check profile completeness and redirect accordingly
       if (isLoggedIn) {
-        if (profileCompleteAsync.hasError) {
+        if (profileComplete.hasError) {
           debugPrint(
             '[Router] Profile completion check failed; routing to onboarding.',
           );
@@ -243,11 +263,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         }
 
         // If profile completion check is still loading, don't redirect yet
-        if (profileCompleteAsync.isLoading || !profileCompleteAsync.hasValue) {
+        if (profileComplete.isLoading || !profileComplete.hasValue) {
           return null;
         }
 
-        final isProfileComplete = profileCompleteAsync.valueOrNull ?? false;
+        final isProfileComplete = profileComplete.valueOrNull ?? false;
 
         if (!isProfileComplete) {
           // Allowed: Onboarding (new/recovery path), ProfileSetup (legacy fallback)
@@ -620,3 +640,11 @@ final routerProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
+
+/// Notifier used as GoRouter.refreshListenable so the router re-evaluates
+/// its redirect without recreating the GoRouter instance on every auth event.
+class _AuthChangeNotifier extends ChangeNotifier {
+  void trigger() => notifyListeners();
+}
+
+final authChangeNotifier = _AuthChangeNotifier();

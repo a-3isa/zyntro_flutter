@@ -90,6 +90,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
   void _goHome() {
     HapticManager.light();
     _savePrivatelyIfNeeded();
+    // context.go: session complete, clear stack so back doesn't return to recap
     if (mounted) context.go('/?tab=feed');
   }
 
@@ -258,6 +259,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
       );
       _createdPostId = postId;
       if (mounted) {
+        // context.go: post shared, session complete — clear stack
         context.go('/?tab=feed');
       }
     } catch (e) {
@@ -314,6 +316,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
           TextButton(
             onPressed: () {
               ctx.pop();
+              // context.go: user chose to skip photo, session complete — clear stack
               context.go('/?tab=feed');
             },
             child: const Text('Continue Without Photo'),
@@ -349,6 +352,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
       if (mounted) setState(() => _uploadProgress = 0.9);
       await postService.updatePostPhoto(_createdPostId!, photoUrl);
       if (mounted) {
+        // context.go: photo uploaded, session complete — clear stack
         context.go('/?tab=feed');
       }
     } catch (e) {

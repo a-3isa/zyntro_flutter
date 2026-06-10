@@ -106,6 +106,9 @@ class RecentActivityCard extends StatelessWidget {
                           displayName: activity.userName,
                           size: 32,
                           showGradientBorder: false,
+                          ringColor: FluttermojiAvatar.colorFromAvatarConfig(
+                            activity.userAvatarConfig,
+                          ),
                         ),
                         const SizedBox(width: AppSpacing.sm),
                         // User name

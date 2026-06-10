@@ -11,6 +11,7 @@ class FluttermojiAvatar extends StatelessWidget {
   final double size;
   final VoidCallback? onTap;
   final bool showGradientBorder;
+  final Color? ringColor;
 
   const FluttermojiAvatar({
     super.key,
@@ -20,7 +21,16 @@ class FluttermojiAvatar extends StatelessWidget {
     this.size = 40,
     this.onTap,
     this.showGradientBorder = true,
+    this.ringColor,
   });
+
+  /// Parses an 8-char ARGB hex string (e.g. "FF4CAF50") into a [Color].
+  /// Returns null if [avatarConfig] is null or not exactly 8 hex chars.
+  static Color? colorFromAvatarConfig(String? avatarConfig) {
+    if (avatarConfig == null || avatarConfig.length != 8) return null;
+    final v = int.tryParse(avatarConfig, radix: 16);
+    return v != null ? Color(v) : null;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -64,9 +74,9 @@ class FluttermojiAvatar extends StatelessWidget {
     // Wrap with gradient border if enabled
     if (showGradientBorder) {
       avatarWidget = Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: AppColors.accentLime,
+          color: ringColor ?? AppColors.accentLime,
         ),
         padding: const EdgeInsets.all(2),
         child: Container(

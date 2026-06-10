@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -324,6 +325,23 @@ class ExerciseCatalogService {
       debugPrint('[ExerciseCatalogService] search error ($e); '
           'activating local-catalog fallback.');
       results = _fallbackSearch(normalized);
+      FirebaseAnalytics.instance.logEvent(
+        name: 'exercise_catalog_fallback_used',
+      );
+    }
+
+    // Activate local fallback when Firestore returns 0 results (not just on
+    // exceptions). Placed after BOTH the catalog loop and the personal-exercises
+    // loop so personal exercises are never mixed with fallback entries.
+    if (results.isEmpty) {
+      results = _fallbackSearch(normalized);
+      FirebaseAnalytics.instance.logEvent(
+        name: 'exercise_catalog_fallback_used',
+      );
+    } else {
+      FirebaseAnalytics.instance.logEvent(
+        name: 'exercise_catalog_firestore_hit',
+      );
     }
 
     // T048: success-rate log — one line per completed search.

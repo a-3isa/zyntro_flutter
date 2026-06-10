@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io' show Platform;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -369,6 +370,15 @@ class NotificationService {
       return;
     }
 
+    // Follow request taps → deep-link to requester's profile
+    if (data['type'] == 'follow_request') {
+      final fromUserId = data['fromUserId'] as String?;
+      if (fromUserId != null && navigatorContext.mounted) {
+        navigatorContext.push('/user/$fromUserId');
+        return;
+      }
+    }
+
     // Navigate based on data contents
     if (data.containsKey('sessionId')) {
       final sessionId = data['sessionId'] as String;
@@ -569,6 +579,20 @@ class NotificationService {
 
   Future<void> deleteNotification(AppNotification notification) async {
     await _userNotificationRef(notification.userId, notification.id).delete();
+  }
+
+  Future<void> updateNotificationData(
+    String notificationId,
+    String userId,
+    Map<String, dynamic> dataUpdate,
+  ) async {
+    final docRef = _userNotificationRef(userId, notificationId);
+    final snap = await docRef.get();
+    final existing = Map<String, dynamic>.from(
+      snap.data()?['data'] as Map? ?? {},
+    );
+    existing.addAll(dataUpdate);
+    await docRef.update({'data': existing});
   }
 
   Stream<List<AppNotification>> listenToNotifications(String userId) {
@@ -880,6 +904,7 @@ class NotificationService {
         data: data,
       ),
     ]);
+    FirebaseAnalytics.instance.logEvent(name: 'follow_notification_delivered');
   }
 
   /// Notify user that their follow request was accepted.

@@ -143,6 +143,9 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
                             displayName: authorName,
                             size: 40,
                             showGradientBorder: false,
+                            ringColor: FluttermojiAvatar.colorFromAvatarConfig(
+                              author?.avatarConfig,
+                            ),
                           ),
                         ),
                       ),

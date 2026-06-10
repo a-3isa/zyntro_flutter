@@ -222,6 +222,7 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
       if (session == null || session.phase != SessionPhase.live) return;
 
       _didRedirect = true;
+      // context.go: entering live session — replace setup in stack so back doesn't return here
       context.go(AppRouteLocations.sessionRoom(session.id, type: session.type));
     });
 

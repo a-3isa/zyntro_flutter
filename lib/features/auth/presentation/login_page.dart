@@ -262,10 +262,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       backgroundColor: AppColors.backgroundV2,
       body: SafeArea(
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
+        child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Form(
             key: _formKey,
@@ -273,7 +273,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
 
                 // Back button
                 Align(
@@ -301,7 +301,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   ),
                 ),
 
-                const SizedBox(height: 32),
+                const SizedBox(height: 20),
 
                 // Heading
                 Text(
@@ -315,7 +315,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   ),
                 ),
 
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
 
                 // Subtitle
                 Text(
@@ -326,7 +326,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   ),
                 ),
 
-                const SizedBox(height: 32),
+                const Spacer(),
 
                 // Error message
                 if (_errorMessage != null) ...[
@@ -340,7 +340,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       });
                     },
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
                 ],
 
                 // Email field
@@ -358,7 +358,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   validator: validateEmail,
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
 
                 // Password field
                 TextFormField(
@@ -399,7 +399,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   },
                 ),
 
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
 
                 // Forgot password
                 Align(
@@ -421,7 +421,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   ),
                 ),
 
-                const SizedBox(height: 20),
+                const SizedBox(height: 14),
 
                 // Sign In button
                 ZyntroButton(
@@ -438,7 +438,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                         },
                 ),
 
-                const SizedBox(height: 28),
+                const SizedBox(height: 20),
 
                 // Divider
                 Row(
@@ -468,13 +468,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   ],
                 ),
 
-                const SizedBox(height: 20),
+                const SizedBox(height: 14),
 
                 // Google Sign In
                 GestureDetector(
                   onTap: _isLoading ? null : _handleGoogleSignIn,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                     decoration: BoxDecoration(
                       color: AppColors.surfaceV2,
                       borderRadius: BorderRadius.circular(12),
@@ -511,13 +511,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   ),
                 ),
 
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
 
                 // Facebook Sign In
                 GestureDetector(
                   onTap: _isLoading ? null : _handleFacebookSignIn,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                     decoration: BoxDecoration(
                       color: AppColors.surfaceV2,
                       borderRadius: BorderRadius.circular(12),
@@ -554,7 +554,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   ),
                 ),
 
-                const SizedBox(height: 40),
+                const Spacer(),
 
                 // Sign up link
                 Row(
@@ -581,7 +581,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   ],
                 ),
 
-                const SizedBox(height: 32),
+                const SizedBox(height: 20),
               ],
             ),
           ),

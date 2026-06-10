@@ -50,6 +50,9 @@ class StreakPodiumSpot extends StatelessWidget {
                   displayName: entry.displayName,
                   size: rank == 1 ? 64 : 52,
                   showGradientBorder: false,
+                  ringColor: FluttermojiAvatar.colorFromAvatarConfig(
+                    entry.avatarConfig,
+                  ),
                 ),
               ),
               if (rank == 1)
@@ -150,6 +153,9 @@ class StreakListItem extends StatelessWidget {
               displayName: entry.displayName,
               size: 40,
               showGradientBorder: false,
+              ringColor: FluttermojiAvatar.colorFromAvatarConfig(
+                entry.avatarConfig,
+              ),
             ),
           ],
         ),

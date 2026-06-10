@@ -180,6 +180,37 @@ class FollowService {
     }
   }
 
+  /// Withdraw a sent follow request.
+  /// Deletes the follow doc and marks the recipient's notification as withdrawn.
+  Future<void> withdrawFollowRequest(
+    String requesterId,
+    String recipientId,
+  ) async {
+    await _firestore
+        .collection('follows')
+        .doc(_getFollowId(requesterId, recipientId))
+        .delete();
+
+    final notifSnap = await _firestore
+        .collection('users')
+        .doc(recipientId)
+        .collection('notifications')
+        .where('type', isEqualTo: 'followRequest')
+        .where('data.fromUserId', isEqualTo: requesterId)
+        .limit(1)
+        .get();
+
+    if (notifSnap.docs.isNotEmpty) {
+      final notifDoc = notifSnap.docs.first;
+      final existing = Map<String, dynamic>.from(
+        notifDoc.data()['data'] as Map? ?? {},
+      );
+      existing['status'] = 'withdrawn';
+      existing['actionTaken'] = 'withdrawn';
+      await notifDoc.reference.update({'data': existing});
+    }
+  }
+
   /// Decline a follow request.
   /// Matches RN declineFollowRequest.
   Future<void> declineFollowRequest(

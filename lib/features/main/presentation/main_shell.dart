@@ -31,6 +31,7 @@ class MainShell extends ConsumerStatefulWidget {
 
 class _MainShellState extends ConsumerState<MainShell> {
   late int _currentIndex;
+  DateTime? _lastBackPress;
 
   @override
   void initState() {
@@ -74,10 +75,29 @@ class _MainShellState extends ConsumerState<MainShell> {
       const ProfilePage(),
     ];
 
-    return Scaffold(
-      backgroundColor: AppColors.backgroundV2,
-      extendBody: true,
-      body: NotificationListener<ScrollNotification>(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final now = DateTime.now();
+        if (_lastBackPress != null &&
+            now.difference(_lastBackPress!) < const Duration(seconds: 2)) {
+          SystemNavigator.pop();
+        } else {
+          _lastBackPress = now;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Press back again to exit'),
+              duration: Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.backgroundV2,
+        extendBody: true,
+        body: NotificationListener<ScrollNotification>(
         onNotification: _handleScrollNotification,
         child: Column(
           children: [
@@ -97,6 +117,7 @@ class _MainShellState extends ConsumerState<MainShell> {
           child: _buildFloatingBottomNav(),
         ),
       ),
+    ),
     );
   }
 

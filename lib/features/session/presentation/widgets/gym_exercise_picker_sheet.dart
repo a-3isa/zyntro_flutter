@@ -182,7 +182,9 @@ class _GymExercisePickerSheetState
     }
 
     final query = _searchController.text.trim();
-    final showNoResults = !_loading && !_error && query.isNotEmpty && _results.isEmpty;
+    // Show empty state whenever there are no results (including initial empty load),
+    // not only when the user has typed a query.
+    final showNoResults = !_loading && !_error && _results.isEmpty;
 
     return SafeArea(
       child: DecoratedBox(
