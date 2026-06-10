@@ -7,6 +7,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../services/post_service.dart';
 import '../../../utils/haptic_manager.dart';
 import '../../../widgets/widgets.dart';
+import '../../auth/auth_providers.dart';
 
 /// Page for viewing all posts from a specific user.
 class UserPostsPage extends ConsumerStatefulWidget {
@@ -24,6 +25,8 @@ class _UserPostsPageState extends ConsumerState<UserPostsPage> {
   @override
   Widget build(BuildContext context) {
     final postsAsync = ref.watch(userPostsProvider(widget.userId));
+    final currentUid = ref.watch(authSessionProvider).valueOrNull?.id;
+    final isOwner = currentUid == widget.userId;
 
     return Scaffold(
       backgroundColor: AppColors.backgroundV2,
@@ -152,10 +155,14 @@ class _UserPostsPageState extends ConsumerState<UserPostsPage> {
           Expanded(
             child: postsAsync.when(
               data: (posts) {
-                // Filter posts
-                final filteredPosts = _filter == 'all'
+                // Private (unshared) workouts are visible only to their owner.
+                final visible = isOwner
                     ? posts
-                    : posts.where((p) => p.type == _filter).toList();
+                    : posts.where((p) => p.visibility != 'private').toList();
+                // Filter by workout type
+                final filteredPosts = _filter == 'all'
+                    ? visible
+                    : visible.where((p) => p.type == _filter).toList();
 
                 if (filteredPosts.isEmpty) {
                   return _buildEmptyState();
@@ -217,38 +224,17 @@ class _UserPostsPageState extends ConsumerState<UserPostsPage> {
   }
 
   Widget _buildEmptyState() {
-    final message = _filter == 'all' ? 'No posts yet' : 'No $_filter posts yet';
+    final isFiltered = _filter != 'all';
+    final title = isFiltered ? 'No $_filter posts yet' : 'No posts yet';
 
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.photo_library_outlined,
-            size: 64,
-            color: Theme.of(
-              context,
-            ).colorScheme.onSurface.withValues(alpha: 0.3),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          Text(
-            message,
-            style: TextStyle(
-              fontSize: AppFontSize.lg,
-              color: Theme.of(
-                context,
-              ).colorScheme.onSurface.withValues(alpha: 0.6),
-            ),
-          ),
-          if (_filter != 'all') ...[
-            const SizedBox(height: AppSpacing.md),
-            TextButton(
-              onPressed: () => setState(() => _filter = 'all'),
-              child: const Text('Show all posts'),
-            ),
-          ],
-        ],
-      ),
+    return AppEmptyState(
+      icon: Icons.photo_library_outlined,
+      title: title,
+      message: isFiltered
+          ? 'Try a different filter to see more.'
+          : 'Posts you share will show up here.',
+      actionLabel: isFiltered ? 'Show all posts' : null,
+      onAction: isFiltered ? () => setState(() => _filter = 'all') : null,
     );
   }
 }

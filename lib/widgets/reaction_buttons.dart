@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../core/theme/app_theme.dart';
@@ -109,9 +111,9 @@ class _ReactionButtonsState extends State<ReactionButtons>
       case ReactionType.fire:
         return [AppColors.neonGreen, AppColors.navy700];
       case ReactionType.strong:
-        return [AppColors.navy800, AppColors.navy700];
+        return [AppColors.navy700, AppColors.navy800];
       case ReactionType.clap:
-        return [AppColors.navy700, AppColors.neonGreen];
+        return [AppColors.navy800, AppColors.neonGreen];
     }
   }
 
@@ -298,13 +300,13 @@ class _ParticleBurstState extends State<_ParticleBurst>
       builder: (context, child) {
         return Stack(
           children: List.generate(_particleCount, (index) {
-            final angle = (index / _particleCount) * 2 * 3.14159;
+            final angle = (index / _particleCount) * 2 * math.pi;
             final radius = _animation.value * _maxRadius;
             final opacity = 1.0 - _animation.value;
 
             return Positioned(
-              left: widget.center.dx + radius * cos(angle) - 4,
-              top: widget.center.dy + radius * sin(angle) - 4,
+              left: widget.center.dx + radius * math.cos(angle) - 4,
+              top: widget.center.dy + radius * math.sin(angle) - 4,
               child: Opacity(
                 opacity: opacity,
                 child: Container(
@@ -327,25 +329,5 @@ class _ParticleBurstState extends State<_ParticleBurst>
         );
       },
     );
-  }
-
-  double cos(double radians) => _cos(radians);
-  double sin(double radians) => _sin(radians);
-
-  // Lightweight trig without importing dart:math
-  static double _cos(double x) {
-    x = x % (2 * 3.14159);
-    return 1 -
-        (x * x) / 2 +
-        (x * x * x * x) / 24 -
-        (x * x * x * x * x * x) / 720;
-  }
-
-  static double _sin(double x) {
-    x = x % (2 * 3.14159);
-    return x -
-        (x * x * x) / 6 +
-        (x * x * x * x * x) / 120 -
-        (x * x * x * x * x * x * x) / 5040;
   }
 }

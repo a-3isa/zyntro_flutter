@@ -126,6 +126,16 @@ service cloud.firestore {
       }
     }
 
+    // Username registry — enforces unique handles. Doc id is the lowercase
+    // username. A handle is claimed once and never reassigned.
+    match /usernames/{username} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.keys().hasOnly(['uid', 'createdAt']);
+      allow update, delete: if false;
+    }
+
     match /sessions/{sessionId} {
       allow read: if isAuthenticated() &&
         hasParticipant(resource.data.participants, request.auth.uid);

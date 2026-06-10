@@ -3,6 +3,7 @@ import '../../../../core/constants/constants.dart';
 class UserProfileEntity {
   final String id;
   final String displayName;
+  final String? username;
   final String? photoUrl;
   final String? avatarConfig;
   final bool isPrivate;
@@ -15,6 +16,7 @@ class UserProfileEntity {
   const UserProfileEntity({
     required this.id,
     required this.displayName,
+    this.username,
     required this.photoUrl,
     required this.avatarConfig,
     required this.isPrivate,
@@ -30,6 +32,7 @@ class UserProfileEntity {
   UserProfileEntity copyWith({
     String? id,
     String? displayName,
+    String? username,
     String? photoUrl,
     String? avatarConfig,
     bool? isPrivate,
@@ -43,6 +46,7 @@ class UserProfileEntity {
     return UserProfileEntity(
       id: id ?? this.id,
       displayName: displayName ?? this.displayName,
+      username: username ?? this.username,
       photoUrl: photoUrl ?? this.photoUrl,
       avatarConfig: avatarConfig ?? this.avatarConfig,
       isPrivate: isPrivate ?? this.isPrivate,

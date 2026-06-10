@@ -6,6 +6,7 @@ import '../../domain/entities/user_profile_entity.dart';
 class UserProfileModel {
   final String id;
   final String displayName;
+  final String? username;
   final String? photoUrl;
   final String? avatarConfig;
   final bool isPrivate;
@@ -18,6 +19,7 @@ class UserProfileModel {
   const UserProfileModel({
     required this.id,
     required this.displayName,
+    this.username,
     required this.photoUrl,
     required this.avatarConfig,
     required this.isPrivate,
@@ -37,6 +39,7 @@ class UserProfileModel {
     return UserProfileModel(
       id: doc.id,
       displayName: data['displayName'] as String? ?? '',
+      username: data['username'] as String?,
       photoUrl: data['photoURL'] as String?,
       avatarConfig: data['avatarConfig'] as String?,
       isPrivate: data['isPrivate'] as bool? ?? false,
@@ -57,6 +60,7 @@ class UserProfileModel {
     return UserProfileModel(
       id: id,
       displayName: data['displayName'] as String? ?? '',
+      username: data['username'] as String?,
       photoUrl: data['photoURL'] as String?,
       avatarConfig: data['avatarConfig'] as String?,
       isPrivate: data['isPrivate'] as bool? ?? false,
@@ -76,6 +80,7 @@ class UserProfileModel {
     return UserProfileEntity(
       id: id,
       displayName: displayName,
+      username: username,
       photoUrl: photoUrl,
       avatarConfig: avatarConfig,
       isPrivate: isPrivate,

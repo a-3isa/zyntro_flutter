@@ -484,12 +484,12 @@ class _SocialPageState extends ConsumerState<SocialPage>
                 color: AppColors.textV2Primary,
               ),
               decoration: InputDecoration(
-                hintText: 'Find athletes by name…',
+                hintText: 'Find buddies by username…',
                 hintStyle: AppTextStyles.body.copyWith(
                   color: AppColors.textV2Tertiary,
                 ),
                 prefixIcon: const Icon(
-                  Icons.search_rounded,
+                  Icons.alternate_email_rounded,
                   color: AppColors.textV2Tertiary,
                   size: 20,
                 ),
@@ -507,7 +507,7 @@ class _SocialPageState extends ConsumerState<SocialPage>
           child: _searchQuery.isEmpty
               ? Center(
                   child: Text(
-                    'Search for athletes to follow',
+                    'Search by @username to add buddies',
                     style: AppTextStyles.body.copyWith(color: AppColors.textV2Tertiary),
                   ),
                 )
@@ -1455,7 +1455,9 @@ class _UserSearchRow extends ConsumerWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '${user.totalWorkouts} workouts',
+                    user.username != null
+                        ? '@${user.username}'
+                        : '${user.totalWorkouts} workouts',
                     style: AppTextStyles.caption.copyWith(
                       color: AppColors.textV2Secondary,
                     ),

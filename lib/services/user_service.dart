@@ -374,15 +374,19 @@ class UserService {
     await batch.commit();
   }
 
-  /// Search for users by display name.
-  /// Matches RN searchUsers.
+  /// Search for users by unique username (case-insensitive prefix match).
   Future<List<User>> searchUsers(String query) async {
-    if (query.trim().isEmpty) return [];
+    // Normalize to match stored lowercase handle; strip a leading '@'.
+    final normalized = query.trim().toLowerCase().replaceFirst(
+      RegExp(r'^@'),
+      '',
+    );
+    if (normalized.isEmpty) return [];
 
     final snapshot = await _firestore
         .collection('users')
-        .where('displayName', isGreaterThanOrEqualTo: query)
-        .where('displayName', isLessThanOrEqualTo: '$query\uf8ff')
+        .where('usernameLower', isGreaterThanOrEqualTo: normalized)
+        .where('usernameLower', isLessThanOrEqualTo: '$normalized\uf8ff')
         .limit(10)
         .get();
 

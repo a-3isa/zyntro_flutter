@@ -6,6 +6,7 @@ import '../../../app/navigation/app_route_locations.dart';
 import '../../../core/constants/constants.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../widgets/widgets.dart';
 import '../../auth/auth_providers.dart';
 import '../../../services/notification_service.dart';
 import '../../../services/session_service.dart';
@@ -282,41 +283,10 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(28),
-            decoration: BoxDecoration(
-              color: AppColors.accentLime.withValues(alpha: 0.10),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: AppColors.accentLime.withValues(alpha: 0.25),
-              ),
-            ),
-            child: const Icon(
-              Icons.notifications_none_rounded,
-              size: 56,
-              color: AppColors.accentLime,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          Text(
-            'All clear',
-            style: AppTextStyles.h3.copyWith(
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textV2Primary,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            "You'll see updates here when they arrive",
-            style: AppTextStyles.bodyLarge.copyWith(color: AppColors.textV2Secondary),
-          ),
-        ],
-      ),
+    return const AppEmptyState(
+      icon: Icons.notifications_none_rounded,
+      title: 'All clear',
+      message: "You'll see updates here when they arrive",
     );
   }
 

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -38,6 +39,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
   String? _createdPostId;
   bool _shareCardExpanded = false;
   final bool _postedToFeed = false;
+  bool _privateSaveDone = false;
 
   @override
   void initState() {
@@ -59,6 +61,36 @@ class _RecapPageState extends ConsumerState<RecapPage> {
     } catch (_) {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  /// Persist the workout as a private post (visible only to the owner, shown
+  /// with a lock badge in their profile) when they leave recap without sharing.
+  /// Best-effort, fire-and-forget; the session itself is already saved.
+  void _savePrivatelyIfNeeded() {
+    if (_createdPostId != null || _privateSaveDone || _session == null) return;
+    _privateSaveDone = true;
+    final uid = ref.read(authSessionProvider).valueOrNull?.id;
+    if (uid == null) return;
+    final postService = ref.read(postServiceProvider);
+    final session = _session!;
+    unawaited(
+      postService.createPost(
+        CreatePostParams(
+          authorId: uid,
+          sessionId: widget.sessionId,
+          visibility: 'private',
+          title: session.title,
+          type: session.type,
+          summary: session.summary ?? SessionSummary(),
+        ),
+      ),
+    );
+  }
+
+  void _goHome() {
+    HapticManager.light();
+    _savePrivatelyIfNeeded();
+    if (mounted) context.go('/?tab=feed');
   }
 
   // ── helpers ───────────────────────────────────────────────────────────────
@@ -359,7 +391,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
               const SizedBox(height: 24),
               _GhostButton(
                 label: 'Back to Home',
-                onTap: () => context.go('/?tab=feed'),
+                onTap: _goHome,
               ),
             ],
           ),
@@ -395,7 +427,15 @@ class _RecapPageState extends ConsumerState<RecapPage> {
       yourWorkoutType,
     ).displayName;
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        // Recap is terminal: leaving without sharing saves the workout privately
+        // and returns home rather than popping into the finished session.
+        _goHome();
+      },
+      child: Scaffold(
       backgroundColor: AppColors.backgroundV2,
       body: SafeArea(
         child: Column(
@@ -406,10 +446,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
               child: Align(
                 alignment: Alignment.centerRight,
                 child: GestureDetector(
-                  onTap: () {
-                    HapticManager.light();
-                    context.go('/?tab=feed');
-                  },
+                  onTap: _goHome,
                   child: Container(
                     width: 36,
                     height: 36,
@@ -667,7 +704,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
                       padding: const EdgeInsets.symmetric(horizontal: 24),
                       child: _GhostButton(
                         label: 'Back to Home',
-                        onTap: () => context.go('/?tab=feed'),
+                        onTap: _goHome,
                       ),
                     ),
                   ],
@@ -676,6 +713,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

@@ -242,7 +242,7 @@ class _RepCounterScreenState extends State<RepCounterScreen>
                         ),
                         child: Text(
                           canFinish
-                              ? '$_repCount ${_repCount == 1 ? "rep" : "reps"}'
+                              ? 'Save $_repCount ${_repCount == 1 ? "rep" : "reps"}'
                               : 'Save reps',
                           style: const TextStyle(
                             fontSize: 16,

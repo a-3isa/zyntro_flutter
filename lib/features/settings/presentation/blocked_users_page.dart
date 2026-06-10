@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../widgets/widgets.dart';
 import '../../../core/models/models.dart';
 import '../../auth/auth_providers.dart';
 import 'package:flutter/services.dart';
@@ -174,33 +175,10 @@ class _BlockedUsersPageState extends ConsumerState<BlockedUsersPage> {
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.xxl),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.block, size: 80, color: Colors.grey.shade400),
-            const SizedBox(height: AppSpacing.lg),
-            const Text(
-              'No blocked users',
-              style: TextStyle(
-                fontSize: AppFontSize.xl,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              'When you block someone, they\'ll appear here',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.grey.shade600,
-                fontSize: AppFontSize.md,
-              ),
-            ),
-          ],
-        ),
-      ),
+    return const AppEmptyState(
+      icon: Icons.block,
+      title: 'No blocked users',
+      message: "When you block someone, they'll appear here",
     );
   }
 

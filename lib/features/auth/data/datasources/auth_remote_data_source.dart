@@ -306,7 +306,8 @@ class AuthRemoteDataSource {
       if (data == null) return false;
 
       return (data['displayName'] as String?)?.isNotEmpty == true &&
-          data['workoutPreference'] != null;
+          data['workoutPreference'] != null &&
+          (data['username'] as String?)?.isNotEmpty == true;
     } on FirebaseException catch (_) {
       throw AuthDataException.server('Failed to verify profile completeness.');
     }
@@ -325,21 +326,31 @@ class AuthRemoteDataSource {
     try {
       final docRef = _firestore.collection('users').doc(userId);
       final snapshot = await docRef.get();
+      final existing = snapshot.data();
 
       final data = <String, dynamic>{
         'displayName': displayName,
-        'photoURL': photoUrl,
+        // Only write photoURL when we actually have one. Writing null here on a
+        // merge (e.g. when onboarding completes) would wipe the photo captured
+        // from a Google/Facebook sign-in.
+        if (photoUrl != null) 'photoURL': photoUrl,
         if (avatarConfig != null) 'avatarConfig': avatarConfig,
         'isPrivate': false,
         'workoutPreference': workoutPreference.value,
         'beginnerFlag': beginnerFlag,
-        'authProvider': authProvider ?? 'email',
         'updatedAt': FieldValue.serverTimestamp(),
         if (trainingDaysPerWeek != null)
           'trainingDaysPerWeek': trainingDaysPerWeek,
       };
 
-      final existing = snapshot.data();
+      // Preserve an existing auth provider (facebook/google). Only default to
+      // 'email' the first time, so a later merge doesn't clobber it.
+      if (authProvider != null) {
+        data['authProvider'] = authProvider;
+      } else if (existing == null || existing['authProvider'] == null) {
+        data['authProvider'] = 'email';
+      }
+
       if (!snapshot.exists ||
           existing == null ||
           !existing.containsKey('createdAt')) {

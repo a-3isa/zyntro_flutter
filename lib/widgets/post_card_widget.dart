@@ -686,6 +686,24 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
                     ),
                   ),
                 ),
+                // Private (unshared) workout indicator - visible only to owner.
+                if (widget.post.visibility == 'private')
+                  Positioned(
+                    top: AppSpacing.sm,
+                    right: AppSpacing.sm,
+                    child: Container(
+                      padding: const EdgeInsets.all(5),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.55),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.lock,
+                        size: 12,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),

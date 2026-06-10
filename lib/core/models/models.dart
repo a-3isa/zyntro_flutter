@@ -5,6 +5,7 @@ import '../constants/constants.dart';
 class User {
   final String id;
   final String displayName;
+  final String? username; // Unique handle (lowercase a-z 0-9 _), shown as @username
   final String? photoURL;
   final String?
   avatarConfig; // Stores avatar customization data (for custom avatars)
@@ -31,6 +32,7 @@ class User {
   User({
     required this.id,
     required this.displayName,
+    this.username,
     this.photoURL,
     this.avatarConfig,
     required this.isPrivate,
@@ -55,6 +57,7 @@ class User {
     return User(
       id: doc.id,
       displayName: data['displayName'] ?? '',
+      username: data['username'] as String?,
       photoURL: data['photoURL'],
       avatarConfig: data['avatarConfig'],
       isPrivate: data['isPrivate'] ?? false,
@@ -81,6 +84,7 @@ class User {
   Map<String, dynamic> toFirestore() {
     return {
       'displayName': displayName,
+      if (username != null) 'username': username,
       'photoURL': photoURL,
       if (avatarConfig != null) 'avatarConfig': avatarConfig,
       'isPrivate': isPrivate,

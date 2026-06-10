@@ -2733,7 +2733,10 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           .endSession(widget.sessionId, uid, summary);
 
       if (mounted) {
-        context.push(AppRouteLocations.sessionRecap(widget.sessionId));
+        // Recap is a terminal screen for the workout. Use go() (not push) so the
+        // finished session room and the exercise-setup page are removed from the
+        // back stack — otherwise "back"/"return home" surfaces the picker again.
+        context.go(AppRouteLocations.sessionRecap(widget.sessionId));
       }
     } catch (e) {
       if (mounted) {

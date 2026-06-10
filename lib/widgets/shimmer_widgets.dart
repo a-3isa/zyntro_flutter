@@ -10,8 +10,8 @@ class Shimmer extends StatefulWidget {
   const Shimmer({
     super.key,
     required this.child,
-    this.baseColor = const Color(0xFF2C2C2E), // AppColors.surfaceV2Elevated
-    this.highlightColor = const Color(0xFF3A3A3C), // Slightly lighter
+    this.baseColor = AppColors.surfaceV2Elevated, // v2 elevated surface
+    this.highlightColor = AppColors.surfaceV2Active, // v2 active (lighter)
   });
 
   @override

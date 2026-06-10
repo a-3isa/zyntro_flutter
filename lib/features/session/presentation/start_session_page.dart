@@ -1586,13 +1586,13 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                     ),
                   ZyntroButton(
                     title: _plan.isEmpty
-                        ? 'Add exercises to begin'
+                        ? 'Begin Session ⚡  ($totalSets sets)'
                         : 'Begin Session ⚡  ($totalSets sets)',
                     fullWidth: true,
                     size: ZyntroButtonSize.lg,
                     variant: ZyntroButtonVariant.primary,
                     loading: _isLoading,
-                    onPressed: _isLoading || _plan.isEmpty
+                    onPressed: _isLoading
                         ? null
                         : () {
                             HapticManager.heavy();

@@ -29,6 +29,7 @@ User _toLegacyUser(UserProfileEntity profile) {
   return User(
     id: profile.id,
     displayName: profile.displayName,
+    username: profile.username,
     photoURL: profile.photoUrl,
     avatarConfig: profile.avatarConfig,
     isPrivate: profile.isPrivate,
@@ -557,6 +558,18 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
                           ],
                         ),
                       ),
+                      if (user.username != null &&
+                          user.username!.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          '@${user.username}',
+                          style: AppTextStyles.caption.copyWith(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textV2Tertiary,
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 6),
                       // Workout badge
                       Row(
@@ -1109,7 +1122,11 @@ class _PostsTab extends ConsumerWidget {
     final postsAsync = ref.watch(userPostsProvider(targetUserId));
 
     return postsAsync.when(
-      data: (posts) {
+      data: (allPosts) {
+        // Private (unshared) workouts are visible only to their owner.
+        final posts = isCurrentUser
+            ? allPosts
+            : allPosts.where((p) => p.visibility != 'private').toList();
         if (posts.isEmpty) return _buildEmpty(context);
 
         return GridView.builder(
@@ -1193,6 +1210,23 @@ class _PostsTab extends ConsumerWidget {
                           style: AppTextStyles.h5.copyWith(
                             fontSize: 9,
                             color: AppColors.textV2Primary,
+                          ),
+                        ),
+                      ),
+                    if (post.visibility == 'private')
+                      Positioned(
+                        top: 6,
+                        right: 6,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: AppColors.backgroundV2.withValues(alpha: 0.6),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.lock,
+                            size: 11,
+                            color: AppColors.textV2Secondary,
                           ),
                         ),
                       ),
@@ -1925,25 +1959,4 @@ class _PressableRowState extends State<_PressableRow> {
 
 // ---------------------------------------------------------------------------
 // Legacy public widgets kept for backwards compatibility
-// ---------------------------------------------------------------------------
-
-/// 8-bar weekly volume chart (public API, used by workout history page).
-class WeeklyVolumeChart extends StatelessWidget {
-  const WeeklyVolumeChart({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    // Placeholder shell — real data version is _WeeklyVolumeChart (private).
-    return const SizedBox.shrink();
-  }
-}
-
-/// 12-week × 7-day activity heatmap (public API).
-class ActivityHeatmap extends StatelessWidget {
-  const ActivityHeatmap({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const SizedBox.shrink();
-  }
-}
+// -------------------------------------------------------------------------
