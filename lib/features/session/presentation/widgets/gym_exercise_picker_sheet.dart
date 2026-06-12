@@ -130,7 +130,7 @@ class _GymExercisePickerSheetState
             ),
             FilledButton(
               style: FilledButton.styleFrom(
-                backgroundColor: AppColors.primary,
+                backgroundColor: AppColors.userAccent,
                 foregroundColor: AppColors.textInverseDark,
               ),
               onPressed: () {
@@ -244,7 +244,7 @@ class _GymExercisePickerSheetState
             const SizedBox(height: 12),
             FilledButton(
               style: FilledButton.styleFrom(
-                backgroundColor: AppColors.primary,
+                backgroundColor: AppColors.userAccent,
                 foregroundColor: AppColors.textInverseDark,
               ),
               onPressed: () => _doSearch(_searchController.text.trim()),
@@ -405,7 +405,7 @@ class _SetCountSelector extends StatelessWidget {
                 child: FilledButton(
                   style: FilledButton.styleFrom(
                     backgroundColor: isValid
-                        ? AppColors.primary
+                        ? AppColors.userAccent
                         : AppColors.textV2Tertiary,
                     foregroundColor: AppColors.textInverseDark,
                   ),
@@ -457,7 +457,7 @@ class _NoMatchesState extends StatelessWidget {
           const SizedBox(height: 16),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: AppColors.primary,
+              backgroundColor: AppColors.userAccent,
               foregroundColor: AppColors.textInverseDark,
             ),
             onPressed: onAddCustom,

@@ -85,7 +85,7 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen>
     _repColorAnim =
         ColorTween(
           begin: AppColors.textV2Primary,
-          end: AppColors.accentLime,
+          end: AppColors.userAccent,
         ).animate(
           CurvedAnimation(parent: _repBounceController, curve: Curves.easeOut),
         );
@@ -295,10 +295,10 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen>
                         height: 140,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: AppColors.accentLime,
+                          color: AppColors.userAccent,
                           boxShadow: [
                             BoxShadow(
-                              color: AppColors.accentLime.withValues(
+                              color: AppColors.userAccent.withValues(
                                 alpha: 0.35,
                               ),
                               blurRadius: 60,
@@ -364,7 +364,7 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen>
               child: Text(
                 value,
                 style: AppTextStyles.label.copyWith(
-                  color: AppColors.accentLime,
+                  color: AppColors.userAccent,
                   fontSize: 13,
                 ),
               ),
@@ -389,7 +389,7 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen>
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
-                color: AppColors.accentLime.withValues(
+                color: AppColors.userAccent.withValues(
                   alpha: _pulseOn ? 0.20 : 0.06,
                 ),
                 width: 1.5,
@@ -404,7 +404,7 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen>
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
-                color: AppColors.accentLime.withValues(
+                color: AppColors.userAccent.withValues(
                   alpha: _pulseOn ? 0.12 : 0.04,
                 ),
                 width: 1.0,
@@ -417,7 +417,7 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen>
               Text(
                 _formatDuration(_elapsed),
                 style: AppTextStyles.display.copyWith(
-                  color: AppColors.accentLime,
+                  color: AppColors.userAccent,
                   fontSize: 88,
                   fontWeight: FontWeight.w700,
                   height: 1.0,
@@ -476,12 +476,12 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen>
                                 vertical: 6,
                               ),
                               decoration: BoxDecoration(
-                                color: AppColors.accentLime.withValues(
+                                color: AppColors.userAccent.withValues(
                                   alpha: 0.15,
                                 ),
                                 borderRadius: BorderRadius.circular(999),
                                 border: Border.all(
-                                  color: AppColors.accentLime.withValues(
+                                  color: AppColors.userAccent.withValues(
                                     alpha: 0.40,
                                   ),
                                 ),
@@ -491,7 +491,7 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen>
                                 style: AppTextStyles.body.copyWith(
                                   color:
                                       _repColorAnim.value ??
-                                      AppColors.accentLime,
+                                      AppColors.userAccent,
                                   fontSize: 13,
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -517,7 +517,7 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen>
                       child: Text(
                         _formatWeight(_weight),
                         style: AppTextStyles.display.copyWith(
-                          color: AppColors.accentLime,
+                          color: AppColors.userAccent,
                           fontSize: 60,
                           fontWeight: FontWeight.w700,
                           height: 1.1,
@@ -546,7 +546,7 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen>
                                 ),
                                 decoration: BoxDecoration(
                                   color: isSelected
-                                      ? AppColors.accentLime
+                                      ? AppColors.userAccent
                                       : surfaceActive,
                                   borderRadius: BorderRadius.circular(12),
                                 ),
@@ -589,12 +589,12 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen>
                             ),
                             decoration: BoxDecoration(
                               color: isPositive
-                                  ? AppColors.accentLime.withValues(alpha: 0.12)
+                                  ? AppColors.userAccent.withValues(alpha: 0.12)
                                   : surface,
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(
                                 color: isPositive
-                                    ? AppColors.accentLime.withValues(
+                                    ? AppColors.userAccent.withValues(
                                         alpha: 0.30,
                                       )
                                     : surfaceActive,
@@ -604,7 +604,7 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen>
                               isPositive ? '+$delta' : '$delta',
                               style: TextStyle(
                                 color: isPositive
-                                    ? AppColors.accentLime
+                                    ? AppColors.userAccent
                                     : textTertiary,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
@@ -621,11 +621,11 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen>
                       child: Container(
                         height: 60,
                         decoration: BoxDecoration(
-                          color: AppColors.accentLime,
+                          color: AppColors.userAccent,
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [
                             BoxShadow(
-                              color: AppColors.accentLime.withValues(
+                              color: AppColors.userAccent.withValues(
                                 alpha: 0.30,
                               ),
                               blurRadius: 20,

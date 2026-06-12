@@ -8,7 +8,7 @@ import '../../../core/constants/constants.dart';
 import '../../../app/navigation/app_router.dart';
 import '../../../widgets/email_verification_banner.dart';
 import '../../../widgets/zyntro_button.dart';
-import '../../../widgets/avatar_selector.dart';
+
 import '../auth_providers.dart';
 import 'providers/auth_controller.dart';
 
@@ -26,7 +26,7 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
   bool _isLoading = false;
   bool _isBeginner = false;
   String? _photoUrl;
-  String? _selectedAvatar;
+
   double? _uploadProgress;
   String _uploadStatus = '';
   String _authProvider = 'email';
@@ -81,15 +81,6 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
 
       if (uid == null) throw Exception('User not authenticated');
 
-      String? avatarConfigToSave;
-      String? photoUrlToSave;
-
-      if (_authProvider == 'email') {
-        avatarConfigToSave = _selectedAvatar;
-      } else {
-        photoUrlToSave = _photoUrl;
-      }
-
       setState(() => _uploadStatus = 'Creating profile...');
 
       await ref.read(authControllerProvider).createUserProfile(
@@ -97,8 +88,7 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
         displayName: _nameController.text.trim(),
         workoutPreference: _workoutPreference,
         beginnerFlag: _isBeginner,
-        photoUrl: photoUrlToSave,
-        avatarConfig: avatarConfigToSave,
+        photoUrl: _authProvider != 'email' ? _photoUrl : null,
         authProvider: _authProvider,
       );
 
@@ -194,13 +184,8 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
                   },
                 ),
 
-                // Photo/Avatar Selection
-                if (_authProvider == 'email') ...[
-                  AvatarSelector(
-                    onAvatarSelected: (avatar) => setState(() => _selectedAvatar = avatar),
-                    initialAvatar: _selectedAvatar,
-                  ),
-                ] else ...[
+                // Social auth photo preview
+                if (_authProvider != 'email') ...[
                   Center(
                     child: Column(
                       children: [
@@ -208,9 +193,9 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
                           width: 130,
                           height: 130,
                           padding: const EdgeInsets.all(3),
-                          decoration: const BoxDecoration(
+                          decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: AppColors.accentLime,
+                            color: AppColors.userAccent,
                           ),
                           child: Container(
                             decoration: BoxDecoration(
@@ -292,7 +277,7 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
                       child: LinearProgressIndicator(
                         value: _uploadProgress,
                         backgroundColor: AppColors.surfaceV2Elevated,
-                        valueColor: const AlwaysStoppedAnimation<Color>(AppColors.accentLime),
+                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.userAccent),
                       ),
                     ),
                   const SizedBox(height: AppSpacing.sm),
@@ -343,7 +328,7 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-          borderSide: const BorderSide(color: AppColors.accentLime, width: 2),
+          borderSide: BorderSide(color: AppColors.userAccent, width: 2),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppBorderRadius.lg),
@@ -372,10 +357,10 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
               vertical: AppSpacing.md,
             ),
             decoration: BoxDecoration(
-              color: isSelected ? AppColors.accentLime : AppColors.surfaceV2Elevated,
+              color: isSelected ? AppColors.userAccent : AppColors.surfaceV2Elevated,
               borderRadius: BorderRadius.circular(AppBorderRadius.lg),
               border: Border.all(
-                color: isSelected ? AppColors.accentLime : AppColors.surfaceV2Active,
+                color: isSelected ? AppColors.userAccent : AppColors.surfaceV2Active,
                 width: isSelected ? 2 : 1,
               ),
             ),
@@ -402,7 +387,7 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.school_outlined, color: AppColors.accentLime),
+          Icon(Icons.school_outlined, color: AppColors.userAccent),
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
@@ -435,7 +420,7 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
               return null;
             }),
             trackColor: WidgetStateProperty.resolveWith<Color?>((states) {
-              if (states.contains(WidgetState.selected)) return AppColors.accentLime;
+              if (states.contains(WidgetState.selected)) return AppColors.userAccent;
               return AppColors.surfaceV2Active;
             }),
           ),

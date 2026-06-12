@@ -139,9 +139,40 @@ class AppColors {
   static const Color surfaceV2Elevated = Color(0xFF1C1C1C);
   static const Color surfaceV2Active = Color(0xFF242424);
 
-  // Accent
+  // Accent SEED values (the default neon green). These are `const` and exist
+  // only as the fallback/seed for [userAccent]. DO NOT use accentLime directly
+  // in UI — use [userAccent]/[userAccentDim] so the color follows the signed-in
+  // user's choice. Putting a const color where a runtime value is needed is the
+  // exact trap that made per-user theming hard; userAccent avoids it.
   static const Color accentLime = Color(0xFFC8FF00);
   static const Color accentLimeDim = Color(0xFFA6D400);
+
+  // ── Per-user dynamic accent ────────────────────────────────────────────────
+  // Mutable runtime accent, set from the color the user picks during profile
+  // setup (defaults to the neon green). Non-const widget code reads these so
+  // the whole app takes on the user's color. Use [setAccent] to update.
+  static Color userAccent = accentLime;
+  static Color userAccentDim = accentLimeDim;
+
+  /// Apply a user's chosen accent color app-wide. [dim] defaults to a slightly
+  /// darker shade for pressed/secondary states.
+  static void setAccent(Color color, {Color? dim}) {
+    userAccent = color;
+    userAccentDim = dim ?? _darken(color, 0.16);
+  }
+
+  /// Reset the accent back to the default neon green (e.g. on sign-out).
+  static void resetAccent() {
+    userAccent = accentLime;
+    userAccentDim = accentLimeDim;
+  }
+
+  static Color _darken(Color c, double amount) {
+    final hsl = HSLColor.fromColor(c);
+    return hsl
+        .withLightness((hsl.lightness - amount).clamp(0.0, 1.0))
+        .toColor();
+  }
 
   // Dark mode text
   static const Color textV2Primary = Color(0xFFFFFFFF);

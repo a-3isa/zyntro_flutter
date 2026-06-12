@@ -138,14 +138,10 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
                         child: Hero(
                           tag: 'avatar-${widget.post.authorId}',
                           child: FluttermojiAvatar(
-                            avatarConfig: author?.avatarConfig,
                             photoUrl: author?.photoURL,
                             displayName: authorName,
                             size: 40,
                             showGradientBorder: false,
-                            ringColor: FluttermojiAvatar.colorFromAvatarConfig(
-                              author?.avatarConfig,
-                            ),
                           ),
                         ),
                       ),
@@ -436,10 +432,10 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
                                     ),
                                     child: Row(
                                       children: [
-                                        const Icon(
+                                        Icon(
                                           Icons.fitness_center,
                                           size: 14,
-                                          color: AppColors.primary,
+                                          color: AppColors.userAccent,
                                         ),
                                         const SizedBox(width: AppSpacing.xs),
                                         Expanded(
@@ -532,7 +528,7 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
         ? Icons.fitness_center
         : Icons.directions_run;
     final typeColor = widget.post.type == 'strength'
-        ? AppColors.primary
+        ? AppColors.userAccent
         : AppColors.secondary;
 
     return RepaintBoundary(
@@ -622,7 +618,7 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
         ? Icons.fitness_center
         : Icons.directions_run;
     final typeColor = widget.post.type == 'strength'
-        ? AppColors.primary
+        ? AppColors.userAccent
         : AppColors.secondary;
 
     return AspectRatio(

@@ -7,24 +7,25 @@ import '../../../app/navigation/app_router.dart';
 import '../../../widgets/zyntro_button.dart';
 import '../auth_providers.dart';
 
-/// Welcome / Landing (formerly Splash) page — v2 design.
+/// Welcome / Landing page. Shown to logged-out users; logged-in users see a
+/// brief loader while the router sends them to the app (or to profile setup).
 class SplashPage extends ConsumerWidget {
   const SplashPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authSessionProvider);
-    final isLoading = authState.isLoading;
     final user = authState.valueOrNull;
 
-    // If already logged in, show loader while router redirects (handled by app_router)
-    if (isLoading || user != null) {
+    // Auth resolving, or already signed in → loader while the router routes.
+    if (authState.isLoading || user != null) {
       return const Scaffold(
         backgroundColor: AppColors.backgroundV2,
         body: Center(child: CircularProgressIndicator()),
       );
     }
 
+    // Logged out → welcome with sign-up / sign-in.
     return Scaffold(
       backgroundColor: AppColors.backgroundV2,
       body: Stack(
@@ -39,16 +40,12 @@ class SplashPage extends ConsumerWidget {
               height: 280,
               decoration: const BoxDecoration(
                 gradient: RadialGradient(
-                  colors: [
-                    Color(0x10C8FF00), // #C8FF00 at ~6.3% opacity
-                    Colors.transparent,
-                  ],
+                  colors: [Color(0x10C8FF00), Colors.transparent],
                 ),
               ),
             ),
           ),
 
-          // Main content
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -57,7 +54,6 @@ class SplashPage extends ConsumerWidget {
                 children: [
                   const Spacer(),
 
-                  // "zyntro" wordmark
                   Text(
                     'zyntro',
                     style: AppTextStyles.display.copyWith(
@@ -71,7 +67,6 @@ class SplashPage extends ConsumerWidget {
 
                   const SizedBox(height: 12),
 
-                  // Subtitle
                   Text(
                     'Train. Compete. Dominate.',
                     style: AppTextStyles.body.copyWith(
@@ -82,21 +77,20 @@ class SplashPage extends ConsumerWidget {
 
                   const SizedBox(height: 48),
 
-                  // Lightning bolt icon in circle
                   Container(
                     width: 80,
                     height: 80,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: AppColors.accentLime.withValues(alpha: 0.27),
+                        color: AppColors.userAccent.withValues(alpha: 0.27),
                         width: 1.5,
                       ),
                     ),
-                    child: const Center(
+                    child: Center(
                       child: Icon(
                         Icons.bolt,
-                        color: AppColors.accentLime,
+                        color: AppColors.userAccent,
                         size: 32,
                       ),
                     ),
@@ -104,7 +98,6 @@ class SplashPage extends ConsumerWidget {
 
                   const Spacer(),
 
-                  // "Get started" primary button
                   ZyntroButton(
                     title: 'Get Started',
                     fullWidth: true,
@@ -115,7 +108,6 @@ class SplashPage extends ConsumerWidget {
 
                   const SizedBox(height: 16),
 
-                  // "Already have an account" text button
                   GestureDetector(
                     onTap: () => context.go(AppRoutes.login),
                     child: Padding(

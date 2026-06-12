@@ -82,7 +82,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
               color: AppColors.surfaceV2,
               border: Border(
                 bottom: BorderSide(
-                  color: AppColors.accentLime.withValues(alpha: 0.20),
+                  color: AppColors.userAccent.withValues(alpha: 0.20),
                   width: 1,
                 ),
               ),
@@ -127,7 +127,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.accentLime,
+                      color: AppColors.userAccent,
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
@@ -148,10 +148,10 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                         .read(notificationServiceProvider)
                         .markAllNotificationsAsRead(uid);
                   },
-                  child: const Text(
+                  child: Text(
                     'Read All',
                     style: TextStyle(
-                      color: AppColors.accentLime,
+                      color: AppColors.userAccent,
                       fontWeight: FontWeight.w700,
                       fontSize: 13,
                     ),
@@ -166,7 +166,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                 HapticManager.medium();
                 ref.invalidate(userNotificationsProvider(uid));
               },
-              color: AppColors.accentLime,
+              color: AppColors.userAccent,
               backgroundColor: AppColors.surfaceV2,
               child: notificationsAsync.when(
                 data: (notifications) {
@@ -215,7 +215,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                         icon: const Icon(Icons.refresh),
                         label: const Text('Retry'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
+                          backgroundColor: AppColors.userAccent,
                           foregroundColor: Colors.black,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -328,7 +328,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
               backgroundColor: AppColors.surfaceV2,
               action: SnackBarAction(
                 label: 'Undo',
-                textColor: AppColors.primary,
+                textColor: AppColors.userAccent,
                 onPressed: () async {
                   HapticManager.medium();
                   if (!mounted) return;
@@ -365,7 +365,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
               border: Border.all(
                 color: notification.read
                     ? AppColors.surfaceV2Active
-                    : AppColors.accentLime.withValues(alpha: 0.25),
+                    : AppColors.userAccent.withValues(alpha: 0.25),
                 width: 1,
               ),
             ),
@@ -385,7 +385,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                   border: notification.read
                       ? null
                       : Border.all(
-                          color: AppColors.accentLime.withValues(alpha: 0.18),
+                          color: AppColors.userAccent.withValues(alpha: 0.18),
                         ),
                 ),
                 child: Icon(icon, color: color, size: 22),
@@ -437,8 +437,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                   ? Container(
                       width: 7,
                       height: 7,
-                      decoration: const BoxDecoration(
-                        color: AppColors.accentLime,
+                      decoration: BoxDecoration(
+                        color: AppColors.userAccent,
                         shape: BoxShape.circle,
                       ),
                     )
@@ -567,7 +567,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       return FilledButton(
         onPressed: onPressed,
         style: FilledButton.styleFrom(
-          backgroundColor: AppColors.accentLime,
+          backgroundColor: AppColors.userAccent,
           foregroundColor: Colors.black,
           minimumSize: minSize,
           padding: hPad,
@@ -734,7 +734,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         return AppColors.textV2Secondary;
       case NotificationType.sessionInvite:
       case NotificationType.buddySession:
-        return AppColors.primary;
+        return AppColors.userAccent;
       case NotificationType.voiceNote:
         return AppColors.secondary;
       case NotificationType.followRequest:
@@ -754,7 +754,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       case NotificationType.friendStreakBroken:
         return Colors.grey;
       case NotificationType.turnChange:
-        return AppColors.primary;
+        return AppColors.userAccent;
     }
   }
 }

@@ -5,13 +5,13 @@ import '../constants/constants.dart';
 class User {
   final String id;
   final String displayName;
-  final String? username; // Unique handle (lowercase a-z 0-9 _), shown as @username
-  final String? photoURL;
   final String?
-  avatarConfig; // Stores avatar customization data (for custom avatars)
+  username; // Unique handle (lowercase a-z 0-9 _), shown as @username
+  final String? photoURL;
   final bool isPrivate;
   final WorkoutType workoutPreference;
   final bool beginnerFlag;
+  final String? avatarConfig;
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? lastActive; // Added for presence caching
@@ -34,10 +34,10 @@ class User {
     required this.displayName,
     this.username,
     this.photoURL,
-    this.avatarConfig,
     required this.isPrivate,
     required this.workoutPreference,
     required this.beginnerFlag,
+    this.avatarConfig,
     required this.createdAt,
     required this.updatedAt,
     this.buddyIds,
@@ -59,12 +59,12 @@ class User {
       displayName: data['displayName'] ?? '',
       username: data['username'] as String?,
       photoURL: data['photoURL'],
-      avatarConfig: data['avatarConfig'],
       isPrivate: data['isPrivate'] ?? false,
       workoutPreference: WorkoutType.fromString(
         data['workoutPreference'] ?? 'both',
       ),
       beginnerFlag: data['beginnerFlag'] ?? false,
+      avatarConfig: data['avatarConfig'] as String?,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       buddyIds: (data['buddyIds'] as List<dynamic>?)?.cast<String>(),
@@ -86,10 +86,10 @@ class User {
       'displayName': displayName,
       if (username != null) 'username': username,
       'photoURL': photoURL,
-      if (avatarConfig != null) 'avatarConfig': avatarConfig,
       'isPrivate': isPrivate,
       'workoutPreference': workoutPreference.value,
       'beginnerFlag': beginnerFlag,
+      if (avatarConfig != null) 'avatarConfig': avatarConfig,
       'updatedAt': FieldValue.serverTimestamp(),
       if (lastActive != null) 'lastActive': Timestamp.fromDate(lastActive!),
       'workoutScore': workoutScore,
@@ -124,6 +124,7 @@ class Session {
   final DateTime createdAt;
   final DateTime startedAt;
   final DateTime? endedAt;
+
   /// Per-participant workout type choice. {userId: workoutTypeValue}
   final Map<String, String> participantTypes;
 
@@ -151,7 +152,8 @@ class Session {
   /// Derive session mode from participant workout types.
   /// Same type for all → turn-based; mixed types → parallel.
   SessionMode get derivedMode {
-    if (participantTypes.isEmpty || participantTypes.values.toSet().length == 1) {
+    if (participantTypes.isEmpty ||
+        participantTypes.values.toSet().length == 1) {
       return SessionMode.turnBased;
     }
     return SessionMode.parallel;
@@ -305,8 +307,7 @@ class ParticipantProgress {
       if (timeMetrics != null) 'timeMetrics': timeMetrics!.toMap(),
       if (distanceMetrics != null) 'distanceMetrics': distanceMetrics!.toMap(),
       if (roundMetrics != null) 'roundMetrics': roundMetrics!.toMap(),
-      if (mobilityMetrics != null)
-        'mobilityMetrics': mobilityMetrics!.toMap(),
+      if (mobilityMetrics != null) 'mobilityMetrics': mobilityMetrics!.toMap(),
       'updatedAt': Timestamp.fromDate(updatedAt),
     };
   }
@@ -553,7 +554,8 @@ class ExerciseSummary {
     return ExerciseSummary(
       name: data['name'] ?? '',
       sets: data['sets'] ?? 0,
-      setDetails: (data['setDetails'] as List<dynamic>?)
+      setDetails:
+          (data['setDetails'] as List<dynamic>?)
               ?.map((e) => SetSummary.fromMap(e as Map<String, dynamic>))
               .toList() ??
           [],
@@ -979,7 +981,6 @@ class ActivityItem {
   final String userId;
   final String userName;
   final String? userPhotoURL;
-  final String? userAvatarConfig;
   final String type; // 'workout' or 'post'
   final String workoutType; // 'gym', 'running', etc.
   final String title;
@@ -992,7 +993,6 @@ class ActivityItem {
     required this.userId,
     required this.userName,
     this.userPhotoURL,
-    this.userAvatarConfig,
     required this.type,
     required this.workoutType,
     required this.title,
@@ -1017,7 +1017,6 @@ class ActivityItem {
       userId: workout.userId,
       userName: user.displayName,
       userPhotoURL: user.photoURL,
-      userAvatarConfig: user.avatarConfig,
       type: 'workout',
       workoutType: workout.type,
       title: workout.title,
@@ -1034,7 +1033,6 @@ class ActivityItem {
       userId: post.authorId,
       userName: user.displayName,
       userPhotoURL: user.photoURL,
-      userAvatarConfig: user.avatarConfig,
       type: 'post',
       workoutType: post.type,
       title: post.title,
@@ -1055,7 +1053,6 @@ class ActivityItem {
       userId: data['authorId'] ?? '',
       userName: user.displayName,
       userPhotoURL: user.photoURL,
-      userAvatarConfig: user.avatarConfig,
       type: 'post',
       workoutType: data['type'] ?? 'gym',
       title: data['title'] ?? '',

@@ -1748,9 +1748,9 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Icon(
+            Icon(
               Icons.check_circle_rounded,
-              color: AppColors.accentLime,
+              color: AppColors.userAccent,
               size: 64,
             ),
             const SizedBox(height: 18),
@@ -1777,7 +1777,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
             ElevatedButton(
               onPressed: _handleFinishSession,
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.accentLime,
+                backgroundColor: AppColors.userAccent,
                 foregroundColor: AppColors.backgroundV2,
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
@@ -2199,8 +2199,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                         gradient: (_currentExercise != null && !_isLogging)
                             ? LinearGradient(
                                 colors: [
-                                  AppColors.primary,
-                                  AppColors.primaryDark,
+                                  AppColors.userAccent,
+                                  AppColors.userAccentDim,
                                 ],
                               )
                             : null,
@@ -2209,7 +2209,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                             : Colors.white.withValues(alpha: 0.05),
                         border: Border.all(
                           color: (_currentExercise != null && !_isLogging)
-                              ? AppColors.primary
+                              ? AppColors.userAccent
                               : Colors.white.withValues(alpha: 0.1),
                           width: 2,
                         ),
@@ -2298,9 +2298,9 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                   child: Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.1),
+                      color: AppColors.userAccent.withValues(alpha: 0.1),
                       border: Border.all(
-                        color: AppColors.primary.withValues(alpha: 0.5),
+                        color: AppColors.userAccent.withValues(alpha: 0.5),
                         width: 2,
                       ),
                     ),
@@ -2309,7 +2309,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                       label: 'Record Voice Note',
                       child: Icon(
                         Icons.mic_rounded,
-                        color: AppColors.primary,
+                        color: AppColors.userAccent,
                         size: 22,
                       ),
                     ),
@@ -2429,10 +2429,10 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             margin: const EdgeInsets.only(bottom: AppSpacing.md),
             decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.1),
+              color: AppColors.userAccent.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(AppBorderRadius.md),
               border: Border.all(
-                color: AppColors.primary.withValues(alpha: 0.3),
+                color: AppColors.userAccent.withValues(alpha: 0.3),
               ),
             ),
             child: Row(
@@ -2441,14 +2441,14 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                 Icon(
                   _getActivityIcon(_workoutType.value),
                   size: 16,
-                  color: AppColors.primaryDark,
+                  color: AppColors.userAccentDim,
                 ),
                 const SizedBox(width: 6),
                 Text(
                   _workoutType.displayName,
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
-                    color: AppColors.primaryDark,
+                    color: AppColors.userAccentDim,
                   ),
                 ),
               ],
@@ -2476,7 +2476,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                       ),
                       decoration: BoxDecoration(
                         color: isSelected
-                            ? AppColors.primary
+                            ? AppColors.userAccent
                             : AppColors.surfaceSecondaryLight,
                         borderRadius: BorderRadius.horizontal(
                           left: isFirst
@@ -2579,8 +2579,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                       gradient: (_cardioActivityType != null && !_isLogging)
                           ? LinearGradient(
                               colors: [
-                                AppColors.primary,
-                                AppColors.primaryDark,
+                                AppColors.userAccent,
+                                AppColors.userAccentDim,
                               ],
                             )
                           : null,
@@ -2589,7 +2589,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                           : Colors.white.withValues(alpha: 0.05),
                       border: Border.all(
                         color: (_cardioActivityType != null && !_isLogging)
-                            ? AppColors.primary
+                            ? AppColors.userAccent
                             : Colors.white.withValues(alpha: 0.1),
                         width: 2,
                       ),
@@ -2626,11 +2626,11 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                   decoration: BoxDecoration(
                     color: _isRecording
                         ? AppColors.error.withValues(alpha: 0.1)
-                        : AppColors.primary.withValues(alpha: 0.1),
+                        : AppColors.userAccent.withValues(alpha: 0.1),
                     border: Border.all(
                       color: _isRecording
                           ? AppColors.error.withValues(alpha: 0.5)
-                          : AppColors.primary.withValues(alpha: 0.5),
+                          : AppColors.userAccent.withValues(alpha: 0.5),
                       width: 2,
                     ),
                   ),
@@ -2641,7 +2641,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                         : 'Record Voice Note',
                     child: Icon(
                       _isRecording ? Icons.stop_rounded : Icons.mic_rounded,
-                      color: _isRecording ? AppColors.error : AppColors.primary,
+                      color: _isRecording ? AppColors.error : AppColors.userAccent,
                       size: 22,
                     ),
                   ),
@@ -2760,7 +2760,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                AppColors.primary.withValues(alpha: 0.05),
+                AppColors.userAccent.withValues(alpha: 0.05),
                 Colors.transparent,
                 AppColors.secondary.withValues(alpha: 0.03),
               ],
@@ -2781,7 +2781,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    AppColors.primary.withValues(alpha: 0.15),
+                    AppColors.userAccent.withValues(alpha: 0.15),
                     Colors.transparent,
                   ],
                 ),
@@ -2888,7 +2888,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                   "It's your turn! ðŸ’ª",
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
-                backgroundColor: AppColors.primary,
+                backgroundColor: AppColors.userAccent,
                 behavior: SnackBarBehavior.floating,
                 action: SnackBarAction(
                   label: 'Let\'s Go',
@@ -2987,8 +2987,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       final label = Text(
         _workoutType.displayName.toUpperCase(),
         overflow: compact ? TextOverflow.ellipsis : TextOverflow.clip,
-        style: const TextStyle(
-          color: AppColors.accentLime,
+        style: TextStyle(
+          color: AppColors.userAccent,
           fontSize: 11,
           fontWeight: FontWeight.w800,
           letterSpacing: 1.5,
@@ -2998,10 +2998,10 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: AppColors.accentLime.withValues(alpha: 0.12),
+          color: AppColors.userAccent.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: AppColors.accentLime.withValues(alpha: 0.3),
+            color: AppColors.userAccent.withValues(alpha: 0.3),
             width: 1,
           ),
         ),
@@ -3050,7 +3050,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
             Icon(
               Icons.timer_outlined,
               size: 11,
-              color: AppColors.accentLime.withValues(alpha: 0.85),
+              color: AppColors.userAccent.withValues(alpha: 0.85),
             ),
             const SizedBox(width: 5),
             Text(
@@ -3075,12 +3075,12 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
               borderRadius: BorderRadius.circular(18),
               border: Border.all(color: AppColors.surfaceV2Active),
             ),
-            child: const Row(
+            child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
                   Icons.smart_toy_outlined,
-                  color: AppColors.accentLime,
+                  color: AppColors.userAccent,
                   size: 15,
                 ),
                 SizedBox(width: 6),
@@ -3395,7 +3395,7 @@ class PlanProgressBar extends StatelessWidget {
                       height: 4,
                       decoration: BoxDecoration(
                         color: done
-                            ? AppColors.accentLime
+                            ? AppColors.userAccent
                             : (AppColors.surfaceV2Active),
                         borderRadius: BorderRadius.circular(2),
                       ),
@@ -3409,7 +3409,7 @@ class PlanProgressBar extends StatelessWidget {
           Text(
             '$completed/$totalExercises',
             style: TextStyle(
-              color: AppColors.accentLime,
+              color: AppColors.userAccent,
               fontSize: 12,
               fontWeight: FontWeight.w700,
             ),

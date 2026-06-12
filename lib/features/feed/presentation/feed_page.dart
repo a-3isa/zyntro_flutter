@@ -20,6 +20,7 @@ import '../../../utils/image_cache_manager.dart';
 import '../../../widgets/widgets.dart';
 import '../../../widgets/reaction_buttons.dart';
 import '../../moderation/presentation/report_dialog.dart';
+import '../../../services/notification_service.dart';
 
 /// Feed page showing posts with Public and Following tabs.
 class FeedPage extends ConsumerStatefulWidget {
@@ -107,7 +108,7 @@ class _FeedPageState extends ConsumerState<FeedPage>
 }
 
 /// v2 Feed header: ZYNTRO wordmark + theme toggle + tab pill
-class _V2FeedHeader extends StatelessWidget {
+class _V2FeedHeader extends ConsumerWidget {
   final VoidCallback onNotificationsTap;
   final VoidCallback? onSocialTap;
   final TabController tabController;
@@ -119,7 +120,10 @@ class _V2FeedHeader extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final userId = ref.watch(authSessionProvider).valueOrNull?.id;
+    final hasUnread = userId != null &&
+        (ref.watch(unreadCountProvider(userId)).valueOrNull ?? 0) > 0;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
       child: Column(
@@ -151,22 +155,23 @@ class _V2FeedHeader extends StatelessWidget {
                           size: 22,
                         ),
                       ),
-                      Positioned(
-                        top: 4,
-                        right: 4,
-                        child: Container(
-                          width: 7,
-                          height: 7,
-                          decoration: BoxDecoration(
-                            color: AppColors.accentLime,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: AppColors.backgroundV2,
-                              width: 1.5,
+                      if (hasUnread)
+                        Positioned(
+                          top: 4,
+                          right: 4,
+                          child: Container(
+                            width: 7,
+                            height: 7,
+                            decoration: BoxDecoration(
+                              color: AppColors.userAccent,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: AppColors.backgroundV2,
+                                width: 1.5,
+                              ),
                             ),
                           ),
                         ),
-                      ),
                     ],
                   ),
                 ),
@@ -445,7 +450,7 @@ class _FeedTabState extends ConsumerState<_FeedTab>
               icon: const Icon(Icons.refresh),
               label: const Text('Try Again'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
+                backgroundColor: AppColors.userAccent,
                 foregroundColor: Colors.white,
               ),
             ),
@@ -498,8 +503,8 @@ class _FeedTabState extends ConsumerState<_FeedTab>
                   _refresh();
                 },
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.primary,
-                  side: const BorderSide(color: AppColors.primary),
+                  foregroundColor: AppColors.userAccent,
+                  side: BorderSide(color: AppColors.userAccent),
                 ),
                 child: const Text('Refresh'),
               ),
@@ -515,7 +520,7 @@ class _FeedTabState extends ConsumerState<_FeedTab>
             HapticManager.medium();
             await _refresh();
           },
-          color: AppColors.accentLime,
+          color: AppColors.userAccent,
           child: ListView.builder(
             controller: _scrollController,
             physics: const BouncingScrollPhysics(
@@ -543,7 +548,7 @@ class _FeedTabState extends ConsumerState<_FeedTab>
                         height: 24,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: AppColors.primary,
+                          color: AppColors.userAccent,
                         ),
                       ),
                       const SizedBox(width: AppSpacing.md),
@@ -587,7 +592,7 @@ class _FeedTabState extends ConsumerState<_FeedTab>
             bottom: AppSpacing.lg,
             child: FloatingActionButton.small(
               onPressed: _scrollToTop,
-              backgroundColor: AppColors.primary,
+              backgroundColor: AppColors.userAccent,
               child: const Icon(Icons.arrow_upward, color: Colors.white),
             ),
           ),

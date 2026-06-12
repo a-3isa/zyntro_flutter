@@ -250,7 +250,7 @@ class _ParallelGymViewState extends State<ParallelGymView> {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: AppColors.surfaceV2,
-              border: Border.all(color: AppColors.primary, width: 3),
+              border: Border.all(color: AppColors.userAccent, width: 3),
             ),
             alignment: Alignment.center,
             child: Text(

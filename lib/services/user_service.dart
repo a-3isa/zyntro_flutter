@@ -18,7 +18,6 @@ class FriendStreakComparison {
   final String userId;
   final String displayName;
   final String? photoURL;
-  final String? avatarConfig;
   final int currentStreak;
   final int longestStreak;
   final bool isCurrentUser;
@@ -30,7 +29,6 @@ class FriendStreakComparison {
     required this.userId,
     required this.displayName,
     this.photoURL,
-    this.avatarConfig,
     required this.currentStreak,
     required this.longestStreak,
     required this.isCurrentUser,
@@ -681,7 +679,6 @@ class UserService {
             userId: id,
             displayName: profile['displayName'] ?? 'Unknown',
             photoURL: profile['photoURL'],
-            avatarConfig: profile['avatarConfig'],
             currentStreak: streak.currentStreak,
             longestStreak: streak.longestStreak,
             isCurrentUser: id == currentUserId,
@@ -704,7 +701,6 @@ class UserService {
           userId: comparisons[i].userId,
           displayName: comparisons[i].displayName,
           photoURL: comparisons[i].photoURL,
-          avatarConfig: comparisons[i].avatarConfig,
           currentStreak: comparisons[i].currentStreak,
           longestStreak: comparisons[i].longestStreak,
           isCurrentUser: comparisons[i].isCurrentUser,

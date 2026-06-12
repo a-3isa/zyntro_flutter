@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -13,7 +13,7 @@ import '../../../core/models/models.dart';
 import '../../../services/media_service.dart';
 import '../../../utils/haptic_manager.dart';
 import '../../../widgets/responsive_center.dart';
-import '../../../widgets/avatar_selector.dart';
+
 import '../../auth/auth_providers.dart';
 import '../../auth/presentation/providers/auth_controller.dart';
 
@@ -31,7 +31,6 @@ final editProfileUserProvider = FutureProvider<User?>((ref) async {
     id: profile.id,
     displayName: profile.displayName,
     photoURL: profile.photoUrl,
-    avatarConfig: profile.avatarConfig,
     isPrivate: profile.isPrivate,
     workoutPreference: profile.workoutPreference,
     beginnerFlag: profile.beginnerFlag,
@@ -53,10 +52,6 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
 
   String? _photoPath;
   String? _existingPhotoUrl;
-  String? _selectedAvatar;
-  String? _originalAvatar;
-  bool _isUsingAvatar = false;
-
   WorkoutType _workoutPreference = WorkoutType.gym;
   bool _isLoading = false;
   bool _isUploading = false;
@@ -79,24 +74,9 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
   }
 
   void _checkForChanges() {
-    final bool originalIsUsingAvatar = _existingPhotoUrl == null && _originalAvatar != null;
-
-    bool isProfileChanged = false;
-
-    if (_isUsingAvatar != originalIsUsingAvatar) {
-      isProfileChanged = true;
-    } else {
-      if (_isUsingAvatar) {
-        if (_selectedAvatar != _originalAvatar) isProfileChanged = true;
-      } else {
-        if (_photoPath != null) isProfileChanged = true;
-      }
-    }
-
     final hasChanges = _displayNameController.text != _originalDisplayName ||
         _workoutPreference != _originalWorkoutPreference ||
-        isProfileChanged;
-
+        _photoPath != null;
     setState(() => _hasChanges = hasChanges);
   }
 
@@ -108,22 +88,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
         _workoutPreference = user.workoutPreference;
         _originalDisplayName = user.displayName;
         _originalWorkoutPreference = user.workoutPreference;
-
         _existingPhotoUrl = user.photoURL;
-        final avatarConfig = user.avatarConfig;
-
-        if (_existingPhotoUrl != null && _existingPhotoUrl!.isNotEmpty) {
-          _isUsingAvatar = false;
-          _selectedAvatar = avatarConfig;
-        } else if (avatarConfig != null && avatarConfig.isNotEmpty) {
-          _isUsingAvatar = true;
-          _selectedAvatar = avatarConfig;
-        } else {
-          _isUsingAvatar = false;
-          _selectedAvatar = null;
-        }
-
-        _originalAvatar = _selectedAvatar;
         setState(() {});
       }
     });
@@ -159,37 +124,20 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
 
     try {
       String? photoUrl = _existingPhotoUrl;
-      String? avatarConfig = _selectedAvatar;
 
-      if (_isUsingAvatar) {
-        if (avatarConfig != null) {
-          photoUrl = null;
-        }
-      } else {
-        if (_photoPath != null) {
-          setState(() => _isUploading = true);
-          photoUrl = await ref
-              .read(mediaServiceProvider)
-              .uploadProfilePhoto(filePath: _photoPath!, userId: uid);
-          setState(() => _isUploading = false);
-        }
+      if (_photoPath != null) {
+        setState(() => _isUploading = true);
+        photoUrl = await ref
+            .read(mediaServiceProvider)
+            .uploadProfilePhoto(filePath: _photoPath!, userId: uid);
+        setState(() => _isUploading = false);
       }
 
       final Map<String, dynamic> updates = {
         'displayName': _displayNameController.text.trim(),
         'workoutPreference': _workoutPreference.value,
+        if (photoUrl != null) 'photoURL': photoUrl,
       };
-
-      if (_isUsingAvatar) {
-        if (avatarConfig != null) {
-          updates['avatarConfig'] = avatarConfig;
-          updates['photoURL'] = FieldValue.delete();
-        }
-      } else {
-        if (photoUrl != null) {
-          updates['photoURL'] = photoUrl;
-        }
-      }
 
       await ref.read(authControllerProvider).updateUserProfile(userId: uid, data: updates);
       ref.invalidate(editProfileUserProvider);
@@ -290,21 +238,21 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                           decoration: BoxDecoration(
                             color: AppColors.surfaceV2Elevated,
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: AppColors.accentLime),
+                            border: Border.all(color: AppColors.userAccent),
                           ),
                           child: _isLoading
-                              ? const SizedBox(
+                              ? SizedBox(
                                   width: 20,
                                   height: 20,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    color: AppColors.accentLime,
+                                    color: AppColors.userAccent,
                                   ),
                                 )
                               : Text(
                                   'Save',
                                   style: AppTextStyles.label.copyWith(
-                                    color: AppColors.accentLime,
+                                    color: AppColors.userAccent,
                                   ),
                                 ),
                         ),
@@ -340,162 +288,106 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                       key: _formKey,
                       child: Column(
                         children: [
-                          // Photo/Avatar toggle
-                          Container(
-                            decoration: BoxDecoration(
-                              color: AppColors.surfaceV2Elevated,
-                              borderRadius: BorderRadius.circular(AppBorderRadius.full),
-                              border: Border.all(color: AppColors.surfaceV2Active),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _buildToggleOption(
-                                  title: 'Photo',
-                                  isSelected: !_isUsingAvatar,
-                                  onTap: () {
-                                    HapticFeedback.selectionClick();
-                                    setState(() {
-                                      _isUsingAvatar = false;
-                                      _checkForChanges();
-                                    });
-                                  },
-                                ),
-                                _buildToggleOption(
-                                  title: 'Avatar',
-                                  isSelected: _isUsingAvatar,
-                                  onTap: () {
-                                    HapticFeedback.selectionClick();
-                                    setState(() {
-                                      _isUsingAvatar = true;
-                                      _checkForChanges();
-                                    });
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: AppSpacing.xl),
-
-                          // Photo or Avatar content
-                          AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 300),
-                            child: _isUsingAvatar
-                                ? Column(
-                                    key: const ValueKey('avatar'),
-                                    children: [
-                                      AvatarSelector(
-                                        initialAvatar: _selectedAvatar,
-                                        onAvatarSelected: (avatar) {
-                                          setState(() {
-                                            _selectedAvatar = avatar;
-                                            _checkForChanges();
-                                          });
-                                        },
+                          // Profile photo
+                          Column(
+                            children: [
+                              GestureDetector(
+                                onTap: _pickImage,
+                                child: Stack(
+                                  children: [
+                                    Container(
+                                      width: 130,
+                                      height: 130,
+                                      padding: const EdgeInsets.all(3),
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: AppColors.userAccent,
                                       ),
-                                    ],
-                                  )
-                                : Column(
-                                    key: const ValueKey('photo'),
-                                    children: [
-                                      GestureDetector(
+                                      child: Container(
+                                        decoration: const BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: AppColors.surfaceV2,
+                                        ),
+                                        padding: const EdgeInsets.all(3),
+                                        child: _isUploading
+                                            ? const CircleAvatar(
+                                                radius: 57,
+                                                backgroundColor: AppColors.surfaceV2Elevated,
+                                              )
+                                            : Hero(
+                                                tag: 'avatar_${user.id}',
+                                                child: ClipOval(
+                                                  child: (_photoPath != null)
+                                                      ? Image.file(
+                                                          File(_photoPath!),
+                                                          width: 114,
+                                                          height: 114,
+                                                          fit: BoxFit.cover,
+                                                        )
+                                                      : (_existingPhotoUrl != null &&
+                                                              _existingPhotoUrl!.isNotEmpty)
+                                                          ? CachedNetworkImage(
+                                                              imageUrl: _existingPhotoUrl!,
+                                                              width: 114,
+                                                              height: 114,
+                                                              fit: BoxFit.cover,
+                                                              placeholder: (context, url) =>
+                                                                  Container(color: AppColors.surfaceV2Elevated),
+                                                              errorWidget: (context, url, error) =>
+                                                                  const Icon(Icons.error),
+                                                            )
+                                                          : Container(
+                                                              width: 114,
+                                                              height: 114,
+                                                              color: AppColors.surfaceV2Elevated,
+                                                              child: Center(
+                                                                child: Text(
+                                                                  user.displayName.isNotEmpty
+                                                                      ? user.displayName[0].toUpperCase()
+                                                                      : 'U',
+                                                                  style: AppTextStyles.display.copyWith(
+                                                                    fontSize: 40,
+                                                                    fontWeight: FontWeight.w700,
+                                                                    color: AppColors.userAccent,
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                            ),
+                                                ),
+                                              ),
+                                      ),
+                                    ),
+                                    Positioned(
+                                      bottom: 0,
+                                      right: 0,
+                                      child: GestureDetector(
                                         onTap: _pickImage,
-                                        child: Stack(
-                                          children: [
-                                            Container(
-                                              width: 130,
-                                              height: 130,
-                                              padding: const EdgeInsets.all(3),
-                                              decoration: const BoxDecoration(
-                                                shape: BoxShape.circle,
-                                                color: AppColors.accentLime,
-                                              ),
-                                              child: Container(
-                                                decoration: BoxDecoration(
-                                                  shape: BoxShape.circle,
-                                                  color: AppColors.surfaceV2,
-                                                ),
-                                                padding: const EdgeInsets.all(3),
-                                                child: _isUploading
-                                                    ? CircleAvatar(
-                                                        radius: 57,
-                                                        backgroundColor: AppColors.surfaceV2Elevated,
-                                                      )
-                                                    : Hero(
-                                                        tag: 'avatar_${user.id}',
-                                                        child: ClipOval(
-                                                          child: (_photoPath != null)
-                                                              ? Image.file(
-                                                                  File(_photoPath!),
-                                                                  width: 114,
-                                                                  height: 114,
-                                                                  fit: BoxFit.cover,
-                                                                )
-                                                              : (_existingPhotoUrl != null &&
-                                                                      _existingPhotoUrl!.isNotEmpty)
-                                                                  ? CachedNetworkImage(
-                                                                      imageUrl: _existingPhotoUrl!,
-                                                                      width: 114,
-                                                                      height: 114,
-                                                                      fit: BoxFit.cover,
-                                                                      placeholder: (context, url) =>
-                                                                          Container(color: AppColors.surfaceV2Elevated),
-                                                                      errorWidget: (context, url, error) =>
-                                                                          const Icon(Icons.error),
-                                                                    )
-                                                                  : Container(
-                                                                      width: 114,
-                                                                      height: 114,
-                                                                      color: AppColors.surfaceV2Elevated,
-                                                                      child: Center(
-                                                                        child: Text(
-                                                                          user.displayName.isNotEmpty
-                                                                              ? user.displayName[0].toUpperCase()
-                                                                              : 'U',
-                                                                          style: AppTextStyles.display.copyWith(
-                                                                            fontSize: 40,
-                                                                            fontWeight: FontWeight.w700,
-                                                                            color: AppColors.accentLime,
-                                                                          ),
-                                                                        ),
-                                                                      ),
-                                                                    ),
-                                                        ),
-                                                      ),
-                                              ),
-                                            ),
-                                            Positioned(
-                                              bottom: 0,
-                                              right: 0,
-                                              child: GestureDetector(
-                                                onTap: _pickImage,
-                                                child: Container(
-                                                  padding: const EdgeInsets.all(10),
-                                                  decoration: const BoxDecoration(
-                                                    color: AppColors.accentLime,
-                                                    shape: BoxShape.circle,
-                                                  ),
-                                                  child: const Icon(
-                                                    Icons.camera_alt,
-                                                    color: AppColors.backgroundV2,
-                                                    size: 20,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ],
+                                        child: Container(
+                                          padding: const EdgeInsets.all(10),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.userAccent,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Icon(
+                                            Icons.camera_alt,
+                                            color: AppColors.backgroundV2,
+                                            size: 20,
+                                          ),
                                         ),
                                       ),
-                                      const SizedBox(height: AppSpacing.sm),
-                                      Text(
-                                        'Tap to change photo',
-                                        style: TextStyle(
-                                          fontSize: AppFontSize.sm,
-                                          color: AppColors.textV2Secondary,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: AppSpacing.sm),
+                              Text(
+                                'Tap to change photo',
+                                style: TextStyle(
+                                  fontSize: AppFontSize.sm,
+                                  color: AppColors.textV2Secondary,
+                                ),
+                              ),
+                            ],
                           ),
 
                           const SizedBox(height: AppSpacing.xxl),
@@ -513,7 +405,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                               children: [
                                 Row(
                                   children: [
-                                    const Icon(Icons.person_outline, color: AppColors.accentLime),
+                                    Icon(Icons.person_outline, color: AppColors.userAccent),
                                     const SizedBox(width: AppSpacing.sm),
                                     Text(
                                       'Display Name',
@@ -549,7 +441,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                                     ),
                                     focusedBorder: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(AppBorderRadius.md),
-                                      borderSide: const BorderSide(color: AppColors.accentLime, width: 2),
+                                      borderSide: BorderSide(color: AppColors.userAccent, width: 2),
                                     ),
                                     errorBorder: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(AppBorderRadius.md),
@@ -584,7 +476,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                             decoration: BoxDecoration(
                               color: AppColors.surfaceV2Elevated,
                               borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-                              border: Border.all(color: AppColors.accentLime.withValues(alpha: 0.3)),
+                              border: Border.all(color: AppColors.userAccent.withValues(alpha: 0.3)),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -593,7 +485,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                                   padding: const EdgeInsets.all(AppSpacing.md),
                                   child: Row(
                                     children: [
-                                      const Icon(Icons.fitness_center, color: AppColors.accentLime),
+                                      Icon(Icons.fitness_center, color: AppColors.userAccent),
                                       const SizedBox(width: AppSpacing.sm),
                                       Text(
                                         'Workout Preference',
@@ -713,10 +605,10 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
         margin: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.accentLime.withValues(alpha: 0.12) : Colors.transparent,
+          color: isSelected ? AppColors.userAccent.withValues(alpha: 0.12) : Colors.transparent,
           borderRadius: BorderRadius.circular(AppBorderRadius.md),
           border: Border.all(
-            color: isSelected ? AppColors.accentLime : Colors.transparent,
+            color: isSelected ? AppColors.userAccent : Colors.transparent,
             width: isSelected ? 2 : 1,
           ),
         ),
@@ -729,10 +621,10 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: isSelected ? AppColors.accentLime : AppColors.textV2Tertiary,
+                  color: isSelected ? AppColors.userAccent : AppColors.textV2Tertiary,
                   width: 2,
                 ),
-                color: isSelected ? AppColors.accentLime : Colors.transparent,
+                color: isSelected ? AppColors.userAccent : Colors.transparent,
               ),
               child: isSelected
                   ? const Icon(Icons.check, size: 16, color: AppColors.backgroundV2)
@@ -747,7 +639,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                     title,
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
-                      color: isSelected ? AppColors.accentLime : AppColors.textV2Primary,
+                      color: isSelected ? AppColors.userAccent : AppColors.textV2Primary,
                     ),
                   ),
                   Text(
@@ -763,27 +655,4 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
     );
   }
 
-  Widget _buildToggleOption({
-    required String title,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.accentLime : Colors.transparent,
-          borderRadius: BorderRadius.circular(AppBorderRadius.full),
-        ),
-        child: Text(
-          title,
-          style: AppTextStyles.label.copyWith(
-            color: isSelected ? AppColors.backgroundV2 : AppColors.textV2Secondary,
-          ),
-        ),
-      ),
-    );
-  }
 }

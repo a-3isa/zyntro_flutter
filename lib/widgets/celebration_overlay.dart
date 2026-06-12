@@ -71,7 +71,7 @@ class _CelebrationOverlayState extends State<CelebrationOverlay>
           ConfettiWidget(
             confettiController: _confetti,
             blastDirectionality: BlastDirectionality.explosive,
-            colors: const [AppColors.accentLime, AppColors.warnV2, Colors.white],
+            colors: [AppColors.userAccent, AppColors.warnV2, Colors.white],
             numberOfParticles: 30,
             maxBlastForce: 20,
             minBlastForce: 8,

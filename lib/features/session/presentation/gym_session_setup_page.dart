@@ -259,12 +259,12 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
       mainAxisAlignment: MainAxisAlignment.center,
       mainAxisSize: MainAxisSize.min,
       children: [
-        const SizedBox(
+        SizedBox(
           width: 32,
           height: 32,
           child: CircularProgressIndicator(
             strokeWidth: 3,
-            color: AppColors.accentLime,
+            color: AppColors.userAccent,
           ),
         ),
         const SizedBox(height: 20),
@@ -304,12 +304,12 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.12),
+              color: AppColors.userAccent.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(20),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.fitness_center_rounded,
-              color: AppColors.primary,
+              color: AppColors.userAccent,
               size: 32,
             ),
           ),
@@ -396,7 +396,7 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
                   decoration: BoxDecoration(
                     color: _isReady || !_isPlanValid || _isSavingReady
                         ? AppColors.surfaceV2Active
-                        : AppColors.accentLime,
+                        : AppColors.userAccent,
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Center(

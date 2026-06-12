@@ -123,7 +123,7 @@ class _ParallelCardioViewState extends State<ParallelCardioView> {
                   height: partnerHeight,
                   child: _CardioPartnerCard(
                     partner: widget.partner,
-                    accentColor: AppColors.primary,
+                    accentColor: AppColors.userAccent,
                   ),
                 ),
               ],
@@ -146,16 +146,16 @@ class _ParallelCardioViewState extends State<ParallelCardioView> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.15),
+                color: AppColors.userAccent.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(999),
                 border: Border.all(
-                  color: AppColors.primary.withValues(alpha: 0.4),
+                  color: AppColors.userAccent.withValues(alpha: 0.4),
                 ),
               ),
               child: Text(
                 _activityLabel(widget.activityType),
                 style: TextStyle(
-                  color: AppColors.primary,
+                  color: AppColors.userAccent,
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 1.2,
@@ -172,7 +172,7 @@ class _ParallelCardioViewState extends State<ParallelCardioView> {
                 shape: BoxShape.circle,
                 color: AppColors.surfaceV2,
                 border: Border.all(
-                  color: _running ? AppColors.primary : AppColors.secondary,
+                  color: _running ? AppColors.userAccent : AppColors.secondary,
                   width: 3,
                 ),
               ),
@@ -285,7 +285,7 @@ class _ParallelCardioViewState extends State<ParallelCardioView> {
 }
 
 /// Compact partner card tailored for the cardio-side view. The top
-/// accent border uses [AppColors.primary] so the screen reads as the
+/// accent border uses [AppColors.userAccent] so the screen reads as the
 /// participant's own cardio territory while still showing the partner.
 class _CardioPartnerCard extends StatelessWidget {
   final ParallelPartnerData partner;

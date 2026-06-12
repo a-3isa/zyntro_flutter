@@ -202,7 +202,7 @@ class _MatchmakingPageState extends ConsumerState<MatchmakingPage>
               ),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.4),
+                  color: AppColors.userAccent.withValues(alpha: 0.4),
                   blurRadius: 30,
                   spreadRadius: 5,
                 ),
@@ -258,7 +258,7 @@ class _MatchmakingPageState extends ConsumerState<MatchmakingPage>
               height: 8,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: AppColors.primary.withValues(alpha: opacity),
+                color: AppColors.userAccent.withValues(alpha: opacity),
               ),
             );
           },
@@ -302,7 +302,7 @@ class _MatchmakingPageState extends ConsumerState<MatchmakingPage>
           _startMatchmaking();
         },
         style: FilledButton.styleFrom(
-          backgroundColor: AppColors.primary,
+          backgroundColor: AppColors.userAccent,
           minimumSize: const Size.fromHeight(52),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),

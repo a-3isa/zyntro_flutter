@@ -142,7 +142,7 @@ class _ReactionButtonsState extends State<ReactionButtons>
           _buildReactionButton(
             type: ReactionType.fire,
             emoji: '🔥',
-            color: AppColors.accentLime,
+            color: AppColors.userAccent,
             label: 'Fire',
             buttonPadding: buttonPadding,
             emojiSize: emojiSize,
@@ -160,7 +160,7 @@ class _ReactionButtonsState extends State<ReactionButtons>
           _buildReactionButton(
             type: ReactionType.clap,
             emoji: '👏',
-            color: AppColors.warmBorder,
+            color: AppColors.userAccent,
             label: 'Clap',
             buttonPadding: buttonPadding,
             emojiSize: emojiSize,
@@ -197,8 +197,8 @@ class _ReactionButtonsState extends State<ReactionButtons>
             gradient: isSelected
                 ? LinearGradient(
                     colors: [
-                      AppColors.accentLime.withValues(alpha: 0.14),
-                      AppColors.accentLime.withValues(alpha: 0.05),
+                      AppColors.userAccent.withValues(alpha: 0.14),
+                      AppColors.userAccent.withValues(alpha: 0.05),
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -208,7 +208,7 @@ class _ReactionButtonsState extends State<ReactionButtons>
             borderRadius: BorderRadius.circular(AppBorderRadius.lg),
             border: Border.all(
               color: isSelected
-                  ? AppColors.accentLime
+                  ? AppColors.userAccent
                   : AppColors.gray400.withValues(alpha: 0.3),
               width: isSelected ? 2 : 1,
             ),

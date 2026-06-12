@@ -45,14 +45,10 @@ class StreakPodiumSpot extends StatelessWidget {
                       )
                     : null,
                 child: FluttermojiAvatar(
-                  avatarConfig: entry.avatarConfig,
                   photoUrl: entry.photoURL,
                   displayName: entry.displayName,
                   size: rank == 1 ? 64 : 52,
                   showGradientBorder: false,
-                  ringColor: FluttermojiAvatar.colorFromAvatarConfig(
-                    entry.avatarConfig,
-                  ),
                 ),
               ),
               if (rank == 1)
@@ -148,14 +144,10 @@ class StreakListItem extends StatelessWidget {
               ),
             ),
             FluttermojiAvatar(
-              avatarConfig: entry.avatarConfig,
               photoUrl: entry.photoURL,
               displayName: entry.displayName,
               size: 40,
               showGradientBorder: false,
-              ringColor: FluttermojiAvatar.colorFromAvatarConfig(
-                entry.avatarConfig,
-              ),
             ),
           ],
         ),

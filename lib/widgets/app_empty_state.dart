@@ -21,8 +21,8 @@ class AppEmptyState extends StatefulWidget {
   /// Optional supporting line that explains what will appear here.
   final String? message;
 
-  /// Accent used for the halo and icon. Defaults to the brand lime.
-  final Color accentColor;
+  /// Accent used for the halo and icon. Defaults to the user's accent.
+  final Color? accentColor;
 
   /// Optional CTA label. When provided with [onAction], renders a button.
   final String? actionLabel;
@@ -38,7 +38,7 @@ class AppEmptyState extends StatefulWidget {
     required this.icon,
     required this.title,
     this.message,
-    this.accentColor = AppColors.accentLime,
+    this.accentColor, // defaults to the user's accent at build time
     this.actionLabel,
     this.onAction,
     this.animate = true,
@@ -57,14 +57,12 @@ class _AppEmptyStateState extends State<AppEmptyState>
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: AppDurations.slow,
-    );
+    _controller = AnimationController(vsync: this, duration: AppDurations.slow);
     _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
-    _rise = Tween<double>(begin: 16, end: 0).animate(
-      CurvedAnimation(parent: _controller, curve: AppCurves.premium),
-    );
+    _rise = Tween<double>(
+      begin: 16,
+      end: 0,
+    ).animate(CurvedAnimation(parent: _controller, curve: AppCurves.premium));
     if (widget.animate) {
       _controller.forward();
     } else {
@@ -81,6 +79,7 @@ class _AppEmptyStateState extends State<AppEmptyState>
   @override
   Widget build(BuildContext context) {
     final hasAction = widget.actionLabel != null && widget.onAction != null;
+    final accentColor = widget.accentColor ?? AppColors.userAccent;
 
     final content = Column(
       mainAxisSize: MainAxisSize.min,
@@ -89,13 +88,11 @@ class _AppEmptyStateState extends State<AppEmptyState>
         Container(
           padding: const EdgeInsets.all(28),
           decoration: BoxDecoration(
-            color: widget.accentColor.withValues(alpha: 0.10),
+            color: accentColor.withValues(alpha: 0.10),
             shape: BoxShape.circle,
-            border: Border.all(
-              color: widget.accentColor.withValues(alpha: 0.25),
-            ),
+            border: Border.all(color: accentColor.withValues(alpha: 0.25)),
           ),
-          child: Icon(widget.icon, size: 56, color: widget.accentColor),
+          child: Icon(widget.icon, size: 56, color: accentColor),
         ),
         const SizedBox(height: AppSpacing.lg),
         Text(
@@ -121,16 +118,14 @@ class _AppEmptyStateState extends State<AppEmptyState>
           TextButton(
             onPressed: widget.onAction,
             style: TextButton.styleFrom(
-              foregroundColor: widget.accentColor,
+              foregroundColor: accentColor,
               padding: const EdgeInsets.symmetric(
                 horizontal: AppSpacing.lg,
                 vertical: AppSpacing.md,
               ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(AppBorderRadius.md),
-                side: BorderSide(
-                  color: widget.accentColor.withValues(alpha: 0.4),
-                ),
+                side: BorderSide(color: accentColor.withValues(alpha: 0.4)),
               ),
             ),
             child: Text(widget.actionLabel!, style: AppTextStyles.label),

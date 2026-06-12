@@ -111,7 +111,7 @@ class _StreakCardState extends State<StreakCard>
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(AppBorderRadius.xl),
-          border: Border.all(color: AppColors.warmBorder),
+          border: Border.all(color: AppColors.userAccent),
           boxShadow: [
             BoxShadow(
               color: const Color(0x2E000000),
@@ -190,7 +190,7 @@ class _StreakCardState extends State<StreakCard>
                       width: isSmallScreen ? 48 : 56,
                       height: isSmallScreen ? 48 : 56,
                       decoration: BoxDecoration(
-                        color: AppColors.action.withValues(alpha: 0.15),
+                        color: AppColors.userAccent.withValues(alpha: 0.15),
                         shape: BoxShape.circle,
                       ),
                       child: Center(
@@ -213,10 +213,10 @@ class _StreakCardState extends State<StreakCard>
                   padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                   child: Text(
                     rankText,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: AppFontSize.sm,
-                      color: AppColors.accentLime,
+                      color: AppColors.userAccent,
                     ),
                   ),
                 ),
@@ -313,9 +313,9 @@ class _StreakCardState extends State<StreakCard>
         width: containerWidth,
         padding: EdgeInsets.all(isSmallScreen ? 4 : AppSpacing.xs),
         decoration: BoxDecoration(
-          color: AppColors.accentLime.withValues(alpha: 0.1),
+          color: AppColors.userAccent.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(AppBorderRadius.md),
-          border: Border.all(color: AppColors.accentLime, width: 2),
+          border: Border.all(color: AppColors.userAccent, width: 2),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -325,7 +325,7 @@ class _StreakCardState extends State<StreakCard>
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: isSmallScreen ? 9 : 10,
-                color: AppColors.accentLime,
+                color: AppColors.userAccent,
               ),
             ),
             const SizedBox(height: 2),

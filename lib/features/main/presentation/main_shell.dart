@@ -29,7 +29,8 @@ class MainShell extends ConsumerStatefulWidget {
   ConsumerState<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends ConsumerState<MainShell> {
+class _MainShellState extends ConsumerState<MainShell>
+    with WidgetsBindingObserver {
   late int _currentIndex;
   DateTime? _lastBackPress;
 
@@ -37,6 +38,44 @@ class _MainShellState extends ConsumerState<MainShell> {
   void initState() {
     super.initState();
     _currentIndex = widget.initialTab.index;
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // Safety net for go_router 14.x: GoRouterDelegate.popRoute() can return
+  // false at the root route without calling navigator.maybePop(), bypassing
+  // PopScope(canPop: false). WidgetsBindingObserver.didPopRoute() is invoked
+  // after the RouterDelegate declines, so we intercept here.
+  @override
+  Future<bool> didPopRoute() async {
+    if (GoRouter.of(context).canPop()) {
+      // There is a real route to pop — let the router handle it.
+      return false;
+    }
+    _onRootBackPress();
+    return true;
+  }
+
+  void _onRootBackPress() {
+    final now = DateTime.now();
+    if (_lastBackPress != null &&
+        now.difference(_lastBackPress!) < const Duration(seconds: 2)) {
+      SystemNavigator.pop();
+    } else {
+      _lastBackPress = now;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Press back again to exit'),
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   @override
@@ -77,22 +116,9 @@ class _MainShellState extends ConsumerState<MainShell> {
 
     return PopScope(
       canPop: false,
-      onPopInvokedWithResult: (didPop, _) async {
+      onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
-        final now = DateTime.now();
-        if (_lastBackPress != null &&
-            now.difference(_lastBackPress!) < const Duration(seconds: 2)) {
-          SystemNavigator.pop();
-        } else {
-          _lastBackPress = now;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Press back again to exit'),
-              duration: Duration(seconds: 2),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
+        _onRootBackPress();
       },
       child: Scaffold(
         backgroundColor: AppColors.backgroundV2,
@@ -176,18 +202,18 @@ class _MainShellState extends ConsumerState<MainShell> {
                   width: 60,
                   height: 60,
                   decoration: BoxDecoration(
-                    color: isSessionActive ? AppColors.accentLime : AppColors.surfaceV2Elevated,
+                    color: isSessionActive ? AppColors.userAccent : AppColors.surfaceV2Elevated,
                     shape: BoxShape.circle,
                     border: Border.all(
                       color: isSessionActive
-                          ? AppColors.accentLime
+                          ? AppColors.userAccent
                           : AppColors.surfaceV2Active,
                       width: 2.5,
                     ),
                     boxShadow: [
                       BoxShadow(
                         color: isSessionActive
-                            ? AppColors.accentLime.withValues(alpha: 0.4)
+                            ? AppColors.userAccent.withValues(alpha: 0.4)
                             : Colors.black.withValues(alpha: 0.3),
                         blurRadius: 16,
                         offset: const Offset(0, 4),
@@ -237,7 +263,7 @@ class _MainShellState extends ConsumerState<MainShell> {
               curve: AppCurves.press,
               child: Icon(
                 isActive ? activeIcon : icon,
-                color: isActive ? AppColors.accentLime : AppColors.textV2Tertiary,
+                color: isActive ? AppColors.userAccent : AppColors.textV2Tertiary,
                 size: 26,
               ),
             ),
@@ -248,9 +274,9 @@ class _MainShellState extends ConsumerState<MainShell> {
               child: Container(
                 width: 4,
                 height: 4,
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: AppColors.accentLime,
+                  color: AppColors.userAccent,
                 ),
               ),
             ),

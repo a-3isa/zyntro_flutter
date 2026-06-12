@@ -117,7 +117,7 @@ class _ZyntroButtonState extends State<ZyntroButton>
   Color _getFillColor() {
     switch (widget.variant) {
       case ZyntroButtonVariant.primary:
-        return _isPressed ? AppColors.accentLimeDim : AppColors.accentLime;
+        return _isPressed ? AppColors.userAccentDim : AppColors.userAccent;
       case ZyntroButtonVariant.secondary:
         return AppColors.surfaceV2;
       case ZyntroButtonVariant.premium:
@@ -142,7 +142,7 @@ class _ZyntroButtonState extends State<ZyntroButton>
         // Premium uses textDark on the navy premiumGradient background.
         return AppColors.textDark;
       case ZyntroButtonVariant.outline:
-        return AppColors.accentLime;
+        return AppColors.userAccent;
       case ZyntroButtonVariant.ghost:
         return AppColors.textV2Secondary;
     }
@@ -152,7 +152,7 @@ class _ZyntroButtonState extends State<ZyntroButton>
     if (widget.variant == ZyntroButtonVariant.primary && !_isPressed) {
       return [
         BoxShadow(
-          color: AppColors.accentLime.withValues(alpha: 0.30),
+          color: AppColors.userAccent.withValues(alpha: 0.30),
           blurRadius: 20,
           offset: const Offset(0, 0),
         ),
@@ -163,7 +163,7 @@ class _ZyntroButtonState extends State<ZyntroButton>
 
   Border? _getBorder() {
     if (widget.variant == ZyntroButtonVariant.outline) {
-      return Border.all(color: AppColors.accentLime, width: 1);
+      return Border.all(color: AppColors.userAccent, width: 1);
     }
     if (widget.variant == ZyntroButtonVariant.ghost) {
       return Border.all(color: AppColors.surfaceV2Active, width: 1);

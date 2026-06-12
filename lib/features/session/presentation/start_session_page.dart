@@ -506,12 +506,12 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: isSelected
-              ? AppColors.accentLime.withValues(alpha: 0.1)
+              ? AppColors.userAccent.withValues(alpha: 0.1)
               : AppColors.surfaceV2Elevated.withValues(alpha: 0.4),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isSelected
-                ? AppColors.accentLime.withValues(alpha: 0.4)
+                ? AppColors.userAccent.withValues(alpha: 0.4)
                 : Colors.white.withValues(alpha: 0.05),
           ),
         ),
@@ -524,7 +524,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                 shape: BoxShape.circle,
                 border: Border.all(
                   color: isSelected
-                      ? AppColors.accentLime
+                      ? AppColors.userAccent
                       : Colors.white.withValues(alpha: 0.1),
                   width: 2,
                 ),
@@ -573,7 +573,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                     : Icons.add_circle_outline_rounded,
                 key: ValueKey(isSelected),
                 color: isSelected
-                    ? AppColors.accentLime
+                    ? AppColors.userAccent
                     : AppColors.textV2Tertiary,
                 size: 24,
               ),
@@ -787,6 +787,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                     _buildSectionLabel('TRAIN WITH'),
                     const SizedBox(height: 12),
                     _buildPartnerModeRow(),
+                    _buildBuddiesStrip(),
                     if (_partnerMode == 'friends') ...[
                       const SizedBox(height: 12),
                       _buildFriendsSection(),
@@ -979,7 +980,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: isActive
-                      ? AppColors.accentLime.withValues(alpha: 0.4)
+                      ? AppColors.userAccent.withValues(alpha: 0.4)
                       : AppColors.surfaceV2Active,
                   width: 1.5,
                 ),
@@ -990,7 +991,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                     m.icon,
                     size: 20,
                     color: isActive
-                        ? AppColors.accentLime
+                        ? AppColors.userAccent
                         : AppColors.textV2Tertiary,
                   ),
                   const SizedBox(height: 4),
@@ -1010,6 +1011,93 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
           ),
         );
       }).toList(),
+    );
+  }
+
+  /// Always-visible horizontal strip of the user's buddies (mutual follows).
+  /// Tapping a buddy selects them and switches the partner mode to "Friend".
+  Widget _buildBuddiesStrip() {
+    if (_isLoadingFollows && _mutualFollows.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    if (_mutualFollows.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 22),
+        _buildSectionLabel('YOUR BUDDIES'),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 92,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: _mutualFollows.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 14),
+            itemBuilder: (context, i) {
+              final u = _mutualFollows[i];
+              final selected = _selectedFriends.contains(u.id);
+              final firstName = u.displayName.trim().split(' ').first;
+              return GestureDetector(
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  setState(() {
+                    // Choosing a buddy auto-marks the "Friend" partner choice.
+                    _partnerMode = 'friends';
+                    _selectedFriends
+                      ..clear()
+                      ..add(u.id);
+                  });
+                },
+                child: SizedBox(
+                  width: 64,
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 58,
+                        height: 58,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: selected
+                                ? AppColors.userAccent
+                                : AppColors.surfaceV2Active,
+                            width: selected ? 2.5 : 1.5,
+                          ),
+                        ),
+                        child: ClipOval(
+                          child: (u.photoURL != null && u.photoURL!.isNotEmpty)
+                              ? CachedNetworkImage(
+                                  imageUrl: u.photoURL!,
+                                  fit: BoxFit.cover,
+                                  errorWidget: (_, _, _) =>
+                                      _buildAvatarPlaceholder(u),
+                                )
+                              : _buildAvatarPlaceholder(u),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        firstName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.caption.copyWith(
+                          fontSize: 11,
+                          fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                          color: selected
+                              ? AppColors.userAccent
+                              : AppColors.textV2Secondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -1068,7 +1156,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
             child: Text(
               '${_selectedFriends.length} friend${_selectedFriends.length > 1 ? 's' : ''} selected',
               style: TextStyle(
-                color: AppColors.accentLime,
+                color: AppColors.userAccent,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
@@ -1150,7 +1238,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                       '$_streakDays 🔥',
                       style: AppTextStyles.label.copyWith(
                         fontSize: 15,
-                        color: AppColors.accentLime,
+                        color: AppColors.userAccent,
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -1214,7 +1302,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
           decoration: BoxDecoration(
             color: _selectedType == null
                 ? AppColors.surfaceV2Active
-                : AppColors.accentLime,
+                : AppColors.userAccent,
             borderRadius: BorderRadius.circular(16),
           ),
           child: _isLoading
@@ -1556,7 +1644,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.add, color: AppColors.accentLime, size: 20),
+                      Icon(Icons.add, color: AppColors.userAccent, size: 20),
                       const SizedBox(width: 8),
                       Text(
                         'Add exercise',
@@ -1894,7 +1982,7 @@ class _ExercisePlanRow extends StatelessWidget {
                     height: 26,
                     margin: const EdgeInsets.only(left: 3),
                     decoration: BoxDecoration(
-                      color: isActive ? AppColors.accentLime : s3,
+                      color: isActive ? AppColors.userAccent : s3,
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Center(
@@ -2043,12 +2131,12 @@ class _PastWorkoutsSheetState extends State<_PastWorkoutsSheet> {
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: isSelected
-                      ? AppColors.accentLime.withValues(alpha: 0.1)
+                      ? AppColors.userAccent.withValues(alpha: 0.1)
                       : AppColors.surfaceV2,
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
                     color: isSelected
-                        ? AppColors.accentLime
+                        ? AppColors.userAccent
                         : Colors.transparent,
                     width: 1.5,
                   ),
@@ -2090,9 +2178,9 @@ class _PastWorkoutsSheetState extends State<_PastWorkoutsSheet> {
                       ),
                     ),
                     if (isSelected)
-                      const Icon(
+                      Icon(
                         Icons.check_circle_rounded,
-                        color: AppColors.accentLime,
+                        color: AppColors.userAccent,
                         size: 22,
                       ),
                   ],

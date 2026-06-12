@@ -10,7 +10,7 @@ import '../../../services/username_service.dart';
 import '../auth_providers.dart';
 import 'providers/auth_controller.dart';
 
-/// Streamlined onboarding: Profile → Training → Done (2 input steps).
+/// Streamlined onboarding: Profile → Workout (2 steps, no separate done screen).
 class OnboardingPage extends ConsumerStatefulWidget {
   const OnboardingPage({super.key});
 
@@ -22,7 +22,8 @@ class OnboardingPage extends ConsumerStatefulWidget {
 enum _UsernameStatus { idle, checking, available, taken, invalid }
 
 class _OnboardingPageState extends ConsumerState<OnboardingPage> {
-  int _step = 0; // 0 = profile, 1 = training, 2 = done
+  int _step = 0; // 0 = profile, 1 = workout preference
+  bool _isFinishing = false;
 
   // Profile: name
   final TextEditingController _nameController = TextEditingController();
@@ -36,28 +37,21 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
   Timer? _usernameDebounce;
   int _usernameCheckSeq = 0;
 
-  // Profile: avatar color
+  // Profile: accent color — all neon shades. This becomes the user's app color.
   final List<Color> _avatarColors = const [
-    Color(0xFFC8FF00),
-    Color(0xFF38BDF8),
-    Color(0xFFFF6B6B),
-    Color(0xFFFF8C00),
-    Color(0xFFA78BFA),
-    Color(0xFF34D399),
-    Color(0xFFF472B6),
-    Color(0xFF60A5FA),
+    Color(0xFFC8FF00), // acid lime (default)
+    Color(0xFF39FF14), // neon green
+    Color(0xFF00FFC6), // neon teal
+    Color(0xFF00E5FF), // neon cyan
+    Color(0xFF2979FF), // neon blue
+    Color(0xFFB026FF), // neon purple
+    Color(0xFFFF2EC4), // neon magenta
+    Color(0xFFFF6D00), // neon orange
   ];
   int _selectedColorIndex = 0;
 
-  // Training: goal (Screen 2 disabled for now)
-  // ignore: unused_field
-  final List<_GoalOption> _goals = const [
-    _GoalOption(emoji: '💪', label: 'Build Strength', desc: 'Grow muscle, lift heavier, get stronger'),
-    _GoalOption(emoji: '🏃', label: 'Improve Cardio', desc: 'Build endurance and stamina'),
-    _GoalOption(emoji: '🔥', label: 'Body Composition', desc: 'Burn fat, tone up, transform'),
-    _GoalOption(emoji: '🏆', label: 'Compete', desc: 'Train for performance and competition'),
-  ];
-  final int _selectedGoalIndex = 0;
+  // Training: workout preference
+  WorkoutType _selectedWorkoutType = WorkoutType.gym;
 
   // Training: days per week
   final int _selectedDays = 4;
@@ -148,10 +142,9 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     if (uid == null) return;
 
     setState(() => _claimingUsername = true);
-    final result = await ref.read(usernameServiceProvider).claim(
-      userId: uid,
-      raw: _usernameController.text,
-    );
+    final result = await ref
+        .read(usernameServiceProvider)
+        .claim(userId: uid, raw: _usernameController.text);
     if (!mounted) return;
     setState(() => _claimingUsername = false);
 
@@ -175,51 +168,52 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     }
   }
 
-  WorkoutType _goalToWorkoutType(int index) {
-    switch (index) {
-      case 0:
-        return WorkoutType.gym;
-      case 1:
-        return WorkoutType.running;
-      case 2:
-        return WorkoutType.hiit;
-      case 3:
-        return WorkoutType.sports;
-      default:
-        return WorkoutType.other;
-    }
-  }
-
   Future<void> _finishOnboarding() async {
+    if (_isFinishing) return;
     HapticFeedback.heavyImpact();
     final uid = ref.read(authSessionProvider).valueOrNull?.id;
     if (uid == null) return;
 
-    await ref.read(authControllerProvider).createUserProfile(
-      userId: uid,
-      displayName: _nameController.text.trim(),
-      workoutPreference: _goalToWorkoutType(_selectedGoalIndex),
-      beginnerFlag: false,
-      avatarConfig: _avatarColors[_selectedColorIndex]
-          .toARGB32()
-          .toRadixString(16)
-          .padLeft(8, '0'),
-      trainingDaysPerWeek: _selectedDays,
-    );
+    setState(() => _isFinishing = true);
 
-    // Profile is now complete (name + workout pref + username) — refresh the
-    // routing gate so the user is taken into the app.
+    // The picked neon color becomes the user's app accent (stored in
+    // avatarConfig as an 8-digit ARGB hex string).
+    final accentHex = _avatarColors[_selectedColorIndex]
+        .toARGB32()
+        .toRadixString(16)
+        .padLeft(8, '0');
+
+    await ref
+        .read(authControllerProvider)
+        .createUserProfile(
+          userId: uid,
+          displayName: _nameController.text.trim(),
+          workoutPreference: _selectedWorkoutType,
+          beginnerFlag: false,
+          avatarConfig: accentHex,
+          trainingDaysPerWeek: _selectedDays,
+        );
+
+    // Mark onboarding as finished — this single flag is what gates routing.
+    await ref
+        .read(authControllerProvider)
+        .updateUserProfile(userId: uid, data: {'onboardingCompleted': true});
+
     if (!mounted) return;
+    setState(() => _isFinishing = false);
+    // Refresh the routing gate so the user is taken into the app.
     ref.invalidate(authProfileCompletionProvider);
     ref.invalidate(authUserProfileProvider);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.backgroundV2,
-      body: SafeArea(
-        child: _buildCurrentStep(),
+    // Block back navigation — first-time users must finish setup.
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
+        backgroundColor: AppColors.backgroundV2,
+        body: SafeArea(child: _buildCurrentStep()),
       ),
     );
   }
@@ -239,25 +233,12 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
           onColorSelected: (i) => setState(() => _selectedColorIndex = i),
           onContinue: _claimUsernameAndContinue,
         );
-      // ── Screen 2 (Training: goal + days) temporarily disabled ──────────────
-      // To re-enable: uncomment this case, change _StepDone back to `case 2`,
-      // restore `total: 2` on the profile ProgressDots, and remove the
-      // `// ignore:` comments on `_goals` and `_StepTraining`.
-      // case 1:
-      //   return _StepTraining(
-      //     goals: _goals,
-      //     selectedGoalIndex: _selectedGoalIndex,
-      //     selectedDays: _selectedDays,
-      //     onGoalSelected: (i) => setState(() => _selectedGoalIndex = i),
-      //     onDaysSelected: (d) => setState(() => _selectedDays = d),
-      //     onContinue: _nextStep,
-      //   );
       case 1:
-        return _StepDone(
-          name: _nameController.text.trim(),
-          days: _selectedDays,
-          onStart: _finishOnboarding,
-          onExplore: _finishOnboarding,
+        return _StepWorkoutPreference(
+          selectedType: _selectedWorkoutType,
+          onSelected: (t) => setState(() => _selectedWorkoutType = t),
+          onContinue: _isFinishing ? null : _finishOnboarding,
+          isSubmitting: _isFinishing,
         );
       default:
         return const SizedBox.shrink();
@@ -283,7 +264,7 @@ class _ProgressDots extends StatelessWidget {
         final isActive = i == currentStep;
         final width = isActive ? 20.0 : 6.0;
         final color = (isActive || isPast)
-            ? AppColors.accentLime
+            ? AppColors.userAccent
             : AppColors.surfaceV2Elevated;
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 3),
@@ -307,27 +288,25 @@ class _ProgressDots extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 TextStyle _headingStyle() => AppTextStyles.h2.copyWith(
-      fontSize: 34,
-      fontWeight: FontWeight.w700,
-      color: AppColors.textV2Primary,
-      letterSpacing: -1.2,
-      height: 1.05,
-    );
+  fontSize: 34,
+  fontWeight: FontWeight.w700,
+  color: AppColors.textV2Primary,
+  letterSpacing: -1.2,
+  height: 1.05,
+);
 
-TextStyle _subStyle() => AppTextStyles.body.copyWith(
-      color: AppColors.textV2Secondary,
-    );
+TextStyle _subStyle() =>
+    AppTextStyles.body.copyWith(color: AppColors.textV2Secondary);
 
-TextStyle _bodyStyle() => AppTextStyles.body.copyWith(
-      color: AppColors.textV2Secondary,
-    );
+TextStyle _bodyStyle() =>
+    AppTextStyles.body.copyWith(color: AppColors.textV2Secondary);
 
 TextStyle _sectionLabelStyle() => AppTextStyles.caption.copyWith(
-      fontSize: 11,
-      fontWeight: FontWeight.w700,
-      letterSpacing: 1.4,
-      color: AppColors.textV2Tertiary,
-    );
+  fontSize: 11,
+  fontWeight: FontWeight.w700,
+  letterSpacing: 1.4,
+  color: AppColors.textV2Tertiary,
+);
 
 // ---------------------------------------------------------------------------
 // Shared bottom Continue button
@@ -336,12 +315,12 @@ TextStyle _sectionLabelStyle() => AppTextStyles.caption.copyWith(
 class _ContinueButton extends StatefulWidget {
   final String label;
   final VoidCallback? onPressed;
-  final Widget? leftIcon;
+  final bool isLoading;
 
   const _ContinueButton({
     required this.label,
     required this.onPressed,
-    this.leftIcon,
+    this.isLoading = false,
   });
 
   @override
@@ -353,9 +332,9 @@ class _ContinueButtonState extends State<_ContinueButton> {
 
   @override
   Widget build(BuildContext context) {
-    final enabled = widget.onPressed != null;
+    final enabled = widget.onPressed != null && !widget.isLoading;
     return GestureDetector(
-      onTap: widget.onPressed,
+      onTap: enabled ? widget.onPressed : null,
       onTapDown: enabled ? (_) => setState(() => _pressed = true) : null,
       onTapUp: enabled ? (_) => setState(() => _pressed = false) : null,
       onTapCancel: enabled ? () => setState(() => _pressed = false) : null,
@@ -367,27 +346,31 @@ class _ContinueButtonState extends State<_ContinueButton> {
           duration: const Duration(milliseconds: 150),
           height: 54,
           decoration: BoxDecoration(
-            color: enabled ? AppColors.accentLime : AppColors.surfaceV2Elevated,
+            color: (enabled || widget.isLoading)
+                ? AppColors.userAccent
+                : AppColors.surfaceV2Elevated,
             borderRadius: BorderRadius.circular(16),
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (widget.leftIcon != null) ...[
-                widget.leftIcon!,
-                const SizedBox(width: 8),
-              ],
-              Text(
-                widget.label,
-                style: AppTextStyles.h5.copyWith(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: enabled
-                      ? AppColors.backgroundV2
-                      : AppColors.textV2Secondary,
-                ),
-              ),
-            ],
+          child: Center(
+            child: widget.isLoading
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: Colors.white,
+                    ),
+                  )
+                : Text(
+                    widget.label,
+                    style: AppTextStyles.h5.copyWith(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: enabled
+                          ? AppColors.backgroundV2
+                          : AppColors.textV2Secondary,
+                    ),
+                  ),
           ),
         ),
       ),
@@ -465,12 +448,18 @@ class _StepProfileState extends State<_StepProfile> {
           ),
         );
       case _UsernameStatus.available:
-        return const Icon(Icons.check_circle_rounded,
-            color: AppColors.accentLime, size: 22);
+        return Icon(
+          Icons.check_circle_rounded,
+          color: AppColors.userAccent,
+          size: 22,
+        );
       case _UsernameStatus.taken:
       case _UsernameStatus.invalid:
-        return const Icon(Icons.error_outline_rounded,
-            color: Color(0xFFFF6B6B), size: 22);
+        return const Icon(
+          Icons.error_outline_rounded,
+          color: Color(0xFFFF6B6B),
+          size: 22,
+        );
       case _UsernameStatus.idle:
         return null;
     }
@@ -482,48 +471,49 @@ class _StepProfileState extends State<_StepProfile> {
     final nameText = widget.nameController.text.trim();
     final initial = nameText.isNotEmpty ? nameText[0].toUpperCase() : 'Z';
 
-    final bool usernameError = widget.usernameStatus == _UsernameStatus.taken ||
+    final bool usernameError =
+        widget.usernameStatus == _UsernameStatus.taken ||
         widget.usernameStatus == _UsernameStatus.invalid;
     final Color usernameBorder = usernameError
         ? const Color(0xFFFF6B6B).withValues(alpha: 0.5)
         : (widget.usernameStatus == _UsernameStatus.available
-            ? AppColors.accentLime.withValues(alpha: 0.4)
-            : AppColors.surfaceV2Elevated);
+              ? AppColors.userAccent.withValues(alpha: 0.4)
+              : AppColors.surfaceV2Elevated);
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(28, 60, 28, 24),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(28, 20, 28, 0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // total: 1 while Screen 2 (Training) is disabled — set back to 2 to restore.
-                const _ProgressDots(currentStep: 0, total: 1),
-                const SizedBox(height: 28),
+                const _ProgressDots(currentStep: 0, total: 2),
+                const SizedBox(height: 14),
                 Text("Create your\nprofile.", style: _headingStyle()),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 Text(
                   "Your name and a unique @username so buddies can find you.",
                   style: _subStyle(),
                 ),
-                const SizedBox(height: 28),
+                const SizedBox(height: 14),
 
                 // Avatar preview
                 Center(
                   child: Container(
-                    width: 76,
-                    height: 76,
+                    width: 60,
+                    height: 60,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: AppColors.surfaceV2,
-                      border: Border.all(color: selectedColor, width: 3),
+                      border: Border.all(color: selectedColor, width: 2.5),
                     ),
                     child: Center(
                       child: Text(
                         initial,
                         style: AppTextStyles.h2.copyWith(
-                          fontSize: 28,
+                          fontSize: 22,
                           fontWeight: FontWeight.w700,
                           color: selectedColor,
                         ),
@@ -531,17 +521,17 @@ class _StepProfileState extends State<_StepProfile> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 14),
 
                 // Name field
                 Text('YOUR NAME', style: _sectionLabelStyle()),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 _NameInput(controller: widget.nameController),
-                const SizedBox(height: 20),
+                const SizedBox(height: 12),
 
                 // Username field
                 Text('USERNAME', style: _sectionLabelStyle()),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 TextField(
                   controller: widget.usernameController,
                   autocorrect: false,
@@ -550,9 +540,8 @@ class _StepProfileState extends State<_StepProfile> {
                   inputFormatters: [
                     LengthLimitingTextInputFormatter(20),
                     TextInputFormatter.withFunction(
-                      (oldValue, newValue) => newValue.copyWith(
-                        text: newValue.text.toLowerCase(),
-                      ),
+                      (oldValue, newValue) =>
+                          newValue.copyWith(text: newValue.text.toLowerCase()),
                     ),
                     FilteringTextInputFormatter.allow(RegExp(r'[a-z0-9_]')),
                   ],
@@ -563,7 +552,7 @@ class _StepProfileState extends State<_StepProfile> {
                     color: AppColors.textV2Primary,
                     letterSpacing: -0.5,
                   ),
-                  cursorColor: AppColors.accentLime,
+                  cursorColor: AppColors.userAccent,
                   decoration: InputDecoration(
                     prefixText: '@',
                     prefixStyle: AppTextStyles.h3.copyWith(
@@ -584,7 +573,7 @@ class _StepProfileState extends State<_StepProfile> {
                     fillColor: AppColors.surfaceV2,
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 20,
-                      vertical: 16,
+                      vertical: 13,
                     ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
@@ -610,17 +599,14 @@ class _StepProfileState extends State<_StepProfile> {
                         : AppColors.textV2Tertiary,
                   ),
                 ),
-                const SizedBox(height: 24),
-
-                // Color picker
-                Text('PICK A COLOR', style: _sectionLabelStyle()),
                 const SizedBox(height: 12),
-                GridView.count(
-                  crossAxisCount: 4,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
+
+                // Color picker — compact circles
+                Text('PICK A COLOR', style: _sectionLabelStyle()),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
                   children: List.generate(widget.colors.length, (i) {
                     final isSelected = i == widget.selectedColorIndex;
                     final color = widget.colors[i];
@@ -629,25 +615,29 @@ class _StepProfileState extends State<_StepProfile> {
                         HapticFeedback.selectionClick();
                         widget.onColorSelected(i);
                       },
-                      child: AspectRatio(
-                        aspectRatio: 1,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceV2,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: isSelected ? color : Colors.transparent,
-                              width: 3,
-                            ),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? color.withValues(alpha: 0.15)
+                              : AppColors.surfaceV2,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isSelected
+                                ? color
+                                : AppColors.surfaceV2Elevated,
+                            width: isSelected ? 2.5 : 1.5,
                           ),
-                          child: Center(
-                            child: Container(
-                              width: 30,
-                              height: 30,
-                              decoration: BoxDecoration(
-                                color: color,
-                                shape: BoxShape.circle,
-                              ),
+                        ),
+                        child: Center(
+                          child: Container(
+                            width: 22,
+                            height: 22,
+                            decoration: BoxDecoration(
+                              color: color,
+                              shape: BoxShape.circle,
                             ),
                           ),
                         ),
@@ -660,7 +650,7 @@ class _StepProfileState extends State<_StepProfile> {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(28, 0, 28, 40),
+          padding: const EdgeInsets.fromLTRB(28, 12, 28, 32),
           child: _ContinueButton(
             label: widget.isClaiming ? 'Reserving…' : 'Continue',
             onPressed: _canContinue ? widget.onContinue : null,
@@ -690,7 +680,7 @@ class _NameInput extends StatelessWidget {
             color: AppColors.textV2Primary,
             letterSpacing: -0.5,
           ),
-          cursorColor: AppColors.accentLime,
+          cursorColor: AppColors.userAccent,
           decoration: InputDecoration(
             hintText: 'Your name',
             hintStyle: AppTextStyles.h3.copyWith(
@@ -703,13 +693,13 @@ class _NameInput extends StatelessWidget {
             fillColor: AppColors.surfaceV2,
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 20,
-              vertical: 16,
+              vertical: 13,
             ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
               borderSide: BorderSide(
                 color: hasText
-                    ? AppColors.accentLime.withValues(alpha: 0.27)
+                    ? AppColors.userAccent.withValues(alpha: 0.27)
                     : AppColors.surfaceV2Elevated,
               ),
             ),
@@ -717,7 +707,7 @@ class _NameInput extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
               borderSide: BorderSide(
                 color: hasText
-                    ? AppColors.accentLime.withValues(alpha: 0.27)
+                    ? AppColors.userAccent.withValues(alpha: 0.27)
                     : AppColors.surfaceV2Elevated,
               ),
             ),
@@ -725,7 +715,7 @@ class _NameInput extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
               borderSide: BorderSide(
                 color: hasText
-                    ? AppColors.accentLime.withValues(alpha: 0.27)
+                    ? AppColors.userAccent.withValues(alpha: 0.27)
                     : AppColors.surfaceV2Elevated,
                 width: 1.5,
               ),
@@ -784,8 +774,7 @@ class _StepTraining extends StatelessWidget {
                 const SizedBox(height: 28),
                 Text("Your\ntraining.", style: _headingStyle()),
                 const SizedBox(height: 12),
-                Text("Tailor your goal and weekly target.",
-                    style: _subStyle()),
+                Text("Tailor your goal and weekly target.", style: _subStyle()),
                 const SizedBox(height: 28),
 
                 // Goal cards
@@ -795,8 +784,9 @@ class _StepTraining extends StatelessWidget {
                   final isSelected = i == selectedGoalIndex;
                   final goal = goals[i];
                   return Padding(
-                    padding:
-                        EdgeInsets.only(bottom: i < goals.length - 1 ? 8 : 0),
+                    padding: EdgeInsets.only(
+                      bottom: i < goals.length - 1 ? 8 : 0,
+                    ),
                     child: GestureDetector(
                       onTap: () {
                         HapticFeedback.selectionClick();
@@ -815,14 +805,16 @@ class _StepTraining extends StatelessWidget {
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
                             color: isSelected
-                                ? AppColors.accentLime.withValues(alpha: 0.27)
+                                ? AppColors.userAccent.withValues(alpha: 0.27)
                                 : Colors.transparent,
                           ),
                         ),
                         child: Row(
                           children: [
-                            Text(goal.emoji,
-                                style: const TextStyle(fontSize: 22)),
+                            Text(
+                              goal.emoji,
+                              style: const TextStyle(fontSize: 22),
+                            ),
                             const SizedBox(width: 14),
                             Expanded(
                               child: Column(
@@ -852,8 +844,8 @@ class _StepTraining extends StatelessWidget {
                               Container(
                                 width: 18,
                                 height: 18,
-                                decoration: const BoxDecoration(
-                                  color: AppColors.accentLime,
+                                decoration: BoxDecoration(
+                                  color: AppColors.userAccent,
                                   shape: BoxShape.circle,
                                 ),
                                 child: const Icon(
@@ -881,14 +873,12 @@ class _StepTraining extends StatelessWidget {
                     style: AppTextStyles.display.copyWith(
                       fontSize: 56,
                       fontWeight: FontWeight.w700,
-                      color: AppColors.accentLime,
+                      color: AppColors.userAccent,
                       letterSpacing: -2,
                     ),
                   ),
                 ),
-                Center(
-                  child: Text('days / week', style: _bodyStyle()),
-                ),
+                Center(child: Text('days / week', style: _bodyStyle())),
                 const SizedBox(height: 20),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -908,13 +898,13 @@ class _StepTraining extends StatelessWidget {
                           height: 44,
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? AppColors.accentLime
+                                ? AppColors.userAccent
                                 : AppColors.surfaceV2,
                             borderRadius: BorderRadius.circular(12),
                             boxShadow: isSelected
                                 ? [
                                     BoxShadow(
-                                      color: AppColors.accentLime.withValues(
+                                      color: AppColors.userAccent.withValues(
                                         alpha: 0.35,
                                       ),
                                       blurRadius: 12,
@@ -954,99 +944,295 @@ class _StepTraining extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Step 3: Done
+// Step 2: Workout preference (category → sub-type)
 // ---------------------------------------------------------------------------
 
-class _StepDone extends StatelessWidget {
+class _WorkoutCategory {
+  final String key;
   final String name;
-  final int days;
-  final VoidCallback onStart;
-  final VoidCallback onExplore;
-
-  const _StepDone({
+  final String emoji;
+  final String description;
+  const _WorkoutCategory({
+    required this.key,
     required this.name,
-    required this.days,
-    required this.onStart,
-    required this.onExplore,
+    required this.emoji,
+    required this.description,
+  });
+}
+
+class _StepWorkoutPreference extends StatefulWidget {
+  final WorkoutType selectedType;
+  final ValueChanged<WorkoutType> onSelected;
+  final VoidCallback? onContinue;
+  final bool isSubmitting;
+
+  const _StepWorkoutPreference({
+    required this.selectedType,
+    required this.onSelected,
+    required this.onContinue,
+    this.isSubmitting = false,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final displayName = name.isNotEmpty ? name : 'there';
+  State<_StepWorkoutPreference> createState() => _StepWorkoutPreferenceState();
+}
 
+class _StepWorkoutPreferenceState extends State<_StepWorkoutPreference> {
+  late String _selectedCategory;
+
+  static const List<_WorkoutCategory> _categories = [
+    _WorkoutCategory(
+      key: 'strength',
+      name: 'Strength',
+      emoji: '💪',
+      description: 'Build muscle & lift heavier',
+    ),
+    _WorkoutCategory(
+      key: 'cardio',
+      name: 'Cardio',
+      emoji: '🏃',
+      description: 'Endurance & heart health',
+    ),
+    _WorkoutCategory(
+      key: 'flexibility',
+      name: 'Flexibility',
+      emoji: '🧘',
+      description: 'Mobility & mindfulness',
+    ),
+    _WorkoutCategory(
+      key: 'mixed',
+      name: 'Mixed',
+      emoji: '⚡',
+      description: 'High intensity & sports',
+    ),
+  ];
+
+  static IconData _iconFor(WorkoutType type) {
+    switch (type) {
+      case WorkoutType.gym:
+        return Icons.fitness_center;
+      case WorkoutType.running:
+        return Icons.directions_run;
+      case WorkoutType.cycling:
+        return Icons.directions_bike;
+      case WorkoutType.swimming:
+        return Icons.pool;
+      case WorkoutType.yoga:
+        return Icons.self_improvement;
+      case WorkoutType.hiit:
+        return Icons.timer;
+      case WorkoutType.walking:
+        return Icons.directions_walk;
+      case WorkoutType.sports:
+        return Icons.sports_soccer;
+      case WorkoutType.other:
+        return Icons.category;
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedCategory = widget.selectedType.category;
+  }
+
+  List<WorkoutType> get _subtypes =>
+      WorkoutType.values.where((t) => t.category == _selectedCategory).toList();
+
+  void _selectCategory(String category) {
+    if (_selectedCategory == category) return;
+    setState(() => _selectedCategory = category);
+    final first = WorkoutType.values.firstWhere(
+      (t) => t.category == category,
+      orElse: () => WorkoutType.other,
+    );
+    widget.onSelected(first);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(28, 80, 28, 24),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(28, 20, 28, 0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Center(
-                  child: Container(
-                    width: 72,
-                    height: 72,
-                    decoration: BoxDecoration(
-                      color: AppColors.accentLime,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.accentLime.withValues(alpha: 0.4),
-                          blurRadius: 24,
-                          spreadRadius: 4,
+                const _ProgressDots(currentStep: 1, total: 2),
+                const SizedBox(height: 14),
+                Text("What's your\nworkout?", style: _headingStyle()),
+                const SizedBox(height: 8),
+                Text(
+                  "Choose a category, then pick your specific style.",
+                  style: _subStyle(),
+                ),
+                const SizedBox(height: 20),
+
+                // ── Category grid ──────────────────────────────────────────
+                Text('TRAINING CATEGORY', style: _sectionLabelStyle()),
+                const SizedBox(height: 8),
+                GridView.count(
+                  crossAxisCount: 2,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  mainAxisSpacing: 8,
+                  crossAxisSpacing: 8,
+                  childAspectRatio: 2.1,
+                  children: _categories.map((cat) {
+                    final isSelected = cat.key == _selectedCategory;
+                    return GestureDetector(
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        _selectCategory(cat.key);
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
                         ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.check_rounded,
-                      size: 36,
-                      color: Colors.white,
-                    ),
-                  ),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? AppColors.surfaceV2Elevated
+                              : AppColors.surfaceV2,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isSelected
+                                ? AppColors.userAccent.withValues(alpha: 0.45)
+                                : Colors.transparent,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  cat.emoji,
+                                  style: const TextStyle(fontSize: 18),
+                                ),
+                                const Spacer(),
+                                if (isSelected)
+                                  Container(
+                                    width: 14,
+                                    height: 14,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.userAccent,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.check,
+                                      size: 9,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  cat.name,
+                                  style: AppTextStyles.h5.copyWith(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: isSelected
+                                        ? AppColors.textV2Primary
+                                        : AppColors.textV2Secondary,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  cat.description,
+                                  style: AppTextStyles.caption.copyWith(
+                                    fontSize: 10,
+                                    color: AppColors.textV2Tertiary,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
                 ),
-                const SizedBox(height: 28),
-                Text(
-                  "You're in.",
-                  style: AppTextStyles.display.copyWith(
-                    fontSize: 42,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textV2Primary,
-                    letterSpacing: -2,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  "Welcome, $displayName. Training $days days/week. Let's go.",
-                  style: _bodyStyle(),
+
+                const SizedBox(height: 16),
+
+                // ── Sub-type pills ─────────────────────────────────────────
+                Text('SPECIFIC WORKOUT', style: _sectionLabelStyle()),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: _subtypes.map((type) {
+                    final isSelected = type == widget.selectedType;
+                    return GestureDetector(
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        widget.onSelected(type);
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 11,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? AppColors.userAccent
+                              : AppColors.surfaceV2,
+                          borderRadius: BorderRadius.circular(50),
+                          border: Border.all(
+                            color: isSelected
+                                ? AppColors.userAccent
+                                : AppColors.surfaceV2Elevated,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _iconFor(type),
+                              size: 16,
+                              color: isSelected
+                                  ? AppColors.backgroundV2
+                                  : AppColors.textV2Secondary,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              type.displayName,
+                              style: AppTextStyles.body.copyWith(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: isSelected
+                                    ? AppColors.backgroundV2
+                                    : AppColors.textV2Secondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
                 ),
               ],
             ),
           ),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(28, 0, 28, 8),
-          child: GestureDetector(
-            onTap: onExplore,
-            child: Center(
-              child: Text(
-                'Explore first →',
-                style: AppTextStyles.caption.copyWith(
-                  color: AppColors.textV2Tertiary,
-                ),
-              ),
-            ),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(28, 0, 28, 40),
+          padding: const EdgeInsets.fromLTRB(28, 12, 28, 32),
           child: _ContinueButton(
-            label: 'Start First Session',
-            leftIcon: const Icon(
-              Icons.play_arrow_rounded,
-              color: AppColors.backgroundV2,
-              size: 20,
-            ),
-            onPressed: onStart,
+            label: 'Start training',
+            onPressed: widget.onContinue,
+            isLoading: widget.isSubmitting,
           ),
         ),
       ],

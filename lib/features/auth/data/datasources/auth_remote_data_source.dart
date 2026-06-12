@@ -25,6 +25,10 @@ class AuthRemoteDataSource {
        _firestore = firestore,
        _notificationService = notificationService;
 
+  /// True if the Firebase SDK already has a user in memory (synchronous read
+  /// from local persistence — available immediately after initializeApp).
+  bool get hasCurrentUser => _auth.currentUser != null;
+
   Stream<AuthUserModel?> authStateChanges() {
     return _auth.authStateChanges().map((user) {
       if (user == null) return null;
@@ -81,11 +85,12 @@ class AuthRemoteDataSource {
         throw AuthDataException.unknown('No created user returned.');
       }
 
-      try {
-        await user.sendEmailVerification();
-      } catch (e) {
-        debugPrint('[AuthRemoteDataSource] sendEmailVerification failed: $e');
-      }
+      // Email verification disabled for now.
+      // try {
+      //   await user.sendEmailVerification();
+      // } catch (e) {
+      //   debugPrint('[AuthRemoteDataSource] sendEmailVerification failed: $e');
+      // }
 
       await _registerPushNotifications(user.uid);
       return AuthUserModel.fromFirebaseUser(user);
@@ -305,9 +310,10 @@ class AuthRemoteDataSource {
       final data = doc.data();
       if (data == null) return false;
 
-      return (data['displayName'] as String?)?.isNotEmpty == true &&
-          data['workoutPreference'] != null &&
-          (data['username'] as String?)?.isNotEmpty == true;
+      // A user is "set up" once they've finished onboarding. This single
+      // explicit flag replaces the old multi-field heuristic so first-time
+      // users are reliably sent to setup and returning users straight to home.
+      return data['onboardingCompleted'] == true;
     } on FirebaseException catch (_) {
       throw AuthDataException.server('Failed to verify profile completeness.');
     }
@@ -334,10 +340,10 @@ class AuthRemoteDataSource {
         // merge (e.g. when onboarding completes) would wipe the photo captured
         // from a Google/Facebook sign-in.
         if (photoUrl != null) 'photoURL': photoUrl,
-        if (avatarConfig != null) 'avatarConfig': avatarConfig,
         'isPrivate': false,
         'workoutPreference': workoutPreference.value,
         'beginnerFlag': beginnerFlag,
+        if (avatarConfig != null) 'avatarConfig': avatarConfig,
         'updatedAt': FieldValue.serverTimestamp(),
         if (trainingDaysPerWeek != null)
           'trainingDaysPerWeek': trainingDaysPerWeek,

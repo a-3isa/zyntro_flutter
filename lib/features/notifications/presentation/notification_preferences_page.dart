@@ -154,12 +154,12 @@ class _NotificationPreferencesPageState
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.1),
+                color: AppColors.userAccent.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.notifications_active,
-                color: AppColors.primary,
+                color: AppColors.userAccent,
               ),
             ),
             const SizedBox(width: AppSpacing.md),
@@ -191,7 +191,7 @@ class _NotificationPreferencesPageState
               onChanged: (value) {
                 _updatePreference(_preferences!.copyWith(pushEnabled: value));
               },
-              activeThumbColor: AppColors.primary,
+              activeThumbColor: AppColors.userAccent,
             ),
           ],
         ),
@@ -229,7 +229,7 @@ class _NotificationPreferencesPageState
                 children: [
                   _buildPreferenceItem(
                     icon: Icons.fitness_center,
-                    iconColor: AppColors.primary,
+                    iconColor: AppColors.userAccent,
                     title: 'Session Invites',
                     description:
                         'When someone invites you to a workout session',
@@ -397,7 +397,7 @@ class _NotificationPreferencesPageState
           Switch(
             value: value,
             onChanged: onChanged,
-            activeThumbColor: AppColors.primary,
+            activeThumbColor: AppColors.userAccent,
           ),
         ],
       ),

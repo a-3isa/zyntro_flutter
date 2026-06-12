@@ -14,13 +14,13 @@ import '../../auth/auth_providers.dart';
 // ── WorkoutType color map ────────────────────────────────────────────────────
 Color _typeColor(WorkoutType t) {
   switch (t) {
-    case WorkoutType.gym:      return AppColors.accentLime;
+    case WorkoutType.gym:      return AppColors.userAccent;
     case WorkoutType.running:  return const Color(0xFF38BDF8);
     case WorkoutType.cycling:  return const Color(0xFF34D399);
     case WorkoutType.swimming: return const Color(0xFF22D3EE);
     case WorkoutType.yoga:     return const Color(0xFFA78BFA);
     case WorkoutType.hiit:     return const Color(0xFFFB923C);
-    default:                   return AppColors.accentLime;
+    default:                   return AppColors.userAccent;
   }
 }
 
@@ -289,7 +289,7 @@ class _WeeklyRingCard extends ConsumerWidget {
                     done: done,
                     total: goal,
                     trackColor: AppColors.surfaceV2Elevated,
-                    progressColor: AppColors.accentLime,
+                    progressColor: AppColors.userAccent,
                     strokeWidth: 5,
                   ),
                 ),
@@ -351,7 +351,7 @@ class _WeeklyRingCard extends ConsumerWidget {
                         style: AppTextStyles.bodyLarge.copyWith(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.accentLime,
+                          color: AppColors.userAccent,
                         ),
                       ),
                       Text(

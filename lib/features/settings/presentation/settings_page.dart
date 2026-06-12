@@ -10,6 +10,7 @@ import '../../../app/navigation/app_router.dart';
 import '../../../services/exercise_catalog_seed.dart';
 import '../../../services/facebook_link_service.dart';
 import '../../../widgets/circuit_breaker_status_widget.dart';
+import '../../../widgets/fluttermoji_avatar.dart';
 import '../../auth/presentation/providers/auth_controller.dart';
 import '../../auth/auth_providers.dart';
 import '../../social/presentation/providers/facebook_friends_provider.dart';
@@ -30,36 +31,35 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   bool _buddyActivity = false;
 
   // ── Training prefs ────────────────────────────────────────────────────────
-  String _restTimer = '1m';
   String _weightUnit = 'kg';
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   TextStyle _sectionHeader() => AppTextStyles.caption.copyWith(
-        fontWeight: FontWeight.w700,
-        letterSpacing: 2,
-        color: AppColors.textV2Tertiary,
-      );
+    fontWeight: FontWeight.w700,
+    letterSpacing: 2,
+    color: AppColors.textV2Tertiary,
+  );
 
   TextStyle _rowLabel({bool danger = false}) => AppTextStyles.body.copyWith(
-        fontWeight: FontWeight.w500,
-        color: danger ? AppColors.errorV2 : AppColors.textV2Primary,
-      );
+    fontWeight: FontWeight.w500,
+    color: danger ? AppColors.errorV2 : AppColors.textV2Primary,
+  );
 
   TextStyle _rowSub() => AppTextStyles.caption.copyWith(
-        fontSize: 11,
-        color: AppColors.textV2Tertiary,
-      );
+    fontSize: 11,
+    color: AppColors.textV2Tertiary,
+  );
 
   // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authSessionProvider);
+    final profileAsync = ref.watch(authUserProfileProvider);
     final displayName = authState.valueOrNull?.displayName ?? 'Zyntro User';
-    final username = displayName.toLowerCase().replaceAll(' ', '_');
-    final initial =
-        displayName.isNotEmpty ? displayName[0].toUpperCase() : 'Z';
+    final photoUrl = profileAsync.valueOrNull?.photoUrl ?? authState.valueOrNull?.photoUrl;
+    final username = profileAsync.valueOrNull?.username ?? displayName.toLowerCase().replaceAll(' ', '_');
 
     return Scaffold(
       backgroundColor: AppColors.backgroundV2,
@@ -80,7 +80,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     context,
                     displayName: displayName,
                     username: username,
-                    initial: initial,
+                    photoUrl: photoUrl,
                   ),
 
                   // ── Notifications ────────────────────────────────────────
@@ -119,14 +119,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   _sectionLabel('TRAINING'),
                   _buildSectionCard([
                     _segmentedRow(
-                      label: 'Default rest timer',
-                      sub: 'Applied after each set',
-                      options: const ['30s', '1m', '1.5m', '2m'],
-                      selected: _restTimer,
-                      onSelected: (v) => setState(() => _restTimer = v),
-                    ),
-                    _divider(),
-                    _segmentedRow(
                       label: 'Weight unit',
                       sub: null,
                       options: const ['kg', 'lbs'],
@@ -140,14 +132,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   _buildSectionCard([
                     _chevronRow(
                       label: 'Profile visibility',
-                      onTap: () {
-                        HapticFeedback.lightImpact();
-                        context.push(AppRoutes.privacySettings);
-                      },
-                    ),
-                    _divider(),
-                    _chevronRow(
-                      label: 'Post visibility',
                       onTap: () {
                         HapticFeedback.lightImpact();
                         context.push(AppRoutes.privacySettings);
@@ -318,7 +302,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     BuildContext context, {
     required String displayName,
     required String username,
-    required String initial,
+    String? photoUrl,
   }) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -329,26 +313,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       child: Row(
         children: [
           // Avatar
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: AppColors.accentLime.withValues(alpha: 0.5),
-                width: 2,
-              ),
-              color: AppColors.surfaceV2Active,
-            ),
-            child: Center(
-              child: Text(
-                initial,
-                style: AppTextStyles.h4.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.accentLime,
-                ),
-              ),
-            ),
+          FluttermojiAvatar(
+            photoUrl: photoUrl,
+            displayName: displayName,
+            size: 44,
+            showGradientBorder: true,
+            ringColor: AppColors.userAccent.withValues(alpha: 0.5),
           ),
           const SizedBox(width: 14),
           // Name + username
@@ -408,7 +378,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   Widget _buildConnectedAccountsCard(BuildContext context) {
     final profileAsync = ref.watch(authUserProfileProvider);
-    final isFbConnected = profileAsync.valueOrNull?.isFacebookConnected ?? false;
+    final isFbConnected =
+        profileAsync.valueOrNull?.isFacebookConnected ?? false;
 
     return _buildSectionCard([
       InkWell(
@@ -441,7 +412,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     Text('Facebook', style: _rowLabel()),
                     const SizedBox(height: 2),
                     Text(
-                      isFbConnected ? 'Tap to disconnect' : 'Find friends on Zyntro',
+                      isFbConnected
+                          ? 'Tap to disconnect'
+                          : 'Find friends on Zyntro',
                       style: _rowSub(),
                     ),
                   ],
@@ -449,9 +422,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               ),
               if (isFbConnected)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
-                    color: AppColors.accentLime.withValues(alpha: 0.15),
+                    color: AppColors.userAccent.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -459,7 +435,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     style: AppTextStyles.caption.copyWith(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
-                      color: AppColors.accentLime,
+                      color: AppColors.userAccent,
                     ),
                   ),
                 )
@@ -500,7 +476,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             ? 'Facebook connected! Found $count friend${count == 1 ? '' : 's'} on Zyntro.'
             : 'Facebook connected.';
       case FacebookLinkNoFriendsPermission():
-        message = 'Facebook connected. Friend access wasn\'t granted — reconnect to see friends.';
+        message =
+            'Facebook connected. Friend access wasn\'t granted — reconnect to see friends.';
       case FacebookLinkCancelled():
         message = 'Facebook connection cancelled.';
       case FacebookLinkFailure(:final message):
@@ -527,14 +504,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         ),
         content: Text(
           'You won\'t see Facebook friend suggestions after disconnecting.',
-          style: AppTextStyles.bodyLarge.copyWith(color: AppColors.textV2Secondary),
+          style: AppTextStyles.bodyLarge.copyWith(
+            color: AppColors.textV2Secondary,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
             child: Text(
               'Cancel',
-              style: AppTextStyles.bodyLarge.copyWith(color: AppColors.textV2Secondary),
+              style: AppTextStyles.bodyLarge.copyWith(
+                color: AppColors.textV2Secondary,
+              ),
             ),
           ),
           GestureDetector(
@@ -570,7 +551,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     }
   }
 
-  void _showSnackbarMessenger(ScaffoldMessengerState messenger, String message) {
+  void _showSnackbarMessenger(
+    ScaffoldMessengerState messenger,
+    String message,
+  ) {
     messenger.showSnackBar(
       SnackBar(
         content: Text(message),
@@ -604,12 +588,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   Widget _divider() => Divider(
-        height: 1,
-        thickness: 1,
-        color: Colors.white.withValues(alpha: 0.06),
-        indent: 0,
-        endIndent: 0,
-      );
+    height: 1,
+    thickness: 1,
+    color: Colors.white.withValues(alpha: 0.06),
+    indent: 0,
+    endIndent: 0,
+  );
 
   // ── Row types ─────────────────────────────────────────────────────────────
 
@@ -733,11 +717,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 ],
               ),
             ),
-            const Icon(
-              Icons.chevron_right,
-              color: AppColors.errorV2,
-              size: 18,
-            ),
+            const Icon(Icons.chevron_right, color: AppColors.errorV2, size: 18),
           ],
         ),
       ),
@@ -753,9 +733,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surfaceV2,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
             const Icon(Icons.logout, color: AppColors.errorV2),
@@ -771,14 +749,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         ),
         content: Text(
           'Are you sure you want to sign out?',
-          style: AppTextStyles.bodyLarge.copyWith(color: AppColors.textV2Secondary),
+          style: AppTextStyles.bodyLarge.copyWith(
+            color: AppColors.textV2Secondary,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
             child: Text(
               'Cancel',
-              style: AppTextStyles.bodyLarge.copyWith(color: AppColors.textV2Secondary),
+              style: AppTextStyles.bodyLarge.copyWith(
+                color: AppColors.textV2Secondary,
+              ),
             ),
           ),
           GestureDetector(
@@ -884,7 +866,7 @@ class _LimeToggle extends StatelessWidget {
         height: 26,
         padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
-          color: value ? AppColors.accentLime : AppColors.surfaceV2Active,
+          color: value ? AppColors.userAccent : AppColors.surfaceV2Active,
           borderRadius: BorderRadius.circular(13),
         ),
         child: AnimatedAlign(
@@ -896,9 +878,7 @@ class _LimeToggle extends StatelessWidget {
             height: 18,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: value
-                  ? const Color(0xFF080808)
-                  : AppColors.textV2Tertiary,
+              color: value ? const Color(0xFF080808) : AppColors.textV2Tertiary,
             ),
           ),
         ),
@@ -935,8 +915,9 @@ class _SegmentedSelector extends StatelessWidget {
             duration: const Duration(milliseconds: 150),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color:
-                  isSelected ? AppColors.accentLime : AppColors.surfaceV2Elevated,
+              color: isSelected
+                  ? AppColors.userAccent
+                  : AppColors.surfaceV2Elevated,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(

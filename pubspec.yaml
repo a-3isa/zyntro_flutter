@@ -70,7 +70,7 @@ dependencies:
   flutter_image_compress: ^2.4.0
   google_fonts: ^6.1.0
   flutter_svg: ^2.0.10+1
-  avatar_plus: ^0.0.5
+
 
 dev_dependencies:
   flutter_test:

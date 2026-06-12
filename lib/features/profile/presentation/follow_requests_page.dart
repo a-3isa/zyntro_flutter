@@ -228,10 +228,10 @@ class _FollowRequestsPageState extends ConsumerState<FollowRequestsPage> {
                       user.displayName.isNotEmpty
                           ? user.displayName[0].toUpperCase()
                           : 'U',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.primary,
+                        color: AppColors.userAccent,
                       ),
                     )
                   : null,

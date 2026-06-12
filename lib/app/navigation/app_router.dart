@@ -204,6 +204,12 @@ final routerProvider = Provider<GoRouter>((ref) {
   var profileComplete = const AsyncValue<bool>.loading();
   var rollbackActive = const AsyncValue<bool>.data(false);
 
+  // Orphaned-session guard: on cold start, if a Firebase session exists but
+  // the user has no Firestore profile doc, we sign them out so they land on
+  // the welcome screen instead of the onboarding page.
+  var startupOrphanCheckDone = false;
+  var signingOut = false;
+
   ref.listen<AsyncValue<AuthUserEntity?>>(authSessionProvider, (_, next) {
     authState = next;
     authChangeNotifier.trigger();
@@ -216,6 +222,19 @@ final routerProvider = Provider<GoRouter>((ref) {
     rollbackActive = next;
     authChangeNotifier.trigger();
   });
+  ref.listen<AsyncValue<bool>>(authProfileDocExistsProvider, (_, next) {
+    if (!startupOrphanCheckDone && next.hasValue) {
+      startupOrphanCheckDone = true;
+      if (next.value == false && authState.valueOrNull != null) {
+        signingOut = true;
+        ref.read(authenticationUseCaseProvider).signOut().whenComplete(() {
+          signingOut = false;
+          authChangeNotifier.trigger();
+        });
+      }
+    }
+    authChangeNotifier.trigger();
+  });
 
   return GoRouter(
     navigatorKey: rootNavigatorKey,
@@ -223,71 +242,59 @@ final routerProvider = Provider<GoRouter>((ref) {
     refreshListenable: authChangeNotifier,
     debugLogDiagnostics: shouldEnableRouterDiagnostics(isDebugMode: kDebugMode),
     redirect: (context, state) {
+      // Hold on splash while an orphaned session is being signed out.
+      if (signingOut) {
+        return state.matchedLocation == AppRoutes.splash ? null : AppRoutes.splash;
+      }
+
       final isLoggedIn = authState.valueOrNull != null;
       final isLoading = authState.isLoading;
       final isRollbackActive = rollbackActive.valueOrNull ?? false;
-      final isOnAuthPage =
-          state.matchedLocation == AppRoutes.login ||
-          state.matchedLocation == AppRoutes.signUp ||
-          state.matchedLocation == AppRoutes.splash ||
-          state.matchedLocation == AppRoutes.forgotPassword ||
-          state.matchedLocation == AppRoutes.onboarding;
 
-      // Still loading auth state
+      final loc = state.matchedLocation;
+      // Entry pages a logged-out user may sit on. Onboarding is intentionally
+      // excluded — it requires an authenticated session.
+      final isOnAuthEntry =
+          loc == AppRoutes.login ||
+          loc == AppRoutes.signUp ||
+          loc == AppRoutes.splash ||
+          loc == AppRoutes.forgotPassword;
+      final isOnSetup =
+          loc == AppRoutes.onboarding || loc == AppRoutes.profileSetup;
+
+      // Still loading auth state → hold on splash.
       if (isLoading) {
-        return state.matchedLocation == AppRoutes.splash
-            ? null
-            : AppRoutes.splash;
+        return loc == AppRoutes.splash ? null : AppRoutes.splash;
       }
 
-      // Not logged in, redirect to login
-      if (!isLoggedIn && !isOnAuthPage) {
-        return AppRoutes.login;
+      // Not logged in: only auth-entry pages are reachable.
+      if (!isLoggedIn) {
+        return isOnAuthEntry ? null : AppRoutes.login;
       }
 
-      // Guardrail: if rollback is active, keep navigation on auth entry routes.
-      if (isRollbackActive && !isOnAuthPage) {
-        return AppRoutes.login;
+      // Guardrail: if a migration rollback is active, keep on auth-entry routes.
+      if (isRollbackActive) {
+        return isOnAuthEntry ? null : AppRoutes.login;
       }
 
-      // Logged in: check profile completeness and redirect accordingly
-      if (isLoggedIn) {
-        if (profileComplete.hasError) {
-          debugPrint(
-            '[Router] Profile completion check failed; routing to onboarding.',
-          );
-          return state.matchedLocation == AppRoutes.onboarding ||
-                  state.matchedLocation == AppRoutes.profileSetup
-              ? null
-              : AppRoutes.onboarding;
-        }
+      // Logged in. Resolve profile completeness (treat an error as incomplete).
+      final hasCompletionError = profileComplete.hasError;
+      if (!hasCompletionError &&
+          (profileComplete.isLoading || !profileComplete.hasValue)) {
+        return null; // wait for the check before deciding
+      }
+      final isProfileComplete =
+          !hasCompletionError && (profileComplete.valueOrNull ?? false);
 
-        // If profile completion check is still loading, don't redirect yet
-        if (profileComplete.isLoading || !profileComplete.hasValue) {
-          return null;
-        }
-
-        final isProfileComplete = profileComplete.valueOrNull ?? false;
-
-        if (!isProfileComplete) {
-          // Allowed: Onboarding (new/recovery path), ProfileSetup (legacy fallback)
-          if (state.matchedLocation != AppRoutes.onboarding &&
-              state.matchedLocation != AppRoutes.profileSetup) {
-            return AppRoutes.onboarding;
-          }
-          return null; // Stay where they are (Onboarding or ProfileSetup)
-        }
-
-        if (state.matchedLocation == AppRoutes.login ||
-            state.matchedLocation == AppRoutes.signUp ||
-            state.matchedLocation == AppRoutes.splash ||
-            state.matchedLocation == AppRoutes.onboarding ||
-            state.matchedLocation == AppRoutes.profileSetup) {
-          return AppRoutes.main;
-        }
+      if (isProfileComplete) {
+        // Returning, set-up users go straight to the app (home/feed).
+        if (isOnAuthEntry || isOnSetup) return AppRoutes.main;
+        return null;
       }
 
-      return null;
+      // Signed in but hasn't finished onboarding → profile setup. First-time
+      // users can't skip it (onboarding also blocks back navigation).
+      return loc == AppRoutes.onboarding ? null : AppRoutes.onboarding;
     },
     routes: [
       // Auth flow routes

@@ -152,8 +152,8 @@ class _WaitingTurnScreenState extends State<WaitingTurnScreen>
         const SizedBox(height: 8),
         Text(
           widget.activeStatusLabel,
-          style: const TextStyle(
-            color: AppColors.accentLime,
+          style: TextStyle(
+            color: AppColors.userAccent,
             fontSize: 12,
             fontWeight: FontWeight.w700,
           ),
@@ -201,7 +201,7 @@ class _WaitingTurnScreenState extends State<WaitingTurnScreen>
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: AppColors.primary.withValues(alpha: opacity),
+                      color: AppColors.userAccent.withValues(alpha: opacity),
                       width: 3,
                     ),
                   ),
@@ -297,7 +297,7 @@ class _WaitingTurnScreenState extends State<WaitingTurnScreen>
     final Color buttonColor = recording ? AppColors.error : AppColors.surfaceV2;
     final Color iconColor = recording
         ? AppColors.textV2Primary
-        : AppColors.primary;
+        : AppColors.userAccent;
 
     return Column(
       mainAxisSize: MainAxisSize.min,

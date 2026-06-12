@@ -140,7 +140,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-        borderSide: const BorderSide(color: AppColors.accentLime, width: 2),
+        borderSide: BorderSide(color: AppColors.userAccent, width: 2),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppBorderRadius.lg),
@@ -219,7 +219,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
                 color: AppColors.surfaceV2Elevated,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.lock_reset_rounded, size: 40, color: AppColors.accentLime),
+              child: Icon(Icons.lock_reset_rounded, size: 40, color: AppColors.userAccent),
             ),
           ),
 
@@ -309,7 +309,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
                   'Back to Sign In',
                   style: AppTextStyles.bodyLarge.copyWith(
                     fontWeight: FontWeight.w500,
-                    color: AppColors.accentLime,
+                    color: AppColors.userAccent,
                   ),
                 ),
               ),
@@ -371,7 +371,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
                 _emailController.text.trim(),
                 style: AppTextStyles.h5.copyWith(
                   fontWeight: FontWeight.w700,
-                  color: AppColors.accentLime,
+                  color: AppColors.userAccent,
                 ),
                 textAlign: TextAlign.center,
               ),

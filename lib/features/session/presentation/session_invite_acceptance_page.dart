@@ -456,8 +456,8 @@ class _SessionInviteAcceptancePageState
   }
 
   Widget _buildLoading() {
-    return const Center(
-      child: CircularProgressIndicator(color: AppColors.primary),
+    return Center(
+      child: CircularProgressIndicator(color: AppColors.userAccent),
     );
   }
 
@@ -489,7 +489,7 @@ class _SessionInviteAcceptancePageState
           const SizedBox(height: 20),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: AppColors.primary,
+              backgroundColor: AppColors.userAccent,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
             ),
@@ -545,11 +545,11 @@ class _SessionInviteAcceptancePageState
                   ),
                   const SizedBox(height: 12),
                   if (_isLoadingHostPlan)
-                    const Padding(
+                    Padding(
                       padding: EdgeInsets.symmetric(vertical: 24),
                       child: Center(
                         child: CircularProgressIndicator(
-                          color: AppColors.primary,
+                          color: AppColors.userAccent,
                         ),
                       ),
                     )

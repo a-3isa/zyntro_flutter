@@ -467,10 +467,10 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                                   fit: BoxFit.cover,
                                   placeholder: (context, url) => Container(
                                     color: AppColors.surfaceV2Elevated,
-                                    child: const Center(
+                                    child: Center(
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
-                                        color: AppColors.primary,
+                                        color: AppColors.userAccent,
                                       ),
                                     ),
                                   ),
@@ -612,10 +612,10 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                                     ),
                                     child: Row(
                                       children: [
-                                        const Icon(
+                                        Icon(
                                           Icons.fitness_center,
                                           size: 14,
-                                          color: AppColors.primary,
+                                          color: AppColors.userAccent,
                                         ),
                                         const SizedBox(width: AppSpacing.xs),
                                         Expanded(
@@ -742,7 +742,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
               decoration: BoxDecoration(
                 border: Border(
                   bottom: BorderSide(
-                    color: isActive ? AppColors.accentLime : Colors.transparent,
+                    color: isActive ? AppColors.userAccent : Colors.transparent,
                     width: 2,
                   ),
                 ),
@@ -1066,7 +1066,7 @@ class WorkoutDetailSection extends StatelessWidget {
               style: AppTextStyles.h2.copyWith(
                 fontSize: 28,
                 fontWeight: FontWeight.w700,
-                color: AppColors.accentLime,
+                color: AppColors.userAccent,
                 letterSpacing: -1,
               ),
             ),

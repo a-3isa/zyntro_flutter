@@ -47,7 +47,7 @@ class GymPlanEditor extends StatelessWidget {
                 FilledButton.icon(
                   onPressed: isLocked ? null : onAddExercise,
                   style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.primary,
+                    backgroundColor: AppColors.userAccent,
                     foregroundColor: AppColors.textInverseDark,
                   ),
                   icon: const Icon(Icons.add_rounded),
@@ -80,7 +80,7 @@ class GymPlanEditor extends StatelessWidget {
                         children: [
                           CircleAvatar(
                             radius: 14,
-                            backgroundColor: AppColors.primary,
+                            backgroundColor: AppColors.userAccent,
                             foregroundColor: AppColors.textInverseDark,
                             child: Text('${index + 1}'),
                           ),

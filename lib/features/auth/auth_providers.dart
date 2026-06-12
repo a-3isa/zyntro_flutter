@@ -1,7 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/app_theme.dart';
 import '../../core/migration/migration.dart';
 import '../../services/notification_service.dart';
 import 'data/datasources/auth_local_data_source.dart';
@@ -136,4 +138,35 @@ final authUserProfileProvider = FutureProvider<UserProfileEntity?>((ref) async {
     success: (profile) => profile,
     failure: (_) => null,
   );
+});
+
+/// The current user's chosen neon accent color (stored in their profile as an
+/// ARGB/RGB hex string). Defaults to the app's neon green when absent.
+/// Drives [AppColors.userAccent] app-wide via the root widget.
+final accentColorProvider = Provider<Color>((ref) {
+  final profile = ref.watch(authUserProfileProvider).valueOrNull;
+  return _parseAccent(profile?.avatarConfig) ?? AppColors.accentLime;
+});
+
+Color? _parseAccent(String? config) {
+  if (config == null || config.isEmpty) return null;
+  final hex = config.replaceFirst('#', '').trim();
+  final value = int.tryParse(hex, radix: 16);
+  if (value == null) return null;
+  return Color(hex.length <= 6 ? (0xFF000000 | value) : value);
+}
+
+/// Returns true when the logged-in user has a Firestore profile document,
+/// or when no user is logged in (no action needed). Returns false when a
+/// Firebase auth session exists but no profile doc was ever written — an
+/// orphaned account that the router will auto-sign-out on startup.
+final authProfileDocExistsProvider = FutureProvider<bool>((ref) async {
+  final uid = ref.watch(authSessionProvider).valueOrNull?.id;
+  if (uid == null) return true;
+  final doc = await ref
+      .read(authFirestoreProvider)
+      .collection('users')
+      .doc(uid)
+      .get();
+  return doc.exists;
 });

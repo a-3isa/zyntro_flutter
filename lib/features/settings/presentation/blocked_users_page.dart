@@ -198,9 +198,9 @@ class _BlockedUsersPageState extends ConsumerState<BlockedUsersPage> {
                   user.displayName.isNotEmpty
                       ? user.displayName[0].toUpperCase()
                       : 'U',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: AppColors.primary,
+                    color: AppColors.userAccent,
                   ),
                 )
               : null,

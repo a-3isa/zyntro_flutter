@@ -50,7 +50,7 @@ class _RepCounterScreenState extends State<RepCounterScreen>
     );
     _repColorAnim = ColorTween(
       begin: AppColors.textV2Primary,
-      end: AppColors.accentLime,
+      end: AppColors.userAccent,
     ).animate(CurvedAnimation(parent: _bounceController, curve: Curves.easeOut));
   }
 
@@ -140,7 +140,7 @@ class _RepCounterScreenState extends State<RepCounterScreen>
                       Text(
                         'Bot completed ${bot.gymReps} reps @ ${_formatWeight(bot.gymWeightKg)} kg',
                         style: AppTextStyles.body.copyWith(
-                          color: AppColors.accentLime,
+                          color: AppColors.userAccent,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -232,7 +232,7 @@ class _RepCounterScreenState extends State<RepCounterScreen>
                       child: FilledButton(
                         onPressed: canFinish ? () => widget.onDone(_repCount) : null,
                         style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.primary,
+                          backgroundColor: AppColors.userAccent,
                           disabledBackgroundColor: AppColors.surfaceV2Elevated,
                           foregroundColor: AppColors.backgroundV2,
                           disabledForegroundColor: AppColors.textV2Tertiary,

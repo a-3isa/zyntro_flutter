@@ -140,9 +140,9 @@ class _RecapPageState extends ConsumerState<RecapPage> {
               ),
               const SizedBox(height: 16),
               ListTile(
-                leading: const Icon(
+                leading: Icon(
                   Icons.camera_alt,
-                  color: AppColors.accentLime,
+                  color: AppColors.userAccent,
                 ),
                 title: Text(
                   'Take Photo',
@@ -156,9 +156,9 @@ class _RecapPageState extends ConsumerState<RecapPage> {
                 },
               ),
               ListTile(
-                leading: const Icon(
+                leading: Icon(
                   Icons.photo_library,
-                  color: AppColors.accentLime,
+                  color: AppColors.userAccent,
                 ),
                 title: Text(
                   'Choose from Gallery',
@@ -371,10 +371,10 @@ class _RecapPageState extends ConsumerState<RecapPage> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
+      return Scaffold(
         backgroundColor: AppColors.backgroundV2,
         body: Center(
-          child: CircularProgressIndicator(color: AppColors.accentLime),
+          child: CircularProgressIndicator(color: AppColors.userAccent),
         ),
       );
     }
@@ -512,7 +512,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
                                 decoration: BoxDecoration(
                                   color: AppColors.surfaceV2,
                                   border: Border.all(
-                                    color: AppColors.accentLime.withValues(
+                                    color: AppColors.userAccent.withValues(
                                       alpha: 0.13,
                                     ),
                                   ),
@@ -521,16 +521,16 @@ class _RecapPageState extends ConsumerState<RecapPage> {
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    const Icon(
+                                    Icon(
                                       Icons.bolt,
                                       size: 14,
-                                      color: AppColors.accentLime,
+                                      color: AppColors.userAccent,
                                     ),
                                     const SizedBox(width: 4),
                                     Text(
                                       '+$points',
                                       style: AppTextStyles.bodyLarge.copyWith(
-                                        color: AppColors.accentLime,
+                                        color: AppColors.userAccent,
                                       ),
                                     ),
                                     const SizedBox(width: 3),
@@ -563,7 +563,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
                                 child: _StatCell(
                                   value: '$totalExercises',
                                   label: 'Exercises',
-                                  accentColor: AppColors.accentLime,
+                                  accentColor: AppColors.userAccent,
                                 ),
                               ),
                               const SizedBox(width: 10),
@@ -614,16 +614,16 @@ class _RecapPageState extends ConsumerState<RecapPage> {
                             color: AppColors.surfaceV2,
                             borderRadius: BorderRadius.circular(18),
                             border: Border.all(
-                              color: AppColors.accentLime.withValues(
+                              color: AppColors.userAccent.withValues(
                                 alpha: 0.14,
                               ),
                             ),
                           ),
                           child: Row(
                             children: [
-                              const Icon(
+                              Icon(
                                 Icons.person_outline_rounded,
-                                color: AppColors.accentLime,
+                                color: AppColors.userAccent,
                               ),
                               const SizedBox(width: 12),
                               Expanded(
@@ -875,7 +875,7 @@ class _BreakdownSection extends StatelessWidget {
                           vertical: 3,
                         ),
                         decoration: BoxDecoration(
-                          color: AppColors.accentLime.withValues(alpha: 0.12),
+                          color: AppColors.userAccent.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
@@ -883,7 +883,7 @@ class _BreakdownSection extends StatelessWidget {
                           style: AppTextStyles.caption.copyWith(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
-                            color: AppColors.accentLime,
+                            color: AppColors.userAccent,
                           ),
                         ),
                       ),
@@ -1021,7 +1021,7 @@ class _ShareCardSection extends StatelessWidget {
                 colors: [Color(0xFF141414), Color(0xFF1A1A1A)],
               ),
               border: Border.all(
-                color: AppColors.accentLime.withValues(alpha: 0.13),
+                color: AppColors.userAccent.withValues(alpha: 0.13),
               ),
               borderRadius: const BorderRadius.vertical(
                 bottom: Radius.circular(20),
@@ -1039,7 +1039,7 @@ class _ShareCardSection extends StatelessWidget {
                       'zyntro',
                       style: AppTextStyles.label.copyWith(
                         fontSize: 15,
-                        color: AppColors.accentLime,
+                        color: AppColors.userAccent,
                       ),
                     ),
                     Text(
@@ -1099,7 +1099,7 @@ class _ShareCardSection extends StatelessWidget {
                       '+$points pts',
                       style: AppTextStyles.label.copyWith(
                         fontSize: 13,
-                        color: AppColors.accentLime,
+                        color: AppColors.userAccent,
                       ),
                     ),
                   ],
@@ -1183,17 +1183,17 @@ class _PostToFeedSection extends StatelessWidget {
           postedToFeed
               ? Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.check_circle,
                       size: 16,
-                      color: AppColors.accentLime,
+                      color: AppColors.userAccent,
                     ),
                     const SizedBox(width: 6),
                     Text(
                       'Posted to feed',
                       style: AppTextStyles.bodyLarge.copyWith(
                         fontWeight: FontWeight.w700,
-                        color: AppColors.accentLime,
+                        color: AppColors.userAccent,
                       ),
                     ),
                   ],
@@ -1240,12 +1240,12 @@ class _PostToFeedSection extends StatelessWidget {
               child: selectedPhotoPath == null
                   ? Center(
                       child: isPickingPhoto
-                          ? const SizedBox(
+                          ? SizedBox(
                               width: 20,
                               height: 20,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: AppColors.accentLime,
+                                color: AppColors.userAccent,
                               ),
                             )
                           : Text(
@@ -1300,7 +1300,7 @@ class _PostToFeedSection extends StatelessWidget {
                 Switch(
                   value: shareWithFriendsOnly,
                   onChanged: isSharing ? null : onToggleFriendsOnly,
-                  activeThumbColor: AppColors.accentLime,
+                  activeThumbColor: AppColors.userAccent,
                   inactiveTrackColor: AppColors.surfaceV2Active,
                 ),
               ],
@@ -1335,7 +1335,7 @@ class _PostToFeedSection extends StatelessWidget {
                         '${(uploadProgress! * 100).toInt()}%',
                         style: AppTextStyles.caption.copyWith(
                           fontWeight: FontWeight.w700,
-                          color: AppColors.accentLime,
+                          color: AppColors.userAccent,
                         ),
                       ),
                     ],
@@ -1347,8 +1347,8 @@ class _PostToFeedSection extends StatelessWidget {
                       value: uploadProgress,
                       minHeight: 4,
                       backgroundColor: AppColors.surfaceV2Active,
-                      valueColor: const AlwaysStoppedAnimation<Color>(
-                        AppColors.accentLime,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        AppColors.userAccent,
                       ),
                     ),
                   ),
@@ -1367,8 +1367,8 @@ class _PostToFeedSection extends StatelessWidget {
                 height: 52,
                 decoration: BoxDecoration(
                   color: isSharing
-                      ? AppColors.accentLime.withValues(alpha: 0.5)
-                      : AppColors.accentLime,
+                      ? AppColors.userAccent.withValues(alpha: 0.5)
+                      : AppColors.userAccent,
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Center(

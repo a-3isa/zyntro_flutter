@@ -101,14 +101,10 @@ class RecentActivityCard extends StatelessWidget {
                       children: [
                         // User avatar
                         FluttermojiAvatar(
-                          avatarConfig: activity.userAvatarConfig,
                           photoUrl: activity.userPhotoURL,
                           displayName: activity.userName,
                           size: 32,
                           showGradientBorder: false,
-                          ringColor: FluttermojiAvatar.colorFromAvatarConfig(
-                            activity.userAvatarConfig,
-                          ),
                         ),
                         const SizedBox(width: AppSpacing.sm),
                         // User name
@@ -227,7 +223,7 @@ class RecentActivityCard extends StatelessWidget {
     final workoutType = activity.workoutTypeEnum;
 
     if (workoutType.isStrength) {
-      return AppColors.primary;
+      return AppColors.userAccent;
     } else if (workoutType.isCardio) {
       return AppColors.secondary;
     } else if (workoutType == WorkoutType.cycling) {

@@ -91,8 +91,8 @@ class ConnectionsListPage extends ConsumerWidget {
           ),
           Expanded(
             child: usersAsync.when(
-              loading: () => const Center(
-                child: CircularProgressIndicator(color: AppColors.accentLime),
+              loading: () => Center(
+                child: CircularProgressIndicator(color: AppColors.userAccent),
               ),
               error: (error, stackTrace) => Center(
                 child: Padding(

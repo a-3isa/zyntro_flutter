@@ -8,10 +8,10 @@ class UserProfileModel {
   final String displayName;
   final String? username;
   final String? photoUrl;
-  final String? avatarConfig;
   final bool isPrivate;
   final WorkoutType workoutPreference;
   final bool beginnerFlag;
+  final String? avatarConfig;
   final int? trainingDaysPerWeek;
   final String? facebookUid;
   final DateTime? facebookConnectedAt;
@@ -21,10 +21,10 @@ class UserProfileModel {
     required this.displayName,
     this.username,
     required this.photoUrl,
-    required this.avatarConfig,
     required this.isPrivate,
     required this.workoutPreference,
     required this.beginnerFlag,
+    this.avatarConfig,
     this.trainingDaysPerWeek,
     this.facebookUid,
     this.facebookConnectedAt,
@@ -41,12 +41,12 @@ class UserProfileModel {
       displayName: data['displayName'] as String? ?? '',
       username: data['username'] as String?,
       photoUrl: data['photoURL'] as String?,
-      avatarConfig: data['avatarConfig'] as String?,
       isPrivate: data['isPrivate'] as bool? ?? false,
       workoutPreference: WorkoutType.fromString(
         data['workoutPreference'] as String? ?? 'other',
       ),
       beginnerFlag: data['beginnerFlag'] as bool? ?? false,
+      avatarConfig: data['avatarConfig'] as String?,
       trainingDaysPerWeek: data['trainingDaysPerWeek'] as int?,
       facebookUid: data['facebookUid'] as String?,
       facebookConnectedAt: fbConnectedRaw is Timestamp
@@ -62,12 +62,12 @@ class UserProfileModel {
       displayName: data['displayName'] as String? ?? '',
       username: data['username'] as String?,
       photoUrl: data['photoURL'] as String?,
-      avatarConfig: data['avatarConfig'] as String?,
       isPrivate: data['isPrivate'] as bool? ?? false,
       workoutPreference: WorkoutType.fromString(
         data['workoutPreference'] as String? ?? 'other',
       ),
       beginnerFlag: data['beginnerFlag'] as bool? ?? false,
+      avatarConfig: data['avatarConfig'] as String?,
       trainingDaysPerWeek: data['trainingDaysPerWeek'] as int?,
       facebookUid: data['facebookUid'] as String?,
       facebookConnectedAt: fbConnectedRaw is Timestamp
@@ -82,10 +82,10 @@ class UserProfileModel {
       displayName: displayName,
       username: username,
       photoUrl: photoUrl,
-      avatarConfig: avatarConfig,
       isPrivate: isPrivate,
       workoutPreference: workoutPreference,
       beginnerFlag: beginnerFlag,
+      avatarConfig: avatarConfig,
       trainingDaysPerWeek: trainingDaysPerWeek,
       facebookUid: facebookUid,
       facebookConnectedAt: facebookConnectedAt,

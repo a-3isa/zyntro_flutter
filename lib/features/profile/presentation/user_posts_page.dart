@@ -95,10 +95,10 @@ class _UserPostsPageState extends ConsumerState<UserPostsPage> {
                       child: Row(
                         children: [
                           if (_filter == 'all')
-                            const Icon(
+                            Icon(
                               Icons.check,
                               size: 18,
-                              color: AppColors.primary,
+                              color: AppColors.userAccent,
                             ),
                           if (_filter != 'all') const SizedBox(width: 18),
                           const SizedBox(width: 8),
@@ -114,10 +114,10 @@ class _UserPostsPageState extends ConsumerState<UserPostsPage> {
                       child: Row(
                         children: [
                           if (_filter == 'strength')
-                            const Icon(
+                            Icon(
                               Icons.check,
                               size: 18,
-                              color: AppColors.primary,
+                              color: AppColors.userAccent,
                             ),
                           if (_filter != 'strength') const SizedBox(width: 18),
                           const SizedBox(width: 8),
@@ -133,10 +133,10 @@ class _UserPostsPageState extends ConsumerState<UserPostsPage> {
                       child: Row(
                         children: [
                           if (_filter == 'cardio')
-                            const Icon(
+                            Icon(
                               Icons.check,
                               size: 18,
-                              color: AppColors.primary,
+                              color: AppColors.userAccent,
                             ),
                           if (_filter != 'cardio') const SizedBox(width: 18),
                           const SizedBox(width: 8),
@@ -172,7 +172,7 @@ class _UserPostsPageState extends ConsumerState<UserPostsPage> {
                   onRefresh: () async {
                     ref.invalidate(userPostsProvider(widget.userId));
                   },
-                  color: AppColors.primary,
+                  color: AppColors.userAccent,
                   backgroundColor: AppColors.surfaceV2,
                   child: GridView.builder(
                     padding: const EdgeInsets.all(AppSpacing.md),

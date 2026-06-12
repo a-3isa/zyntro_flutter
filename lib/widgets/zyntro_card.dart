@@ -132,7 +132,7 @@ class _ZyntroCardState extends State<ZyntroCard>
     // Accent border used by multiple variants
     final accentBorder = widget.accent
         ? Border.all(
-            color: AppColors.accentLime.withValues(alpha: 0.20),
+            color: AppColors.userAccent.withValues(alpha: 0.20),
             width: 1,
           )
         : null;
@@ -273,10 +273,10 @@ class _ZyntroCardState extends State<ZyntroCard>
           onTapDown: _onTapDown,
           onTapUp: _onTapUp,
           onTapCancel: _onTapCancel,
-          splashColor: (widget.glowColor ?? AppColors.primary).withValues(
+          splashColor: (widget.glowColor ?? AppColors.userAccent).withValues(
             alpha: 0.1,
           ),
-          highlightColor: (widget.glowColor ?? AppColors.primary).withValues(
+          highlightColor: (widget.glowColor ?? AppColors.userAccent).withValues(
             alpha: 0.05,
           ),
           borderRadius: BorderRadius.circular(borderRadius),

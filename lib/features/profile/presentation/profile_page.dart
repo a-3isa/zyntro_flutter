@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:avatar_plus/avatar_plus.dart';
+
 import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_text_styles.dart';
@@ -20,7 +20,6 @@ import '../../moderation/presentation/report_dialog.dart';
 import '../../auth/auth_providers.dart';
 import '../../auth/domain/entities/user_profile_entity.dart';
 import '../../auth/presentation/providers/auth_controller.dart';
-import '../../../widgets/fluttermoji_avatar.dart';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -41,6 +40,18 @@ User _toLegacyUser(UserProfileEntity profile) {
   );
 }
 
+/// Parses the avatar color picked during onboarding (stored as an ARGB or RGB
+/// hex string in `avatarConfig`) into a [Color]. Returns null when absent or
+/// unparseable so callers can fall back to a neutral surface color.
+Color? avatarColorFromConfig(String? config) {
+  if (config == null || config.isEmpty) return null;
+  final hex = config.replaceFirst('#', '').trim();
+  final value = int.tryParse(hex, radix: 16);
+  if (value == null) return null;
+  // If only RRGGBB was provided, force full opacity.
+  return Color(hex.length <= 6 ? (0xFF000000 | value) : value);
+}
+
 Color _buildTypeColor(String type) {
   switch (type.toLowerCase()) {
     case 'gym':
@@ -56,7 +67,7 @@ Color _buildTypeColor(String type) {
     case 'swimming':
       return const Color(0xFF22D3EE);
     default:
-      return AppColors.accentLime;
+      return AppColors.userAccent;
   }
 }
 
@@ -88,8 +99,7 @@ final otherUserProfileProvider = FutureProvider.family<User?, String>((
   ref,
   userId,
 ) async {
-  final profile =
-      await ref.read(authControllerProvider).getUserProfile(userId);
+  final profile = await ref.read(authControllerProvider).getUserProfile(userId);
   if (profile == null) return null;
   return _toLegacyUser(profile);
 });
@@ -131,9 +141,24 @@ final followStatusProvider = FutureProvider.family<FollowStatus?, String>((
       .getFollowStatus(currentUserId, targetUserId);
 });
 
+/// Whether the target user follows the currently signed-in user back.
+final targetFollowsCurrentProvider = FutureProvider.family<bool, String>((
+  ref,
+  targetUserId,
+) async {
+  final currentUserId = ref.watch(authSessionProvider).valueOrNull?.id;
+  if (currentUserId == null || currentUserId == targetUserId) return false;
+  final status = await ref
+      .read(followServiceProvider)
+      .getFollowStatus(targetUserId, currentUserId);
+  return status == FollowStatus.approved;
+});
+
 /// Provider for a user's recent sessions (up to 100).
-final userSessionsProvider =
-    FutureProvider.family<List<Session>, String>((ref, userId) async {
+final userSessionsProvider = FutureProvider.family<List<Session>, String>((
+  ref,
+  userId,
+) async {
   return ref.read(sessionServiceProvider).getUserSessions(userId, limit: 100);
 });
 
@@ -166,10 +191,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   Widget build(BuildContext context) {
     final targetUserId = _targetUserId;
     if (targetUserId == null) {
-      return const Scaffold(
+      return Scaffold(
         backgroundColor: AppColors.backgroundV2,
         body: Center(
-          child: CircularProgressIndicator(color: AppColors.accentLime),
+          child: CircularProgressIndicator(color: AppColors.userAccent),
         ),
       );
     }
@@ -202,7 +227,13 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           isFollowLoading: _isFollowLoading,
           onFollow: _handleFollow,
           onUnfollow: _handleUnfollow,
-          onAction: (action, uid) => _handleAction(context, ref, action, uid, targetUserName: user.displayName),
+          onAction: (action, uid) => _handleAction(
+            context,
+            ref,
+            action,
+            uid,
+            targetUserName: user.displayName,
+          ),
           onRefresh: () async {
             ref.invalidate(currentUserProfileProvider);
             ref.invalidate(otherUserProfileProvider(targetUserId));
@@ -213,10 +244,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           },
         );
       },
-      loading: () => const Scaffold(
+      loading: () => Scaffold(
         backgroundColor: AppColors.backgroundV2,
         body: Center(
-          child: CircularProgressIndicator(color: AppColors.accentLime),
+          child: CircularProgressIndicator(color: AppColors.userAccent),
         ),
       ),
       error: (e, _) => Scaffold(
@@ -242,11 +273,13 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     setState(() => _isFollowLoading = true);
 
     try {
-      await ref.read(followServiceProvider).followUser(
-        followerId: currentUserId,
-        followeeId: targetUserId,
-        isPrivate: isPrivate,
-      );
+      await ref
+          .read(followServiceProvider)
+          .followUser(
+            followerId: currentUserId,
+            followeeId: targetUserId,
+            isPrivate: isPrivate,
+          );
       ref.invalidate(followStatusProvider(targetUserId));
       ref.invalidate(followersCountProvider(targetUserId));
     } catch (_) {
@@ -299,10 +332,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     setState(() => _isFollowLoading = true);
 
     try {
-      await ref.read(followServiceProvider).unfollowUser(
-        currentUserId,
-        targetUserId,
-      );
+      await ref
+          .read(followServiceProvider)
+          .unfollowUser(currentUserId, targetUserId);
       ref.invalidate(followStatusProvider(targetUserId));
       ref.invalidate(followersCountProvider(targetUserId));
     } catch (_) {
@@ -333,10 +365,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           ),
         );
       case 'block':
-        await ref.read(moderationServiceProvider).blockUser(
-          currentUserId,
-          targetUserId,
-        );
+        await ref
+            .read(moderationServiceProvider)
+            .blockUser(currentUserId, targetUserId);
         if (context.mounted) context.go(AppRoutes.main);
     }
   }
@@ -369,10 +400,26 @@ class _ProfileContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Private profile gate: non-followers only see avatar + locked message.
+    if (!isCurrentUser && user.isPrivate) {
+      final followStatusAsync = ref.watch(followStatusProvider(targetUserId));
+      final isFollowing =
+          followStatusAsync.valueOrNull == FollowStatus.approved;
+      if (!isFollowing) {
+        return _PrivateProfileView(
+          user: user,
+          targetUserId: targetUserId,
+          followStatus: followStatusAsync.valueOrNull,
+          isFollowLoading: isFollowLoading,
+          onFollow: onFollow,
+        );
+      }
+    }
+
     return DefaultTabController(
       length: 3,
       child: RefreshIndicator(
-        color: AppColors.accentLime,
+        color: AppColors.userAccent,
         backgroundColor: AppColors.surfaceV2,
         onRefresh: onRefresh,
         child: NestedScrollView(
@@ -394,7 +441,7 @@ class _ProfileContent extends ConsumerWidget {
                 TabBar(
                   labelColor: AppColors.textV2Primary,
                   unselectedLabelColor: AppColors.textV2Tertiary,
-                  indicatorColor: AppColors.accentLime,
+                  indicatorColor: AppColors.userAccent,
                   indicatorSize: TabBarIndicatorSize.label,
                   dividerColor: Colors.transparent,
                   labelStyle: AppTextStyles.label.copyWith(
@@ -429,6 +476,218 @@ class _ProfileContent extends ConsumerWidget {
 }
 
 // ---------------------------------------------------------------------------
+// Private Profile View
+// ---------------------------------------------------------------------------
+
+class _PrivateProfileView extends ConsumerWidget {
+  final User user;
+  final String targetUserId;
+  final FollowStatus? followStatus;
+  final bool isFollowLoading;
+  final void Function(String, bool) onFollow;
+
+  const _PrivateProfileView({
+    required this.user,
+    required this.targetUserId,
+    required this.followStatus,
+    required this.isFollowLoading,
+    required this.onFollow,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isPending = followStatus == FollowStatus.pending;
+    final currentUserId = ref.read(authSessionProvider).valueOrNull?.id;
+
+    return Scaffold(
+      backgroundColor: AppColors.backgroundV2,
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Back button — icon only, consistent with regular visitor header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+              child: GestureDetector(
+                onTap: () => context.pop(),
+                behavior: HitTestBehavior.opaque,
+                child: const Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  size: 20,
+                  color: AppColors.textV2Secondary,
+                ),
+              ),
+            ),
+            Expanded(
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Avatar
+                    _buildAvatar(),
+                    const SizedBox(height: 16),
+                    // Display name
+                    Text(
+                      user.displayName,
+                      style: AppTextStyles.h4.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textV2Primary,
+                      ),
+                    ),
+                    if (user.username != null && user.username!.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        '@${user.username}',
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.textV2Tertiary,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 24),
+                    // Lock icon
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceV2,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.lock_outline_rounded,
+                        size: 28,
+                        color: AppColors.textV2Tertiary,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Private Account',
+                      style: AppTextStyles.h5.copyWith(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textV2Primary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Follow this account to see their\nworkouts, posts and activity.',
+                      textAlign: TextAlign.center,
+                      style: AppTextStyles.body.copyWith(
+                        color: AppColors.textV2Tertiary,
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                    // Follow / Requested button
+                    SizedBox(
+                      width: 160,
+                      height: 44,
+                      child: ElevatedButton(
+                        onPressed: isFollowLoading
+                            ? null
+                            : isPending
+                            ? currentUserId == null
+                                  ? null
+                                  : () async {
+                                      await ref
+                                          .read(followServiceProvider)
+                                          .withdrawFollowRequest(
+                                            currentUserId,
+                                            targetUserId,
+                                          );
+                                      ref.invalidate(
+                                        followStatusProvider(targetUserId),
+                                      );
+                                    }
+                            : () => onFollow(targetUserId, true),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: isPending
+                              ? AppColors.surfaceV2
+                              : AppColors.userAccent,
+                          foregroundColor: isPending
+                              ? AppColors.textV2Secondary
+                              : AppColors.backgroundV2,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(22),
+                          ),
+                        ),
+                        child: isFollowLoading
+                            ? SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: isPending
+                                      ? AppColors.textV2Secondary
+                                      : AppColors.backgroundV2,
+                                ),
+                              )
+                            : Text(
+                                isPending ? 'Requested' : 'Follow',
+                                style: AppTextStyles.label.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 14,
+                                ),
+                              ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAvatar() {
+    const double size = 80;
+
+    Widget inner;
+    if (user.photoURL != null && user.photoURL!.isNotEmpty) {
+      inner = ClipOval(
+        child: CachedNetworkImage(
+          imageUrl: user.photoURL!,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          placeholder: (_, _) =>
+              Container(width: size, height: size, color: AppColors.surfaceV2),
+          errorWidget: (_, _, _) => _fallback(size),
+        ),
+      );
+    } else {
+      inner = _fallback(size);
+    }
+
+    return Container(
+      width: size + 6,
+      height: size + 6,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: AppColors.userAccent, width: 2.5),
+      ),
+      child: ClipOval(child: inner),
+    );
+  }
+
+  Widget _fallback(double size) {
+    final c = avatarColorFromConfig(user.avatarConfig);
+    return Container(
+      width: size,
+      height: size,
+      color: c != null ? c.withValues(alpha: 0.20) : AppColors.surfaceV2,
+      alignment: Alignment.center,
+      child: Text(
+        user.displayName.isNotEmpty ? user.displayName[0].toUpperCase() : '?',
+        style: AppTextStyles.h3.copyWith(color: c ?? AppColors.textV2Primary),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // SliverPersistentHeaderDelegate for TabBar
 // ---------------------------------------------------------------------------
 
@@ -449,10 +708,7 @@ class _TabBarDelegate extends SliverPersistentHeaderDelegate {
     double shrinkOffset,
     bool overlapsContent,
   ) {
-    return Container(
-      color: AppColors.backgroundV2,
-      child: tabBar,
-    );
+    return Container(color: AppColors.backgroundV2, child: tabBar);
   }
 
   @override
@@ -496,187 +752,450 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
 
     final streakAsync = ref.watch(userStreakProvider(targetUserId));
     final followersAsync = ref.watch(followersCountProvider(targetUserId));
+    final followingAsync = ref.watch(followingCountProvider(targetUserId));
     final postsAsync = ref.watch(userPostsProvider(targetUserId));
 
     final int workouts = streakAsync.valueOrNull?.totalWorkouts ?? 0;
     final int streak = streakAsync.valueOrNull?.currentStreak ?? 0;
     final int followers = followersAsync.valueOrNull ?? 0;
+    final int following = followingAsync.valueOrNull ?? 0;
     final int points = workouts * 10;
     final int postCount = postsAsync.valueOrNull?.length ?? 0;
 
+    final followsMe =
+        !isCurrentUser &&
+        (ref.watch(targetFollowsCurrentProvider(targetUserId)).valueOrNull ??
+            false);
+    // Buddy = mutual approved follow (I follow them AND they follow me).
+    final iFollowThem =
+        !isCurrentUser &&
+        (ref.watch(followStatusProvider(targetUserId)).valueOrNull ==
+            FollowStatus.approved);
+    final bool isBuddy = followsMe && iFollowThem;
+
     final nameParts = user.displayName.trim().split(' ');
     final firstName = nameParts.isNotEmpty ? nameParts[0] : '';
-    final lastName =
-        nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
+    final lastName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
 
     return SafeArea(
       bottom: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 20),
+      child: isCurrentUser
+          ? _buildOwnerHeader(
+              context,
+              user: user,
+              targetUserId: targetUserId,
+              firstName: firstName,
+              lastName: lastName,
+              workouts: workouts,
+              streak: streak,
+              followers: followers,
+              following: following,
+              points: points,
+              postCount: postCount,
+            )
+          : _buildVisitorHeader(
+              context,
+              user: user,
+              targetUserId: targetUserId,
+              firstName: firstName,
+              lastName: lastName,
+              followsMe: followsMe,
+              isBuddy: isBuddy,
+              workouts: workouts,
+              streak: streak,
+              followers: followers,
+              following: following,
+              points: points,
+            ),
+    );
+  }
 
-            // Top row: avatar + name/badge inline + action button
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                _buildAvatar(user),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Name — first + last on one line, last name in lime
-                      Text.rich(
-                        TextSpan(
-                          children: [
+  // ---------------------------------------------------------------------------
+  // Owner layout — existing inline avatar + name side-by-side
+  // ---------------------------------------------------------------------------
+
+  Widget _buildOwnerHeader(
+    BuildContext context, {
+    required User user,
+    required String targetUserId,
+    required String firstName,
+    required String lastName,
+    required int workouts,
+    required int streak,
+    required int followers,
+    required int following,
+    required int points,
+    required int postCount,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 20),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              _buildAvatar(user),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(
+                            text: firstName,
+                            style: AppTextStyles.h2.copyWith(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.textV2Primary,
+                              height: 1.1,
+                              letterSpacing: -1,
+                            ),
+                          ),
+                          if (lastName.isNotEmpty) ...[
+                            const TextSpan(text: ' '),
                             TextSpan(
-                              text: firstName,
+                              text: lastName,
                               style: AppTextStyles.h2.copyWith(
                                 fontSize: 26,
                                 fontWeight: FontWeight.w800,
-                                color: AppColors.textV2Primary,
+                                color: AppColors.userAccent,
                                 height: 1.1,
                                 letterSpacing: -1,
                               ),
                             ),
-                            if (lastName.isNotEmpty) ...[
-                              const TextSpan(text: ' '),
-                              TextSpan(
-                                text: lastName,
-                                style: AppTextStyles.h2.copyWith(
-                                  fontSize: 26,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.accentLime,
-                                  height: 1.1,
-                                  letterSpacing: -1,
-                                ),
-                              ),
-                            ],
                           ],
+                        ],
+                      ),
+                    ),
+                    if (user.username != null && user.username!.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        '@${user.username}',
+                        style: AppTextStyles.caption.copyWith(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textV2Tertiary,
                         ),
                       ),
-                      if (user.username != null &&
-                          user.username!.isNotEmpty) ...[
-                        const SizedBox(height: 2),
+                    ],
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _buildTypeIcon(user.workoutPreference.name),
+                          size: 11,
+                          color: _buildTypeColor(user.workoutPreference.name),
+                        ),
+                        const SizedBox(width: 4),
                         Text(
-                          '@${user.username}',
+                          user.workoutPreference.displayName.toUpperCase(),
                           style: AppTextStyles.caption.copyWith(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
                             color: AppColors.textV2Tertiary,
+                            letterSpacing: 1.2,
                           ),
                         ),
                       ],
-                      const SizedBox(height: 6),
-                      // Workout badge
-                      Row(
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () => context.push(AppRoutes.settings),
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceV2,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.settings_outlined,
+                    size: 18,
+                    color: AppColors.textV2Secondary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          _StatsRow(
+            workouts: workouts,
+            streak: streak,
+            followers: followers,
+            following: following,
+            onFollowersTap: () => context.push('/user/$targetUserId/followers'),
+            onFollowingTap: () => context.push('/user/$targetUserId/following'),
+          ),
+          const SizedBox(height: 12),
+          _ActionRow(postCount: postCount, targetUserId: targetUserId),
+          const SizedBox(height: 4),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Visitor layout — centered avatar + name, prominent follow button
+  // ---------------------------------------------------------------------------
+
+  Widget _buildVisitorHeader(
+    BuildContext context, {
+    required User user,
+    required String targetUserId,
+    required String firstName,
+    required String lastName,
+    required bool followsMe,
+    required bool isBuddy,
+    required int workouts,
+    required int streak,
+    required int followers,
+    required int following,
+    required int points,
+  }) {
+    final typeColor = _buildTypeColor(user.workoutPreference.name);
+    final typeIcon = _buildTypeIcon(user.workoutPreference.name);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Nav row: ‹ back  ·············  ⋮ menu
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              GestureDetector(
+                onTap: () => context.pop(),
+                behavior: HitTestBehavior.opaque,
+                child: const Padding(
+                  padding: EdgeInsets.only(right: 16, top: 4, bottom: 4),
+                  child: Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    size: 20,
+                    color: AppColors.textV2Secondary,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              GestureDetector(
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  _showActionMenu(context, targetUserId);
+                },
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceV2,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.more_horiz,
+                    size: 18,
+                    color: AppColors.textV2Secondary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Centered avatar + identity
+          Center(
+            child: Column(
+              children: [
+                // Avatar — larger for visitor context
+                _buildAvatar(user, size: 80),
+                const SizedBox(height: 14),
+
+                // Full name — centered, lime last name
+                Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: firstName,
+                        style: AppTextStyles.h2.copyWith(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textV2Primary,
+                          height: 1.1,
+                          letterSpacing: -0.8,
+                        ),
+                      ),
+                      if (lastName.isNotEmpty) ...[
+                        const TextSpan(text: ' '),
+                        TextSpan(
+                          text: lastName,
+                          style: AppTextStyles.h2.copyWith(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.userAccent,
+                            height: 1.1,
+                            letterSpacing: -0.8,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+
+                // Username
+                if (user.username != null && user.username!.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    '@${user.username}',
+                    style: AppTextStyles.caption.copyWith(
+                      fontSize: 13,
+                      color: AppColors.textV2Secondary,
+                    ),
+                  ),
+                ],
+
+                // Buddy label — shown when you and this person follow each other
+                if (isBuddy) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          AppColors.userAccent.withValues(alpha: 0.22),
+                          AppColors.userAccent.withValues(alpha: 0.10),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: AppColors.userAccent.withValues(alpha: 0.45),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.people_alt_rounded,
+                          size: 13,
+                          color: AppColors.userAccent,
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          'Buddy',
+                          style: AppTextStyles.caption.copyWith(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.userAccent,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
+                // "Follows you" + workout type chips
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (followsMe) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceV2,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: AppColors.surfaceV2Active,
+                            width: 1,
+                          ),
+                        ),
+                        child: Text(
+                          'Follows you',
+                          style: AppTextStyles.caption.copyWith(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textV2Secondary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: typeColor.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: typeColor.withValues(alpha: 0.2),
+                        ),
+                      ),
+                      child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
-                            _buildTypeIcon(user.workoutPreference.name),
-                            size: 11,
-                            color: _buildTypeColor(user.workoutPreference.name),
-                          ),
-                          const SizedBox(width: 4),
+                          Icon(typeIcon, size: 11, color: typeColor),
+                          const SizedBox(width: 5),
                           Text(
                             user.workoutPreference.displayName.toUpperCase(),
                             style: AppTextStyles.caption.copyWith(
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
-                              color: AppColors.textV2Tertiary,
-                              letterSpacing: 1.2,
+                              color: typeColor,
+                              letterSpacing: 1.0,
                             ),
                           ),
                         ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                if (!isCurrentUser)
-                  GestureDetector(
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      _showActionMenu(context, targetUserId);
-                    },
-                    child: Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceV2,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(
-                        Icons.more_horiz,
-                        size: 18,
-                        color: AppColors.textV2Secondary,
-                      ),
-                    ),
-                  ),
-                if (isCurrentUser)
-                  GestureDetector(
-                    onTap: () => context.push(AppRoutes.settings),
-                    child: Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceV2,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(
-                        Icons.settings_outlined,
-                        size: 18,
-                        color: AppColors.textV2Secondary,
-                      ),
-                    ),
-                  ),
               ],
             ),
+          ),
+          const SizedBox(height: 24),
 
-            const SizedBox(height: 20),
+          // Stats row
+          _StatsRow(
+            workouts: workouts,
+            streak: streak,
+            followers: followers,
+            following: following,
+            onFollowersTap: () => context.push('/user/$targetUserId/followers'),
+            onFollowingTap: () => context.push('/user/$targetUserId/following'),
+          ),
+          const SizedBox(height: 12),
 
-            // Stats row
-            _StatsRow(
-              workouts: workouts,
-              streak: streak,
-              points: points,
-              buddies: followers,
-            ),
-
-            const SizedBox(height: 12),
-
-            // Action area
-            if (isCurrentUser)
-              _ActionRow(
-                postCount: postCount,
-                targetUserId: targetUserId,
-              )
-            else
-              _FollowButton(
-                targetUserId: targetUserId,
-                isTargetPrivate: user.isPrivate,
-                isLoading: widget.isFollowLoading,
-                onFollow: widget.onFollow,
-                onUnfollow: widget.onUnfollow,
-              ),
-
-            const SizedBox(height: 4),
-          ],
-        ),
+          // Follow button
+          _FollowButton(
+            targetUserId: targetUserId,
+            isTargetPrivate: user.isPrivate,
+            isLoading: widget.isFollowLoading,
+            onFollow: widget.onFollow,
+            onUnfollow: widget.onUnfollow,
+          ),
+          const SizedBox(height: 4),
+        ],
       ),
     );
   }
 
-  Widget _buildAvatar(User user) {
-    const double size = 64;
-    final avatarRingColor =
-        FluttermojiAvatar.colorFromAvatarConfig(user.avatarConfig) ??
-        AppColors.accentLime;
-
+  Widget _buildAvatar(User user, {double size = 64}) {
     Widget innerAvatar;
     if (user.photoURL != null && user.photoURL!.isNotEmpty) {
       innerAvatar = ClipOval(
@@ -685,20 +1204,9 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
           width: size,
           height: size,
           fit: BoxFit.cover,
-          placeholder: (_, _) => Container(
-            width: size,
-            height: size,
-            color: AppColors.surfaceV2,
-          ),
+          placeholder: (_, _) =>
+              Container(width: size, height: size, color: AppColors.surfaceV2),
           errorWidget: (_, _, _) => _avatarFallback(user, size),
-        ),
-      );
-    } else if (user.avatarConfig != null && user.avatarConfig!.isNotEmpty) {
-      innerAvatar = ClipOval(
-        child: AvatarPlus(
-          user.avatarConfig!,
-          height: size,
-          width: size,
         ),
       );
     } else {
@@ -710,27 +1218,26 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: avatarRingColor, width: 3),
+        border: Border.all(color: AppColors.userAccent, width: 3),
       ),
       child: ClipOval(child: innerAvatar),
     );
   }
 
   Widget _avatarFallback(User user, double size) {
+    final c = avatarColorFromConfig(user.avatarConfig);
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: AppColors.surfaceV2,
+        color: c != null ? c.withValues(alpha: 0.20) : AppColors.surfaceV2,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Center(
         child: Text(
-          user.displayName.isNotEmpty
-              ? user.displayName[0].toUpperCase()
-              : '?',
+          user.displayName.isNotEmpty ? user.displayName[0].toUpperCase() : '?',
           style: AppTextStyles.h2.copyWith(
-            color: AppColors.textV2Secondary,
+            color: c ?? AppColors.textV2Secondary,
             fontSize: 28,
           ),
         ),
@@ -789,6 +1296,19 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
       ),
     );
   }
+
+  // ignore: unused_element
+  void _showBuddiesSheet(BuildContext context, String targetUserId) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surfaceV2,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      isScrollControlled: true,
+      builder: (_) => _BuddiesSheet(targetUserId: targetUserId),
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -798,32 +1318,49 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
 class _StatsRow extends StatelessWidget {
   final int workouts;
   final int streak;
-  final int points;
-  final int buddies;
+  final int followers;
+  final int following;
+  final VoidCallback? onFollowersTap;
+  final VoidCallback? onFollowingTap;
 
   const _StatsRow({
     required this.workouts,
     required this.streak,
-    required this.points,
-    required this.buddies,
+    required this.followers,
+    required this.following,
+    this.onFollowersTap,
+    this.onFollowingTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final stats = [
-      ('Workouts', workouts.toString(), null),
-      ('Streak', streak.toString(), '🔥'),
-      ('Points', points.toString(), null),
-      ('Buddies', buddies.toString(), null),
-    ];
+    final stats =
+        <({String label, String value, String? emoji, VoidCallback? onTap})>[
+          (
+            label: 'Workouts',
+            value: workouts.toString(),
+            emoji: null,
+            onTap: null,
+          ),
+          (label: 'Streak', value: streak.toString(), emoji: '🔥', onTap: null),
+          (
+            label: 'Followers',
+            value: followers.toString(),
+            emoji: null,
+            onTap: onFollowersTap,
+          ),
+          (
+            label: 'Following',
+            value: following.toString(),
+            emoji: null,
+            onTap: onFollowingTap,
+          ),
+        ];
 
     return Container(
       decoration: BoxDecoration(
         border: Border.symmetric(
-          horizontal: BorderSide(
-            color: AppColors.surfaceV2,
-            width: 1,
-          ),
+          horizontal: BorderSide(color: AppColors.surfaceV2, width: 1),
         ),
       ),
       child: IntrinsicHeight(
@@ -837,45 +1374,186 @@ class _StatsRow extends StatelessWidget {
               );
             }
             final s = stats[i ~/ 2];
-            return Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          s.$2,
-                          style: AppTextStyles.h2.copyWith(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.textV2Primary,
-                            letterSpacing: -0.5,
-                          ),
+            final tappable = s.onTap != null;
+            final cellContent = Padding(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        s.value,
+                        style: AppTextStyles.h2.copyWith(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: tappable
+                              ? AppColors.userAccent
+                              : AppColors.textV2Primary,
+                          letterSpacing: -0.5,
                         ),
-                        if (s.$3 != null) ...[
-                          const SizedBox(width: 2),
-                          Text(s.$3!, style: const TextStyle(fontSize: 14)),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      s.$1,
-                      style: AppTextStyles.caption.copyWith(
-                        fontSize: 10,
-                        color: AppColors.textV2Tertiary,
                       ),
+                      if (s.emoji != null) ...[
+                        const SizedBox(width: 2),
+                        Text(s.emoji!, style: const TextStyle(fontSize: 14)),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    s.label,
+                    style: AppTextStyles.caption.copyWith(
+                      fontSize: 10,
+                      color: AppColors.textV2Tertiary,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
+            );
+            return Expanded(
+              child: tappable
+                  ? GestureDetector(
+                      onTap: s.onTap,
+                      behavior: HitTestBehavior.opaque,
+                      child: cellContent,
+                    )
+                  : cellContent,
             );
           }),
         ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Buddies Sheet
+// ---------------------------------------------------------------------------
+
+class _BuddiesSheet extends ConsumerStatefulWidget {
+  final String targetUserId;
+
+  const _BuddiesSheet({required this.targetUserId});
+
+  @override
+  ConsumerState<_BuddiesSheet> createState() => _BuddiesSheetState();
+}
+
+class _BuddiesSheetState extends ConsumerState<_BuddiesSheet> {
+  late Future<List<User>> _followersFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _followersFuture = ref
+        .read(followServiceProvider)
+        .getFollowersList(widget.targetUserId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final followersAsync = _followersFuture;
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.4,
+      maxChildSize: 0.9,
+      expand: false,
+      builder: (_, scrollController) => Column(
+        children: [
+          const SizedBox(height: 12),
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: AppColors.textV2Tertiary.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Buddies',
+            style: AppTextStyles.h5.copyWith(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textV2Primary,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: FutureBuilder<List<User>>(
+              future: followersAsync,
+              builder: (context, snap) {
+                if (snap.connectionState == ConnectionState.waiting) {
+                  return Center(
+                    child: CircularProgressIndicator(
+                      color: AppColors.userAccent,
+                    ),
+                  );
+                }
+                final users = snap.data ?? [];
+                if (users.isEmpty) {
+                  return Center(
+                    child: Text(
+                      'No buddies yet',
+                      style: AppTextStyles.body.copyWith(
+                        color: AppColors.textV2Tertiary,
+                      ),
+                    ),
+                  );
+                }
+                return ListView.builder(
+                  controller: scrollController,
+                  itemCount: users.length,
+                  itemBuilder: (_, index) {
+                    final u = users[index];
+                    return ListTile(
+                      onTap: () {
+                        Navigator.pop(context);
+                        context.push('/user/${u.id}');
+                      },
+                      leading: CircleAvatar(
+                        radius: 20,
+                        backgroundColor: AppColors.surfaceV2Elevated,
+                        backgroundImage:
+                            u.photoURL != null && u.photoURL!.isNotEmpty
+                            ? CachedNetworkImageProvider(u.photoURL!)
+                            : null,
+                        child: u.photoURL == null || u.photoURL!.isEmpty
+                            ? Text(
+                                u.displayName.isNotEmpty
+                                    ? u.displayName[0].toUpperCase()
+                                    : '?',
+                                style: AppTextStyles.label.copyWith(
+                                  color: AppColors.textV2Primary,
+                                ),
+                              )
+                            : null,
+                      ),
+                      title: Text(
+                        u.displayName,
+                        style: AppTextStyles.body.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textV2Primary,
+                        ),
+                      ),
+                      subtitle: u.username != null && u.username!.isNotEmpty
+                          ? Text(
+                              '@${u.username}',
+                              style: AppTextStyles.caption.copyWith(
+                                color: AppColors.textV2Tertiary,
+                              ),
+                            )
+                          : null,
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -895,15 +1573,18 @@ class _ActionRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final sessionsAsync = ref.watch(userSessionsProvider(targetUserId));
     final userAsync = ref.watch(currentUserProfileProvider);
-    final trainingDaysGoal =
-        (userAsync.valueOrNull == null ? null : null) ?? 4;
+    final trainingDaysGoal = (userAsync.valueOrNull == null ? null : null) ?? 4;
 
     // Count sessions started this week
     final now = DateTime.now();
     final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
-    final weekStart =
-        DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day);
-    final weeklyDone = sessionsAsync.valueOrNull
+    final weekStart = DateTime(
+      startOfWeek.year,
+      startOfWeek.month,
+      startOfWeek.day,
+    );
+    final weeklyDone =
+        sessionsAsync.valueOrNull
             ?.where((s) => s.startedAt.isAfter(weekStart))
             .length ??
         0;
@@ -971,7 +1652,7 @@ class _ActionRow extends ConsumerWidget {
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
                           color: weeklyDone >= weeklyGoal
-                              ? AppColors.accentLime
+                              ? AppColors.userAccent
                               : AppColors.textV2Secondary,
                         ),
                       ),
@@ -984,8 +1665,8 @@ class _ActionRow extends ConsumerWidget {
                       value: progress,
                       minHeight: 5,
                       backgroundColor: AppColors.surfaceV2Elevated,
-                      valueColor: const AlwaysStoppedAnimation<Color>(
-                        AppColors.accentLime,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        AppColors.userAccent,
                       ),
                     ),
                   ),
@@ -1026,21 +1707,23 @@ class _FollowButton extends ConsumerWidget {
 
     return followStatusAsync.when(
       data: (status) {
-        final bool isPrimary = status == null || status == FollowStatus.declined;
+        final bool isPrimary =
+            status == null || status == FollowStatus.declined;
         final String buttonText = switch (status) {
           FollowStatus.pending => 'REQUESTED',
           FollowStatus.approved => 'FOLLOWING',
           _ => 'FOLLOW',
         };
         final VoidCallback? onPressed = switch (status) {
-          FollowStatus.pending => currentUserId == null
-              ? null
-              : () async {
-                  await ref
-                      .read(followServiceProvider)
-                      .withdrawFollowRequest(currentUserId, targetUserId);
-                  ref.invalidate(followStatusProvider(targetUserId));
-                },
+          FollowStatus.pending =>
+            currentUserId == null
+                ? null
+                : () async {
+                    await ref
+                        .read(followServiceProvider)
+                        .withdrawFollowRequest(currentUserId, targetUserId);
+                    ref.invalidate(followStatusProvider(targetUserId));
+                  },
           FollowStatus.approved => () => onUnfollow(targetUserId),
           _ => () => onFollow(targetUserId, isTargetPrivate),
         };
@@ -1051,7 +1734,7 @@ class _FollowButton extends ConsumerWidget {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 14),
             decoration: BoxDecoration(
-              color: isPrimary ? AppColors.accentLime : AppColors.surfaceV2,
+              color: isPrimary ? AppColors.userAccent : AppColors.surfaceV2,
               borderRadius: BorderRadius.circular(AppBorderRadius.lg),
               border: isPrimary
                   ? null
@@ -1066,7 +1749,7 @@ class _FollowButton extends ConsumerWidget {
                         strokeWidth: 2,
                         color: isPrimary
                             ? AppColors.backgroundV2
-                            : AppColors.accentLime,
+                            : AppColors.userAccent,
                       ),
                     )
                   : Text(
@@ -1084,12 +1767,12 @@ class _FollowButton extends ConsumerWidget {
           ),
         );
       },
-      loading: () => const SizedBox(
+      loading: () => SizedBox(
         height: 50,
         child: Center(
           child: CircularProgressIndicator(
             strokeWidth: 2,
-            color: AppColors.accentLime,
+            color: AppColors.userAccent,
           ),
         ),
       ),
@@ -1099,7 +1782,7 @@ class _FollowButton extends ConsumerWidget {
           width: double.infinity,
           padding: const EdgeInsets.symmetric(vertical: 14),
           decoration: BoxDecoration(
-            color: AppColors.accentLime,
+            color: AppColors.userAccent,
             borderRadius: BorderRadius.circular(AppBorderRadius.lg),
           ),
           child: Center(
@@ -1169,17 +1852,14 @@ class _PostsTab extends ConsumerWidget {
 
             if (firstMedia != null && firstMedia.isNotEmpty) {
               return GestureDetector(
-                onTap: () => context.push(
-                  '/post/${post.id}',
-                ),
+                onTap: () => context.push('/post/${post.id}'),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(6),
                   child: CachedNetworkImage(
                     imageUrl: firstMedia,
                     fit: BoxFit.cover,
-                    placeholder: (_, _) => Container(
-                      color: AppColors.surfaceV2,
-                    ),
+                    placeholder: (_, _) =>
+                        Container(color: AppColors.surfaceV2),
                     errorWidget: (_, _, _) => Container(
                       color: AppColors.surfaceV2,
                       child: const Icon(
@@ -1198,8 +1878,7 @@ class _PostsTab extends ConsumerWidget {
             final setsCount = post.summary.totalSets ?? 0;
 
             return GestureDetector(
-              onTap: () =>
-                  context.push('/post/${post.id}'),
+              onTap: () => context.push('/post/${post.id}'),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(6),
                 child: Stack(
@@ -1243,7 +1922,9 @@ class _PostsTab extends ConsumerWidget {
                         child: Container(
                           padding: const EdgeInsets.all(4),
                           decoration: BoxDecoration(
-                            color: AppColors.backgroundV2.withValues(alpha: 0.6),
+                            color: AppColors.backgroundV2.withValues(
+                              alpha: 0.6,
+                            ),
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(
@@ -1260,10 +1941,10 @@ class _PostsTab extends ConsumerWidget {
           },
         );
       },
-      loading: () => const Center(
+      loading: () => Center(
         child: CircularProgressIndicator(
           strokeWidth: 2,
-          color: AppColors.accentLime,
+          color: AppColors.userAccent,
         ),
       ),
       error: (_, _) => const SizedBox(),
@@ -1349,10 +2030,10 @@ class _HistoryTab extends ConsumerWidget {
           const SizedBox(height: AppSpacing.xl),
         ],
       ),
-      loading: () => const Center(
+      loading: () => Center(
         child: CircularProgressIndicator(
           strokeWidth: 2,
-          color: AppColors.accentLime,
+          color: AppColors.userAccent,
         ),
       ),
       error: (_, _) => Center(
@@ -1384,15 +2065,11 @@ class _WeeklyVolumeChart extends StatelessWidget {
 
     for (int w = 7; w >= 0; w--) {
       final weekStart = now.subtract(Duration(days: now.weekday - 1 + w * 7));
-      final ws =
-          DateTime(weekStart.year, weekStart.month, weekStart.day);
+      final ws = DateTime(weekStart.year, weekStart.month, weekStart.day);
       final we = ws.add(const Duration(days: 7));
       final idx = 7 - w;
       weeklySets[idx] = sessions
-          .where(
-            (s) =>
-                s.startedAt.isAfter(ws) && s.startedAt.isBefore(we),
-          )
+          .where((s) => s.startedAt.isAfter(ws) && s.startedAt.isBefore(we))
           .fold(0, (sum, s) => sum + (s.summary?.totalSets ?? 0));
       if (w == 0) {
         weekLabels.add('Now');
@@ -1415,10 +2092,10 @@ class _WeeklyVolumeChart extends StatelessWidget {
     final trendStr = prevWeek == 0
         ? null
         : currWeek >= prevWeek
-            ? '↑ ${(((currWeek - prevWeek) / prevWeek) * 100).round()}%'
-            : '↓ ${(((prevWeek - currWeek) / prevWeek) * 100).round()}%';
+        ? '↑ ${(((currWeek - prevWeek) / prevWeek) * 100).round()}%'
+        : '↓ ${(((prevWeek - currWeek) / prevWeek) * 100).round()}%';
     final trendColor = (currWeek >= prevWeek && prevWeek > 0)
-        ? AppColors.accentLime
+        ? AppColors.userAccent
         : AppColors.error;
 
     return Container(
@@ -1460,13 +2137,14 @@ class _WeeklyVolumeChart extends StatelessWidget {
               children: List.generate(8, (i) {
                 final isLast = i == 7;
                 final isSecondLast = i == 6;
-                final heightFactor =
-                    maxSets == 0 ? 0.05 : weeklySets[i] / maxSets;
+                final heightFactor = maxSets == 0
+                    ? 0.05
+                    : weeklySets[i] / maxSets;
                 Color barColor;
                 if (isLast) {
-                  barColor = AppColors.accentLime;
+                  barColor = AppColors.userAccent;
                 } else if (isSecondLast) {
-                  barColor = AppColors.accentLime.withValues(alpha: 0.53);
+                  barColor = AppColors.userAccent.withValues(alpha: 0.53);
                 } else {
                   barColor = AppColors.surfaceV2Elevated;
                 }
@@ -1498,7 +2176,7 @@ class _WeeklyVolumeChart extends StatelessWidget {
                                 ? FontWeight.w700
                                 : FontWeight.w400,
                             color: isLast
-                                ? AppColors.accentLime
+                                ? AppColors.userAccent
                                 : AppColors.textV2Tertiary,
                           ),
                         ),
@@ -1593,8 +2271,7 @@ class _ActivityHeatmap extends StatelessWidget {
                     final weeksAgo = weeks - 1 - w;
                     return Expanded(
                       child: Padding(
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 1.5),
+                        padding: const EdgeInsets.symmetric(horizontal: 1.5),
                         child: Column(
                           children: List.generate(days, (d) {
                             // Day 0 = Monday
@@ -1603,8 +2280,9 @@ class _ActivityHeatmap extends StatelessWidget {
                                 days: now.weekday - 1 + weeksAgo * 7 - d,
                               ),
                             );
-                            final dateKey = DateFormat('yyyy-MM-dd')
-                                .format(cellDate);
+                            final dateKey = DateFormat(
+                              'yyyy-MM-dd',
+                            ).format(cellDate);
                             final count = dayCounts[dateKey] ?? 0;
                             final double alpha;
                             if (count == 0) {
@@ -1626,8 +2304,9 @@ class _ActivityHeatmap extends StatelessWidget {
                                 decoration: BoxDecoration(
                                   color: alpha == 0.0
                                       ? AppColors.surfaceV2Elevated
-                                      : AppColors.accentLime
-                                          .withValues(alpha: alpha),
+                                      : AppColors.userAccent.withValues(
+                                          alpha: alpha,
+                                        ),
                                   borderRadius: BorderRadius.circular(2),
                                 ),
                               ),
@@ -1681,7 +2360,7 @@ class _ActivityHeatmap extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: a == 0.0
                         ? AppColors.surfaceV2Elevated
-                        : AppColors.accentLime.withValues(alpha: a),
+                        : AppColors.userAccent.withValues(alpha: a),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -1873,10 +2552,10 @@ class _AwardsTab extends ConsumerWidget {
           },
         );
       },
-      loading: () => const Center(
+      loading: () => Center(
         child: CircularProgressIndicator(
           strokeWidth: 2,
-          color: AppColors.accentLime,
+          color: AppColors.userAccent,
         ),
       ),
       error: (_, _) => const SizedBox(),
@@ -1901,7 +2580,7 @@ class _AwardCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: isEarned
-                ? AppColors.accentLime.withValues(alpha: 0.08)
+                ? AppColors.userAccent.withValues(alpha: 0.08)
                 : AppColors.surfaceV2,
             width: 1,
           ),
@@ -1909,17 +2588,15 @@ class _AwardCard extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              badge.icon,
-              style: const TextStyle(fontSize: 28),
-            ),
+            Text(badge.icon, style: const TextStyle(fontSize: 28)),
             const SizedBox(height: 8),
             Text(
               badge.name,
               style: AppTextStyles.h5.copyWith(
                 fontSize: 13,
-                color:
-                    isEarned ? AppColors.accentLime : AppColors.textV2Secondary,
+                color: isEarned
+                    ? AppColors.userAccent
+                    : AppColors.textV2Secondary,
               ),
               textAlign: TextAlign.center,
               maxLines: 1,
@@ -1963,10 +2640,12 @@ class _PressableRowState extends State<_PressableRow> {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: widget.onTap,
-      onTapDown:
-          widget.onTap != null ? (_) => setState(() => _pressed = true) : null,
-      onTapUp:
-          widget.onTap != null ? (_) => setState(() => _pressed = false) : null,
+      onTapDown: widget.onTap != null
+          ? (_) => setState(() => _pressed = true)
+          : null,
+      onTapUp: widget.onTap != null
+          ? (_) => setState(() => _pressed = false)
+          : null,
       onTapCancel: widget.onTap != null
           ? () => setState(() => _pressed = false)
           : null,
@@ -1979,7 +2658,3 @@ class _PressableRowState extends State<_PressableRow> {
     );
   }
 }
-
-// ---------------------------------------------------------------------------
-// Legacy public widgets kept for backwards compatibility
-// -------------------------------------------------------------------------

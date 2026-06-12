@@ -83,7 +83,7 @@ class SessionTimer extends StatelessWidget {
                           ? Icons.pause
                           : Icons.play_arrow,
                       size: 20,
-                      color: AppColors.primary,
+                      color: AppColors.userAccent,
                     ),
                   ),
                 ),
@@ -100,7 +100,6 @@ class SessionTimer extends StatelessWidget {
 class ParticipantAvatar extends StatelessWidget {
   final String userId;
   final String? photoUrl;
-  final String? avatarConfig;
   final String displayName;
   final bool isOnline;
   final bool isTyping;
@@ -110,7 +109,6 @@ class ParticipantAvatar extends StatelessWidget {
     super.key,
     required this.userId,
     this.photoUrl,
-    this.avatarConfig,
     required this.displayName,
     this.isOnline = false,
     this.isTyping = false,
@@ -127,17 +125,15 @@ class ParticipantAvatar extends StatelessWidget {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             border: Border.all(
-              color: isTyping ? AppColors.primary : Colors.transparent,
+              color: isTyping ? AppColors.userAccent : Colors.transparent,
               width: 2,
             ),
           ),
           child: FluttermojiAvatar(
-            avatarConfig: avatarConfig,
             photoUrl: photoUrl,
             displayName: displayName,
             size: size - 4,
             showGradientBorder: false,
-            ringColor: FluttermojiAvatar.colorFromAvatarConfig(avatarConfig),
           ),
         ),
 
@@ -166,8 +162,8 @@ class ParticipantAvatar extends StatelessWidget {
             right: 0,
             child: Container(
               padding: const EdgeInsets.all(2),
-              decoration: const BoxDecoration(
-                color: AppColors.primary,
+              decoration: BoxDecoration(
+                color: AppColors.userAccent,
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.more_horiz, size: 8, color: Colors.white),
@@ -267,7 +263,7 @@ class TimelineItem extends StatelessWidget {
         break;
       case SessionEventType.exercise:
         icon = Icons.fitness_center;
-        color = AppColors.primary;
+        color = AppColors.userAccent;
         break;
       case SessionEventType.voiceNote:
         icon = Icons.mic;
@@ -691,7 +687,7 @@ class MilestoneIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final active = activeColor ?? AppColors.primary;
+    final active = activeColor ?? AppColors.userAccent;
     final inactive = inactiveColor ?? AppColors.surfaceV2Elevated;
 
     return Row(
@@ -874,7 +870,7 @@ class ParticipantComparisonChart extends StatelessWidget {
         : participantValues.values.reduce((a, b) => a > b ? a : b);
 
     final defaultColors = [
-      AppColors.primary,
+      AppColors.userAccent,
       AppColors.secondary,
       AppColors.success,
       AppColors.warning,

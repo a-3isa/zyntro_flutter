@@ -106,7 +106,6 @@ void main() {
           workoutPreference: WorkoutType.other,
           beginnerFlag: false,
           photoUrl: null,
-          avatarConfig: null,
           authProvider: null,
         ),
       );
