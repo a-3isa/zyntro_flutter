@@ -14,6 +14,7 @@ import '../../../widgets/fluttermoji_avatar.dart';
 import '../../auth/presentation/providers/auth_controller.dart';
 import '../../auth/auth_providers.dart';
 import '../../social/presentation/providers/facebook_friends_provider.dart';
+import '../../../services/leaderboard_service.dart';
 
 /// Settings page — v2 design (true-black + acid-lime palette).
 class SettingsPage extends ConsumerStatefulWidget {
@@ -60,6 +61,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final displayName = authState.valueOrNull?.displayName ?? 'Zyntro User';
     final photoUrl = profileAsync.valueOrNull?.photoUrl ?? authState.valueOrNull?.photoUrl;
     final username = profileAsync.valueOrNull?.username ?? displayName.toLowerCase().replaceAll(' ', '_');
+    final userId = authState.valueOrNull?.id;
+    final rankAsync = userId != null ? ref.watch(currentUserRankProvider(userId)) : null;
+    final rankLabel = rankAsync?.whenOrNull(
+      data: (r) => r.rank != null
+          ? (r.isGlobal ? 'Global Rank #${r.rank}' : '#${r.rank} among friends')
+          : null,
+    );
 
     return Scaffold(
       backgroundColor: AppColors.backgroundV2,
@@ -81,6 +89,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     displayName: displayName,
                     username: username,
                     photoUrl: photoUrl,
+                    rankLabel: rankLabel,
                   ),
 
                   // ── Notifications ────────────────────────────────────────
@@ -303,6 +312,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     required String displayName,
     required String username,
     String? photoUrl,
+    String? rankLabel,
   }) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -335,7 +345,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '@$username · Rank #4',
+                  rankLabel != null ? '@$username · $rankLabel' : '@$username',
                   style: AppTextStyles.caption.copyWith(
                     color: AppColors.textV2Secondary,
                   ),

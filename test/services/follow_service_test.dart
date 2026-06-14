@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:zyntro_flutter/services/follow_service.dart';
+import 'dart:io';
 
 class MockFirebaseFirestore extends Mock implements FirebaseFirestore {}
 
@@ -32,6 +33,13 @@ class MockDocumentSnapshot extends Mock
 class MockRef extends Mock implements Ref {}
 
 void main() {
+  test('public follows dispatch new follower notifications', () {
+    final source = File('lib/services/follow_service.dart').readAsStringSync();
+
+    expect(source, contains('.notifyNewFollower('));
+    expect(source, isNot(contains("I'll leave it as is")));
+  });
+
   late FollowService followService;
   late MockFirebaseFirestore mockFirestore;
   late MockRef mockRef;
@@ -65,35 +73,54 @@ void main() {
     expect(result, ['user2']);
   });
 
-  test('paired invite eligibility requires mutual follows and no blocks', () async {
-    final followsCollection = MockCollectionReference();
-    final blocksCollection = MockCollectionReference();
-    final hostFollowsFriend = MockDocumentReference();
-    final friendFollowsHost = MockDocumentReference();
-    final hostBlocksFriend = MockDocumentReference();
-    final friendBlocksHost = MockDocumentReference();
-    final approvedFollow = MockDocumentSnapshot();
-    final missingBlock = MockDocumentSnapshot();
+  test(
+    'paired invite eligibility requires mutual follows and no blocks',
+    () async {
+      final followsCollection = MockCollectionReference();
+      final blocksCollection = MockCollectionReference();
+      final hostFollowsFriend = MockDocumentReference();
+      final friendFollowsHost = MockDocumentReference();
+      final hostBlocksFriend = MockDocumentReference();
+      final friendBlocksHost = MockDocumentReference();
+      final approvedFollow = MockDocumentSnapshot();
+      final missingBlock = MockDocumentSnapshot();
 
-    when(() => mockFirestore.collection('follows')).thenReturn(followsCollection);
-    when(() => mockFirestore.collection('blocks')).thenReturn(blocksCollection);
-    when(() => followsCollection.doc('host_friend')).thenReturn(hostFollowsFriend);
-    when(() => followsCollection.doc('friend_host')).thenReturn(friendFollowsHost);
-    when(() => blocksCollection.doc('host_friend')).thenReturn(hostBlocksFriend);
-    when(() => blocksCollection.doc('friend_host')).thenReturn(friendBlocksHost);
-    when(() => hostFollowsFriend.get()).thenAnswer((_) async => approvedFollow);
-    when(() => friendFollowsHost.get()).thenAnswer((_) async => approvedFollow);
-    when(() => hostBlocksFriend.get()).thenAnswer((_) async => missingBlock);
-    when(() => friendBlocksHost.get()).thenAnswer((_) async => missingBlock);
-    when(() => approvedFollow.exists).thenReturn(true);
-    when(() => approvedFollow.data()).thenReturn({'status': 'approved'});
-    when(() => missingBlock.exists).thenReturn(false);
+      when(
+        () => mockFirestore.collection('follows'),
+      ).thenReturn(followsCollection);
+      when(
+        () => mockFirestore.collection('blocks'),
+      ).thenReturn(blocksCollection);
+      when(
+        () => followsCollection.doc('host_friend'),
+      ).thenReturn(hostFollowsFriend);
+      when(
+        () => followsCollection.doc('friend_host'),
+      ).thenReturn(friendFollowsHost);
+      when(
+        () => blocksCollection.doc('host_friend'),
+      ).thenReturn(hostBlocksFriend);
+      when(
+        () => blocksCollection.doc('friend_host'),
+      ).thenReturn(friendBlocksHost);
+      when(
+        () => hostFollowsFriend.get(),
+      ).thenAnswer((_) async => approvedFollow);
+      when(
+        () => friendFollowsHost.get(),
+      ).thenAnswer((_) async => approvedFollow);
+      when(() => hostBlocksFriend.get()).thenAnswer((_) async => missingBlock);
+      when(() => friendBlocksHost.get()).thenAnswer((_) async => missingBlock);
+      when(() => approvedFollow.exists).thenReturn(true);
+      when(() => approvedFollow.data()).thenReturn({'status': 'approved'});
+      when(() => missingBlock.exists).thenReturn(false);
 
-    final result = await followService.canInviteToPairedSession(
-      hostId: 'host',
-      inviteeId: 'friend',
-    );
+      final result = await followService.canInviteToPairedSession(
+        hostId: 'host',
+        inviteeId: 'friend',
+      );
 
-    expect(result, isTrue);
-  });
+      expect(result, isTrue);
+    },
+  );
 }

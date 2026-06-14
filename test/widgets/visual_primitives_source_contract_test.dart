@@ -51,4 +51,17 @@ void main() {
     expect(sessionPage.contains('ZyntroButtonVariant.premium'), isTrue);
     expect(sessionPage.contains('ZyntroButtonVariant.primary'), isTrue);
   });
+
+  test('start session button content has horizontal breathing room', () {
+    final startSessionPage =
+        File('lib/features/session/presentation/start_session_page.dart')
+            .readAsStringSync();
+
+    expect(
+      startSessionPage.contains(
+        'padding: const EdgeInsets.symmetric(horizontal: 20),',
+      ),
+      isTrue,
+    );
+  });
 }

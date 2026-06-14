@@ -13,6 +13,27 @@ service cloud.firestore {
       return participants != null && participants.hasAny([userId]);
     }
 
+    function isPendingSessionInvitee(sessionData, userId) {
+      return sessionData.invitationStatus == 'pending' &&
+        sessionData.invitedUserIds != null &&
+        sessionData.invitedUserIds.size() == 1 &&
+        sessionData.invitedUserIds[0] == userId;
+    }
+
+    function isPendingSessionInviteeById(sessionId) {
+      let path = /databases/$(database)/documents/sessions/$(sessionId);
+      return exists(path) &&
+        isPendingSessionInvitee(get(path).data, request.auth.uid);
+    }
+
+    function isInviteDeclineUpdate() {
+      return isPendingSessionInvitee(resource.data, request.auth.uid) &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['invitationStatus', 'declinedBy']) &&
+        request.resource.data.invitationStatus == 'declined' &&
+        request.resource.data.declinedBy == request.auth.uid;
+    }
+
     function isPlanOwner(planUserId) {
       return planUserId == request.auth.uid;
     }
@@ -113,7 +134,10 @@ service cloud.firestore {
 
       match /notifications/{notificationId} {
         allow read, update, delete: if isOwner(userId);
-        allow create: if isOwner(userId) && request.resource.data.userId == userId;
+        // Any authenticated user may create a notification for another user
+        // (session invites, follow events). The userId field must match the
+        // collection's userId so a sender cannot forge the recipient.
+        allow create: if isAuthenticated() && request.resource.data.userId == userId;
       }
 
       match /stats/{statId} {
@@ -138,14 +162,16 @@ service cloud.firestore {
 
     match /sessions/{sessionId} {
       allow read: if isAuthenticated() &&
-        hasParticipant(resource.data.participants, request.auth.uid);
+        (hasParticipant(resource.data.participants, request.auth.uid) ||
+        isPendingSessionInvitee(resource.data, request.auth.uid));
       allow create: if isAuthenticated() &&
         request.resource.data.hostId == request.auth.uid &&
         hasParticipant(request.resource.data.participants, request.auth.uid) &&
         hasValidPairedInviteEligibility();
       allow update: if isAuthenticated() && (
         hasParticipant(resource.data.participants, request.auth.uid) ||
-        hasParticipant(request.resource.data.participants, request.auth.uid)
+        hasParticipant(request.resource.data.participants, request.auth.uid) ||
+        isInviteDeclineUpdate()
       );
       allow delete: if false;
 
@@ -164,7 +190,8 @@ service cloud.firestore {
       }
 
       match /plans/{planUserId} {
-        allow read: if isSessionMember(sessionId);
+        allow read: if isSessionMember(sessionId) ||
+          isPendingSessionInviteeById(sessionId);
         allow create: if (
           isOwner(planUserId) &&
           isPlanOwner(planUserId) &&
@@ -239,7 +266,7 @@ service cloud.firestore {
     }
 
     match /blocks/{blockId} {
-      allow read: if isAuthenticated() && resource.data.blockerId == request.auth.uid;
+      allow read: if isAuthenticated() && (resource == null || resource.data.blockerId == request.auth.uid);
       allow create: if isAuthenticated() && request.resource.data.blockerId == request.auth.uid;
       allow update: if false;
       allow delete: if isAuthenticated() && resource.data.blockerId == request.auth.uid;
@@ -319,5 +346,3 @@ service cloud.firestore {
     }
   }
 }
-
-

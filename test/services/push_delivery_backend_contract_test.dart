@@ -13,7 +13,12 @@ void main() {
       expect(source, contains('verifyIdToken'));
       expect(source, contains('verifyToken'));
       expect(source, contains('X-Firebase-AppCheck'));
+      expect(source, contains('invoker: "public"'));
       expect(source, contains('sendEachForMulticast'));
+      expect(source, contains('case "new_follower"'));
+      expect(source, contains('persistRecipientNotification'));
+      expect(source, contains('.collection("notifications")'));
+      expect(source, contains('notificationId'));
     },
   );
 }

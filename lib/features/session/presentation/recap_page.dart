@@ -14,6 +14,7 @@ import '../../../services/post_service.dart';
 import '../../../services/media_service.dart';
 import '../../auth/auth_providers.dart';
 import '../../../utils/haptic_manager.dart';
+import '../../../utils/offline_manager.dart';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Recap page – v2 design
@@ -232,13 +233,49 @@ class _RecapPageState extends ConsumerState<RecapPage> {
 
   Future<void> _handleShare() async {
     if (_session == null) return;
+
+    final uid = ref.read(authSessionProvider).valueOrNull?.id;
+    if (uid == null) return;
+
+    // When offline, queue the share so it fires once connectivity returns.
+    final offlineManager = ref.read(offlineManagerProvider);
+    if (!offlineManager.isOnline) {
+      _privateSaveDone = true; // prevent the private-save fallback
+      final summary = _session!.summary ?? SessionSummary();
+      offlineManager.queueOperation('post_create', {
+        'authorId': uid,
+        'sessionId': widget.sessionId,
+        'visibility': _shareWithFriendsOnly ? 'friends' : 'public',
+        'title': _session!.title,
+        'type': _session!.type,
+        'summary': summary.toMap(),
+        'photoUri': null,
+        'buddyId': null,
+        'buddyName': null,
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              "You're offline. Your workout will be shared when you reconnect.",
+            ),
+            backgroundColor: AppColors.surfaceV2Elevated,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+        context.go('/?tab=feed');
+      }
+      return;
+    }
+
     setState(() {
       _isSharing = true;
       _uploadProgress = _selectedPhotoPath != null ? 0.0 : null;
     });
     try {
-      final uid = ref.read(authSessionProvider).valueOrNull?.id;
-      if (uid == null) throw Exception('Not authenticated');
 
       final postService = ref.read(postServiceProvider);
       final postId = await postService.createPost(

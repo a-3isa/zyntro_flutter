@@ -10,31 +10,49 @@ import '../../../core/theme/app_theme.dart';
 import '../../../utils/haptic_manager.dart';
 import '../../../widgets/zyntro_button.dart';
 import '../../auth/auth_providers.dart';
+import '../../../services/user_service.dart';
+import '../../../services/session_service.dart';
 
 // ── WorkoutType color map ────────────────────────────────────────────────────
 Color _typeColor(WorkoutType t) {
   switch (t) {
-    case WorkoutType.gym:      return AppColors.userAccent;
-    case WorkoutType.running:  return const Color(0xFF38BDF8);
-    case WorkoutType.cycling:  return const Color(0xFF34D399);
-    case WorkoutType.swimming: return const Color(0xFF22D3EE);
-    case WorkoutType.yoga:     return const Color(0xFFA78BFA);
-    case WorkoutType.hiit:     return const Color(0xFFFB923C);
-    default:                   return AppColors.userAccent;
+    case WorkoutType.gym:
+      return AppColors.userAccent;
+    case WorkoutType.running:
+      return const Color(0xFF38BDF8);
+    case WorkoutType.cycling:
+      return const Color(0xFF34D399);
+    case WorkoutType.swimming:
+      return const Color(0xFF22D3EE);
+    case WorkoutType.yoga:
+      return const Color(0xFFA78BFA);
+    case WorkoutType.hiit:
+      return const Color(0xFFFB923C);
+    default:
+      return AppColors.userAccent;
   }
 }
 
 IconData _typeIcon(WorkoutType t) {
   switch (t) {
-    case WorkoutType.gym:      return Icons.fitness_center_rounded;
-    case WorkoutType.running:  return Icons.directions_run_rounded;
-    case WorkoutType.cycling:  return Icons.directions_bike_rounded;
-    case WorkoutType.swimming: return Icons.pool_rounded;
-    case WorkoutType.yoga:     return Icons.self_improvement_rounded;
-    case WorkoutType.hiit:     return Icons.timer_rounded;
-    case WorkoutType.walking:  return Icons.directions_walk_rounded;
-    case WorkoutType.sports:   return Icons.sports_soccer_rounded;
-    default:                   return Icons.category_rounded;
+    case WorkoutType.gym:
+      return Icons.fitness_center_rounded;
+    case WorkoutType.running:
+      return Icons.directions_run_rounded;
+    case WorkoutType.cycling:
+      return Icons.directions_bike_rounded;
+    case WorkoutType.swimming:
+      return Icons.pool_rounded;
+    case WorkoutType.yoga:
+      return Icons.self_improvement_rounded;
+    case WorkoutType.hiit:
+      return Icons.timer_rounded;
+    case WorkoutType.walking:
+      return Icons.directions_walk_rounded;
+    case WorkoutType.sports:
+      return Icons.sports_soccer_rounded;
+    default:
+      return Icons.category_rounded;
   }
 }
 
@@ -122,11 +140,11 @@ class SessionPage extends ConsumerWidget {
                     physics: const NeverScrollableScrollPhysics(),
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3,
-                      crossAxisSpacing: 8,
-                      mainAxisSpacing: 8,
-                      childAspectRatio: 0.9,
-                    ),
+                          crossAxisCount: 3,
+                          crossAxisSpacing: 8,
+                          mainAxisSpacing: 8,
+                          childAspectRatio: 0.9,
+                        ),
                     itemCount: _quickStartTypes.length,
                     itemBuilder: (context, i) {
                       final type = _quickStartTypes[i];
@@ -143,7 +161,9 @@ class SessionPage extends ConsumerWidget {
                             borderRadius: BorderRadius.circular(14),
                           ),
                           padding: const EdgeInsets.symmetric(
-                              vertical: 14, horizontal: 8),
+                            vertical: 14,
+                            horizontal: 8,
+                          ),
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
@@ -249,9 +269,43 @@ class _RecentSession {
 }
 
 final _recentSessionsProvider =
-    FutureProvider.family<List<_RecentSession>, String>(
-  (ref, uid) async => [],
-);
+    FutureProvider.family<List<_RecentSession>, String>((ref, uid) async {
+  final sessions = await ref
+      .watch(sessionServiceProvider)
+      .getUserSessions(uid, limit: 10);
+  return sessions.map((s) {
+    final dur = s.endedAt != null
+        ? s.endedAt!.difference(s.startedAt)
+        : Duration.zero;
+    final mins = dur.inMinutes;
+    final durationLabel = mins >= 60
+        ? '${dur.inHours}h ${mins.remainder(60)}m'
+        : '${mins}m';
+    final type = WorkoutType.values.firstWhere(
+      (t) => t.value == s.type,
+      orElse: () => WorkoutType.gym,
+    );
+    final sets = s.summary?.totalSets ?? 0;
+    final dateLabel = _formatSessionDate(s.createdAt);
+    return _RecentSession(
+      type: type,
+      label: s.title.isNotEmpty ? s.title : type.displayName,
+      dateLabel: dateLabel,
+      duration: durationLabel,
+      sets: sets,
+    );
+  }).toList();
+});
+
+String _formatSessionDate(DateTime? dt) {
+  if (dt == null) return '';
+  final now = DateTime.now();
+  final diff = now.difference(dt);
+  if (diff.inDays == 0) return 'Today';
+  if (diff.inDays == 1) return 'Yesterday';
+  if (diff.inDays < 7) return '${diff.inDays}d ago';
+  return '${dt.day}/${dt.month}';
+}
 
 // ── Weekly ring card ─────────────────────────────────────────────────────────
 
@@ -261,12 +315,13 @@ class _WeeklyRingCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // For now use a simple weekly count from recent sessions
-    // We show done/goal where goal is 5 by default
-    const done = 3;
+    final streakAsync =
+        uid != null ? ref.watch(userStreakProvider(uid!)) : null;
+    final userStreak = streakAsync?.valueOrNull;
     const goal = 5;
-    const streak = 3;
-    const total = 42;
+    final done = userStreak?.weeklyWorkouts ?? 0;
+    final streak = userStreak?.currentStreak ?? 0;
+    final total = userStreak?.totalWorkouts ?? 0;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
@@ -351,7 +406,7 @@ class _WeeklyRingCard extends ConsumerWidget {
                         style: AppTextStyles.bodyLarge.copyWith(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.userAccent,
+                          color: AppColors.textV2Primary,
                         ),
                       ),
                       Text(
@@ -534,11 +589,9 @@ class _RecentSessionSkeleton extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                    width: 120, height: 13, color: AppColors.surfaceV2),
+                Container(width: 120, height: 13, color: AppColors.surfaceV2),
                 const SizedBox(height: 6),
-                Container(
-                    width: 80, height: 10, color: AppColors.surfaceV2),
+                Container(width: 80, height: 10, color: AppColors.surfaceV2),
               ],
             ),
           ),

@@ -347,7 +347,10 @@ class PostService {
       }
 
       for (final doc in snapshot.docs) {
-        allPosts.add(Post.fromFirestore(doc));
+        final post = Post.fromFirestore(doc);
+        // Private posts are personal records only — never show in the social feed.
+        if (post.visibility == 'private') continue;
+        allPosts.add(post);
       }
     }
 

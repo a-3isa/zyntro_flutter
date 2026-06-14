@@ -20,12 +20,22 @@ import '../../../core/models/models.dart';
 import '../../../widgets/zyntro_button.dart';
 import '../../../widgets/pulse_dot.dart';
 import '../../../utils/haptic_manager.dart';
+import '../../../utils/offline_manager.dart';
 import '../domain/gym_session_plan.dart';
 import 'widgets/gym_exercise_picker_sheet.dart';
 
 /// Signals the train screen to reset to its home view.
 /// Increment this value whenever the session FAB is tapped.
 final sessionViewResetProvider = StateProvider<int>((ref) => 0);
+
+/// True when the centre FAB should render as an active Start button.
+final sessionFabActiveProvider = StateProvider<bool>((ref) => false);
+
+/// True while the session creation is in flight (spinner in FAB).
+final sessionFabLoadingProvider = StateProvider<bool>((ref) => false);
+
+/// Shell increments this to fire the Start action from the FAB.
+final sessionStartTriggerProvider = StateProvider<int>((ref) => 0);
 
 /// Train screen — workout type + partner selection + session start.
 class StartSessionPage extends ConsumerStatefulWidget {
@@ -43,14 +53,10 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
   bool _isLoading = false;
   bool _isLoadingFollows = true;
   List<User> _mutualFollows = [];
-  final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = '';
   // views: 'home' | 'plan'
   String _view = 'home';
   late List<PlannedExercise> _plan;
   bool _hasShownWorkoutsPopup = false;
-
-  bool _startButtonPressed = false;
 
   // Live friends strip
   List<Map<String, dynamic>> _liveFriends = [];
@@ -94,7 +100,6 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
 
   @override
   void dispose() {
-    _searchController.dispose();
     super.dispose();
   }
 
@@ -195,14 +200,6 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
     } catch (_) {
       // Best-effort: fail silently
     }
-  }
-
-  List<User> get _filteredFriends {
-    if (_searchQuery.isEmpty) return _mutualFollows;
-    return _mutualFollows.where((user) {
-      final query = _searchQuery.toLowerCase();
-      return user.displayName.toLowerCase().contains(query);
-    }).toList();
   }
 
   Future<void> _handleStartSession() async {
@@ -343,11 +340,24 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
               phase: SessionPhase.live,
             );
 
+      // For non-bot sessions, persist the host's plan so the friend's
+      // SessionRoomPage can fetch it via gymSessionPlanProvider.
+      if (_partnerMode != 'bot' && plannedExercises.isNotEmpty) {
+        try {
+          await sessionService.saveGymPlan(sessionId: sessionId, plan: gymPlan);
+        } catch (e) {
+          debugPrint('[StartSessionPage] saveGymPlan failed (non-fatal): $e');
+        }
+      }
+
       await HapticFeedback.mediumImpact();
 
       if (mounted) {
         context.push(
           AppRouteLocations.sessionRoom(sessionId, type: type.value),
+          extra: plannedExercises.isNotEmpty
+              ? {'plannedExercises': plannedExercises}
+              : null,
         );
       }
     } catch (e) {
@@ -433,18 +443,49 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
     }
   }
 
-  String _getTypeLabel(WorkoutType type) {
-    for (final item in _quickStartTypes) {
-      if (item.type == type) return item.label;
-    }
-    return type.displayName;
-  }
-
   @override
   Widget build(BuildContext context) {
     // Reset to home view when the session FAB is tapped from another tab.
     ref.listen<int>(sessionViewResetProvider, (_, _) {
       if (_view != 'home') setState(() => _view = 'home');
+    });
+
+    // Fire start action when the shell FAB is tapped while on this tab.
+    ref.listen<int>(sessionStartTriggerProvider, (_, _) {
+      if (_isLoading) return;
+      if (_view == 'plan') {
+        HapticManager.heavy();
+        _handleStartSessionWithPlan();
+      } else if (_selectedType != null) {
+        HapticManager.medium();
+        if (_selectedType == WorkoutType.gym) {
+          _navigateToPlanView();
+        } else {
+          _handleStartSession();
+        }
+      }
+    });
+
+    // Sync FAB state to shell providers after every build.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final active = _selectedType != null && !_isLoading;
+      if (ref.read(sessionFabActiveProvider) != active) {
+        ref.read(sessionFabActiveProvider.notifier).state = active;
+      }
+      if (ref.read(sessionFabLoadingProvider) != _isLoading) {
+        ref.read(sessionFabLoadingProvider.notifier).state = _isLoading;
+      }
+    });
+    // Force solo mode when connectivity drops.
+    ref.listen<AsyncValue<bool>>(connectivityProvider, (_, next) {
+      final isOnline = next.valueOrNull ?? true;
+      if (!isOnline && _partnerMode != 'solo') {
+        setState(() {
+          _partnerMode = 'solo';
+          _selectedFriends.clear();
+        });
+      }
     });
     if (_view == 'plan') {
       if (!_hasShownWorkoutsPopup) {
@@ -485,105 +526,6 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
     }
   }
 
-  Widget _buildFriendTile(User user, {int index = 0}) {
-    final isSelected = _selectedFriends.contains(user.id);
-
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          if (isSelected) {
-            _selectedFriends.remove(user.id);
-          } else {
-            _selectedFriends.clear();
-            _selectedFriends.add(user.id);
-          }
-        });
-        HapticManager.light();
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? AppColors.userAccent.withValues(alpha: 0.1)
-              : AppColors.surfaceV2Elevated.withValues(alpha: 0.4),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected
-                ? AppColors.userAccent.withValues(alpha: 0.4)
-                : Colors.white.withValues(alpha: 0.05),
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: isSelected
-                      ? AppColors.userAccent
-                      : Colors.white.withValues(alpha: 0.1),
-                  width: 2,
-                ),
-              ),
-              child: ClipOval(
-                child: user.photoURL != null
-                    ? CachedNetworkImage(
-                        imageUrl: user.photoURL!,
-                        placeholder: (context, url) =>
-                            Container(color: AppColors.surfaceV2),
-                        errorWidget: (context, url, error) =>
-                            _buildAvatarPlaceholder(user),
-                        fit: BoxFit.cover,
-                      )
-                    : _buildAvatarPlaceholder(user),
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    user.displayName,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                      color: AppColors.textV2Primary,
-                    ),
-                  ),
-                  Text(
-                    '@${user.id.substring(0, 8)}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textV2Tertiary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              child: Icon(
-                isSelected
-                    ? Icons.check_circle_rounded
-                    : Icons.add_circle_outline_rounded,
-                key: ValueKey(isSelected),
-                color: isSelected
-                    ? AppColors.userAccent
-                    : AppColors.textV2Tertiary,
-                size: 24,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildAvatarPlaceholder(User user) {
     return Container(
       color: AppColors.surfaceV2,
@@ -594,55 +536,6 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
             fontWeight: FontWeight.bold,
             color: Colors.white,
             fontSize: 18,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLoadingSkeleton() {
-    return Column(
-      children: List.generate(
-        3,
-        (index) => Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Container(
-            decoration: BoxDecoration(
-              color: AppColors.surfaceV2Elevated.withValues(alpha: 0.3),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceV2Elevated,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 120,
-                        height: 16,
-                        color: AppColors.surfaceV2Elevated,
-                      ),
-                      const SizedBox(height: 6),
-                      Container(
-                        width: 80,
-                        height: 12,
-                        color: AppColors.surfaceV2Elevated,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
           ),
         ),
       ),
@@ -753,8 +646,6 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
   // ─── Home (Train) view ──────────────────────────────────────────────────────
 
   Widget _buildHomeView() {
-    final canStart = _selectedType != null && !_isLoading;
-
     return Scaffold(
       backgroundColor: AppColors.backgroundV2,
       body: SafeArea(
@@ -763,7 +654,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
             Expanded(
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+                padding: const EdgeInsets.fromLTRB(20, 24, 20, 112),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -784,30 +675,60 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                     const SizedBox(height: 12),
                     _buildTypeSelectionGrid(),
                     const SizedBox(height: 28),
-                    _buildSectionLabel('TRAIN WITH'),
-                    const SizedBox(height: 12),
-                    _buildPartnerModeRow(),
-                    _buildBuddiesStrip(),
-                    if (_partnerMode == 'friends') ...[
-                      const SizedBox(height: 12),
-                      _buildFriendsSection(),
-                    ],
-                    if (_recentSessions.isNotEmpty || _isLoadingStats) ...[
-                      const SizedBox(height: 28),
-                      _buildSectionLabel('RECENT'),
-                      const SizedBox(height: 12),
-                      _buildRecentList(),
-                    ],
-                    const SizedBox(height: 16),
+                    // _buildSectionLabel('TRAIN WITH'),
+                    // const SizedBox(height: 12),
+                    if (!(ref.watch(connectivityProvider).valueOrNull ?? true))
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.orange.withValues(alpha: 0.3),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.wifi_off_rounded,
+                                size: 16,
+                                color: Colors.orange,
+                              ),
+                              const SizedBox(width: 10),
+                              Text(
+                                "You're offline — solo sessions only",
+                                style: AppTextStyles.caption.copyWith(
+                                  color: Colors.orange,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    // _buildPartnerModeRow(),
+                    _buildBuddiesStrip(
+                      isOffline:
+                          !(ref.watch(connectivityProvider).valueOrNull ??
+                              true),
+                    ),
+                    // if (_recentSessions.isNotEmpty || _isLoadingStats) ...[
+                    //   const SizedBox(height: 28),
+                    //   _buildSectionLabel('RECENT'),
+                    //   const SizedBox(height: 12),
+                    //   _buildRecentList(),
+                    // ],
+                    // const SizedBox(height: 16),
                   ],
                 ),
               ),
             ),
-            // Sticky Start Session CTA
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-              child: _buildStartSessionCta(canStart: canStart),
-            ),
+            const SizedBox(height: 16),
           ],
         ),
       ),
@@ -836,7 +757,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
     return GestureDetector(
       onTap: () {
         HapticManager.selection();
-        setState(() => _selectedType = type);
+        setState(() => _selectedType = _selectedType == type ? null : type);
         _savePreferences();
       },
       child: AnimatedContainer(
@@ -943,6 +864,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
     final pairedSessionsEnabled = ref.watch(
       pairedFriendSessionsEnabledProvider,
     );
+    final isOffline = !(ref.watch(connectivityProvider).valueOrNull ?? true);
     final modes = [
       (id: 'solo', label: 'Solo', icon: Icons.person_outline_rounded),
       if (pairedSessionsEnabled) ...[
@@ -954,58 +876,70 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
     return Row(
       children: modes.map((m) {
         final isActive = _partnerMode == m.id;
+        final isDisabled = isOffline && m.id != 'solo';
         return Expanded(
           child: GestureDetector(
-            onTap: () {
-              HapticManager.light();
-              setState(() {
-                _partnerMode = m.id;
-                if (m.id != 'friends') _selectedFriends.clear();
-              });
-              if (m.id == 'friends') {
-                _loadMutualFollows();
-              }
-              if (m.id == 'random' && _selectedType != null) {
-                context.push(AppRouteLocations.matchmaking(_selectedType!));
-              }
-            },
+            onTap: isDisabled
+                ? null
+                : () {
+                    HapticManager.light();
+                    setState(() {
+                      _partnerMode = m.id;
+                      if (m.id != 'friends') _selectedFriends.clear();
+                    });
+                    if (m.id == 'friends') {
+                      _loadMutualFollows();
+                    }
+                    if (m.id == 'random' && _selectedType != null) {
+                      context.push(
+                        AppRouteLocations.matchmaking(_selectedType!),
+                      );
+                    }
+                  },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 160),
               margin: EdgeInsets.only(right: m.id == 'random' ? 0 : 8),
               padding: const EdgeInsets.symmetric(vertical: 12),
               decoration: BoxDecoration(
-                color: isActive
+                color: isDisabled
+                    ? AppColors.surfaceV2.withValues(alpha: 0.4)
+                    : isActive
                     ? AppColors.surfaceV2Elevated
                     : AppColors.surfaceV2,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
-                  color: isActive
+                  color: isDisabled
+                      ? AppColors.surfaceV2Active.withValues(alpha: 0.3)
+                      : isActive
                       ? AppColors.userAccent.withValues(alpha: 0.4)
                       : AppColors.surfaceV2Active,
                   width: 1.5,
                 ),
               ),
-              child: Column(
-                children: [
-                  Icon(
-                    m.icon,
-                    size: 20,
-                    color: isActive
-                        ? AppColors.userAccent
-                        : AppColors.textV2Tertiary,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    m.label,
-                    style: AppTextStyles.caption.copyWith(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
+              child: Opacity(
+                opacity: isDisabled ? 0.4 : 1.0,
+                child: Column(
+                  children: [
+                    Icon(
+                      m.icon,
+                      size: 20,
                       color: isActive
-                          ? AppColors.textV2Primary
+                          ? AppColors.userAccent
                           : AppColors.textV2Tertiary,
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 4),
+                    Text(
+                      m.label,
+                      style: AppTextStyles.caption.copyWith(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: isActive
+                            ? AppColors.textV2Primary
+                            : AppColors.textV2Tertiary,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -1016,7 +950,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
 
   /// Always-visible horizontal strip of the user's buddies (mutual follows).
   /// Tapping a buddy selects them and switches the partner mode to "Friend".
-  Widget _buildBuddiesStrip() {
+  Widget _buildBuddiesStrip({bool isOffline = false}) {
     if (_isLoadingFollows && _mutualFollows.isEmpty) {
       return const SizedBox.shrink();
     }
@@ -1040,16 +974,22 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
               final selected = _selectedFriends.contains(u.id);
               final firstName = u.displayName.trim().split(' ').first;
               return GestureDetector(
-                onTap: () {
-                  HapticFeedback.selectionClick();
-                  setState(() {
-                    // Choosing a buddy auto-marks the "Friend" partner choice.
-                    _partnerMode = 'friends';
-                    _selectedFriends
-                      ..clear()
-                      ..add(u.id);
-                  });
-                },
+                onTap: isOffline
+                    ? null
+                    : () {
+                        HapticFeedback.selectionClick();
+                        setState(() {
+                          if (_selectedFriends.contains(u.id)) {
+                            _selectedFriends.clear();
+                            _partnerMode = 'solo';
+                          } else {
+                            _selectedFriends
+                              ..clear()
+                              ..add(u.id);
+                            _partnerMode = 'friends';
+                          }
+                        });
+                      },
                 child: SizedBox(
                   width: 64,
                   child: Column(
@@ -1084,7 +1024,9 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                         overflow: TextOverflow.ellipsis,
                         style: AppTextStyles.caption.copyWith(
                           fontSize: 11,
-                          fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                          fontWeight: selected
+                              ? FontWeight.w700
+                              : FontWeight.w500,
                           color: selected
                               ? AppColors.userAccent
                               : AppColors.textV2Secondary,
@@ -1097,71 +1039,6 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
             },
           ),
         ),
-      ],
-    );
-  }
-
-  Widget _buildFriendsSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (_mutualFollows.isNotEmpty || _isLoadingFollows)
-          Container(
-            decoration: BoxDecoration(
-              color: AppColors.surfaceV2Elevated.withValues(alpha: 0.4),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-            ),
-            child: TextField(
-              controller: _searchController,
-              style: const TextStyle(
-                color: AppColors.textV2Primary,
-                fontSize: 13,
-              ),
-              decoration: InputDecoration(
-                hintText: 'Search friends...',
-                hintStyle: TextStyle(color: AppColors.textV2Tertiary),
-                prefixIcon: const Icon(
-                  Icons.search_rounded,
-                  color: AppColors.textV2Tertiary,
-                  size: 18,
-                ),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-              ),
-              onChanged: (v) => setState(() => _searchQuery = v),
-            ),
-          ),
-        const SizedBox(height: 10),
-        if (_isLoadingFollows)
-          _buildLoadingSkeleton()
-        else if (_mutualFollows.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text(
-              'No mutual follows yet — start solo or find friends.',
-              style: TextStyle(color: AppColors.textV2Tertiary, fontSize: 13),
-            ),
-          )
-        else
-          ..._filteredFriends.asMap().entries.map(
-            (e) => _buildFriendTile(e.value, index: e.key),
-          ),
-        if (_selectedFriends.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(
-              '${_selectedFriends.length} friend${_selectedFriends.length > 1 ? 's' : ''} selected',
-              style: TextStyle(
-                color: AppColors.userAccent,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
       ],
     );
   }
@@ -1191,7 +1068,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                       '$_weekSessions',
                       style: AppTextStyles.h2.copyWith(
                         fontSize: 28,
-                        color: AppColors.textV2Primary,
+                        color: AppColors.userAccent,
                         height: 1.0,
                       ),
                     ),
@@ -1238,17 +1115,17 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                       '$_streakDays 🔥',
                       style: AppTextStyles.label.copyWith(
                         fontSize: 15,
-                        color: AppColors.userAccent,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Text(
-                      '$_totalSessions',
-                      style: AppTextStyles.label.copyWith(
-                        fontSize: 15,
                         color: AppColors.textV2Primary,
                       ),
                     ),
+                    const SizedBox(width: 16),
+                    // Text(
+                    //   '$_totalSessions',
+                    //   style: AppTextStyles.label.copyWith(
+                    //     fontSize: 15,
+                    //     color: AppColors.textV2Primary,
+                    //   ),
+                    // ),
                   ],
                 ),
                 Row(
@@ -1261,87 +1138,19 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                       ),
                     ),
                     const SizedBox(width: 25),
-                    Text(
-                      'total',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: AppColors.textV2Tertiary,
-                      ),
-                    ),
+                    // Text(
+                    //   'total',
+                    //   style: TextStyle(
+                    //     fontSize: 11,
+                    //     color: AppColors.textV2Tertiary,
+                    //   ),
+                    // ),
                   ],
                 ),
               ],
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildStartSessionCta({required bool canStart}) {
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _startButtonPressed = true),
-      onTapUp: (_) {
-        setState(() => _startButtonPressed = false);
-        if (_selectedType != null && !_isLoading) {
-          HapticManager.medium();
-          if (_selectedType == WorkoutType.gym) {
-            _navigateToPlanView();
-          } else {
-            _handleStartSession();
-          }
-        }
-      },
-      onTapCancel: () => setState(() => _startButtonPressed = false),
-      child: AnimatedScale(
-        scale: _startButtonPressed ? 0.97 : 1.0,
-        duration: const Duration(milliseconds: 80),
-        curve: AppCurves.press,
-        child: Container(
-          height: 64,
-          decoration: BoxDecoration(
-            color: _selectedType == null
-                ? AppColors.surfaceV2Active
-                : AppColors.userAccent,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: _isLoading
-              ? const Center(
-                  child: SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      color: AppColors.backgroundV2,
-                    ),
-                  ),
-                )
-              : Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      _selectedType == null
-                          ? 'Select a workout type'
-                          : 'Start ${_getTypeLabel(_selectedType!)} Session',
-                      style: AppTextStyles.bodyLarge.copyWith(
-                        color: _selectedType == null
-                            ? AppColors.textV2Tertiary
-                            : AppColors.backgroundV2,
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-                    if (_partnerMode == 'friends' &&
-                        _selectedFriends.isNotEmpty)
-                      Text(
-                        'with ${_selectedFriends.length} friend${_selectedFriends.length > 1 ? 's' : ''}',
-                        style: AppTextStyles.caption.copyWith(
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.backgroundV2.withValues(alpha: 0.7),
-                        ),
-                      ),
-                  ],
-                ),
-        ),
       ),
     );
   }
@@ -1877,6 +1686,18 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
               invitedUserIds: invitedIds,
               phase: SessionPhase.live,
             );
+
+      // For non-bot sessions, persist the host's plan so the friend's
+      // SessionRoomPage can fetch it via gymSessionPlanProvider.
+      if (_partnerMode != 'bot' && plannedExercises.isNotEmpty) {
+        try {
+          await sessionService.saveGymPlan(sessionId: sessionId, plan: gymPlan);
+        } catch (e) {
+          debugPrint(
+            '[StartSessionPage] saveGymPlan (WithPlan) failed (non-fatal): $e',
+          );
+        }
+      }
 
       await HapticFeedback.mediumImpact();
 

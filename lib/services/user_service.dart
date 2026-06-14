@@ -57,12 +57,14 @@ class UserStreak {
   final int longestStreak;
   final String? lastWorkoutDate;
   final int totalWorkouts;
+  final int weeklyWorkouts;
 
   UserStreak({
     required this.currentStreak,
     required this.longestStreak,
     this.lastWorkoutDate,
     required this.totalWorkouts,
+    this.weeklyWorkouts = 0,
   });
 }
 
@@ -205,19 +207,27 @@ class UserService {
           currentStreak: 0,
           longestStreak: 0,
           totalWorkouts: 0,
+          weeklyWorkouts: 0,
         );
         _streakCache[userId] = (streak: streak, fetchedAt: DateTime.now());
         return streak;
       }
 
-      // Extract unique dates
+      // Monday of the current week (week starts Monday)
+      final now = DateTime.now();
+      final weekStart = now.subtract(Duration(days: now.weekday - 1));
+      final weekStartDate = DateTime(weekStart.year, weekStart.month, weekStart.day);
+
+      // Extract unique dates + count sessions this week
       final workoutDates = <String>{};
+      int weeklyCount = 0;
       for (final doc in snapshot.docs) {
         final data = doc.data();
         if (data['createdAt'] != null) {
           final date = (data['createdAt'] as Timestamp).toDate();
           final dateStr = date.toIso8601String().split('T')[0];
           workoutDates.add(dateStr);
+          if (!date.isBefore(weekStartDate)) weeklyCount++;
         }
       }
 
@@ -228,6 +238,7 @@ class UserService {
           currentStreak: 0,
           longestStreak: 0,
           totalWorkouts: snapshot.docs.length,
+          weeklyWorkouts: weeklyCount,
         );
         _streakCache[userId] = (streak: streak, fetchedAt: DateTime.now());
         return streak;
@@ -272,6 +283,7 @@ class UserService {
         longestStreak: longestStreak,
         totalWorkouts: snapshot.docs.length,
         lastWorkoutDate: sortedDates[0],
+        weeklyWorkouts: weeklyCount,
       );
 
       _streakCache[userId] = (streak: result, fetchedAt: DateTime.now());

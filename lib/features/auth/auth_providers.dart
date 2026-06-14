@@ -156,17 +156,18 @@ Color? _parseAccent(String? config) {
   return Color(hex.length <= 6 ? (0xFF000000 | value) : value);
 }
 
-/// Returns true when the logged-in user has a Firestore profile document,
-/// or when no user is logged in (no action needed). Returns false when a
-/// Firebase auth session exists but no profile doc was ever written — an
-/// orphaned account that the router will auto-sign-out on startup.
-final authProfileDocExistsProvider = FutureProvider<bool>((ref) async {
-  final uid = ref.watch(authSessionProvider).valueOrNull?.id;
-  if (uid == null) return true;
-  final doc = await ref
-      .read(authFirestoreProvider)
-      .collection('users')
-      .doc(uid)
-      .get();
-  return doc.exists;
+/// Waits for Firebase to resolve persisted auth, then checks whether a restored
+/// session belongs to a user who completed onboarding. Null means signed out.
+final authStartupProfileCompletionProvider = FutureProvider<bool?>((ref) async {
+  final user = await ref.watch(authSessionProvider.future);
+  final uid = user?.id;
+  if (uid == null) return null;
+
+  final result = await ref
+      .read(authenticationUseCaseProvider)
+      .isProfileComplete(uid);
+  return result.when(
+    success: (isComplete) => isComplete,
+    failure: (failure) => throw StateError(failure.toString()),
+  );
 });

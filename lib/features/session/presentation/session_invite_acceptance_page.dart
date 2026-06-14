@@ -273,7 +273,7 @@ class _SessionInviteAcceptancePageState
           source: session.hostId == uid
               ? GymSessionPlanSource.hostTemplate
               : GymSessionPlanSource.personalCopy,
-          isReady: false,
+          isReady: true,
           exercises: _reindex(_exercises),
         );
       } else {

@@ -339,5 +339,34 @@ final eventsProvider = FutureProvider<List<LeaderboardEvent>>((ref) async {
   return leaderboardService.getEvents();
 });
 
+/// Returns the current user's rank and whether it is global.
+/// Checks global leaderboard access first; falls back to friends leaderboard.
+final currentUserRankProvider =
+    FutureProvider.family<({int? rank, bool isGlobal}), String>((
+  ref,
+  userId,
+) async {
+  final service = ref.watch(leaderboardServiceProvider);
+  final hasGlobal = await service.hasGlobalLeaderboardAccess(userId);
+
+  if (hasGlobal) {
+    final board = await ref.watch(globalLeaderboardProvider(userId).future);
+    final entry = board.firstWhere(
+      (e) => e.isCurrentUser,
+      orElse: () =>
+          LeaderboardEntry(userId: userId, displayName: '', score: 0, rank: 0),
+    );
+    return (rank: entry.rank > 0 ? entry.rank : null, isGlobal: true);
+  }
+
+  final board = await ref.watch(friendsLeaderboardProvider(userId).future);
+  final entry = board.firstWhere(
+    (e) => e.isCurrentUser,
+    orElse: () =>
+        LeaderboardEntry(userId: userId, displayName: '', score: 0, rank: 0),
+  );
+  return (rank: entry.rank > 0 ? entry.rank : null, isGlobal: false);
+});
+
 
 

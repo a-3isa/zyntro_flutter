@@ -58,6 +58,30 @@ String? _computeRedirect({
 }
 
 void main() {
+  group('Startup session validation', () {
+    test('restored authenticated session is signed out when profile is incomplete', () {
+      expect(
+        shouldSignOutStartupSession(
+          isAuthenticated: true,
+          profileCheckCompleted: true,
+          isProfileComplete: false,
+        ),
+        isTrue,
+      );
+    });
+
+    test('does not sign out before auth and profile validation finish', () {
+      expect(
+        shouldSignOutStartupSession(
+          isAuthenticated: true,
+          profileCheckCompleted: false,
+          isProfileComplete: null,
+        ),
+        isFalse,
+      );
+    });
+  });
+
   group('Router redirect — US2: returning user routing', () {
     // T016: regression — hasSeenOnboarding no longer drives routing; only
     // server-side isProfileComplete matters.

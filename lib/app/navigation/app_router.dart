@@ -204,10 +204,8 @@ final routerProvider = Provider<GoRouter>((ref) {
   var profileComplete = const AsyncValue<bool>.loading();
   var rollbackActive = const AsyncValue<bool>.data(false);
 
-  // Orphaned-session guard: on cold start, if a Firebase session exists but
-  // the user has no Firestore profile doc, we sign them out so they land on
-  // the welcome screen instead of the onboarding page.
-  var startupOrphanCheckDone = false;
+  // Validate restored sessions before allowing startup navigation.
+  var startupProfileCheckDone = false;
   var signingOut = false;
 
   ref.listen<AsyncValue<AuthUserEntity?>>(authSessionProvider, (_, next) {
@@ -222,10 +220,19 @@ final routerProvider = Provider<GoRouter>((ref) {
     rollbackActive = next;
     authChangeNotifier.trigger();
   });
-  ref.listen<AsyncValue<bool>>(authProfileDocExistsProvider, (_, next) {
-    if (!startupOrphanCheckDone && next.hasValue) {
-      startupOrphanCheckDone = true;
-      if (next.value == false && authState.valueOrNull != null) {
+  ref.listen<AsyncValue<bool?>>(authStartupProfileCompletionProvider, (
+    _,
+    next,
+  ) {
+    if (!startupProfileCheckDone && next.hasError) {
+      startupProfileCheckDone = true;
+    } else if (!startupProfileCheckDone && next.hasValue) {
+      startupProfileCheckDone = true;
+      if (shouldSignOutStartupSession(
+        isAuthenticated: next.value != null,
+        profileCheckCompleted: next.hasValue,
+        isProfileComplete: next.value,
+      )) {
         signingOut = true;
         ref.read(authenticationUseCaseProvider).signOut().whenComplete(() {
           signingOut = false;
@@ -242,7 +249,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     refreshListenable: authChangeNotifier,
     debugLogDiagnostics: shouldEnableRouterDiagnostics(isDebugMode: kDebugMode),
     redirect: (context, state) {
-      // Hold on splash while an orphaned session is being signed out.
+      // Hold on splash while an incomplete restored session is signed out.
       if (signingOut) {
         return state.matchedLocation == AppRoutes.splash ? null : AppRoutes.splash;
       }
@@ -264,6 +271,10 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // Still loading auth state → hold on splash.
       if (isLoading) {
+        return loc == AppRoutes.splash ? null : AppRoutes.splash;
+      }
+
+      if (isLoggedIn && !startupProfileCheckDone) {
         return loc == AppRoutes.splash ? null : AppRoutes.splash;
       }
 
@@ -655,3 +666,11 @@ class _AuthChangeNotifier extends ChangeNotifier {
 }
 
 final authChangeNotifier = _AuthChangeNotifier();
+
+bool shouldSignOutStartupSession({
+  required bool isAuthenticated,
+  required bool profileCheckCompleted,
+  required bool? isProfileComplete,
+}) {
+  return isAuthenticated && profileCheckCompleted && isProfileComplete == false;
+}

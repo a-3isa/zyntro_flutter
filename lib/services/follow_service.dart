@@ -42,17 +42,14 @@ class FollowService {
       return false;
     }
 
+    // Only check the direction the host can read (blockerId == auth.uid).
+    // The reverse direction (invitee blocks host) is enforced server-side by
+    // isNotBlockedPair() in Firestore security rules during session creation.
     final hostBlocksInvitee = await _firestore
         .collection('blocks')
         .doc(_getBlockId(hostId, inviteeId))
         .get();
-    if (hostBlocksInvitee.exists) return false;
-
-    final inviteeBlocksHost = await _firestore
-        .collection('blocks')
-        .doc(_getBlockId(inviteeId, hostId))
-        .get();
-    return !inviteeBlocksHost.exists;
+    return !hostBlocksInvitee.exists;
   }
 
   /// Get the follow status between two users.
@@ -68,6 +65,21 @@ class FollowService {
 
     if (!doc.exists) return null;
     return FollowStatus.fromString(doc.data()?['status'] ?? 'pending');
+  }
+
+  Stream<FollowStatus?> watchFollowStatus(
+    String followerId,
+    String followeeId,
+  ) {
+    return _firestore
+        .collection('follows')
+        .doc(_getFollowId(followerId, followeeId))
+        .snapshots()
+        .map(
+          (doc) => doc.exists
+              ? FollowStatus.fromString(doc.data()?['status'] ?? 'pending')
+              : null,
+        );
   }
 
   /// Follow a user.
@@ -99,11 +111,13 @@ class FollowService {
             requesterName: followerName,
           );
     } else if (!isPrivate && followerName != null) {
-      // For public accounts, notify of NEW FOLLOWER
-      // Note: check notification_service.dart if notifyNewFollower exists.
-      // Assuming it does or I should add it. I'll stick to request for now if not sure.
-      // But typically we notify for new follows too.
-      // I'll leave it as is to match original file logic unless I add notifyNewFollower.
+      await _ref
+          .read(notificationServiceProvider)
+          .notifyNewFollower(
+            recipientId: followeeId,
+            followerId: followerId,
+            followerName: followerName,
+          );
     }
   }
 
@@ -327,6 +341,15 @@ class FollowService {
     return snapshot.count ?? 0;
   }
 
+  Stream<int> watchFollowersCount(String userId) {
+    return _firestore
+        .collection('follows')
+        .where('followeeId', isEqualTo: userId)
+        .where('status', isEqualTo: 'approved')
+        .snapshots()
+        .map((snapshot) => snapshot.docs.length);
+  }
+
   /// Get following count.
   Future<int> getFollowingCount(String userId) async {
     final snapshot = await _firestore
@@ -337,6 +360,15 @@ class FollowService {
         .get();
 
     return snapshot.count ?? 0;
+  }
+
+  Stream<int> watchFollowingCount(String userId) {
+    return _firestore
+        .collection('follows')
+        .where('followerId', isEqualTo: userId)
+        .where('status', isEqualTo: 'approved')
+        .snapshots()
+        .map((snapshot) => snapshot.docs.length);
   }
 
   /// Get mutual follows (friends) for a user.
@@ -416,4 +448,3 @@ final pendingFollowRequestsCountProvider = FutureProvider<int>((ref) async {
       .getPendingFollowRequests(uid);
   return requests.length;
 });
-

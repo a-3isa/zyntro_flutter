@@ -18,27 +18,11 @@ import '../../../services/post_service.dart';
 import '../../../services/session_service.dart';
 import '../../moderation/presentation/report_dialog.dart';
 import '../../auth/auth_providers.dart';
-import '../../auth/domain/entities/user_profile_entity.dart';
-import '../../auth/presentation/providers/auth_controller.dart';
+import '../../../services/leaderboard_service.dart';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-User _toLegacyUser(UserProfileEntity profile) {
-  return User(
-    id: profile.id,
-    displayName: profile.displayName,
-    username: profile.username,
-    photoURL: profile.photoUrl,
-    avatarConfig: profile.avatarConfig,
-    isPrivate: profile.isPrivate,
-    workoutPreference: profile.workoutPreference,
-    beginnerFlag: profile.beginnerFlag,
-    createdAt: DateTime.now(),
-    updatedAt: DateTime.now(),
-  );
-}
 
 /// Parses the avatar color picked during onboarding (stored as an ARGB or RGB
 /// hex string in `avatarConfig`) into a [Color]. Returns null when absent or
@@ -95,71 +79,83 @@ IconData _buildTypeIcon(String type) {
 // ---------------------------------------------------------------------------
 
 /// Provider to fetch another user's profile by ID.
-final otherUserProfileProvider = FutureProvider.family<User?, String>((
+final otherUserProfileProvider = StreamProvider.family<User?, String>((
   ref,
   userId,
-) async {
-  final profile = await ref.read(authControllerProvider).getUserProfile(userId);
-  if (profile == null) return null;
-  return _toLegacyUser(profile);
+) {
+  return ref
+      .watch(authFirestoreProvider)
+      .collection('users')
+      .doc(userId)
+      .snapshots()
+      .map((doc) => doc.exists ? User.fromFirestore(doc) : null);
 });
 
-final currentUserProfileProvider = FutureProvider<User?>((ref) async {
+final currentUserProfileProvider = StreamProvider<User?>((ref) {
   final uid = ref.watch(authSessionProvider).valueOrNull?.id;
-  if (uid == null) return null;
-  final profile = await ref.read(authControllerProvider).getUserProfile(uid);
-  if (profile == null) return null;
-  return _toLegacyUser(profile);
+  if (uid == null) return Stream.value(null);
+  return ref
+      .watch(authFirestoreProvider)
+      .collection('users')
+      .doc(uid)
+      .snapshots()
+      .map((doc) => doc.exists ? User.fromFirestore(doc) : null);
 });
 
 /// Provider for followers count.
-final followersCountProvider = FutureProvider.family<int, String>((
+final followersCountProvider = StreamProvider.family<int, String>((
   ref,
   userId,
-) async {
-  return ref.read(followServiceProvider).getFollowersCount(userId);
+) {
+  return ref.watch(followServiceProvider).watchFollowersCount(userId);
 });
 
 /// Provider for following count.
-final followingCountProvider = FutureProvider.family<int, String>((
+final followingCountProvider = StreamProvider.family<int, String>((
   ref,
   userId,
-) async {
-  return ref.read(followServiceProvider).getFollowingCount(userId);
+) {
+  return ref.watch(followServiceProvider).watchFollowingCount(userId);
 });
 
 /// Provider for follow status between current user and target user.
-final followStatusProvider = FutureProvider.family<FollowStatus?, String>((
+final followStatusProvider = StreamProvider.family<FollowStatus?, String>((
   ref,
   targetUserId,
-) async {
+) {
   final authState = ref.watch(authSessionProvider);
   final currentUserId = authState.valueOrNull?.id;
-  if (currentUserId == null || currentUserId == targetUserId) return null;
+  if (currentUserId == null || currentUserId == targetUserId) {
+    return Stream.value(null);
+  }
   return ref
-      .read(followServiceProvider)
-      .getFollowStatus(currentUserId, targetUserId);
+      .watch(followServiceProvider)
+      .watchFollowStatus(currentUserId, targetUserId);
 });
 
 /// Whether the target user follows the currently signed-in user back.
-final targetFollowsCurrentProvider = FutureProvider.family<bool, String>((
+final targetFollowsCurrentProvider = StreamProvider.family<bool, String>((
   ref,
   targetUserId,
-) async {
+) {
   final currentUserId = ref.watch(authSessionProvider).valueOrNull?.id;
-  if (currentUserId == null || currentUserId == targetUserId) return false;
-  final status = await ref
-      .read(followServiceProvider)
-      .getFollowStatus(targetUserId, currentUserId);
-  return status == FollowStatus.approved;
+  if (currentUserId == null || currentUserId == targetUserId) {
+    return Stream.value(false);
+  }
+  return ref
+      .watch(followServiceProvider)
+      .watchFollowStatus(targetUserId, currentUserId)
+      .map((status) => status == FollowStatus.approved);
 });
 
 /// Provider for a user's recent sessions (up to 100).
-final userSessionsProvider = FutureProvider.family<List<Session>, String>((
+final userSessionsProvider = StreamProvider.family<List<Session>, String>((
   ref,
   userId,
-) async {
-  return ref.read(sessionServiceProvider).getUserSessions(userId, limit: 100);
+) {
+  return ref
+      .watch(sessionServiceProvider)
+      .watchUserSessions(userId, limit: 100);
 });
 
 // ---------------------------------------------------------------------------
@@ -268,6 +264,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     final authState = ref.read(authSessionProvider);
     final currentUserId = authState.valueOrNull?.id;
     if (currentUserId == null) return;
+    final followerName = authState.valueOrNull?.displayName ?? 'Someone';
 
     HapticFeedback.mediumImpact();
     setState(() => _isFollowLoading = true);
@@ -279,9 +276,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             followerId: currentUserId,
             followeeId: targetUserId,
             isPrivate: isPrivate,
+            followerName: followerName,
           );
       ref.invalidate(followStatusProvider(targetUserId));
       ref.invalidate(followersCountProvider(targetUserId));
+      ref.invalidate(followingCountProvider(currentUserId));
     } catch (_) {
     } finally {
       if (mounted) setState(() => _isFollowLoading = false);
@@ -337,6 +336,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           .unfollowUser(currentUserId, targetUserId);
       ref.invalidate(followStatusProvider(targetUserId));
       ref.invalidate(followersCountProvider(targetUserId));
+      ref.invalidate(followingCountProvider(currentUserId));
     } catch (_) {
     } finally {
       if (mounted) setState(() => _isFollowLoading = false);
@@ -661,12 +661,15 @@ class _PrivateProfileView extends ConsumerWidget {
       inner = _fallback(size);
     }
 
+    final ringColor =
+        avatarColorFromConfig(user.avatarConfig) ?? AppColors.userAccent;
+
     return Container(
       width: size + 6,
       height: size + 6,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: AppColors.userAccent, width: 2.5),
+        border: Border.all(color: ringColor, width: 2.5),
       ),
       child: ClipOval(child: inner),
     );
@@ -751,16 +754,38 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
     final isCurrentUser = widget.isCurrentUser;
 
     final streakAsync = ref.watch(userStreakProvider(targetUserId));
+    final sessionsAsync = ref.watch(userSessionsProvider(targetUserId));
     final followersAsync = ref.watch(followersCountProvider(targetUserId));
     final followingAsync = ref.watch(followingCountProvider(targetUserId));
     final postsAsync = ref.watch(userPostsProvider(targetUserId));
 
-    final int workouts = streakAsync.valueOrNull?.totalWorkouts ?? 0;
+    ref.listen(userSessionsProvider(targetUserId), (previous, next) {
+      final previousCount = previous?.valueOrNull?.length;
+      final nextCount = next.valueOrNull?.length;
+      if (previousCount != null &&
+          nextCount != null &&
+          previousCount != nextCount) {
+        ref.read(userServiceProvider).invalidateStreakCache(targetUserId);
+        ref.invalidate(userStreakProvider(targetUserId));
+        ref.invalidate(currentUserRankProvider(targetUserId));
+      }
+    });
+
+    final int workouts =
+        sessionsAsync.valueOrNull?.length ??
+        streakAsync.valueOrNull?.totalWorkouts ??
+        0;
     final int streak = streakAsync.valueOrNull?.currentStreak ?? 0;
     final int followers = followersAsync.valueOrNull ?? 0;
     final int following = followingAsync.valueOrNull ?? 0;
     final int points = workouts * 10;
     final int postCount = postsAsync.valueOrNull?.length ?? 0;
+
+    final rankAsync = ref.watch(currentUserRankProvider(targetUserId));
+    final rankInfo = rankAsync.whenOrNull(
+      data: (r) =>
+          r.rank != null ? (rank: r.rank!, isGlobal: r.isGlobal) : null,
+    );
 
     final followsMe =
         !isCurrentUser &&
@@ -792,6 +817,7 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
               following: following,
               points: points,
               postCount: postCount,
+              rankInfo: rankInfo,
             )
           : _buildVisitorHeader(
               context,
@@ -806,6 +832,7 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
               followers: followers,
               following: following,
               points: points,
+              rankInfo: rankInfo,
             ),
     );
   }
@@ -826,6 +853,7 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
     required int following,
     required int points,
     required int postCount,
+    ({int rank, bool isGlobal})? rankInfo,
   }) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
@@ -836,7 +864,10 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              _buildAvatar(user),
+              Padding(
+                padding: EdgeInsets.only(bottom: rankInfo != null ? 10.0 : 0),
+                child: _buildAvatar(user, rankInfo: rankInfo),
+              ),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
@@ -960,6 +991,162 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
     required int followers,
     required int following,
     required int points,
+    ({int rank, bool isGlobal})? rankInfo,
+  }) {
+    final typeColor = _buildTypeColor(user.workoutPreference.name);
+    final typeIcon = _buildTypeIcon(user.workoutPreference.name);
+    final fullName = [
+      firstName,
+      lastName,
+    ].where((part) => part.isNotEmpty).join(' ');
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              IconButton(
+                onPressed: context.pop,
+                icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                color: AppColors.textV2Secondary,
+              ),
+              const Spacer(),
+              IconButton.filled(
+                onPressed: () => _showActionMenu(context, targetUserId),
+                icon: const Icon(Icons.more_horiz),
+                style: IconButton.styleFrom(
+                  backgroundColor: AppColors.surfaceV2,
+                  foregroundColor: AppColors.textV2Secondary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              _buildAvatar(user, size: 82, rankInfo: rankInfo),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      fullName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.h2.copyWith(
+                        fontSize: 23,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textV2Primary,
+                        letterSpacing: -0.7,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                    if (user.username != null && user.username!.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        '@${user.username}',
+                        style: AppTextStyles.caption.copyWith(
+                          fontSize: 13,
+                          color: AppColors.textV2Secondary,
+                          decoration: TextDecoration.none,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: [
+                        if (isBuddy)
+                          const _VisitorChip(
+                            icon: Icons.people_alt_rounded,
+                            label: 'BUDDY',
+                            color: AppColors.accentLime,
+                          ),
+                        _VisitorChip(
+                          icon: typeIcon,
+                          label: user.workoutPreference.displayName
+                              .toUpperCase(),
+                          color: typeColor,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (followsMe) ...[
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                const SizedBox(width: 2),
+                Container(
+                  width: 7,
+                  height: 7,
+                  decoration: const BoxDecoration(
+                    color: AppColors.accentLime,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '$fullName follows you',
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.textV2Secondary,
+                    fontWeight: FontWeight.w600,
+                    decoration: TextDecoration.none,
+                  ),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 18),
+          _FollowButton(
+            targetUserId: targetUserId,
+            isTargetPrivate: user.isPrivate,
+            followsMe: followsMe,
+            isLoading: widget.isFollowLoading,
+            onFollow: widget.onFollow,
+            onUnfollow: widget.onUnfollow,
+          ),
+          const SizedBox(height: 14),
+          _StatsRow(
+            workouts: workouts,
+            streak: streak,
+            followers: followers,
+            following: following,
+            onFollowersTap: () => context.push('/user/$targetUserId/followers'),
+            onFollowingTap: () => context.push('/user/$targetUserId/following'),
+          ),
+          const SizedBox(height: 4),
+        ],
+      ),
+    );
+  }
+
+  // ignore: unused_element
+  Widget _buildVisitorHeaderLegacy(
+    BuildContext context, {
+    required User user,
+    required String targetUserId,
+    required String firstName,
+    required String lastName,
+    required bool followsMe,
+    required bool isBuddy,
+    required int workouts,
+    required int streak,
+    required int followers,
+    required int following,
+    required int points,
+    ({int rank, bool isGlobal})? rankInfo,
   }) {
     final typeColor = _buildTypeColor(user.workoutPreference.name);
     final typeIcon = _buildTypeIcon(user.workoutPreference.name);
@@ -1014,7 +1201,7 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
             child: Column(
               children: [
                 // Avatar — larger for visitor context
-                _buildAvatar(user, size: 80),
+                _buildAvatar(user, size: 80, rankInfo: rankInfo),
                 const SizedBox(height: 14),
 
                 // Full name — centered, lime last name
@@ -1195,7 +1382,15 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
     );
   }
 
-  Widget _buildAvatar(User user, {double size = 64}) {
+  Widget _buildAvatar(
+    User user, {
+    double size = 64,
+    ({int rank, bool isGlobal})? rankInfo,
+  }) {
+    // Ring color comes from the profile owner's chosen color, not the viewer's.
+    final ringColor =
+        avatarColorFromConfig(user.avatarConfig) ?? AppColors.userAccent;
+
     Widget innerAvatar;
     if (user.photoURL != null && user.photoURL!.isNotEmpty) {
       innerAvatar = ClipOval(
@@ -1213,14 +1408,53 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
       innerAvatar = ClipOval(child: _avatarFallback(user, size));
     }
 
-    return Container(
+    final circle = Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: AppColors.userAccent, width: 3),
+        border: Border.all(color: ringColor, width: 3),
       ),
       child: ClipOval(child: innerAvatar),
+    );
+
+    if (rankInfo == null) return circle;
+
+    // Gold for global leaderboard, owner accent for friends rank.
+    final badgeColor = rankInfo.isGlobal ? const Color(0xFFFFD700) : ringColor;
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        circle,
+        Positioned(
+          bottom: -8,
+          left: 0,
+          right: 0,
+          child: Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.backgroundV2,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: badgeColor, width: 1.5),
+              ),
+              child: Text(
+                rankInfo.isGlobal
+                    ? '🌐 #${rankInfo.rank}'
+                    : '#${rankInfo.rank}',
+                style: AppTextStyles.caption.copyWith(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  color: badgeColor,
+                  letterSpacing: 0.2,
+                  height: 1,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1315,6 +1549,47 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
 // Stats Row
 // ---------------------------------------------------------------------------
 
+class _VisitorChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  const _VisitorChip({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.09),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: AppTextStyles.caption.copyWith(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: color,
+              letterSpacing: 0.7,
+              decoration: TextDecoration.none,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _StatsRow extends StatelessWidget {
   final int workouts;
   final int streak;
@@ -1359,9 +1634,9 @@ class _StatsRow extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        border: Border.symmetric(
-          horizontal: BorderSide(color: AppColors.surfaceV2, width: 1),
-        ),
+        color: AppColors.surfaceV2,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.surfaceV2Active),
       ),
       child: IntrinsicHeight(
         child: Row(
@@ -1389,9 +1664,7 @@ class _StatsRow extends StatelessWidget {
                         style: AppTextStyles.h2.copyWith(
                           fontSize: 22,
                           fontWeight: FontWeight.w800,
-                          color: tappable
-                              ? AppColors.userAccent
-                              : AppColors.textV2Primary,
+                          color: AppColors.textV2Primary,
                           letterSpacing: -0.5,
                         ),
                       ),
@@ -1688,6 +1961,7 @@ class _FollowButton extends ConsumerWidget {
   final String targetUserId;
   final bool isTargetPrivate;
   final bool isLoading;
+  final bool followsMe;
   final void Function(String, bool) onFollow;
   final void Function(String) onUnfollow;
 
@@ -1695,6 +1969,7 @@ class _FollowButton extends ConsumerWidget {
     required this.targetUserId,
     required this.isTargetPrivate,
     required this.isLoading,
+    this.followsMe = false,
     required this.onFollow,
     required this.onUnfollow,
   });
@@ -1712,7 +1987,7 @@ class _FollowButton extends ConsumerWidget {
         final String buttonText = switch (status) {
           FollowStatus.pending => 'REQUESTED',
           FollowStatus.approved => 'FOLLOWING',
-          _ => 'FOLLOW',
+          _ => followsMe ? 'Follow back' : 'FOLLOW',
         };
         final VoidCallback? onPressed = switch (status) {
           FollowStatus.pending =>
@@ -1761,6 +2036,7 @@ class _FollowButton extends ConsumerWidget {
                             ? AppColors.backgroundV2
                             : AppColors.textV2Primary,
                         letterSpacing: 0.5,
+                        decoration: TextDecoration.none,
                       ),
                     ),
             ),

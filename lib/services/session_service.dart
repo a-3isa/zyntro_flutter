@@ -314,8 +314,8 @@ class SessionService {
             .take(2)
             .join(', ');
 
-        unawaited(
-          _ref
+        try {
+          await _ref
               .read(notificationServiceProvider)
               .notifySessionInvite(
                 recipientId: invitedUserId,
@@ -326,27 +326,24 @@ class SessionService {
                 expiresAt: inviteExpiresAt,
                 groupSize: groupSize,
                 otherParticipantNames: otherNamesPreview,
-              )
-              .catchError((e) {
-                debugPrint(
-                  '[SessionService] Notify error for $invitedUserId: $e',
-                );
-                return _ref
-                    .read(sessionAnalyticsServiceProvider)
-                    .trackPairedSessionEvent(
-                      SessionAnalyticsService.pairedSessionEventPayload(
-                        eventName:
-                            PairedSessionAnalyticsEvent.inviteDeliveryFailed,
-                        sessionId: sessionId,
-                        hostId: hostId,
-                        partnerId: invitedUserId,
-                        partnerKind: PairedPartnerKind.realFriend.value,
-                        mode: SessionMode.turnBased.value,
-                        extra: {'workoutType': type},
-                      ),
-                    );
-              }),
-        );
+              );
+        } catch (e) {
+          debugPrint('[SessionService] Notify error for $invitedUserId: $e');
+          await _ref
+              .read(sessionAnalyticsServiceProvider)
+              .trackPairedSessionEvent(
+                SessionAnalyticsService.pairedSessionEventPayload(
+                  eventName: PairedSessionAnalyticsEvent.inviteDeliveryFailed,
+                  sessionId: sessionId,
+                  hostId: hostId,
+                  partnerId: invitedUserId,
+                  partnerKind: PairedPartnerKind.realFriend.value,
+                  mode: SessionMode.turnBased.value,
+                  extra: {'workoutType': type},
+                ),
+              );
+          throw Exception('Invite delivery failed. Please try again.');
+        }
       }
 
       debugPrint('[SessionService] Paired invite: $totalInvites invite sent');
@@ -1352,6 +1349,20 @@ class SessionService {
     } catch (_) {
       return [];
     }
+  }
+
+  Stream<List<Session>> watchUserSessions(String userId, {int limit = 10}) {
+    return _firestore
+        .collection('sessions')
+        .where('participants', arrayContains: userId)
+        .where('status', isEqualTo: 'completed')
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map(
+          (snapshot) =>
+              snapshot.docs.map((doc) => Session.fromFirestore(doc)).toList(),
+        );
   }
 }
 

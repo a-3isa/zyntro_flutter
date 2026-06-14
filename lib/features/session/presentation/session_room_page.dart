@@ -783,38 +783,35 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         );
       }
 
-      // Log to Firestore or Queue
-      if (_isOffline) {
-        // Optimistic update
-        final currentProgress = _participantProgress[uid];
-        final newTotalSets = (currentProgress?.totalSets ?? 0) + 1;
-        final newVolume = (currentProgress?.totalVolume ?? 0) + (weight * reps);
-
-        // Create local event for timeline
-        final localEvent = TimelineEvent(
-          id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
-          type: SessionEventType.setLogged,
-          userId: uid,
-          text: '$_currentExercise: ${weight}kg x $reps reps',
-          timestamp: DateTime.now(),
-          data: {
-            'exercise': _currentExercise,
-            if (_currentExerciseId != null) 'exerciseId': _currentExerciseId,
-            'weight': weight,
-            'reps': reps,
-          },
+      // Optimistic update — always immediate, regardless of connectivity.
+      final currentProgress = _participantProgress[uid];
+      final newTotalSets = (currentProgress?.totalSets ?? 0) + 1;
+      final newVolume = (currentProgress?.totalVolume ?? 0) + (weight * reps);
+      final localEvent = TimelineEvent(
+        id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
+        type: SessionEventType.setLogged,
+        userId: uid,
+        text: '$_currentExercise: ${weight}kg x $reps reps',
+        timestamp: DateTime.now(),
+        data: {
+          'exercise': _currentExercise,
+          if (_currentExerciseId != null) 'exerciseId': _currentExerciseId,
+          'weight': weight,
+          'reps': reps,
+        },
+      );
+      setState(() {
+        _participantProgress[uid] = ParticipantProgress(
+          currentExercise: _currentExercise!,
+          totalSets: newTotalSets,
+          totalVolume: newVolume,
+          lastActivity: DateTime.now(),
         );
+        _localPendingEvents.insert(0, localEvent);
+      });
 
-        setState(() {
-          _participantProgress[uid] = ParticipantProgress(
-            currentExercise: _currentExercise!,
-            totalSets: newTotalSets,
-            totalVolume: newVolume,
-            lastActivity: DateTime.now(),
-          );
-          _localPendingEvents.insert(0, localEvent);
-        });
-
+      // Sync to backend.
+      if (_isOffline) {
         await ref.read(offlineManagerProvider).queueOperation('session_event', {
           'sessionId': widget.sessionId,
           'type': SessionEventType.setLogged.value,
@@ -827,32 +824,26 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
             'reps': reps,
           },
         });
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Logged locally (Offline)')),
-          );
-        }
       } else {
         try {
-          await ref
-              .read(sessionServiceProvider)
-              .addSessionEvent(
-                sessionId: widget.sessionId,
-                type: SessionEventType.setLogged,
-                userId: uid,
-                text: '$_currentExercise: ${weight}kg x $reps reps',
-                data: {
-                  'exercise': _currentExercise,
-                  if (_currentExerciseId != null)
-                    'exerciseId': _currentExerciseId,
-                  'weight': weight,
-                  'reps': reps,
-                },
-              );
-          // Highlight effect
+          await ref.read(sessionServiceProvider).addSessionEvent(
+            sessionId: widget.sessionId,
+            type: SessionEventType.setLogged,
+            userId: uid,
+            text: '$_currentExercise: ${weight}kg x $reps reps',
+            data: {
+              'exercise': _currentExercise,
+              if (_currentExerciseId != null) 'exerciseId': _currentExerciseId,
+              'weight': weight,
+              'reps': reps,
+            },
+          );
+          // Server event is arriving via stream — drop the local placeholder so
+          // there is no transient double-count in _completedSetsByUserAndExercise.
+          if (mounted) setState(() => _localPendingEvents.remove(localEvent));
           await HapticFeedback.mediumImpact();
         } catch (e) {
-          // Queue on failure
+          // Network call failed — keep the local event for display and queue it.
           await ref.read(offlineManagerProvider).queueOperation(
             'session_event',
             {
@@ -862,8 +853,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
               'text': '$_currentExercise: ${weight}kg x $reps reps',
               'data': {
                 'exercise': _currentExercise,
-                if (_currentExerciseId != null)
-                  'exerciseId': _currentExerciseId,
+                if (_currentExerciseId != null) 'exerciseId': _currentExerciseId,
                 'weight': weight,
                 'reps': reps,
               },
@@ -1141,39 +1131,36 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       final eventText =
           '$activityName: ${distance.toStringAsFixed(2)}km in ${duration}min';
 
-      // Log to Firestore or Queue
-      if (_isOffline) {
-        // Optimistic update
-        final currentProgress = _participantProgress[uid];
-        final newDistance = (currentProgress?.totalDistance ?? 0) + distance;
-        final newDuration = (currentProgress?.totalDuration ?? 0) + duration;
-
-        // Create local event for timeline
-        final localEvent = TimelineEvent(
-          id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
-          type: SessionEventType.cardioEntry,
-          userId: uid,
-          text: eventText,
-          timestamp: DateTime.now(),
-          data: {
-            'activityType': _cardioActivityType,
-            'distance': distance,
-            'duration': duration,
-            'pace': calculatedPace,
-          },
+      // Optimistic update — immediate regardless of connectivity.
+      final currentProgress = _participantProgress[uid];
+      final newDistance = (currentProgress?.totalDistance ?? 0) + distance;
+      final newDuration = (currentProgress?.totalDuration ?? 0) + duration;
+      final localEvent = TimelineEvent(
+        id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
+        type: SessionEventType.cardioEntry,
+        userId: uid,
+        text: eventText,
+        timestamp: DateTime.now(),
+        data: {
+          'activityType': _cardioActivityType,
+          'distance': distance,
+          'duration': duration,
+          'pace': calculatedPace,
+        },
+      );
+      setState(() {
+        _participantProgress[uid] = ParticipantProgress(
+          activityType: _cardioActivityType,
+          totalDistance: newDistance,
+          totalDuration: newDuration,
+          averagePace: calculatedPace,
+          lastActivity: DateTime.now(),
         );
+        _localPendingEvents.insert(0, localEvent);
+      });
 
-        setState(() {
-          _participantProgress[uid] = ParticipantProgress(
-            activityType: _cardioActivityType,
-            totalDistance: newDistance,
-            totalDuration: newDuration,
-            averagePace: calculatedPace,
-            lastActivity: DateTime.now(),
-          );
-          _localPendingEvents.insert(0, localEvent);
-        });
-
+      // Sync to backend.
+      if (_isOffline) {
         await ref.read(offlineManagerProvider).queueOperation('session_event', {
           'sessionId': widget.sessionId,
           'type': SessionEventType.cardioEntry.value,
@@ -1186,30 +1173,25 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
             'pace': calculatedPace,
           },
         });
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Logged locally (Offline)')),
-          );
-        }
       } else {
         try {
-          await ref
-              .read(sessionServiceProvider)
-              .addSessionEvent(
-                sessionId: widget.sessionId,
-                type: SessionEventType.cardioEntry,
-                userId: uid,
-                text: eventText,
-                data: {
-                  'activityType': _cardioActivityType,
-                  'distance': distance,
-                  'duration': duration,
-                  'pace': calculatedPace,
-                },
-              );
+          await ref.read(sessionServiceProvider).addSessionEvent(
+            sessionId: widget.sessionId,
+            type: SessionEventType.cardioEntry,
+            userId: uid,
+            text: eventText,
+            data: {
+              'activityType': _cardioActivityType,
+              'distance': distance,
+              'duration': duration,
+              'pace': calculatedPace,
+            },
+          );
+          // Drop local placeholder once the server event is incoming via stream.
+          if (mounted) setState(() => _localPendingEvents.remove(localEvent));
           await HapticFeedback.mediumImpact();
         } catch (e) {
-          // Queue on failure
+          // Network call failed — keep the local event and queue for retry.
           await ref.read(offlineManagerProvider).queueOperation(
             'session_event',
             {
@@ -2667,6 +2649,10 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.userAccent,
+              foregroundColor: Colors.black,
+            ),
             child: const Text('Finish'),
           ),
         ],

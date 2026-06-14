@@ -9,6 +9,7 @@ import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show WidgetsBinding;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -27,6 +28,7 @@ enum NotificationType {
   unknown,
   sessionInvite,
   voiceNote,
+  newFollower,
   followRequest,
   followAccepted,
   buddyInvite,
@@ -50,6 +52,8 @@ extension NotificationTypeExtension on NotificationType {
         return 'session_invite';
       case NotificationType.voiceNote:
         return 'voice_note';
+      case NotificationType.newFollower:
+        return 'new_follower';
       case NotificationType.followRequest:
         return 'follow_request';
       case NotificationType.followAccepted:
@@ -85,6 +89,8 @@ extension NotificationTypeExtension on NotificationType {
         return NotificationType.sessionInvite;
       case 'voice_note':
         return NotificationType.voiceNote;
+      case 'new_follower':
+        return NotificationType.newFollower;
       case 'follow_request':
         return NotificationType.followRequest;
       case 'follow_accepted':
@@ -330,8 +336,32 @@ class NotificationService {
     // Listen to foreground messages
     FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
 
-    // Handle notification tap when app is in background/terminated
+    // Handle notification tap while app was in background
     FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationOpen);
+
+    // Handle notification tap that launched the app from terminated state.
+    // onMessageOpenedApp does NOT fire for this case — only getInitialMessage does.
+    // init() is called before runApp(), so defer navigation one frame.
+    final initialMessage = await _messaging.getInitialMessage();
+    if (initialMessage != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(_navigateBasedOnData(initialMessage.data));
+      });
+    }
+
+    // Re-save the FCM token whenever it rotates (reinstall, clear data, etc.).
+    // Without this, push silently breaks for users whose token has changed.
+    _messaging.onTokenRefresh.listen(_onTokenRefresh);
+  }
+
+  Future<void> _onTokenRefresh(String newToken) async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    final deviceId = prefs.getString('device_id');
+    if (deviceId != null) {
+      await savePushToken(user.uid, newToken, deviceId);
+    }
   }
 
   void _onNotificationTapped(NotificationResponse response) {
@@ -405,7 +435,10 @@ class NotificationService {
       );
 
       try {
-        final sessionDoc = await _firestore.collection('sessions').doc(sessionId).get();
+        final sessionDoc = await _firestore
+            .collection('sessions')
+            .doc(sessionId)
+            .get();
         final sessionData = sessionDoc.data();
         if (sessionDoc.exists && sessionData != null) {
           location = AppRouteLocations.sessionEntry(
@@ -622,22 +655,27 @@ class NotificationService {
     required NotificationType type,
     required String recipientId,
     Map<String, dynamic>? data,
+    bool rethrowOnFailure = false,
   }) async {
     try {
       final currentUser = _auth.currentUser;
       if (currentUser == null) {
-        debugPrint(
-          '[NotificationService] Skipping push delivery because no authenticated user is available.',
-        );
+        const error =
+            'No authenticated user is available for notification delivery.';
+        if (rethrowOnFailure) throw StateError(error);
+        debugPrint('[NotificationService] $error');
         return;
       }
 
       final idToken = await currentUser.getIdToken();
-      final appCheckToken = await FirebaseAppCheck.instance.getToken(false);
+      // true = fetch a fresh token if no valid cached one exists.
+      // false would return null on the first call of a session.
+      final appCheckToken = await FirebaseAppCheck.instance.getToken(true);
       if (appCheckToken == null || appCheckToken.isEmpty) {
-        debugPrint(
-          '[NotificationService] Skipping push delivery because no App Check token is available.',
-        );
+        const error =
+            'No App Check token is available for notification delivery.';
+        if (rethrowOnFailure) throw StateError(error);
+        debugPrint('[NotificationService] $error');
         return;
       }
 
@@ -656,13 +694,15 @@ class NotificationService {
       );
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        debugPrint(
-          '[NotificationService] Push delivery failed '
-          '(${response.statusCode}): ${response.body}',
+        final error = StateError(
+          'Notification delivery failed (${response.statusCode}): ${response.body}',
         );
+        if (rethrowOnFailure) throw error;
+        debugPrint('[NotificationService] $error');
       }
     } catch (e) {
       debugPrint('[NotificationService] Error delivering push: $e');
+      if (rethrowOnFailure) rethrow;
     }
   }
 
@@ -715,6 +755,7 @@ class NotificationService {
       case NotificationType.voiceNote:
         return preferences.voiceNotes;
       case NotificationType.followRequest:
+      case NotificationType.newFollower:
         return preferences.followRequests;
       case NotificationType.followAccepted:
         return preferences.followAccepted;
@@ -751,34 +792,6 @@ class NotificationService {
     int groupSize = 0,
     String? otherParticipantNames,
   }) async {
-    final shouldSend = await shouldSendNotification(
-      recipientId,
-      NotificationType.sessionInvite,
-    );
-    if (!shouldSend) return;
-
-    // Build message with group context if applicable
-    String message;
-    final otherCount = groupSize > 0
-        ? groupSize - 2
-        : 0; // -1 for self, -1 for host
-
-    if (groupSize > 2 &&
-        otherParticipantNames != null &&
-        otherParticipantNames.isNotEmpty) {
-      // "Host invited you to a Type session with A, B and X others"
-      message =
-          '$inviterName invited you to a $sessionType session with $otherParticipantNames';
-      if (otherCount > 0) {
-        message += ' and $otherCount others';
-      }
-    } else if (groupSize > 2) {
-      message =
-          '$inviterName invited you to a $sessionType session with ${groupSize - 1} others';
-    } else {
-      message = '$inviterName invited you to a $sessionType session!';
-    }
-
     final data = sessionInvitePayload(
       sessionId: sessionId,
       hostId: hostId ?? '',
@@ -787,20 +800,28 @@ class NotificationService {
       expiresAt: expiresAt ?? DateTime.now().add(pairedInviteTimeout),
     )..['groupSize'] = groupSize;
 
-    await Future.wait([
-      createNotification(
-        userId: recipientId,
-        type: NotificationType.sessionInvite,
-        title: 'Session Invite',
-        message: message,
-        data: data,
-      ),
-      _deliverPushNotification(
-        type: NotificationType.sessionInvite,
-        recipientId: recipientId,
-        data: data,
-      ),
-    ]);
+    // Write to Firestore directly so the SessionInviteListener picks it up
+    // immediately regardless of App Check / push availability.
+    // Uses deterministic doc ID matching the Cloud Function to avoid duplicates.
+    await _userNotificationsRef(recipientId)
+        .doc('session_invite_$sessionId')
+        .set({
+          'userId': recipientId,
+          'type': NotificationType.sessionInvite.value,
+          'title': 'Session Invite',
+          'message': '$inviterName invited you to a $sessionType session!',
+          'data': data,
+          'read': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
+    // Best-effort push — fails silently if App Check token is unavailable.
+    await _deliverPushNotification(
+      type: NotificationType.sessionInvite,
+      recipientId: recipientId,
+      data: data,
+      rethrowOnFailure: false,
+    );
   }
 
   /// Notify user when it's their turn in a multi-participant session.
@@ -874,6 +895,36 @@ class NotificationService {
         data: data,
       ),
     );
+  }
+
+  /// Notify user of follow request.
+  Future<void> notifyNewFollower({
+    required String recipientId,
+    required String followerId,
+    required String followerName,
+  }) async {
+    final shouldSend = await shouldSendNotification(
+      recipientId,
+      NotificationType.newFollower,
+    );
+    if (!shouldSend) return;
+
+    final data = {'fromUserId': followerId, 'byUserName': followerName};
+
+    await Future.wait([
+      createNotification(
+        userId: recipientId,
+        type: NotificationType.newFollower,
+        title: 'New Follower',
+        message: '$followerName started following you',
+        data: data,
+      ),
+      _deliverPushNotification(
+        type: NotificationType.newFollower,
+        recipientId: recipientId,
+        data: data,
+      ),
+    ]);
   }
 
   /// Notify user of follow request.
@@ -1282,7 +1333,14 @@ Future<String> getDeviceId() async {
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  debugPrint('[FCM] Background message: ${message.messageId}');
+  // Background isolate: Firebase must be re-initialised before any Firebase call.
+  await Firebase.initializeApp();
+  debugPrint('[FCM] Background message received: ${message.messageId} type=${message.data['type']}');
+  // Data-only messages (no notification field) arrive here.
+  // Notification-field messages are shown automatically by the OS; we only
+  // need to handle side-effects here (e.g. badge counts, local DB updates).
+  // Nothing to do currently — the Firestore notification doc is already
+  // written by the Cloud Function before the push is dispatched.
 }
 
 /// Notification service provider.

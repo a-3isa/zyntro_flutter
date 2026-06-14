@@ -79,6 +79,29 @@ async function pruneInvalidTokens(recipientId, devices, responses) {
   }
 }
 
+async function persistRecipientNotification(recipientId, type, payload) {
+  const notifications = db
+    .collection("users")
+    .doc(recipientId)
+    .collection("notifications");
+  const notificationRef =
+    type === "session_invite" && payload.data.sessionId
+      ? notifications.doc(`session_invite_${payload.data.sessionId}`)
+      : notifications.doc();
+
+  await notificationRef.set({
+    userId: recipientId,
+    type,
+    title: payload.title,
+    message: payload.body,
+    data: payload.data,
+    read: false,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  return notificationRef.id;
+}
+
 async function buildSessionInvitePayload(callerId, recipientId, data) {
   const sessionId = requireString(data.sessionId, "data.sessionId");
   const sessionDoc = await db.collection("sessions").doc(sessionId).get();
@@ -107,7 +130,15 @@ async function buildSessionInvitePayload(callerId, recipientId, data) {
     data: {
       type: "session_invite",
       sessionId,
+      hostId: callerId,
+      hostName: inviterName,
+      byUserName: inviterName,
       sessionType,
+      expiresAt:
+        session.inviteExpiresAt && typeof session.inviteExpiresAt.toDate === "function"
+          ? session.inviteExpiresAt.toDate().toISOString()
+          : data.expiresAt,
+      context: "one_to_one",
     },
   };
 }
@@ -191,6 +222,25 @@ async function buildFollowRequestPayload(callerId, recipientId) {
       type: "follow_request",
       fromUserId: callerId,
       byUserName: requesterName,
+    },
+  };
+}
+
+async function buildNewFollowerPayload(callerId, recipientId) {
+  const followDoc = await db.collection("follows").doc(followDocId(callerId, recipientId)).get();
+
+  if (!followDoc.exists || followDoc.data().status !== "approved") {
+    throw new HttpsError("failed-precondition", "No approved follow was found.");
+  }
+
+  const followerName = await getUserDisplayName(callerId);
+  return {
+    title: "New Follower",
+    body: `${followerName} started following you`,
+    data: {
+      type: "new_follower",
+      fromUserId: callerId,
+      byUserName: followerName,
     },
   };
 }
@@ -303,6 +353,8 @@ async function buildPushPayload(type, callerId, recipientId, data) {
       return buildTurnChangePayload(callerId, recipientId, data);
     case "voice_note":
       return buildVoiceNotePayload(callerId, recipientId, data);
+    case "new_follower":
+      return buildNewFollowerPayload(callerId, recipientId);
     case "follow_request":
       return buildFollowRequestPayload(callerId, recipientId);
     case "follow_accepted":
@@ -369,7 +421,7 @@ function getPayloadData(body) {
   return {};
 }
 
-exports.deliverNotificationPush = onRequest(async (req, res) => {
+exports.deliverNotificationPush = onRequest({ invoker: "public" }, async (req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Firebase-AppCheck");
   res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -392,11 +444,20 @@ exports.deliverNotificationPush = onRequest(async (req, res) => {
     const payloadData = getPayloadData(req.body);
 
     const payload = await buildPushPayload(type, callerId, recipientId, payloadData);
+    const notificationId = await persistRecipientNotification(
+      recipientId,
+      type,
+      payload,
+    );
     const devices = await getRecipientDevices(recipientId);
 
     if (devices.length === 0) {
       logger.info("No device tokens found for recipient.", { recipientId, type });
-      res.status(200).json({ delivered: 0, skipped: true });
+      res.status(200).json({
+        notificationId,
+        delivered: 0,
+        skipped: true,
+      });
       return;
     }
 
@@ -420,6 +481,7 @@ exports.deliverNotificationPush = onRequest(async (req, res) => {
     });
 
     res.status(200).json({
+      notificationId,
       delivered: response.successCount,
       failed: response.failureCount,
     });

@@ -79,6 +79,7 @@ void main() {
       return Stream<AuthUserModel?>.value(cachedUser);
     });
     when(() => localDataSource.cacheUser(cachedUser)).thenAnswer((_) async {});
+    when(() => remoteDataSource.hasCurrentUser).thenReturn(true);
 
     final emitted = await repository.authStateChanges().first;
 

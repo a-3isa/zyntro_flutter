@@ -7,6 +7,7 @@ void main() {
       const cases = <NotificationType, String>{
         NotificationType.sessionInvite: 'session_invite',
         NotificationType.voiceNote: 'voice_note',
+        NotificationType.newFollower: 'new_follower',
         NotificationType.followRequest: 'follow_request',
         NotificationType.followAccepted: 'follow_accepted',
         NotificationType.buddyInvite: 'buddy_invite',
@@ -65,7 +66,10 @@ void main() {
         pushEnabled: true,
       );
 
-      expect(NotificationPreferences.fromMap(prefs.toMap()).toMap(), prefs.toMap());
+      expect(
+        NotificationPreferences.fromMap(prefs.toMap()).toMap(),
+        prefs.toMap(),
+      );
     });
   });
 

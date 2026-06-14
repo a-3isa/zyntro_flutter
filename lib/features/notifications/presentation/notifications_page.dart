@@ -15,8 +15,8 @@ import '../../../utils/haptic_manager.dart';
 
 final _notifFollowStatusProvider =
     FutureProvider.family<FollowStatus?, (String, String)>((ref, ids) async {
-  return ref.read(followServiceProvider).getFollowStatus(ids.$1, ids.$2);
-});
+      return ref.read(followServiceProvider).getFollowStatus(ids.$1, ids.$2);
+    });
 
 /// Notifications page showing all user notifications grouped by date.
 class NotificationsPage extends ConsumerStatefulWidget {
@@ -31,7 +31,9 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     String sessionId, {
     required String fallbackType,
   }) async {
-    final session = await ref.read(sessionServiceProvider).getSession(sessionId);
+    final session = await ref
+        .read(sessionServiceProvider)
+        .getSession(sessionId);
     if (!mounted) return;
 
     final location = session == null
@@ -424,12 +426,16 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                     ),
                   ),
                   if (notification.type == NotificationType.followRequest) ...[
-                    Builder(builder: (_) {
-                      final uid =
-                          ref.read(authSessionProvider).valueOrNull?.id;
-                      if (uid == null) return const SizedBox.shrink();
-                      return _buildFollowRequestActions(notification, uid);
-                    }),
+                    Builder(
+                      builder: (_) {
+                        final uid = ref
+                            .read(authSessionProvider)
+                            .valueOrNull
+                            ?.id;
+                        if (uid == null) return const SizedBox.shrink();
+                        return _buildFollowRequestActions(notification, uid);
+                      },
+                    ),
                   ],
                 ],
               ),
@@ -477,11 +483,13 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     final isAlreadyFollowing =
         followStatusAsync.valueOrNull == FollowStatus.approved;
 
-    final isPrivate = ref.watch(authUserProfileProvider).when(
-      data: (p) => p?.isPrivate ?? false,
-      loading: () => false,
-      error: (_, _) => false,
-    );
+    final isPrivate = ref
+        .watch(authUserProfileProvider)
+        .when(
+          data: (p) => p?.isPrivate ?? false,
+          loading: () => false,
+          error: (_, _) => false,
+        );
 
     return Padding(
       padding: const EdgeInsets.only(top: 8),
@@ -493,18 +501,18 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
               label: 'Follow back',
               filled: true,
               onPressed: () async {
-                await ref.read(followServiceProvider).followUser(
-                  followerId: currentUserId,
-                  followeeId: fromUserId,
-                  isPrivate: false,
-                );
+                await ref
+                    .read(followServiceProvider)
+                    .followUser(
+                      followerId: currentUserId,
+                      followeeId: fromUserId,
+                      isPrivate: false,
+                    );
                 await ref
                     .read(notificationServiceProvider)
-                    .updateNotificationData(
-                      notification.id,
-                      currentUserId,
-                      {'actionTaken': 'followedBack'},
-                    );
+                    .updateNotificationData(notification.id, currentUserId, {
+                      'actionTaken': 'followedBack',
+                    });
                 ref.invalidate(
                   _notifFollowStatusProvider((currentUserId, fromUserId)),
                 );
@@ -515,34 +523,28 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
               label: 'Accept',
               filled: false,
               onPressed: () async {
-                await ref.read(followServiceProvider).acceptFollowRequest(
-                  fromUserId,
-                  currentUserId,
-                );
+                await ref
+                    .read(followServiceProvider)
+                    .acceptFollowRequest(fromUserId, currentUserId);
                 await ref
                     .read(notificationServiceProvider)
-                    .updateNotificationData(
-                      notification.id,
-                      currentUserId,
-                      {'actionTaken': 'accepted'},
-                    );
+                    .updateNotificationData(notification.id, currentUserId, {
+                      'actionTaken': 'accepted',
+                    });
               },
             ),
             _notifActionButton(
               label: 'Decline',
               filled: false,
               onPressed: () async {
-                await ref.read(followServiceProvider).declineFollowRequest(
-                  fromUserId,
-                  currentUserId,
-                );
+                await ref
+                    .read(followServiceProvider)
+                    .declineFollowRequest(fromUserId, currentUserId);
                 await ref
                     .read(notificationServiceProvider)
-                    .updateNotificationData(
-                      notification.id,
-                      currentUserId,
-                      {'actionTaken': 'declined'},
-                    );
+                    .updateNotificationData(notification.id, currentUserId, {
+                      'actionTaken': 'declined',
+                    });
               },
             ),
           ],
@@ -613,10 +615,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         final sessionType =
             data?['sessionType'] as String? ?? WorkoutType.gym.value;
         if (sessionId != null) {
-          await _openSessionNotification(
-            sessionId,
-            fallbackType: sessionType,
-          );
+          await _openSessionNotification(sessionId, fallbackType: sessionType);
         }
         break;
 
@@ -625,13 +624,11 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         final sessionType =
             data?['sessionType'] as String? ?? WorkoutType.gym.value;
         if (sessionId != null) {
-          await _openSessionNotification(
-            sessionId,
-            fallbackType: sessionType,
-          );
+          await _openSessionNotification(sessionId, fallbackType: sessionType);
         }
         break;
 
+      case NotificationType.newFollower:
       case NotificationType.followRequest:
         final fromUserId = data?['fromUserId'] as String?;
         if (fromUserId != null) {
@@ -687,10 +684,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         final sessionType =
             data?['sessionType'] as String? ?? WorkoutType.gym.value;
         if (sessionId != null) {
-          await _openSessionNotification(
-            sessionId,
-            fallbackType: sessionType,
-          );
+          await _openSessionNotification(sessionId, fallbackType: sessionType);
         }
         break;
     }
@@ -704,6 +698,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         return Icons.fitness_center_rounded;
       case NotificationType.voiceNote:
         return Icons.mic_rounded;
+      case NotificationType.newFollower:
+        return Icons.person_add_alt_1_rounded;
       case NotificationType.followRequest:
         return Icons.person_add_rounded;
       case NotificationType.followAccepted:
@@ -737,6 +733,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         return AppColors.userAccent;
       case NotificationType.voiceNote:
         return AppColors.secondary;
+      case NotificationType.newFollower:
+        return AppColors.userAccent;
       case NotificationType.followRequest:
       case NotificationType.buddyInvite:
         return Colors.blue;

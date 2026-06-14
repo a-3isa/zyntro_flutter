@@ -31,6 +31,17 @@ void main() {
       expect(rules, contains('isNotBlockedPair'));
     });
 
+    test('pending invitees can read only the session that names them', () {
+      expect(rules, contains('isPendingSessionInvitee'));
+      expect(
+        rules,
+        contains(
+          'hasParticipant(resource.data.participants, request.auth.uid) ||\n        isPendingSessionInvitee(resource.data, request.auth.uid)',
+        ),
+      );
+      expect(rules, contains('isPendingSessionInviteeById'));
+    });
+
     test('define invite code rules for buddy onboarding flow', () {
       expect(rules, contains('match /inviteCodes/{inviteCode}'));
     });
@@ -117,13 +128,15 @@ void main() {
         expect(
           rules,
           contains(
-              'match /users/{userId}/personalExercises/{personalExerciseId}'),
+            'match /users/{userId}/personalExercises/{personalExerciseId}',
+          ),
         );
       });
 
       test('personal exercises are guarded by isOwner(userId)', () {
         final idx = rules.indexOf(
-            'match /users/{userId}/personalExercises/{personalExerciseId}');
+          'match /users/{userId}/personalExercises/{personalExerciseId}',
+        );
         expect(idx, isNonNegative);
         expect(rules.substring(idx), contains('isOwner(userId)'));
       });
@@ -141,8 +154,9 @@ void main() {
       });
 
       test('review submission create requires submittedBy == auth.uid', () {
-        final idx =
-            rules.indexOf('match /exerciseReviewSubmissions/{submissionId}');
+        final idx = rules.indexOf(
+          'match /exerciseReviewSubmissions/{submissionId}',
+        );
         expect(idx, isNonNegative);
         expect(
           rules.substring(idx),
@@ -151,20 +165,19 @@ void main() {
       });
 
       test('review submission update is restricted to isModerator', () {
-        final idx =
-            rules.indexOf('match /exerciseReviewSubmissions/{submissionId}');
+        final idx = rules.indexOf(
+          'match /exerciseReviewSubmissions/{submissionId}',
+        );
         expect(idx, isNonNegative);
         expect(rules.substring(idx), contains('isModerator()'));
       });
 
       test('review submission delete is denied', () {
-        final idx =
-            rules.indexOf('match /exerciseReviewSubmissions/{submissionId}');
-        expect(idx, isNonNegative);
-        expect(
-          rules.substring(idx),
-          contains('allow delete: if false'),
+        final idx = rules.indexOf(
+          'match /exerciseReviewSubmissions/{submissionId}',
         );
+        expect(idx, isNonNegative);
+        expect(rules.substring(idx), contains('allow delete: if false'));
       });
     });
   });
