@@ -16,8 +16,10 @@ import 'utils/offline_handlers.dart';
 import 'services/notification_service.dart';
 import 'services/storage_service.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
 import 'utils/global_error_handler.dart';
 import 'widgets/error_boundary_widget.dart';
+import 'services/feed_cache_service.dart';
 
 const _appCheckDebugChannelName = 'zyntro/debug';
 const _appCheckDebugSecretMethodName = 'getAppCheckDebugSecret';
@@ -66,7 +68,10 @@ void main() async {
   // Register FCM background message handler
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
-  final container = ProviderContainer();
+  final sharedPrefs = await SharedPreferences.getInstance();
+  final container = ProviderContainer(
+    overrides: [sharedPreferencesProvider.overrideWithValue(sharedPrefs)],
+  );
 
   // Initialize notification service
   try {

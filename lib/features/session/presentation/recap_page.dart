@@ -521,6 +521,41 @@ class _RecapPageState extends ConsumerState<RecapPage> {
                         children: [
                           _DoneHeader(),
                           const SizedBox(height: 10),
+                          // T024: offline banner — shown when device has no network.
+                          Builder(builder: (ctx) {
+                            final isOnline = ref
+                                .watch(connectivityProvider)
+                                .valueOrNull ?? true;
+                            if (isOnline) return const SizedBox.shrink();
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: AppColors.surfaceV2,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                    color: AppColors.textV2Secondary
+                                        .withValues(alpha: 0.3)),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.cloud_off_outlined,
+                                      size: 16,
+                                      color: AppColors.textV2Secondary),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Saved locally — your workout will post when you\'re back online',
+                                      style: AppTextStyles.caption.copyWith(
+                                        color: AppColors.textV2Secondary,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }),
                           Row(
                             children: [
                               Text(

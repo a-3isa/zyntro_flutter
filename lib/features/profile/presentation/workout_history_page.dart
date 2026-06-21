@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../auth/auth_providers.dart';
 import '../../../utils/haptic_manager.dart';
+import '../../../services/profile_cache_service.dart';
 
 class Workout {
   final String id;
@@ -69,12 +70,27 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
   String _selectedFilter = 'All';
   late PageController _pageController;
   int _currentCarouselIndex = 0;
+  bool _fromCache = false;
 
   @override
   void initState() {
     super.initState();
     _pageController = PageController(viewportFraction: 0.9);
+    _seedFromCache();
     _loadWorkouts();
+  }
+
+  // T037: seed from cache immediately so offline users see data while network loads.
+  void _seedFromCache() {
+    final authState = ref.read(authSessionProvider);
+    final userId = widget.userId ?? authState.valueOrNull?.id;
+    if (userId == null) return;
+    final cached = ref.read(profileCacheServiceProvider).readWorkoutHistory(userId);
+    if (cached.isNotEmpty && _workouts.isEmpty) {
+      _workouts.addAll(cached.map(_workoutFromMap));
+      _fromCache = true;
+      _isLoading = false;
+    }
   }
 
   @override
@@ -88,7 +104,8 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
     final userId = widget.userId ?? authState.valueOrNull?.id;
     if (userId == null) return;
 
-    setState(() => _isLoading = true);
+    // Only show spinner if no cached data is already showing.
+    if (_workouts.isEmpty) setState(() => _isLoading = true);
 
     try {
       final firestore = ref.read(authFirestoreProvider);
@@ -109,8 +126,22 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
       final snapshot = await query.get();
       final workouts = snapshot.docs.map((doc) => Workout.fromFirestore(doc)).toList();
 
+      // T037: write fresh data to cache.
+      if (workouts.isNotEmpty && _lastDoc == null) {
+        ref.read(profileCacheServiceProvider)
+            .writeWorkoutHistory(userId, workouts.map(_workoutToMap).toList());
+      }
+
       setState(() {
-        _workouts.addAll(workouts);
+        if (_fromCache) {
+          // Replace stale cache data with fresh Firestore data.
+          _workouts
+            ..clear()
+            ..addAll(workouts);
+          _fromCache = false;
+        } else {
+          _workouts.addAll(workouts);
+        }
         _lastDoc = snapshot.docs.isNotEmpty ? snapshot.docs.last : null;
         _hasMore = snapshot.docs.length == 20;
         _isLoading = false;
@@ -120,6 +151,30 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
       setState(() => _isLoading = false);
     }
   }
+
+  Map<String, dynamic> _workoutToMap(Workout w) => {
+        'id': w.id,
+        'userId': w.userId,
+        'sessionId': w.sessionId,
+        'type': w.type,
+        'title': w.title,
+        'summary': w.summary,
+        'participants': w.participants,
+        'endedAt': w.endedAt.toIso8601String(),
+        'createdAt': w.createdAt.toIso8601String(),
+      };
+
+  Workout _workoutFromMap(Map<String, dynamic> m) => Workout(
+        id: m['id'] as String,
+        userId: m['userId'] as String,
+        sessionId: m['sessionId'] as String,
+        type: m['type'] as String,
+        title: m['title'] as String,
+        summary: m['summary'] as Map<String, dynamic>?,
+        participants: (m['participants'] as List<dynamic>?)?.cast<String>() ?? [],
+        endedAt: DateTime.parse(m['endedAt'] as String),
+        createdAt: DateTime.parse(m['createdAt'] as String),
+      );
 
   Future<void> _refresh() async {
     _workouts.clear();

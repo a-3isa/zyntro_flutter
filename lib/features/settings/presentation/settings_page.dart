@@ -14,7 +14,9 @@ import '../../../widgets/fluttermoji_avatar.dart';
 import '../../auth/presentation/providers/auth_controller.dart';
 import '../../auth/auth_providers.dart';
 import '../../social/presentation/providers/facebook_friends_provider.dart';
+import '../../../services/feed_cache_service.dart';
 import '../../../services/leaderboard_service.dart';
+import '../../../services/profile_cache_service.dart';
 
 /// Settings page — v2 design (true-black + acid-lime palette).
 class SettingsPage extends ConsumerStatefulWidget {
@@ -796,6 +798,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
     if (confirmed == true && mounted) {
       HapticFeedback.heavyImpact();
+      // T040: clear offline caches before signing out.
+      final userId = ref.read(authSessionProvider).valueOrNull?.id;
+      if (userId != null) {
+        await ref.read(feedCacheServiceProvider).clearCache();
+        await ref.read(profileCacheServiceProvider).clearCache(userId);
+      }
       await ref.read(authControllerProvider).signOut();
       if (mounted) {
         router.go(AppRoutes.login);

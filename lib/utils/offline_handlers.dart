@@ -229,7 +229,101 @@ Future<void> registerOfflineHandlers(ProviderContainer container) async {
     }
   });
 
-  // 4. Voice Note Upload
+  // 4. Like Post (T026)
+  offlineManager.registerHandler('like_post', (op) async {
+    final payload = op.payload;
+    final postId = payload['postId'] as String?;
+    final userId = payload['userId'] as String?;
+    final userName = payload['userName'] as String?;
+
+    if (postId == null || postId.isEmpty) {
+      throw ArgumentError('Missing required field: postId');
+    }
+    if (userId == null || userId.isEmpty) {
+      throw ArgumentError('Missing required field: userId');
+    }
+
+    try {
+      await container.read(postServiceProvider).likePost(
+            postId,
+            userId,
+            userName: userName,
+          );
+    } catch (e, stack) {
+      final errorCategory = categorizeError(e);
+      debugPrint(
+        '[OfflineHandlers] Like post failed: $e (category: $errorCategory)',
+      );
+      debugPrint('[OfflineHandlers] Operation ID: ${op.id}');
+      debugPrint('[OfflineHandlers] Stack: $stack');
+      rethrow;
+    }
+  });
+
+  // 5. Unlike Post (T027)
+  offlineManager.registerHandler('unlike_post', (op) async {
+    final payload = op.payload;
+    final postId = payload['postId'] as String?;
+    final userId = payload['userId'] as String?;
+
+    if (postId == null || postId.isEmpty) {
+      throw ArgumentError('Missing required field: postId');
+    }
+    if (userId == null || userId.isEmpty) {
+      throw ArgumentError('Missing required field: userId');
+    }
+
+    try {
+      await container.read(postServiceProvider).unlikePost(postId, userId);
+    } catch (e, stack) {
+      final errorCategory = categorizeError(e);
+      debugPrint(
+        '[OfflineHandlers] Unlike post failed: $e (category: $errorCategory)',
+      );
+      debugPrint('[OfflineHandlers] Operation ID: ${op.id}');
+      debugPrint('[OfflineHandlers] Stack: $stack');
+      rethrow;
+    }
+  });
+
+  // 6. Add Comment (T028)
+  offlineManager.registerHandler('add_comment', (op) async {
+    final payload = op.payload;
+    final postId = payload['postId'] as String?;
+    final userId = payload['userId'] as String?;
+    final userName = payload['userName'] as String?;
+    final text = payload['text'] as String?;
+
+    if (postId == null || postId.isEmpty) {
+      throw ArgumentError('Missing required field: postId');
+    }
+    if (userId == null || userId.isEmpty) {
+      throw ArgumentError('Missing required field: userId');
+    }
+    if (text == null || text.isEmpty) {
+      throw ArgumentError('Missing required field: text');
+    }
+
+    try {
+      await container.read(postServiceProvider).addComment( // ignore: deprecated_member_use
+            postId: postId,
+            userId: userId,
+            userName: userName ?? 'Unknown',
+            userPhotoURL: payload['userPhotoURL'] as String?,
+            text: text,
+          );
+    } catch (e, stack) {
+      final errorCategory = categorizeError(e);
+      debugPrint(
+        '[OfflineHandlers] Add comment failed: $e (category: $errorCategory)',
+      );
+      debugPrint('[OfflineHandlers] Operation ID: ${op.id}');
+      debugPrint('[OfflineHandlers] Stack: $stack');
+      rethrow;
+    }
+  });
+
+  // 7. Voice Note Upload
   offlineManager.registerHandler('voice_note_upload', (op) async {
     final payload = op.payload;
     final String localPath = payload['filePath'];

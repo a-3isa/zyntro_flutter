@@ -1,9 +1,11 @@
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 import '../core/data/gym_exercises.dart';
@@ -307,8 +309,14 @@ class ExerciseCatalogService {
           .collection('personalExercises')
           .get();
 
-      for (final doc in personalSnap.docs) {
-        final entry = PersonalExerciseEntry.fromMap(doc.id, doc.data());
+      final personalEntries = personalSnap.docs
+          .map((doc) => PersonalExerciseEntry.fromMap(doc.id, doc.data()))
+          .toList();
+
+      // T038: persist personal exercises to cache for offline fallback.
+      await _cachePersonalExercises(userId, personalEntries);
+
+      for (final entry in personalEntries) {
         if (_entryMatchesQuery(
             entry.normalizedName, entry.searchTokens, normalized)) {
           results.add(ExercisePickerResult(
@@ -324,7 +332,21 @@ class ExerciseCatalogService {
       // T048/T049: error log + fallback trigger telemetry.
       debugPrint('[ExerciseCatalogService] search error ($e); '
           'activating local-catalog fallback.');
+      // T038: merge cached personal exercises with static catalog fallback.
       results = _fallbackSearch(normalized);
+      final cachedPersonal = await _readPersonalExercisesCache(userId);
+      for (final entry in cachedPersonal) {
+        if (_entryMatchesQuery(
+            entry.normalizedName, entry.searchTokens, normalized)) {
+          results.add(ExercisePickerResult(
+            id: entry.id,
+            source: ExerciseResultSource.custom,
+            name: entry.name,
+            muscleGroup: entry.muscleGroup,
+            equipment: entry.equipment,
+          ));
+        }
+      }
       FirebaseAnalytics.instance.logEvent(
         name: 'exercise_catalog_fallback_used',
       );
@@ -447,9 +469,71 @@ class ExerciseCatalogService {
         )
         .toList();
   }
+
+  // ── T038: personal exercises offline cache ──────────────────────────────────
+
+  static String _personalCacheKey(String userId) =>
+      'zyntro_personal_exercises_$userId';
+
+  Future<void> _cachePersonalExercises(
+      String userId, List<PersonalExerciseEntry> entries) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final data = entries
+          .map((e) => {
+                'id': e.id,
+                ...e.toMap()..remove('createdAt'),
+                'createdAt': e.createdAt.toIso8601String(),
+              })
+          .toList();
+      await prefs.setString(_personalCacheKey(userId), jsonEncode(data));
+    } catch (e) {
+      debugPrint('[ExerciseCatalogService] Failed to cache personal exercises: $e');
+    }
+  }
+
+  Future<List<PersonalExerciseEntry>> _readPersonalExercisesCache(
+      String userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_personalCacheKey(userId));
+      if (raw == null) return [];
+      final list = jsonDecode(raw) as List<dynamic>;
+      return list.map((m) {
+        final map = Map<String, dynamic>.from(m as Map);
+        final id = map.remove('id') as String? ?? '';
+        // createdAt is stored as ISO string, not Timestamp.
+        if (map['createdAt'] is String) {
+          map['createdAt'] = DateTime.parse(map['createdAt'] as String);
+        }
+        return PersonalExerciseEntry(
+          id: id,
+          userId: map['userId'] as String? ?? userId,
+          name: map['name'] as String? ?? '',
+          normalizedName: map['normalizedName'] as String? ?? '',
+          searchTokens: (map['searchTokens'] as List<dynamic>?)
+                  ?.cast<String>() ??
+              [],
+          muscleGroup: map['muscleGroup'] as String?,
+          equipment: map['equipment'] as String?,
+          reviewStatus: map['reviewStatus'] as String? ?? 'not_submitted',
+          createdAt: map['createdAt'] is DateTime
+              ? map['createdAt'] as DateTime
+              : DateTime.now(),
+        );
+      }).toList();
+    } catch (e) {
+      debugPrint('[ExerciseCatalogService] Failed to read personal exercise cache: $e');
+      return [];
+    }
+  }
+
+  Future<void> clearPersonalExercisesCache(String userId) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_personalCacheKey(userId));
+  }
 }
 
-// ---------------------------------------------------------------------------
 // Provider
 // ---------------------------------------------------------------------------
 

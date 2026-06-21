@@ -16,6 +16,7 @@ import '../../auth/domain/entities/user_profile_entity.dart';
 import '../../auth/presentation/providers/auth_controller.dart';
 import '../../../services/post_service.dart';
 import '../../../services/moderation_service.dart';
+import '../../../utils/offline_manager.dart';
 import '../../../widgets/reaction_buttons.dart';
 import '../../../widgets/photo_viewer_page.dart';
 import '../../moderation/presentation/report_dialog.dart';
@@ -35,6 +36,8 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
   bool _isLoading = true;
   bool _isSubmitting = false;
   Post? _post;
+  // T031: optimistic pending comments shown while offline.
+  final List<Comment> _pendingComments = [];
   UserProfileEntity? _author;
   ReactionType? _currentReaction;
   Map<ReactionType, int> _reactionCounts = {};
@@ -168,6 +171,32 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
 
     final user = await ref.read(authControllerProvider).getUserProfile(uid);
     if (user == null) return;
+
+    // T031: if offline, queue and show pending optimistically.
+    final offlineManager = ref.read(offlineManagerProvider);
+    if (!offlineManager.isOnline) {
+      final text = _commentController.text.trim();
+      _commentController.clear();
+      if (mounted) FocusScope.of(context).unfocus();
+      final pending = Comment(
+        id: 'pending_${DateTime.now().millisecondsSinceEpoch}',
+        authorId: uid,
+        authorName: user.displayName,
+        authorPhotoURL: user.photoUrl,
+        text: text,
+        createdAt: DateTime.now(),
+        isPending: true,
+      );
+      await offlineManager.queueOperation('add_comment', {
+        'postId': _post!.id,
+        'userId': uid,
+        'userName': user.displayName,
+        'userPhotoURL': user.photoUrl,
+        'text': text,
+      });
+      if (mounted) setState(() => _pendingComments.add(pending));
+      return;
+    }
 
     setState(() => _isSubmitting = true);
 
@@ -784,14 +813,16 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
           final filtered = comments
               .where((c) => !blockedUserIds.contains(c.authorId))
               .toList();
-          if (filtered.isEmpty) {
+          // T031/T032: append pending (offline) comments at the bottom.
+          final all = [...filtered, ..._pendingComments];
+          if (all.isEmpty) {
             return const Text(
               'No comments yet. Be the first!',
               style: TextStyle(color: AppColors.textV2Secondary),
             );
           }
           return Column(
-            children: filtered.map((c) => _buildCommentTile(c)).toList(),
+            children: all.map((c) => _buildCommentTile(c)).toList(),
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -906,6 +937,25 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                   ],
                 ),
                 Text(comment.text),
+                // T032: pending badge for offline-queued comments.
+                if (comment.isPending)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.cloud_upload_outlined,
+                            size: 12, color: AppColors.textV2Tertiary),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Pending sync',
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.textV2Tertiary,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
               ],
             ),
           ),

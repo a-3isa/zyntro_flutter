@@ -54,6 +54,21 @@ class QueuedOperation {
   }
 }
 
+/// Emitted when an operation permanently fails after max retries.
+class FailedSyncEvent {
+  final String operationType;
+  final String operationId;
+  final int retryCount;
+  final DateTime timestamp;
+
+  FailedSyncEvent({
+    required this.operationType,
+    required this.operationId,
+    required this.retryCount,
+    required this.timestamp,
+  });
+}
+
 /// Handler for processing queued operations.
 typedef OperationHandler = Future<void> Function(QueuedOperation operation);
 
@@ -67,7 +82,7 @@ typedef BatchOperationHandler =
 class OfflineManager {
   static const String _queueKey = 'zyntro_offline_queue';
   static const String _failedOpsKey = 'zyntro_failed_operations';
-  static const int _maxRetries = 5;
+  static const int _maxRetries = 3;
   static const int _batchSize = 10;
 
   final Connectivity _connectivity = Connectivity();
@@ -93,6 +108,14 @@ class OfflineManager {
   final StreamController<ConnectionQuality> _connectionQualityController =
       StreamController<ConnectionQuality>.broadcast();
 
+  // Failure notification stream (emitted when an op hits max retries)
+  final StreamController<FailedSyncEvent> _failureNotificationController =
+      StreamController<FailedSyncEvent>.broadcast();
+
+  // Queue count stream (emitted after each queue mutation)
+  final StreamController<int> _queueCountController =
+      StreamController<int>.broadcast();
+
   /// Whether the device is currently online.
   bool get isOnline => _isOnline;
 
@@ -112,6 +135,13 @@ class OfflineManager {
   /// Stream of connectivity status changes.
   Stream<bool> get onConnectivityChanged => _connectivity.onConnectivityChanged
       .map((results) => !results.contains(ConnectivityResult.none));
+
+  /// Stream of permanent sync failures (after max retries exhausted).
+  Stream<FailedSyncEvent> get onSyncFailure =>
+      _failureNotificationController.stream;
+
+  /// Stream of pending queue length, emitted after each queue mutation.
+  Stream<int> get queueCountStream => _queueCountController.stream;
 
   /// Operation types that support batch processing.
   List<String> getBatchableOperationTypes() => ['session_event'];
@@ -137,6 +167,9 @@ class OfflineManager {
       }
     });
 
+    // Register lifecycle observer so processQueue fires on app resume (T015)
+    WidgetsBinding.instance.addObserver(_AppLifecycleObserver(this));
+
     // Process any pending operations if online
     if (_isOnline && !_syncPaused) {
       processQueue();
@@ -148,6 +181,8 @@ class OfflineManager {
     _connectivitySubscription?.cancel();
     _syncProgressController.close();
     _connectionQualityController.close();
+    _failureNotificationController.close();
+    _queueCountController.close();
   }
 
   /// Register a handler for a specific operation type.
@@ -176,6 +211,8 @@ class OfflineManager {
   }
 
   /// Queue an operation for retry.
+  /// When [id] is provided (stable ID), any existing entry with that ID is
+  /// replaced, ensuring idempotent queuing (e.g. offline like/unlike).
   Future<void> queueOperation(
     String type,
     Map<String, dynamic> payload, {
@@ -189,9 +226,16 @@ class OfflineManager {
     );
 
     final prefs = await SharedPreferences.getInstance();
-    final queue = prefs.getStringList(_queueKey) ?? [];
+    var queue = prefs.getStringList(_queueKey) ?? [];
+    if (id != null) {
+      queue = queue.where((s) {
+        final decoded = jsonDecode(s) as Map<String, dynamic>;
+        return decoded['id'] != id;
+      }).toList();
+    }
     queue.add(jsonEncode(operation.toJson()));
     await prefs.setStringList(_queueKey, queue);
+    _queueCountController.add(queue.length);
 
     debugPrint('[OfflineManager] Queued operation: ${operation.type}');
   }
@@ -395,6 +439,12 @@ class OfflineManager {
             debugPrint(
               '[OfflineManager] Max retries exceeded for: ${operation.type}',
             );
+            _failureNotificationController.add(FailedSyncEvent(
+              operationType: operation.type,
+              operationId: operation.id,
+              retryCount: operation.retryCount,
+              timestamp: DateTime.now(),
+            ));
             permanentlyFailed.add(jsonEncode(operation.toJson()));
           }
         }
@@ -413,6 +463,7 @@ class OfflineManager {
 
       // Update queue with failed operations
       await prefs.setStringList(_queueKey, failedOperations);
+      _queueCountController.add(failedOperations.length);
 
       // Store permanently failed operations for user inspection
       if (permanentlyFailed.isNotEmpty) {
@@ -509,6 +560,12 @@ class OfflineManager {
                 if (op.retryCount < _maxRetries) {
                   failedOperations.add(jsonEncode(op.toJson()));
                 } else {
+                  _failureNotificationController.add(FailedSyncEvent(
+                    operationType: op.type,
+                    operationId: op.id,
+                    retryCount: op.retryCount,
+                    timestamp: DateTime.now(),
+                  ));
                   permanentlyFailed.add(jsonEncode(op.toJson()));
                 }
               }
@@ -523,6 +580,12 @@ class OfflineManager {
               if (op.retryCount < _maxRetries) {
                 failedOperations.add(jsonEncode(op.toJson()));
               } else {
+                _failureNotificationController.add(FailedSyncEvent(
+                  operationType: op.type,
+                  operationId: op.id,
+                  retryCount: op.retryCount,
+                  timestamp: DateTime.now(),
+                ));
                 permanentlyFailed.add(jsonEncode(op.toJson()));
               }
             }
@@ -551,6 +614,7 @@ class OfflineManager {
   Future<void> clearQueue() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_queueKey);
+    _queueCountController.add(0);
   }
 
   /// Get count of queued operations.
@@ -582,6 +646,19 @@ class OfflineManager {
         ),
       );
       */
+    }
+  }
+}
+
+/// Triggers processQueue() when the app returns to the foreground (T014).
+class _AppLifecycleObserver extends WidgetsBindingObserver {
+  final OfflineManager _manager;
+  _AppLifecycleObserver(this._manager);
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _manager.isOnline) {
+      _manager.processQueue();
     }
   }
 }
@@ -672,4 +749,14 @@ class SyncStatusNotifier extends ChangeNotifier {
 final syncStatusProvider = ChangeNotifierProvider<SyncStatusNotifier>((ref) {
   final manager = ref.watch(offlineManagerProvider);
   return SyncStatusNotifier(manager);
+});
+
+/// Emits FailedSyncEvent whenever an operation permanently fails (T013).
+final syncFailureProvider = StreamProvider<FailedSyncEvent>((ref) {
+  return ref.watch(offlineManagerProvider).onSyncFailure;
+});
+
+/// Emits the current pending queue length after each mutation (T016).
+final pendingQueueCountProvider = StreamProvider<int>((ref) {
+  return ref.watch(offlineManagerProvider).queueCountStream;
 });

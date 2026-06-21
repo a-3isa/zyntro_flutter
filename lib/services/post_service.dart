@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/models/models.dart';
 import '../core/constants/feature_flags.dart';
 import '../utils/retry_helper.dart';
+import '../utils/offline_manager.dart';
 import '../features/auth/auth_providers.dart';
 import 'notification_service.dart';
 import 'content_filter_service.dart';
@@ -21,6 +22,8 @@ class Comment {
   final String type; // 'text' or 'audio'
   final String? audioUrl;
   final DateTime createdAt;
+  // T031/T032: true when queued offline, not yet synced to Firestore.
+  final bool isPending;
 
   Comment({
     required this.id,
@@ -31,6 +34,7 @@ class Comment {
     this.type = 'text',
     this.audioUrl,
     required this.createdAt,
+    this.isPending = false,
   });
 
   factory Comment.fromFirestore(DocumentSnapshot doc) {
@@ -498,8 +502,16 @@ class PostService {
     unawaited(_notifyPostReaction(postId, userId, userName, type));
   }
 
-  // Deprecated wrapper for backward compatibility
+  // T029: likePost with offline queue fallback. Uses stable ID to deduplicate.
   Future<void> likePost(String postId, String userId, {String? userName}) {
+    final offlineManager = _ref.read(offlineManagerProvider);
+    if (!offlineManager.isOnline) {
+      return offlineManager.queueOperation(
+        'like_post',
+        {'postId': postId, 'userId': userId, if (userName != null) 'userName': userName},
+        id: 'like_${postId}_$userId',
+      );
+    }
     return reactToPost(
       postId,
       userId,
@@ -558,8 +570,16 @@ class PostService {
     await withRetry(() => batch.commit());
   }
 
-  // Deprecated wrapper
+  // T030: unlikePost with offline queue fallback. Uses stable ID to deduplicate.
   Future<void> unlikePost(String postId, String userId) {
+    final offlineManager = _ref.read(offlineManagerProvider);
+    if (!offlineManager.isOnline) {
+      return offlineManager.queueOperation(
+        'unlike_post',
+        {'postId': postId, 'userId': userId},
+        id: 'unlike_${postId}_$userId',
+      );
+    }
     return removeReaction(postId, userId);
   }
 

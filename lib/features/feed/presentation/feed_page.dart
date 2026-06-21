@@ -17,10 +17,11 @@ import '../../../services/follow_service.dart';
 import '../../../services/user_cache_service.dart';
 import '../../../utils/haptic_manager.dart';
 import '../../../utils/image_cache_manager.dart';
-import '../../../widgets/widgets.dart';
 import '../../../widgets/reaction_buttons.dart';
 import '../../moderation/presentation/report_dialog.dart';
 import '../../../services/notification_service.dart';
+import '../../../services/feed_cache_service.dart';
+import '../../../widgets/skeleton_feed.dart';
 
 /// Feed page showing posts with Public and Following tabs.
 class FeedPage extends ConsumerStatefulWidget {
@@ -87,6 +88,7 @@ class _FeedPageState extends ConsumerState<FeedPage>
                     feedKey: 'following',
                     requiresAuth: true,
                     showHeaderWidgets: true,
+                    useCache: true,
                   ),
                   _FeedTab(
                     fetchPosts: (cursor) => ref
@@ -235,12 +237,14 @@ class _FeedTab extends ConsumerStatefulWidget {
   final String feedKey;
   final bool requiresAuth;
   final bool showHeaderWidgets;
+  final bool useCache;
 
   const _FeedTab({
     required this.fetchPosts,
     required this.feedKey,
     this.requiresAuth = false,
     this.showHeaderWidgets = false,
+    this.useCache = false,
   });
 
   @override
@@ -272,6 +276,16 @@ class _FeedTabState extends ConsumerState<_FeedTab>
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+
+    // T020: synchronous cache read so first frame shows content, not skeleton.
+    if (widget.useCache) {
+      final cached = ref.read(feedCacheServiceProvider).readCachePosts();
+      if (cached.isNotEmpty) {
+        _posts.addAll(cached);
+        _isLoading = false;
+      }
+    }
+
     _loadInitial();
   }
 
@@ -325,11 +339,15 @@ class _FeedTabState extends ConsumerState<_FeedTab>
       }
     }
 
+    // T020: only show the spinner when there are no cached posts to display.
+    final hasCached = _posts.isNotEmpty;
     try {
-      setState(() {
-        _isLoading = true;
-        _error = null;
-      });
+      if (!hasCached) {
+        setState(() {
+          _isLoading = true;
+          _error = null;
+        });
+      }
       final result = await widget.fetchPosts(null);
 
       // Batch fetch authors
@@ -338,6 +356,11 @@ class _FeedTabState extends ConsumerState<_FeedTab>
 
       // Fetch reaction data for all posts
       await _fetchReactionData(result.posts);
+
+      // T021: write fresh posts to cache in the background (fire-and-forget).
+      if (widget.useCache && result.posts.isNotEmpty) {
+        ref.read(feedCacheServiceProvider).writeCachePosts(result.posts);
+      }
 
       if (mounted) {
         setState(() {
@@ -399,14 +422,9 @@ class _FeedTabState extends ConsumerState<_FeedTab>
     final blockedUserIdsAsync = ref.watch(blockedUserIdsProvider);
     final blockedUserIds = blockedUserIdsAsync.valueOrNull ?? [];
 
-    if (_isLoading) {
-      // Shimmer loading state
-      return ListView.builder(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        itemCount: 3,
-        itemBuilder: (context, index) =>
-            const PostCardSkeleton(),
-      );
+    if (_isLoading && _posts.isEmpty) {
+      // T020: show skeleton only when there is no cached content to display.
+      return const SkeletonFeedWidget();
     }
 
     if (_error != null) {
@@ -531,9 +549,47 @@ class _FeedTabState extends ConsumerState<_FeedTab>
             itemCount: filteredPosts.length + 1 + (_isLoadingMore ? 1 : 0),
             itemBuilder: (context, index) {
               if (index == 0) {
-                return widget.showHeaderWidgets
-                    ? _buildHeaderWidgets()
-                    : const SizedBox.shrink();
+                // T042: stale amber chip shown when cache is older than TTL.
+                final isStale = widget.useCache &&
+                    ref.read(feedCacheServiceProvider).isStale;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (isStale)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                        child: GestureDetector(
+                          onTap: () {
+                            HapticManager.light();
+                            _refresh();
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.amber.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                  color: Colors.amber.withValues(alpha: 0.5)),
+                            ),
+                            child: Row(children: [
+                              const Icon(Icons.history,
+                                  size: 16, color: Colors.amber),
+                              const SizedBox(width: 8),
+                              const Expanded(
+                                child: Text(
+                                  'Showing cached feed — tap to refresh',
+                                  style: TextStyle(
+                                      color: Colors.amber, fontSize: 13),
+                                ),
+                              ),
+                            ]),
+                          ),
+                        ),
+                      ),
+                    if (widget.showHeaderWidgets) _buildHeaderWidgets(),
+                  ],
+                );
               }
 
               if (index == filteredPosts.length + 1) {

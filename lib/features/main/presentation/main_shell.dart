@@ -17,6 +17,8 @@ import '../../session/presentation/start_session_page.dart'
 import '../../session/presentation/session_invite_listener.dart';
 import '../../social/presentation/social_page.dart';
 import '../../profile/presentation/profile_page.dart';
+import '../../../utils/offline_manager.dart';
+import '../../../widgets/connection_status_widget.dart';
 
 /// Provider to share scroll hide state across the app.
 final navBarVisibleProvider = StateProvider<bool>((ref) => true);
@@ -133,6 +135,16 @@ class _MainShellState extends ConsumerState<MainShell>
   @override
   Widget build(BuildContext context) {
     final isNavBarVisible = ref.watch(navBarVisibleProvider);
+
+    ref.listen<AsyncValue<FailedSyncEvent>>(syncFailureProvider, (_, next) {
+      next.whenData((event) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Sync failed for ${event.operationType} — saved locally'),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 4),
+        ));
+      });
+    });
     final pages = [
       FeedPage(onSocialTap: () => setState(() => _currentIndex = 1)),
       const StartSessionPage(),
@@ -158,6 +170,32 @@ class _MainShellState extends ConsumerState<MainShell>
                 // Pages fill the full screen (each manages its own bottom padding)
                 Positioned.fill(
                   child: IndexedStack(index: _currentIndex, children: pages),
+                ),
+                // T040a/T041: offline/sync status banner at top of screen.
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: SafeArea(
+                    bottom: false,
+                    child: Builder(builder: (_) {
+                      final isOffline =
+                          !(ref.watch(connectivityProvider).valueOrNull ?? true);
+                      final queueCount =
+                          ref.watch(pendingQueueCountProvider).valueOrNull ?? 0;
+                      final syncProgress =
+                          ref.watch(syncProgressProvider).valueOrNull;
+                      final isSyncing = syncProgress != null &&
+                          syncProgress.remaining > 0 &&
+                          !isOffline;
+                      return ConnectionStatusWidget(
+                        isOffline: isOffline,
+                        queueCount: queueCount,
+                        isSyncing: isSyncing,
+                        syncProgress: isSyncing ? syncProgress : null,
+                      );
+                    }),
+                  ),
                 ),
                 // Floating nav overlaid at the bottom
                 Positioned(

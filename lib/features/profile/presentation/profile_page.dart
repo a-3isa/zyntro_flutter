@@ -19,6 +19,8 @@ import '../../../services/session_service.dart';
 import '../../moderation/presentation/report_dialog.dart';
 import '../../auth/auth_providers.dart';
 import '../../../services/leaderboard_service.dart';
+import '../../../services/profile_cache_service.dart';
+import '../../../utils/offline_manager.dart';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -174,6 +176,8 @@ class ProfilePage extends ConsumerStatefulWidget {
 
 class _ProfilePageState extends ConsumerState<ProfilePage> {
   bool _isFollowLoading = false;
+  // T035: cache seed loaded in initState for instant offline display.
+  User? _cachedUser;
 
   String? get _targetUserId =>
       widget.userId ?? ref.read(authSessionProvider).valueOrNull?.id;
@@ -181,6 +185,19 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   bool get _isCurrentUser {
     final currentId = ref.read(authSessionProvider).valueOrNull?.id;
     return widget.userId == null || widget.userId == currentId;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCachedProfile();
+  }
+
+  void _loadCachedProfile() {
+    final uid = _targetUserId;
+    if (uid == null) return;
+    final cached = ref.read(profileCacheServiceProvider).readProfile(uid);
+    if (cached != null) setState(() => _cachedUser = cached);
   }
 
   @override
@@ -199,9 +216,76 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         ? ref.watch(currentUserProfileProvider)
         : ref.watch(otherUserProfileProvider(targetUserId));
 
+    final isOnline = ref.watch(connectivityProvider).valueOrNull ?? true;
+
+    // T035: helper to render profile content (used from data, loading, error).
+    Widget profileContent(User user, {bool fromCache = false}) {
+      // T036: write to cache when fresh Firestore data arrives.
+      if (!fromCache) {
+        ref.read(profileCacheServiceProvider).writeProfile(targetUserId, user);
+      }
+      final showCacheChip = fromCache || (!isOnline);
+      return Column(
+        children: [
+          if (showCacheChip)
+            Container(
+              width: double.infinity,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              color: AppColors.surfaceV2,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.cloud_off_outlined,
+                      size: 14, color: AppColors.textV2Secondary),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Viewing cached data',
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.textV2Secondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          Expanded(
+            child: _ProfileContent(
+              user: user,
+              targetUserId: targetUserId,
+              isCurrentUser: _isCurrentUser,
+              isFollowLoading: _isFollowLoading,
+              onFollow: _handleFollow,
+              onUnfollow: _handleUnfollow,
+              onAction: (action, uid) => _handleAction(
+                context,
+                ref,
+                action,
+                uid,
+                targetUserName: user.displayName,
+              ),
+              onRefresh: () async {
+                ref.invalidate(currentUserProfileProvider);
+                ref.invalidate(otherUserProfileProvider(targetUserId));
+                ref.invalidate(userSessionsProvider(targetUserId));
+                ref.invalidate(userPostsProvider(targetUserId));
+                ref.invalidate(userStreakProvider(targetUserId));
+                ref.invalidate(followersCountProvider(targetUserId));
+              },
+            ),
+          ),
+        ],
+      );
+    }
+
     return userAsync.when(
       data: (user) {
         if (user == null) {
+          if (_cachedUser != null) {
+            return Scaffold(
+              backgroundColor: AppColors.backgroundV2,
+              body: profileContent(_cachedUser!, fromCache: true),
+            );
+          }
           return Scaffold(
             backgroundColor: AppColors.backgroundV2,
             appBar: AppBar(backgroundColor: AppColors.backgroundV2),
@@ -216,47 +300,45 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           );
         }
 
-        return _ProfileContent(
-          user: user,
-          targetUserId: targetUserId,
-          isCurrentUser: _isCurrentUser,
-          isFollowLoading: _isFollowLoading,
-          onFollow: _handleFollow,
-          onUnfollow: _handleUnfollow,
-          onAction: (action, uid) => _handleAction(
-            context,
-            ref,
-            action,
-            uid,
-            targetUserName: user.displayName,
-          ),
-          onRefresh: () async {
-            ref.invalidate(currentUserProfileProvider);
-            ref.invalidate(otherUserProfileProvider(targetUserId));
-            ref.invalidate(userSessionsProvider(targetUserId));
-            ref.invalidate(userPostsProvider(targetUserId));
-            ref.invalidate(userStreakProvider(targetUserId));
-            ref.invalidate(followersCountProvider(targetUserId));
-          },
+        return Scaffold(
+          backgroundColor: AppColors.backgroundV2,
+          body: profileContent(user),
         );
       },
-      loading: () => Scaffold(
-        backgroundColor: AppColors.backgroundV2,
-        body: Center(
-          child: CircularProgressIndicator(color: AppColors.userAccent),
-        ),
-      ),
-      error: (e, _) => Scaffold(
-        backgroundColor: AppColors.backgroundV2,
-        body: Center(
-          child: Text(
-            'Failed to load profile',
-            style: AppTextStyles.body.copyWith(
-              color: AppColors.textV2Secondary,
+      loading: () {
+        // T035: show cached profile immediately while Firestore loads.
+        if (_cachedUser != null) {
+          return Scaffold(
+            backgroundColor: AppColors.backgroundV2,
+            body: profileContent(_cachedUser!, fromCache: true),
+          );
+        }
+        return Scaffold(
+          backgroundColor: AppColors.backgroundV2,
+          body: Center(
+            child: CircularProgressIndicator(color: AppColors.userAccent),
+          ),
+        );
+      },
+      error: (e, _) {
+        if (_cachedUser != null) {
+          return Scaffold(
+            backgroundColor: AppColors.backgroundV2,
+            body: profileContent(_cachedUser!, fromCache: true),
+          );
+        }
+        return Scaffold(
+          backgroundColor: AppColors.backgroundV2,
+          body: Center(
+            child: Text(
+              'Failed to load profile',
+              style: AppTextStyles.body.copyWith(
+                color: AppColors.textV2Secondary,
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
