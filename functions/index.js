@@ -1,6 +1,7 @@
 const admin = require("firebase-admin");
 const logger = require("firebase-functions/logger");
 const { onRequest, HttpsError } = require("firebase-functions/v2/https");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 
 admin.initializeApp();
 
@@ -84,20 +85,31 @@ async function persistRecipientNotification(recipientId, type, payload) {
     .collection("users")
     .doc(recipientId)
     .collection("notifications");
-  const notificationRef =
-    type === "session_invite" && payload.data.sessionId
-      ? notifications.doc(`session_invite_${payload.data.sessionId}`)
-      : notifications.doc();
+  const isDeterministic = type === "session_invite" && payload.data.sessionId;
+  const notificationRef = isDeterministic
+    ? notifications.doc(`session_invite_${payload.data.sessionId}`)
+    : notifications.doc();
 
-  await notificationRef.set({
+  const base = {
     userId: recipientId,
     type,
     title: payload.title,
     message: payload.body,
     data: payload.data,
     read: false,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
+  };
+
+  if (isDeterministic) {
+    // The client writes this same doc first (with extras like groupSize) so the
+    // in-app listener fires instantly. Merge — rather than overwrite — so we
+    // don't drop those extras or reset the client's original createdAt.
+    await notificationRef.set(base, { merge: true });
+  } else {
+    await notificationRef.set({
+      ...base,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }
 
   return notificationRef.id;
 }
@@ -444,11 +456,16 @@ exports.deliverNotificationPush = onRequest({ invoker: "public" }, async (req, r
     const payloadData = getPayloadData(req.body);
 
     const payload = await buildPushPayload(type, callerId, recipientId, payloadData);
-    const notificationId = await persistRecipientNotification(
-      recipientId,
-      type,
-      payload,
-    );
+    // The client (createNotification / notifySessionInvite) already writes the
+    // canonical in-app doc before calling this endpoint, so persisting here too
+    // produced duplicate notifications. Only session_invite is persisted — as a
+    // deterministic merge that reconciles server-authoritative fields (e.g. the
+    // session's real expiresAt) onto the client's doc. All other types are
+    // push-only here.
+    const notificationId =
+      type === "session_invite"
+        ? await persistRecipientNotification(recipientId, type, payload)
+        : null;
     const devices = await getRecipientDevices(recipientId);
 
     if (devices.length === 0) {
@@ -497,4 +514,34 @@ exports.deliverNotificationPush = onRequest({ invoker: "public" }, async (req, r
     logger.error("deliverNotificationPush failed.", error);
     res.status(500).json({ error: "Internal error." });
   }
+});
+
+// Sweeps stale paired-session invites. Without this, an invite the recipient
+// never opens leaves the host's session stuck on invitationStatus 'pending'
+// forever (acceptInvite only enforces expiry lazily, on open). Runs every
+// 15 minutes and flips expired pending invites to 'expired'.
+// NOTE: requires a composite index on sessions(invitationStatus ASC,
+// inviteExpiresAt ASC).
+exports.expireStalePairedInvites = onSchedule("every 15 minutes", async () => {
+  const now = admin.firestore.Timestamp.now();
+  const snapshot = await db
+    .collection("sessions")
+    .where("invitationStatus", "==", "pending")
+    .where("inviteExpiresAt", "<", now)
+    .limit(400)
+    .get();
+
+  if (snapshot.empty) {
+    return;
+  }
+
+  const batch = db.batch();
+  snapshot.docs.forEach((doc) => {
+    batch.update(doc.reference, { invitationStatus: "expired" });
+  });
+  await batch.commit();
+
+  logger.info("Expired stale paired-session invites.", {
+    count: snapshot.size,
+  });
 });

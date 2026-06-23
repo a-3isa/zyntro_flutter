@@ -1,12 +1,16 @@
 {
     "indexes": [
         {
-            "collectionGroup": "users",
+            "collectionGroup": "sessions",
             "queryScope": "COLLECTION",
             "fields": [
                 {
-                    "fieldPath": "workoutScore",
-                    "order": "DESCENDING"
+                    "fieldPath": "invitationStatus",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "inviteExpiresAt",
+                    "order": "ASCENDING"
                 }
             ]
         },
@@ -35,16 +39,6 @@
                 {
                     "fieldPath": "createdAt",
                     "order": "DESCENDING"
-                }
-            ]
-        },
-        {
-            "collectionGroup": "events",
-            "queryScope": "COLLECTION",
-            "fields": [
-                {
-                    "fieldPath": "date",
-                    "order": "ASCENDING"
                 }
             ]
         },

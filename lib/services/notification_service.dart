@@ -420,6 +420,19 @@ class NotificationService {
       // Session invites go to the acceptance page so the friend can choose
       // their workout type and plan before joining.
       if (notificationType == 'session_invite') {
+        // Mark the invite doc read first so SessionInviteListener doesn't also
+        // pop its in-app dialog on top of the page we're about to open.
+        final uid = _auth.currentUser?.uid;
+        if (uid != null) {
+          try {
+            await _userNotificationRef(
+              uid,
+              'session_invite_$sessionId',
+            ).update({'read': true});
+          } catch (_) {
+            // Doc may not exist yet (push-only path) — safe to ignore.
+          }
+        }
         if (!navigatorContext.mounted) return;
         navigatorContext.push(
           AppRouteLocations.sessionAccept(sessionId),
@@ -774,7 +787,9 @@ class NotificationService {
       case NotificationType.friendStreakExtended:
         return preferences.streakNotifications;
       case NotificationType.turnChange:
-        return preferences.sessionInvites;
+        // Turn alerts are core in-session gameplay, not a promotional bucket —
+        // honour only the global pushEnabled switch (already checked above).
+        return true;
     }
   }
 
@@ -800,9 +815,11 @@ class NotificationService {
       expiresAt: expiresAt ?? DateTime.now().add(pairedInviteTimeout),
     )..['groupSize'] = groupSize;
 
-    // Write to Firestore directly so the SessionInviteListener picks it up
-    // immediately regardless of App Check / push availability.
-    // Uses deterministic doc ID matching the Cloud Function to avoid duplicates.
+    // The in-app invite doc is the join mechanism, so it is always written —
+    // a direct 1:1 invite is more like a DM than a broadcast notification.
+    // Written client-side so the SessionInviteListener picks it up immediately
+    // regardless of App Check / push availability. Uses a deterministic doc ID
+    // matching the Cloud Function to avoid duplicates.
     await _userNotificationsRef(recipientId)
         .doc('session_invite_$sessionId')
         .set({
@@ -815,13 +832,20 @@ class NotificationService {
           'createdAt': FieldValue.serverTimestamp(),
         });
 
-    // Best-effort push — fails silently if App Check token is unavailable.
-    await _deliverPushNotification(
-      type: NotificationType.sessionInvite,
-      recipientId: recipientId,
-      data: data,
-      rethrowOnFailure: false,
+    // The push, however, respects the recipient's preferences (and the global
+    // pushEnabled switch). Best-effort — fails silently if App Check is down.
+    final allowPush = await shouldSendNotification(
+      recipientId,
+      NotificationType.sessionInvite,
     );
+    if (allowPush) {
+      await _deliverPushNotification(
+        type: NotificationType.sessionInvite,
+        recipientId: recipientId,
+        data: data,
+        rethrowOnFailure: false,
+      );
+    }
   }
 
   /// Notify user when it's their turn in a multi-participant session.

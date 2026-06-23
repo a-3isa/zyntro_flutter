@@ -3082,23 +3082,67 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
             ),
           )
         : null;
+    final isInviteUnanswered =
+        inviteStatus == WorkoutInvitationStatus.declined ||
+        inviteStatus == WorkoutInvitationStatus.expired;
+    final inviteChipColor = switch (inviteStatus) {
+      WorkoutInvitationStatus.accepted => AppColors.userAccent,
+      WorkoutInvitationStatus.declined => AppColors.errorV2,
+      WorkoutInvitationStatus.expired => Colors.orange,
+      _ => AppColors.textV2Secondary,
+    };
+    final inviteChipLabel = switch (inviteStatus) {
+      WorkoutInvitationStatus.pending => 'Waiting for your friend…',
+      WorkoutInvitationStatus.accepted => 'Friend joined',
+      WorkoutInvitationStatus.declined =>
+        'Friend declined — train solo or invite someone else',
+      WorkoutInvitationStatus.expired =>
+        'Invite expired — train solo or invite someone else',
+      _ => 'Invite: ${inviteStatus?.value ?? ''}',
+    };
     final inviteStatusChip =
         inviteStatus != null &&
             session?.partnerKind == PairedPartnerKind.realFriend
         ? Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: AppColors.surfaceV2,
+              color: isInviteUnanswered
+                  ? inviteChipColor.withValues(alpha: 0.12)
+                  : AppColors.surfaceV2,
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: AppColors.surfaceV2Active),
-            ),
-            child: Text(
-              'Invite: ${inviteStatus.value}',
-              style: const TextStyle(
-                color: AppColors.textV2Secondary,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
+              border: Border.all(
+                color: isInviteUnanswered
+                    ? inviteChipColor.withValues(alpha: 0.4)
+                    : AppColors.surfaceV2Active,
               ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (isInviteUnanswered) ...[
+                  Icon(
+                    inviteStatus == WorkoutInvitationStatus.declined
+                        ? Icons.person_off_rounded
+                        : Icons.timer_off_rounded,
+                    size: 13,
+                    color: inviteChipColor,
+                  ),
+                  const SizedBox(width: 6),
+                ],
+                Flexible(
+                  child: Text(
+                    inviteChipLabel,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: isInviteUnanswered
+                          ? inviteChipColor
+                          : AppColors.textV2Secondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
             ),
           )
         : null;

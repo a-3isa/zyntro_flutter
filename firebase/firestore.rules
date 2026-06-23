@@ -26,6 +26,24 @@ service cloud.firestore {
         isPendingSessionInvitee(get(path).data, request.auth.uid);
     }
 
+    // The caller must be the host of a session that has actually invited the
+    // recipient. Blocks forged session_invite notifications (which would pop a
+    // join dialog on the victim's device via SessionInviteListener).
+    function isHostInvitingRecipient(recipientId, sessionId) {
+      let path = /databases/$(database)/documents/sessions/$(sessionId);
+      return exists(path) &&
+        get(path).data.hostId == request.auth.uid &&
+        get(path).data.invitedUserIds != null &&
+        get(path).data.invitedUserIds.hasAny([recipientId]);
+    }
+
+    // session_invite notifications must be backed by a real invite; all other
+    // notification types are unaffected by this check.
+    function isLegitSessionInviteNotification(recipientId) {
+      return request.resource.data.type != 'session_invite' ||
+        isHostInvitingRecipient(recipientId, request.resource.data.data.sessionId);
+    }
+
     function isInviteDeclineUpdate() {
       return isPendingSessionInvitee(resource.data, request.auth.uid) &&
         request.resource.data.diff(resource.data).affectedKeys()
@@ -136,8 +154,11 @@ service cloud.firestore {
         allow read, update, delete: if isOwner(userId);
         // Any authenticated user may create a notification for another user
         // (session invites, follow events). The userId field must match the
-        // collection's userId so a sender cannot forge the recipient.
-        allow create: if isAuthenticated() && request.resource.data.userId == userId;
+        // collection's userId so a sender cannot forge the recipient, and
+        // session_invite docs must be backed by a real session invite.
+        allow create: if isAuthenticated() &&
+          request.resource.data.userId == userId &&
+          isLegitSessionInviteNotification(userId);
       }
 
       match /stats/{statId} {
