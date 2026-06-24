@@ -501,6 +501,9 @@ void main() {
         updateData['participantTypes.$kPairedFriendId'],
         WorkoutType.gym.value,
       );
+      // Verify participants arrayUnion is present
+      expect(updateData.containsKey('participants'), isTrue);
+      expect(updateData['participants'], isA<FieldValue>());
       // Verify phase was NOT changed (no 'phase' key in the update)
       expect(updateData.containsKey('phase'), isFalse);
       expect(updateData.containsKey('status'), isFalse);
@@ -536,7 +539,7 @@ void main() {
         'type': 'gym',
       });
 
-      expect(
+      await expectLater(
         () => sessionService.joinSetup(
           sessionId: kPairedSessionId,
           userId: kPairedFriendId,
