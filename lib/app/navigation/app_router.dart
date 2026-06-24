@@ -19,7 +19,6 @@ import '../../features/session/presentation/gym_session_setup_page.dart';
 import '../../features/session/presentation/matchmaking_page.dart';
 import '../../features/session/presentation/session_room_page.dart';
 import '../../features/session/presentation/recap_page.dart';
-import '../../features/session/presentation/session_invite_acceptance_page.dart';
 import '../../features/session/domain/gym_session_plan.dart';
 import '../../features/notifications/presentation/notifications_page.dart';
 import '../../features/notifications/presentation/notification_preferences_page.dart';
@@ -391,21 +390,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
 
       // Session flow
-      GoRoute(
-        path: AppRoutes.sessionAccept,
-        pageBuilder: (context, state) {
-          final sessionId = state.pathParameters['sessionId']!;
-          final extra = state.extra as Map<String, dynamic>?;
-          return buildModalPageTransition(
-            context: context,
-            state: state,
-            child: SessionInviteAcceptancePage(
-              sessionId: sessionId,
-              notificationData: extra,
-            ),
-          );
-        },
-      ),
       GoRoute(
         path: AppRoutes.startSession,
         pageBuilder: (context, state) => buildModalPageTransition(

@@ -434,26 +434,6 @@ void main() {
       );
     });
 
-    test('late invite acceptance is rejected after expiry', () async {
-      final expiredDoc = MockDocumentSnapshot();
-      when(() => mockSessionDoc.get()).thenAnswer((_) async => expiredDoc);
-      when(() => expiredDoc.exists).thenReturn(true);
-      when(() => expiredDoc.data()).thenReturn({
-        'inviteExpiresAt': Timestamp.fromDate(
-          DateTime.now().subtract(const Duration(seconds: 1)),
-        ),
-      });
-
-      expect(
-        () => sessionService.acceptInvite(
-          sessionId: kPairedSessionId,
-          userId: kPairedFriendId,
-          chosenWorkoutType: WorkoutType.gym.value,
-        ),
-        throwsA(isA<Exception>()),
-      );
-    });
-
     test('joinSetup adds the invitee in setup without going live', () async {
       // Arrange: pending, non-expired invite session in setup phase
       final sessionDoc = MockDocumentSnapshot();
