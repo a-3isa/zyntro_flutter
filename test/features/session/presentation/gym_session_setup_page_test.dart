@@ -437,7 +437,10 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('2').last);
       await tester.pumpAndSettle();
-      await tester.tap(find.text("I'm ready"));
+      // In friendReviewPlan state the button is "Edit & Ready" (not "I'm ready").
+      await tester.ensureVisible(find.text('Edit & Ready'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Edit & Ready'));
       await tester.pump();
 
       final savedPlan =
@@ -539,5 +542,126 @@ void main() {
     expect(readyButton.onPressed, isNull);
 
     await controller.close();
+  });
+
+  testWidgets('pending friend picks category and Join calls joinSetup',
+      (tester) async {
+    // session: hostId=host-1, type='gym', participants=[host-1] (friend NOT yet in),
+    //   partnerKind=realFriend, partnerId=me, invitationStatus='pending',
+    //   status=active, phase=setup
+    // me = 'friend-1' — pending invitee.
+    final sessionService = MockSessionService();
+    final userCacheService = MockUserCacheService();
+    final sessionController = StreamController<Session?>();
+
+    final pendingSession = Session(
+      id: 'session-1',
+      type: 'gym',
+      title: 'Gym Setup',
+      hostId: 'host-1',
+      participants: const ['host-1'],
+      status: SessionStatus.active,
+      phase: SessionPhase.setup,
+      partnerKind: PairedPartnerKind.realFriend,
+      partnerId: 'friend-1',
+      invitationStatus: WorkoutInvitationStatus.pending,
+      participantTypes: const {'host-1': 'gym'},
+      createdAt: DateTime(2026),
+      startedAt: DateTime(2026),
+    );
+
+    when(
+      () => sessionService.listenToSession('session-1'),
+    ).thenAnswer((_) => sessionController.stream);
+    when(
+      () => userCacheService.warmSessionParticipants(any()),
+    ).thenAnswer((_) async {});
+    when(
+      () => sessionService.joinSetup(
+        sessionId: 'session-1',
+        userId: 'friend-1',
+        chosenWorkoutType: any(named: 'chosenWorkoutType'),
+      ),
+    ).thenAnswer((_) async {});
+    when(
+      () => sessionService.ensureGymPlan(
+        sessionId: 'session-1',
+        hostId: 'host-1',
+        userId: 'friend-1',
+      ),
+    ).thenAnswer(
+      (_) async => const GymSessionPlan(
+        userId: 'friend-1',
+        source: GymSessionPlanSource.personalCopy,
+        isReady: false,
+        exercises: [],
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionServiceProvider.overrideWithValue(sessionService),
+          userCacheServiceProvider.overrideWithValue(userCacheService),
+          authSessionProvider.overrideWith(
+            (ref) => Stream.value(
+              const AuthUserEntity(
+                id: 'friend-1',
+                email: 'friend@example.com',
+                displayName: 'Friend',
+                photoUrl: null,
+                emailVerified: true,
+                providerIds: ['password'],
+              ),
+            ),
+          ),
+        ],
+        child: const MaterialApp(
+          home: GymSessionSetupPage(sessionId: 'session-1'),
+        ),
+      ),
+    );
+
+    sessionController.add(pendingSession);
+    await tester.pumpAndSettle();
+
+    // Category grid and Join/Decline buttons must be visible.
+    expect(find.text('Choose your workout type'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Join'), findsOneWidget);
+    expect(find.text('Decline'), findsOneWidget);
+
+    // Join is disabled until a category is selected.
+    final joinBefore = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Join'),
+    );
+    expect(joinBefore.onPressed, isNull);
+
+    // Tap the 'Running' tile in the category grid.
+    await tester.tap(find.text('Running'));
+    await tester.pumpAndSettle();
+
+    // Join should now be enabled.
+    final joinAfter = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Join'),
+    );
+    expect(joinAfter.onPressed, isNotNull);
+
+    // Scroll Join into view and tap it.
+    await tester.ensureVisible(find.widgetWithText(FilledButton, 'Join'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Join'));
+    await tester.pumpAndSettle();
+
+    // Verify joinSetup was called with chosenWorkoutType == 'running'.
+    final captured = verify(
+      () => sessionService.joinSetup(
+        sessionId: 'session-1',
+        userId: 'friend-1',
+        chosenWorkoutType: captureAny(named: 'chosenWorkoutType'),
+      ),
+    ).captured;
+    expect(captured.single, 'running');
+
+    await sessionController.close();
   });
 }

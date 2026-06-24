@@ -12,6 +12,7 @@ import '../../../services/session_service.dart';
 import '../domain/gym_session_plan.dart';
 import 'widgets/gym_exercise_picker_sheet.dart';
 import 'widgets/gym_plan_editor.dart';
+import 'widgets/lobby_category_grid.dart';
 
 // ---------------------------------------------------------------------------
 // Lobby state enum — private to this file.
@@ -54,6 +55,7 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
   bool _isLoadingPlan = true;
   bool _isSavingReady = false;
   bool _isReady = false;
+  WorkoutType? _friendChosenType;
 
   /// The "I'm ready" action is enabled only once the invited friend has joined
   /// (solo/matchmaking sessions have no invited friend → always enabled). The
@@ -301,6 +303,61 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
     }
   }
 
+  // Pending invitee: pick category locally; nothing is written until Join.
+  void _onFriendPickCategory(WorkoutType type) {
+    setState(() => _friendChosenType = type);
+  }
+
+  // Join button (pending invitee only): joins setup with the chosen category.
+  Future<void> _onJoinSetup(Session session) async {
+    final uid = ref.read(authSessionProvider).valueOrNull?.id;
+    final type = _friendChosenType ?? WorkoutType.fromString(session.type);
+    if (uid == null) return;
+    try {
+      final svc = ref.read(sessionServiceProvider);
+      await svc.joinSetup(
+        sessionId: session.id,
+        userId: uid,
+        chosenWorkoutType: type.value,
+      );
+      // The pending invitee did NOT run _loadInitialPlan (it early-returns for
+      // non-participants), and it won't re-run on this pending→joined rebuild.
+      // Load the freshly-seeded plan now so the Edit path / readiness reflect
+      // the stub instead of opening an empty editor.
+      final plan = await svc.ensureGymPlan(
+        sessionId: session.id,
+        hostId: session.hostId,
+        userId: uid,
+      );
+      if (mounted) {
+        setState(() {
+          _draftExercises = _reindexExercises(plan.exercises);
+          _isReady = plan.isReady; // false — joinSetup wrote a not-ready stub
+          _isLoadingPlan = false;
+        });
+      }
+      // The stream rebuild also moves us out of the pending "choose category"
+      // state automatically (we are now in participants).
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not join: $error'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  Future<void> _onAgreeHostPlan(Session session) async {
+    final hostPlan = ref.read(gymSessionPlanProvider(
+      (sessionId: session.id, userId: session.hostId),
+    )).valueOrNull;
+    if (hostPlan == null) return;
+    setState(() => _draftExercises = _reindexExercises(hostPlan.exercises));
+    await _markReady(session); // writes own copy + setGymPlanReady
+  }
+
   List<PlannedExercise> _reindexExercises(List<PlannedExercise> exercises) {
     return exercises.asMap().entries.map((entry) {
       return _withOrderAndSets(
@@ -413,11 +470,7 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
           title: 'Waiting for your buddy',
         );
       case _LobbyState.friendChoosingCategory:
-        // Task 9 will implement LobbyCategoryGrid + Join/Decline.
-        // For now fall through to a simple waiting view.
-        return _buildWaitingView(
-          title: 'Choose your workout type to join',
-        );
+        return _buildFriendChoosingCategoryShell(session, uid);
       case _LobbyState.hostBuildingPlan:
       case _LobbyState.friendReviewPlan:
         return _buildSetupShell(session, uid, lobbyState);
@@ -523,21 +576,43 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
                 textAlign: TextAlign.center,
               ),
             const SizedBox(height: 20),
-            FilledButton(
-              onPressed: _isReady || !_isPlanValid || _isSavingReady || !readyEnabled
-                  ? null
-                  : () => _markReady(session),
-              child: _isSavingReady
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: AppColors.backgroundV2,
-                      ),
-                    )
-                  : Text(_isReady ? 'Ready — Locked in' : "I'm ready"),
-            ),
+            if (lobbyState == _LobbyState.friendReviewPlan && !_isReady) ...[
+              FilledButton(
+                onPressed: _isSavingReady ? null : () => _onAgreeHostPlan(session),
+                child: _isSavingReady
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.backgroundV2,
+                        ),
+                      )
+                    : const Text('Agree'),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed: _isSavingReady
+                    ? null
+                    : () => _markReady(session),
+                child: const Text('Edit & Ready'),
+              ),
+            ] else
+              FilledButton(
+                onPressed: _isReady || !_isPlanValid || _isSavingReady || !readyEnabled
+                    ? null
+                    : () => _markReady(session),
+                child: _isSavingReady
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.backgroundV2,
+                        ),
+                      )
+                    : Text(_isReady ? 'Ready — Locked in' : "I'm ready"),
+              ),
           ],
         ],
       ),
@@ -599,6 +674,54 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
               : const Text("Ready to start?"),
         ),
       ],
+    );
+  }
+
+  Widget _buildFriendChoosingCategoryShell(Session session, String uid) {
+    final hostType = WorkoutType.fromString(session.type);
+    return SingleChildScrollView(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Choose your workout type',
+            style: AppTextStyles.h3.copyWith(
+              color: AppColors.textV2Primary,
+              letterSpacing: -0.8,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Pick a category to join the session.',
+            style: AppTextStyles.body.copyWith(color: AppColors.textV2Secondary),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          LobbyCategoryGrid(
+            hostType: hostType,
+            selected: _friendChosenType,
+            onSelect: _onFriendPickCategory,
+          ),
+          const SizedBox(height: 24),
+          FilledButton(
+            onPressed: _friendChosenType == null ? null : () => _onJoinSetup(session),
+            child: const Text('Join'),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton(
+            onPressed: () {
+              ref.read(sessionServiceProvider).declineInvite(
+                sessionId: session.id,
+                userId: uid,
+              );
+            },
+            child: const Text('Decline'),
+          ),
+        ],
+      ),
     );
   }
 
