@@ -26,22 +26,53 @@ service cloud.firestore {
         isPendingSessionInvitee(get(path).data, request.auth.uid);
     }
 
-    // The caller must be the host of a session that has actually invited the
-    // recipient. Blocks forged session_invite notifications (which would pop a
-    // join dialog on the victim's device via SessionInviteListener).
-    function isHostInvitingRecipient(recipientId, sessionId) {
-      let path = /databases/$(database)/documents/sessions/$(sessionId);
-      return exists(path) &&
-        get(path).data.hostId == request.auth.uid &&
-        get(path).data.invitedUserIds != null &&
-        get(path).data.invitedUserIds.hasAny([recipientId]);
+    // A pending invitee adding themselves to the session — the only legitimate
+    // self-add. Guards every part of the join transition so a client cannot use
+    // it to bypass invite/eligibility/expiry checks, replace the participant
+    // roster, add extra users, or rewrite another participant's workout type.
+    function isInviteAcceptUpdate() {
+      return isPendingSessionInvitee(resource.data, request.auth.uid) &&
+        !hasParticipant(resource.data.participants, request.auth.uid) &&
+        // participants grows by exactly one and keeps every prior member, so the
+        // single added entry must be the caller — no replacement, no extras.
+        request.resource.data.participants.size() ==
+          resource.data.participants.size() + 1 &&
+        request.resource.data.participants.hasAll(resource.data.participants) &&
+        hasParticipant(request.resource.data.participants, request.auth.uid) &&
+        // only the caller's own workout type may be added to the map.
+        request.resource.data.participantTypes.diff(resource.data.participantTypes)
+          .affectedKeys().hasOnly([request.auth.uid]) &&
+        request.resource.data.invitationStatus == 'accepted' &&
+        resource.data.inviteExpiresAt is timestamp &&
+        resource.data.inviteExpiresAt > request.time &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['participants', 'participantTypes', 'invitationStatus', 'mode']);
     }
 
-    // session_invite notifications must be backed by a real invite; all other
-    // notification types are unaffected by this check.
-    function isLegitSessionInviteNotification(recipientId) {
-      return request.resource.data.type != 'session_invite' ||
-        isHostInvitingRecipient(recipientId, request.resource.data.data.sessionId);
+    // An existing participant updating live session state (turn, phase, status,
+    // clock, roster for matchmaking, etc.). The immutable identity fields are
+    // frozen so a participant cannot hijack the host, tamper with the invite
+    // list, or forge the invite status. (participants stays mutable because the
+    // matchmaking host legitimately adds the matched partner to the roster.)
+    function isParticipantSessionUpdate() {
+      return hasParticipant(resource.data.participants, request.auth.uid) &&
+        !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['hostId', 'invitedUserIds', 'invitationStatus']);
+    }
+
+    // A user joining an open (non-paired) session — random matchmaking or a gym
+    // setup room. They may add only themselves and keep every existing member;
+    // paired-invite sessions (which carry an invitationStatus) are excluded and
+    // must use the strict isInviteAcceptUpdate transition instead.
+    function isGenericSelfJoinUpdate() {
+      return !resource.data.keys().hasAny(['invitationStatus']) &&
+        !hasParticipant(resource.data.participants, request.auth.uid) &&
+        request.resource.data.participants.size() ==
+          resource.data.participants.size() + 1 &&
+        request.resource.data.participants.hasAll(resource.data.participants) &&
+        hasParticipant(request.resource.data.participants, request.auth.uid) &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['participants']);
     }
 
     function isInviteDeclineUpdate() {
@@ -152,13 +183,11 @@ service cloud.firestore {
 
       match /notifications/{notificationId} {
         allow read, update, delete: if isOwner(userId);
-        // Any authenticated user may create a notification for another user
-        // (session invites, follow events). The userId field must match the
-        // collection's userId so a sender cannot forge the recipient, and
-        // session_invite docs must be backed by a real session invite.
-        allow create: if isAuthenticated() &&
-          request.resource.data.userId == userId &&
-          isLegitSessionInviteNotification(userId);
+        // Clients may only create their OWN notifications. All cross-user
+        // notifications (session invites, follow/like/comment events) are
+        // written by the trusted Cloud Function via the Admin SDK, which
+        // bypasses these rules. This prevents forged/spam notifications.
+        allow create: if isOwner(userId) && request.resource.data.userId == userId;
       }
 
       match /stats/{statId} {
@@ -190,9 +219,10 @@ service cloud.firestore {
         hasParticipant(request.resource.data.participants, request.auth.uid) &&
         hasValidPairedInviteEligibility();
       allow update: if isAuthenticated() && (
-        hasParticipant(resource.data.participants, request.auth.uid) ||
-        hasParticipant(request.resource.data.participants, request.auth.uid) ||
-        isInviteDeclineUpdate()
+        isParticipantSessionUpdate() ||
+        isInviteAcceptUpdate() ||
+        isInviteDeclineUpdate() ||
+        isGenericSelfJoinUpdate()
       );
       allow delete: if false;
 

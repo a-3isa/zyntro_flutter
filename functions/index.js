@@ -80,6 +80,44 @@ async function pruneInvalidTokens(recipientId, devices, responses) {
   }
 }
 
+// Mirrors NotificationService.shouldSendNotification on the client: gates the
+// FCM push (not the durable in-app doc) on the recipient's preferences. Missing
+// settings doc / fields default to enabled.
+async function recipientAllowsPush(recipientId, type) {
+  const snap = await db
+    .collection("users")
+    .doc(recipientId)
+    .collection("settings")
+    .doc("notifications")
+    .get();
+  const prefs = snap.exists ? snap.data() || {} : {};
+  const enabled = (key) => prefs[key] !== false;
+
+  if (!enabled("pushEnabled")) {
+    return false;
+  }
+
+  switch (type) {
+    case "session_invite":
+      return enabled("sessionInvites");
+    case "turn_change":
+      return true; // core in-session gameplay, gated only by pushEnabled
+    case "voice_note":
+      return enabled("voiceNotes");
+    case "new_follower":
+    case "follow_request":
+      return enabled("followRequests");
+    case "follow_accepted":
+      return enabled("followAccepted");
+    case "post_like":
+      return enabled("postLikes");
+    case "post_comment":
+      return enabled("postComments");
+    default:
+      return true;
+  }
+}
+
 async function persistRecipientNotification(recipientId, type, payload) {
   const notifications = db
     .collection("users")
@@ -100,10 +138,12 @@ async function persistRecipientNotification(recipientId, type, payload) {
   };
 
   if (isDeterministic) {
-    // The client writes this same doc first (with extras like groupSize) so the
-    // in-app listener fires instantly. Merge — rather than overwrite — so we
-    // don't drop those extras or reset the client's original createdAt.
-    await notificationRef.set(base, { merge: true });
+    // Deterministic id keyed on the session so a retried/re-sent invite can't
+    // create duplicate invite docs — it refreshes the existing one in place.
+    await notificationRef.set(
+      { ...base, createdAt: admin.firestore.FieldValue.serverTimestamp() },
+      { merge: true },
+    );
   } else {
     await notificationRef.set({
       ...base,
@@ -456,16 +496,29 @@ exports.deliverNotificationPush = onRequest({ invoker: "public" }, async (req, r
     const payloadData = getPayloadData(req.body);
 
     const payload = await buildPushPayload(type, callerId, recipientId, payloadData);
-    // The client (createNotification / notifySessionInvite) already writes the
-    // canonical in-app doc before calling this endpoint, so persisting here too
-    // produced duplicate notifications. Only session_invite is persisted — as a
-    // deterministic merge that reconciles server-authoritative fields (e.g. the
-    // session's real expiresAt) onto the client's doc. All other types are
-    // push-only here.
-    const notificationId =
-      type === "session_invite"
-        ? await persistRecipientNotification(recipientId, type, payload)
-        : null;
+    // The Cloud Function is the single authoritative writer for all cross-user
+    // notifications — clients can only write their own (owner-only rule), so the
+    // in-app doc is persisted here with server-validated content. session_invite
+    // uses a deterministic id; all other types get a fresh doc.
+    const notificationId = await persistRecipientNotification(
+      recipientId,
+      type,
+      payload,
+    );
+
+    // The durable in-app doc is always written above; the FCM push, however,
+    // respects the recipient's notification preferences (and global pushEnabled).
+    const allowPush = await recipientAllowsPush(recipientId, type);
+    if (!allowPush) {
+      logger.info("Recipient disabled push for this type.", { recipientId, type });
+      res.status(200).json({
+        notificationId,
+        delivered: 0,
+        skipped: true,
+      });
+      return;
+    }
+
     const devices = await getRecipientDevices(recipientId);
 
     if (devices.length === 0) {

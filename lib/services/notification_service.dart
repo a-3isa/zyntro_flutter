@@ -681,9 +681,9 @@ class NotificationService {
       }
 
       final idToken = await currentUser.getIdToken();
-      // true = fetch a fresh token if no valid cached one exists.
-      // false would return null on the first call of a session.
-      final appCheckToken = await FirebaseAppCheck.instance.getToken(true);
+      // false = use the cached App Check token, refreshing only if expired
+      // (the SDK default — avoids forcing a network refresh on every push).
+      final appCheckToken = await FirebaseAppCheck.instance.getToken(false);
       if (appCheckToken == null || appCheckToken.isEmpty) {
         const error =
             'No App Check token is available for notification delivery.';
@@ -815,37 +815,18 @@ class NotificationService {
       expiresAt: expiresAt ?? DateTime.now().add(pairedInviteTimeout),
     )..['groupSize'] = groupSize;
 
-    // The in-app invite doc is the join mechanism, so it is always written —
-    // a direct 1:1 invite is more like a DM than a broadcast notification.
-    // Written client-side so the SessionInviteListener picks it up immediately
-    // regardless of App Check / push availability. Uses a deterministic doc ID
-    // matching the Cloud Function to avoid duplicates.
-    await _userNotificationsRef(recipientId)
-        .doc('session_invite_$sessionId')
-        .set({
-          'userId': recipientId,
-          'type': NotificationType.sessionInvite.value,
-          'title': 'Session Invite',
-          'message': '$inviterName invited you to a $sessionType session!',
-          'data': data,
-          'read': false,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-
-    // The push, however, respects the recipient's preferences (and the global
-    // pushEnabled switch). Best-effort — fails silently if App Check is down.
-    final allowPush = await shouldSendNotification(
-      recipientId,
-      NotificationType.sessionInvite,
+    // CF-authoritative: the Cloud Function writes the in-app invite doc (with
+    // server-validated content, under the deterministic session_invite_<id> key)
+    // AND dispatches the push. Clients cannot write cross-user notifications
+    // directly (owner-only rule). rethrowOnFailure: true so a real delivery
+    // failure fails the invite instead of silently half-succeeding — the caller
+    // (createSession) rolls back the orphaned session on this throw.
+    await _deliverPushNotification(
+      type: NotificationType.sessionInvite,
+      recipientId: recipientId,
+      data: data,
+      rethrowOnFailure: true,
     );
-    if (allowPush) {
-      await _deliverPushNotification(
-        type: NotificationType.sessionInvite,
-        recipientId: recipientId,
-        data: data,
-        rethrowOnFailure: false,
-      );
-    }
   }
 
   /// Notify user when it's their turn in a multi-participant session.
@@ -866,20 +847,12 @@ class NotificationService {
       'action': 'open_session',
     };
 
-    await Future.wait([
-      createNotification(
-        userId: recipientId,
-        type: NotificationType.turnChange,
-        title: 'Your Turn!',
-        message: "It's your turn to log a set in the $sessionType session",
-        data: data,
-      ),
-      _deliverPushNotification(
-        type: NotificationType.turnChange,
-        recipientId: recipientId,
-        data: data,
-      ),
-    ]);
+    // CF-authoritative: the Cloud Function persists the in-app doc and pushes.
+    await _deliverPushNotification(
+      type: NotificationType.turnChange,
+      recipientId: recipientId,
+      data: data,
+    );
   }
 
   /// Notify user of voice note - OPTIMIZED for <2s delivery.
@@ -902,16 +875,7 @@ class NotificationService {
       'autoPlay': true, // Added for auto-play trigger
     };
 
-    unawaited(
-      createNotification(
-        userId: recipientId,
-        type: NotificationType.voiceNote,
-        title: 'Voice Note',
-        message: '$senderName sent you a voice note',
-        data: data,
-      ),
-    );
-
+    // CF-authoritative: the Cloud Function persists the in-app doc and pushes.
     unawaited(
       _deliverPushNotification(
         type: NotificationType.voiceNote,
@@ -935,20 +899,12 @@ class NotificationService {
 
     final data = {'fromUserId': followerId, 'byUserName': followerName};
 
-    await Future.wait([
-      createNotification(
-        userId: recipientId,
-        type: NotificationType.newFollower,
-        title: 'New Follower',
-        message: '$followerName started following you',
-        data: data,
-      ),
-      _deliverPushNotification(
-        type: NotificationType.newFollower,
-        recipientId: recipientId,
-        data: data,
-      ),
-    ]);
+    // CF-authoritative: the Cloud Function persists the in-app doc and pushes.
+    await _deliverPushNotification(
+      type: NotificationType.newFollower,
+      recipientId: recipientId,
+      data: data,
+    );
   }
 
   /// Notify user of follow request.
@@ -965,20 +921,12 @@ class NotificationService {
 
     final data = {'fromUserId': requesterId, 'byUserName': requesterName};
 
-    await Future.wait([
-      createNotification(
-        userId: recipientId,
-        type: NotificationType.followRequest,
-        title: 'New Follow Request',
-        message: '$requesterName wants to follow you',
-        data: data,
-      ),
-      _deliverPushNotification(
-        type: NotificationType.followRequest,
-        recipientId: recipientId,
-        data: data,
-      ),
-    ]);
+    // CF-authoritative: the Cloud Function persists the in-app doc and pushes.
+    await _deliverPushNotification(
+      type: NotificationType.followRequest,
+      recipientId: recipientId,
+      data: data,
+    );
     FirebaseAnalytics.instance.logEvent(name: 'follow_notification_delivered');
   }
 
@@ -996,20 +944,12 @@ class NotificationService {
 
     final data = {'byUserId': acceptorId, 'byUserName': acceptorName};
 
-    await Future.wait([
-      createNotification(
-        userId: recipientId,
-        type: NotificationType.followAccepted,
-        title: 'Follow Request Accepted',
-        message: '$acceptorName accepted your follow request',
-        data: data,
-      ),
-      _deliverPushNotification(
-        type: NotificationType.followAccepted,
-        recipientId: recipientId,
-        data: data,
-      ),
-    ]);
+    // CF-authoritative: the Cloud Function persists the in-app doc and pushes.
+    await _deliverPushNotification(
+      type: NotificationType.followAccepted,
+      recipientId: recipientId,
+      data: data,
+    );
   }
 
   /// Notify user of buddy invite.
@@ -1138,35 +1078,13 @@ class NotificationService {
       'reactionType': type.value,
     };
 
-    // Customize message based on type
-    String message;
-    String title = 'New Reaction';
-    switch (type) {
-      case ReactionType.fire:
-        message = '$likerName reacted 🔥 to your post';
-        break;
-      case ReactionType.strong:
-        message = '$likerName reacted 💪 to your post';
-        break;
-      case ReactionType.clap:
-        message = '$likerName reacted 👏 to your post';
-        break;
-    }
-
-    await Future.wait([
-      createNotification(
-        userId: recipientId,
-        type: NotificationType.postLike,
-        title: title,
-        message: message,
-        data: data,
-      ),
-      _deliverPushNotification(
-        type: NotificationType.postLike,
-        recipientId: recipientId,
-        data: data,
-      ),
-    ]);
+    // CF-authoritative: the Cloud Function builds the title/body (per reaction
+    // type), persists the in-app doc, and pushes.
+    await _deliverPushNotification(
+      type: NotificationType.postLike,
+      recipientId: recipientId,
+      data: data,
+    );
   }
 
   /// Notify user that someone commented on their post.
@@ -1184,10 +1102,6 @@ class NotificationService {
     );
     if (!shouldSend) return;
 
-    final truncatedComment = commentText.length > 50
-        ? '${commentText.substring(0, 50)}...'
-        : commentText;
-
     final data = {
       'postId': postId,
       'commentId': commentId,
@@ -1195,20 +1109,13 @@ class NotificationService {
       'byUserName': commenterName,
     };
 
-    await Future.wait([
-      createNotification(
-        userId: recipientId,
-        type: NotificationType.postComment,
-        title: 'New Comment',
-        message: '$commenterName: "$truncatedComment"',
-        data: data,
-      ),
-      _deliverPushNotification(
-        type: NotificationType.postComment,
-        recipientId: recipientId,
-        data: data,
-      ),
-    ]);
+    // CF-authoritative: the Cloud Function builds the body from the stored
+    // comment, persists the in-app doc, and pushes.
+    await _deliverPushNotification(
+      type: NotificationType.postComment,
+      recipientId: recipientId,
+      data: data,
+    );
   }
 
   /// Notify user of a session milestone (e.g. "Work out today!").

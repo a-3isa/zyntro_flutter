@@ -329,6 +329,21 @@ class SessionService {
               );
         } catch (e) {
           debugPrint('[SessionService] Notify error for $invitedUserId: $e');
+          // The session was already committed above. Roll it back to a terminal
+          // state so a failed invite can't leave an active+pending orphan that
+          // blocks the host's next session (checkActiveSession filters on
+          // status == 'active'). Only status is changed — invitationStatus is
+          // frozen for participant updates by the security rules, and clearing
+          // status alone is enough to free checkActiveSession.
+          try {
+            await sessionRef.update({
+              'status': SessionStatus.cancelled.value,
+            });
+          } catch (cleanupError) {
+            debugPrint(
+              '[SessionService] Orphan session cleanup failed: $cleanupError',
+            );
+          }
           await _ref
               .read(sessionAnalyticsServiceProvider)
               .trackPairedSessionEvent(
@@ -520,6 +535,19 @@ class SessionService {
     final sessionRef = _firestore.collection('sessions').doc(sessionId);
     final sessionDoc = await sessionRef.get();
     final sessionData = sessionDoc.data();
+
+    // Authorization pre-check (defense-in-depth alongside the Firestore rule):
+    // only a named, still-pending invitee may accept.
+    final invitedUserIds =
+        (sessionData?['invitedUserIds'] as List?)?.cast<String>() ??
+        const <String>[];
+    if (!invitedUserIds.contains(userId)) {
+      throw Exception('You are not invited to this session.');
+    }
+    if (sessionData?['invitationStatus'] != WorkoutInvitationStatus.pending.value) {
+      throw Exception('This invite is no longer open.');
+    }
+
     final inviteExpiresAt = sessionData?['inviteExpiresAt'];
     final expiresAt = inviteExpiresAt is Timestamp
         ? inviteExpiresAt.toDate()
@@ -527,9 +555,9 @@ class SessionService {
         ? inviteExpiresAt
         : null;
     if (expiresAt != null && DateTime.now().isAfter(expiresAt)) {
-      await sessionRef.update({
-        'invitationStatus': WorkoutInvitationStatus.expired.value,
-      });
+      // Don't write invitationStatus: expired here — the invitee isn't a
+      // participant, so the security rules would deny it. The scheduled
+      // expireStalePairedInvites Cloud Function flips stale invites instead.
       await _ref
           .read(sessionAnalyticsServiceProvider)
           .trackPairedSessionEvent(
