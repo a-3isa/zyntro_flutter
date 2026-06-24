@@ -14,6 +14,7 @@ import 'notification_service.dart';
 import 'user_cache_service.dart';
 import 'session_analytics_service.dart';
 import 'follow_service.dart';
+import 'session_lobby_gate.dart';
 
 /// Session service for managing workout sessions.
 /// Matches React Native sessionService.ts behavior.
@@ -1026,27 +1027,46 @@ class SessionService {
       }
       transaction.update(userPlanRef, {'isReady': isReady});
 
+      // Readiness must be read for EVERY current participant (not just the
+      // invited roster) so a matchmaking partner — added via joinSession and
+      // absent from invitedUserIds — is not ignored by the gate.
       final planReadiness = <String, bool>{userId: isReady};
       for (final participantId in participants) {
         if (participantId == userId) continue;
-        final participantPlanSnapshot = await transaction.get(
+        final memberPlanSnapshot = await transaction.get(
           plansCollection.doc(participantId),
         );
-        final participantPlanData = participantPlanSnapshot.data();
+        final memberPlanData = memberPlanSnapshot.data();
         planReadiness[participantId] =
-            participantPlanSnapshot.exists && participantPlanData != null
-            ? GymSessionPlan.fromMap(participantPlanData).isReady
+            memberPlanSnapshot.exists && memberPlanData != null
+            ? GymSessionPlan.fromMap(memberPlanData).isReady
             : false;
       }
 
-      allParticipantsReady =
-          participants.isNotEmpty &&
-          participants.every(
-            (participantId) => planReadiness[participantId] == true,
-          );
+      final invitedUserIds =
+          (sessionData['invitedUserIds'] as List<dynamic>?)?.cast<String>() ??
+          const <String>[];
+      final roster = requiredRoster(
+        hostId: hostId,
+        invitedUserIds: invitedUserIds,
+      );
+      final invitationStatus = sessionData['invitationStatus'] as String?;
+      allParticipantsReady = shouldGoLive(
+        requiredRoster: roster,
+        participants: participants,
+        planReadiness: planReadiness,
+        invitationStatus: invitationStatus,
+      );
 
       if (currentPhase == SessionPhase.setup && allParticipantsReady) {
-        transaction.update(sessionRef, {'phase': SessionPhase.live.value});
+        final liveUpdate = <String, dynamic>{
+          'phase': SessionPhase.live.value,
+          'mode': mode, // derivePairedSessionMode(participantTypes) above
+        };
+        if (sessionData['sharedClockStartedAt'] == null) {
+          liveUpdate['sharedClockStartedAt'] = FieldValue.serverTimestamp();
+        }
+        transaction.update(sessionRef, liveUpdate);
       }
     });
 
