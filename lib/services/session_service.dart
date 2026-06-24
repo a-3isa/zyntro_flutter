@@ -663,6 +663,85 @@ class SessionService {
     }
   }
 
+  /// Friend joins a paired session's setup phase. Mirrors the start of
+  /// acceptInvite (named, still-pending, non-expired invitee) but only joins —
+  /// readiness/plan are completed later in the lobby via setGymPlanReady.
+  Future<void> joinSetup({
+    required String sessionId,
+    required String userId,
+    required String chosenWorkoutType,
+  }) async {
+    final sessionRef = _firestore.collection('sessions').doc(sessionId);
+    final sessionDoc = await sessionRef.get();
+    final sessionData = sessionDoc.data();
+
+    final invitedUserIds =
+        (sessionData?['invitedUserIds'] as List?)?.cast<String>() ??
+        const <String>[];
+    if (!invitedUserIds.contains(userId)) {
+      throw Exception('You are not invited to this session.');
+    }
+    if (sessionData?['invitationStatus'] !=
+        WorkoutInvitationStatus.pending.value) {
+      throw Exception('This invite is no longer open.');
+    }
+    if (sessionData?['status'] != SessionStatus.active.value ||
+        sessionData?['phase'] != SessionPhase.setup.value) {
+      throw Exception('This session is no longer accepting buddies.');
+    }
+
+    final inviteExpiresAt = sessionData?['inviteExpiresAt'];
+    final expiresAt = inviteExpiresAt is Timestamp
+        ? inviteExpiresAt.toDate()
+        : inviteExpiresAt is DateTime
+        ? inviteExpiresAt
+        : null;
+    if (expiresAt != null && DateTime.now().isAfter(expiresAt)) {
+      throw Exception('This invite has expired.');
+    }
+
+    final user = await _ref.read(userCacheServiceProvider).getUser(userId);
+    final userName = user?.displayName ?? 'User';
+
+    final batch = _firestore.batch();
+    batch.update(sessionRef, {
+      'participants': FieldValue.arrayUnion([userId]),
+      'participantTypes.$userId': chosenWorkoutType,
+      'invitationStatus': WorkoutInvitationStatus.accepted.value,
+    });
+
+    // Not-ready plan stub so the lobby can edit / confirm before readiness.
+    final planRef = sessionRef.collection('plans').doc(userId);
+    batch.set(
+      planRef,
+      GymSessionPlan(
+        userId: userId,
+        source: GymSessionPlanSource.personalCopy,
+        isReady: false,
+        exercises: const [],
+      ).toMap(),
+    );
+
+    final joinEventRef = sessionRef
+        .collection('events')
+        .doc('join_${userId}_${DateTime.now().millisecondsSinceEpoch}');
+    batch.set(joinEventRef, {
+      'type': SessionEventType.join.value,
+      'userId': userId,
+      'text': '$userName joined the session',
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+
+    await withRetryCircuitBreakerVoid(
+      () => batch.commit(),
+      operationType: 'session_join_setup',
+      maxFailures: 5,
+      cooldownDuration: const Duration(seconds: 30),
+    );
+
+    _ref.read(userCacheServiceProvider).warmSessionParticipants(sessionId);
+  }
+
   Future<void> declineInvite({
     required String sessionId,
     required String userId,

@@ -454,6 +454,98 @@ void main() {
       );
     });
 
+    test('joinSetup adds the invitee in setup without going live', () async {
+      // Arrange: pending, non-expired invite session in setup phase
+      final sessionDoc = MockDocumentSnapshot();
+      when(() => mockSessionDoc.get()).thenAnswer((_) async => sessionDoc);
+      when(() => sessionDoc.exists).thenReturn(true);
+      when(() => sessionDoc.data()).thenReturn({
+        'hostId': kPairedHostId,
+        'participants': [kPairedHostId],
+        'invitedUserIds': [kPairedFriendId],
+        'invitationStatus': WorkoutInvitationStatus.pending.value,
+        'inviteExpiresAt': Timestamp.fromDate(
+          DateTime.now().add(const Duration(minutes: 10)),
+        ),
+        'phase': SessionPhase.setup.value,
+        'status': SessionStatus.active.value,
+        'type': 'gym',
+      });
+
+      when(() => mockUserCacheService.getUser(kPairedFriendId)).thenAnswer(
+        (_) async => buildSessionTestUser(
+          id: kPairedFriendId,
+          displayName: 'Friend',
+        ),
+      );
+
+      // Act
+      await sessionService.joinSetup(
+        sessionId: kPairedSessionId,
+        userId: kPairedFriendId,
+        chosenWorkoutType: WorkoutType.gym.value,
+      );
+
+      // Assert: batch was committed
+      verify(() => mockBatch.commit()).called(1);
+
+      // Assert: batch.update was called with participants arrayUnion + participantTypes + invitationStatus
+      final capturedUpdates = verify(
+        () => mockBatch.update(any(), captureAny()),
+      ).captured.cast<Map<String, dynamic>>();
+
+      expect(capturedUpdates, isNotEmpty);
+      final updateData = capturedUpdates.first;
+      expect(updateData['invitationStatus'], WorkoutInvitationStatus.accepted.value);
+      expect(
+        updateData['participantTypes.$kPairedFriendId'],
+        WorkoutType.gym.value,
+      );
+      // Verify phase was NOT changed (no 'phase' key in the update)
+      expect(updateData.containsKey('phase'), isFalse);
+      expect(updateData.containsKey('status'), isFalse);
+
+      // Assert: a plan stub (set) was written with isReady: false
+      final capturedSets = verify(
+        () => mockBatch.set<Map<String, dynamic>>(any(), captureAny(), null),
+      ).captured.cast<Map<String, dynamic>>();
+
+      final planData = capturedSets.firstWhere(
+        (d) => d.containsKey('isReady'),
+        orElse: () => <String, dynamic>{},
+      );
+      expect(planData['isReady'], isFalse);
+      expect(planData['userId'], kPairedFriendId);
+    });
+
+    test('joinSetup rejects a non-invited user', () async {
+      // invitedUserIds contains someone else, not kPairedFriendId
+      final sessionDoc = MockDocumentSnapshot();
+      when(() => mockSessionDoc.get()).thenAnswer((_) async => sessionDoc);
+      when(() => sessionDoc.exists).thenReturn(true);
+      when(() => sessionDoc.data()).thenReturn({
+        'hostId': kPairedHostId,
+        'participants': [kPairedHostId],
+        'invitedUserIds': ['someone_else'],
+        'invitationStatus': WorkoutInvitationStatus.pending.value,
+        'inviteExpiresAt': Timestamp.fromDate(
+          DateTime.now().add(const Duration(minutes: 10)),
+        ),
+        'phase': SessionPhase.setup.value,
+        'status': SessionStatus.active.value,
+        'type': 'gym',
+      });
+
+      expect(
+        () => sessionService.joinSetup(
+          sessionId: kPairedSessionId,
+          userId: kPairedFriendId,
+          chosenWorkoutType: WorkoutType.gym.value,
+        ),
+        throwsA(isA<Exception>()),
+      );
+    });
+
     test('createSession creates a new session and notifies invitees', () async {
       final hostId = 'host_123';
       final invitees = ['user_456'];
