@@ -97,6 +97,26 @@ void main() {
     });
 
     // -------------------------------------------------------------------------
+    // Session lobby handshake hardening (Task 6)
+    // -------------------------------------------------------------------------
+    test('participant updates can only change their own participantTypes', () {
+      expect(
+        rules,
+        contains(
+          "request.resource.data.participantTypes.diff(resource.data.participantTypes).affectedKeys().hasOnly([request.auth.uid])",
+        ),
+      );
+    });
+
+    test('invite accept is scoped to an active session still in setup', () {
+      final idx = rules.indexOf('function isInviteAcceptUpdate()');
+      expect(idx, isNonNegative);
+      final body = rules.substring(idx, idx + 800);
+      expect(body, contains("resource.data.status == 'active'"));
+      expect(body, contains("resource.data.phase == 'setup'"));
+    });
+
+    // -------------------------------------------------------------------------
     // Exercise catalog rules (T013, T015)
     // -------------------------------------------------------------------------
     group('exercise catalog rules', () {

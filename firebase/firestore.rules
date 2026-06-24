@@ -32,6 +32,8 @@ service cloud.firestore {
     // roster, add extra users, or rewrite another participant's workout type.
     function isInviteAcceptUpdate() {
       return isPendingSessionInvitee(resource.data, request.auth.uid) &&
+        resource.data.status == 'active' &&
+        resource.data.phase == 'setup' &&
         !hasParticipant(resource.data.participants, request.auth.uid) &&
         // participants grows by exactly one and keeps every prior member, so the
         // single added entry must be the caller — no replacement, no extras.
@@ -57,7 +59,8 @@ service cloud.firestore {
     function isParticipantSessionUpdate() {
       return hasParticipant(resource.data.participants, request.auth.uid) &&
         !request.resource.data.diff(resource.data).affectedKeys()
-          .hasAny(['hostId', 'invitedUserIds', 'invitationStatus']);
+          .hasAny(['hostId', 'invitedUserIds', 'invitationStatus']) &&
+        request.resource.data.participantTypes.diff(resource.data.participantTypes).affectedKeys().hasOnly([request.auth.uid]);
     }
 
     // A user joining an open (non-paired) session — random matchmaking or a gym
