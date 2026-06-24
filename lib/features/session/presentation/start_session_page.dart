@@ -453,9 +453,14 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
     // Fire start action when the shell FAB is tapped while on this tab.
     ref.listen<int>(sessionStartTriggerProvider, (_, _) {
       if (_isLoading) return;
+      final isFriendInvite =
+          _partnerMode == 'friends' && _selectedFriends.isNotEmpty;
       if (_view == 'plan') {
         HapticManager.heavy();
         _handleStartSessionWithPlan();
+      } else if (isFriendInvite && _selectedType != null) {
+        HapticManager.medium();
+        _handleStartFriendInvite(_selectedType!);
       } else if (_selectedType != null) {
         HapticManager.medium();
         if (_selectedType == WorkoutType.gym) {
@@ -497,6 +502,37 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
       return _buildPlanView();
     }
     return _buildHomeView();
+  }
+
+  Future<void> _handleStartFriendInvite(WorkoutType type) async {
+    final uid = ref.read(authSessionProvider).valueOrNull?.id;
+    if (uid == null || _selectedFriends.isEmpty) return;
+    setState(() => _isLoading = true);
+    try {
+      final sessionService = ref.read(sessionServiceProvider);
+      final existing = await sessionService.checkActiveSession(uid);
+      if (existing != null) {
+        // reuse the existing active-session sheet path (resume/end) here
+        setState(() => _isLoading = false);
+        return;
+      }
+      final sessionId = await sessionService.createSession(
+        hostId: uid,
+        type: type.value,
+        title: '${type.displayName} Session',
+        invitedUserIds: _selectedFriends.toList(),
+        phase: SessionPhase.setup,
+      );
+      await HapticFeedback.mediumImpact();
+      if (mounted) context.push(AppRouteLocations.gymSessionSetup(sessionId));
+    } catch (e) {
+      if (mounted) {
+        _showError(_mapStartSessionError(e));
+        await HapticFeedback.vibrate();
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   void _navigateToPlanView() {

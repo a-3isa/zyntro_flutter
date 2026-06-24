@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -73,7 +75,7 @@ List<Override> buildStartSessionOverrides({
   ];
 }
 
-GoRouter _buildRouter() {
+GoRouter _buildRouter({bool includeSetup = false}) {
   return GoRouter(
     initialLocation: AppRoutes.startSession,
     routes: [
@@ -89,6 +91,16 @@ GoRouter _buildRouter() {
           return Scaffold(body: Center(child: Text('ROOM:$sessionId:$type')));
         },
       ),
+      if (includeSetup)
+        GoRoute(
+          path: AppRoutes.gymSessionSetup,
+          builder: (context, state) {
+            final sessionId = state.pathParameters['sessionId']!;
+            return Scaffold(
+              body: Center(child: Text('SETUP:$sessionId')),
+            );
+          },
+        ),
     ],
   );
 }
@@ -652,6 +664,139 @@ void main() {
         ),
       ).called(1);
       expect(find.text('ROOM:solo-session-1:running'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'routes the host to the setup lobby',
+    (tester) async {
+      final sessionService = MockSessionService();
+      final followService = MockFollowService();
+      final router = _buildRouter(includeSetup: true);
+
+      final friend = User(
+        id: 'friend-abc',
+        displayName: 'Alice',
+        isPrivate: false,
+        workoutPreference: WorkoutType.gym,
+        beginnerFlag: false,
+        createdAt: DateTime(2026),
+        updatedAt: DateTime(2026),
+      );
+
+      _stubNoActiveSession(sessionService);
+      _stubEmptyUserSessions(sessionService);
+      when(
+        () => sessionService.createSession(
+          hostId: any(named: 'hostId'),
+          type: any(named: 'type'),
+          title: any(named: 'title'),
+          buddyPairId: any(named: 'buddyPairId'),
+          invitedUserIds: any(named: 'invitedUserIds'),
+          phase: any(named: 'phase'),
+        ),
+      ).thenAnswer((_) async => 'setup-session-1');
+      when(
+        () => followService.getMutualFollows(any()),
+      ).thenAnswer((_) async => [friend]);
+
+      // We need authSessionProvider to already be in AsyncData state when the
+      // page's initState postFrameCallback fires _loadMutualFollows. Since
+      // StreamProvider emits asynchronously (microtask), we pre-warm it by
+      // building the ProviderScope, reading the provider to subscribe the
+      // stream, pumping once so the emission microtask runs, then mounting
+      // the full widget tree — by which time the provider is AsyncData.
+      //
+      // We do this via a ProviderScope that is pumped BEFORE the real widget,
+      // using a dummy Consumer to force the provider to initialize.
+      final overrides = [
+        sessionServiceProvider.overrideWithValue(sessionService),
+        followServiceProvider.overrideWithValue(followService),
+        authSessionProvider.overrideWith(
+          (ref) => Stream.value(
+            const AuthUserEntity(
+              id: kSessionTestUserId,
+              email: '$kSessionTestUserId@example.com',
+              displayName: 'Athlete',
+              photoUrl: null,
+              emailVerified: true,
+              providerIds: ['password'],
+            ),
+          ),
+        ),
+      ];
+
+      // Phase 1: pump a lightweight widget that watches auth, giving the
+      // stream one microtask cycle to emit before the real page mounts.
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: overrides,
+          child: Consumer(
+            builder: (context, ref, _) {
+              ref.watch(authSessionProvider);
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      );
+      await tester.pump(); // stream subscribes → emission microtask queued
+      await tester.pump(); // emission microtask runs → authSessionProvider=AsyncData
+
+      // Phase 2: now pump the real app — auth is already resolved, so
+      // _loadMutualFollows will get a non-null uid on its first read.
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: overrides,
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pump(); // first frame + postFrameCallbacks → _loadMutualFollows
+      await tester.pump(); // getMutualFollows resolves → setState(_mutualFollows)
+      await tester.pump(); // rebuild → buddy strip visible
+
+      // Select the gym (Strength) workout type.
+      await tester.tap(find.text('Strength'));
+      await tester.pump();
+
+      // Obtain the provider container from the widget tree so we can
+      // directly fire the FAB trigger and inspect state.
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(StartSessionPage)),
+      );
+
+      // Alice's avatar name is in the buddies strip, which is below the fold
+      // in a SingleChildScrollView. Scroll until Alice is on-screen, then tap.
+      final aliceFinder = find.text('Alice', skipOffstage: false);
+      expect(aliceFinder, findsOneWidget);
+
+      // Scroll the outer SingleChildScrollView down to bring Alice into view.
+      await tester.scrollUntilVisible(
+        find.text('Alice'),
+        150,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.text('Alice'));
+      await tester.pump();
+
+      // Fire the FAB trigger exactly as the shell does.
+      container.read(sessionStartTriggerProvider.notifier).state++;
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Must have created a setup-phase session with Alice invited.
+      verify(
+        () => sessionService.createSession(
+          hostId: kSessionTestUserId,
+          type: 'gym',
+          title: 'Gym Session',
+          invitedUserIds: ['friend-abc'],
+          phase: SessionPhase.setup,
+          buddyPairId: any(named: 'buddyPairId', that: isNull),
+        ),
+      ).called(1);
+      // Navigated to the setup lobby, NOT the plan builder.
+      expect(find.text('SETUP:setup-session-1'), findsOneWidget);
+      expect(find.text('Begin Session ⚡  (0 sets)'), findsNothing);
     },
   );
 }
