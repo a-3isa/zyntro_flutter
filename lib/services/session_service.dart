@@ -1491,6 +1491,26 @@ class SessionService {
               snapshot.docs.map((doc) => Session.fromFirestore(doc)).toList(),
         );
   }
+
+  /// Terminal cancel for a paired setup handshake (host cancels or friend leaves
+  /// after joining). A paired handshake is cancelled, not downgraded to solo.
+  /// Leaves phase/participants/participantTypes/invitationStatus and plan docs
+  /// intact for audit. status is not frozen for participants, so this passes
+  /// isParticipantSessionUpdate; participantTypes is unchanged (empty diff).
+  Future<void> cancelSetup({
+    required String sessionId,
+    required String byUserId,
+    required String reason,
+  }) async {
+    await withRetry(
+      () => _firestore.collection('sessions').doc(sessionId).update({
+        'status': SessionStatus.cancelled.value,
+        'endedAt': FieldValue.serverTimestamp(),
+        'cancelledBy': byUserId,
+        'cancelReason': reason,
+      }),
+    );
+  }
 }
 
 /// Session service provider.

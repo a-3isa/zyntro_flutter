@@ -701,5 +701,33 @@ void main() {
       verifyNever(() => mockSessionsCollection.doc(kPairedFriendId));
       verify(() => mockBatch.commit()).called(1);
     });
+
+    test('cancelSetup writes the audit fields and keeps roster intact',
+        () async {
+      Map<Object, Object?>? capturedUpdate;
+      when(() => mockSessionDoc.update(any())).thenAnswer((invocation) async {
+        capturedUpdate =
+            invocation.positionalArguments.first as Map<Object, Object?>;
+      });
+
+      await sessionService.cancelSetup(
+        sessionId: kPairedSessionId,
+        byUserId: kPairedHostId,
+        reason: 'setup_host_cancelled',
+      );
+
+      expect(capturedUpdate, isNotNull);
+      final update = capturedUpdate!;
+      expect(update['status'], equals('cancelled'));
+      expect(update['cancelledBy'], equals(kPairedHostId));
+      expect(update['cancelReason'], equals('setup_host_cancelled'));
+      expect(update.containsKey('endedAt'), isTrue);
+
+      // Must NOT touch roster or phase fields
+      expect(update.containsKey('participants'), isFalse);
+      expect(update.containsKey('participantTypes'), isFalse);
+      expect(update.containsKey('invitationStatus'), isFalse);
+      expect(update.containsKey('phase'), isFalse);
+    });
   });
 }
