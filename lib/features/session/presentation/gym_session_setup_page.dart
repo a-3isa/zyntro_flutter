@@ -417,8 +417,44 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
 
     final sessionAsync = ref.watch(currentSessionProvider(widget.sessionId));
 
+    // Resolve session and uid for optional cancel AppBar.
+    final session = sessionAsync.valueOrNull;
+    final authUser = ref.watch(authSessionProvider).valueOrNull;
+    final lobbyState =
+        session != null && authUser != null
+            ? _resolveState(session, authUser.id)
+            : null;
+    final showCancel =
+        session != null &&
+        authUser != null &&
+        lobbyState != null &&
+        _showCancelButton(lobbyState, session, authUser.id);
+
+    // Non-null when showCancel is true (checked above).
+    final cancelSession = session;
+    final cancelUid = authUser?.id;
+    final isHost = cancelSession?.hostId == cancelUid;
+
     return Scaffold(
       backgroundColor: AppColors.backgroundV2,
+      appBar: showCancel && cancelSession != null && cancelUid != null
+          ? AppBar(
+              backgroundColor: AppColors.backgroundV2,
+              elevation: 0,
+              scrolledUnderElevation: 0,
+              leading: IconButton(
+                icon: const Icon(Icons.close),
+                tooltip: isHost ? 'Cancel setup' : 'Leave',
+                onPressed: () => _onCancelSetup(cancelSession, cancelUid),
+              ),
+              title: Text(
+                isHost ? 'Cancel setup' : 'Leave',
+                style: AppTextStyles.body.copyWith(
+                  color: AppColors.textV2Secondary,
+                ),
+              ),
+            )
+          : null,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -445,6 +481,53 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
         ),
       ),
     );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Cancel / leave button for FRIEND-INVITE sessions.
+  // ---------------------------------------------------------------------------
+
+  /// Returns true for states where a cancel/leave affordance should appear
+  /// (host: host-owned states; joined-friend: joined states). Does NOT apply
+  /// to terminal states or the pending-invitee `friendChoosingCategory` state
+  /// (which already has Decline handled by declineInvite).
+  bool _showCancelButton(_LobbyState lobbyState, Session session, String uid) {
+    if (session.partnerKind != PairedPartnerKind.realFriend) return false;
+    const hostStates = {
+      _LobbyState.hostBuildingPlan,
+      _LobbyState.hostNonGymConfirm,
+      _LobbyState.hostWaitingForBuddy,
+    };
+    const joinedFriendStates = {
+      _LobbyState.friendWaitingForHostPlan,
+      _LobbyState.friendReviewPlan,
+      _LobbyState.friendConfirm,
+      _LobbyState.selfWaitingForPartner,
+    };
+    final isHost = session.hostId == uid;
+    if (isHost) return hostStates.contains(lobbyState);
+    return joinedFriendStates.contains(lobbyState);
+  }
+
+  Future<void> _onCancelSetup(Session session, String uid) async {
+    final isHost = session.hostId == uid;
+    final reason = isHost ? 'setup_host_cancelled' : 'setup_partner_left';
+    try {
+      await ref.read(sessionServiceProvider).cancelSetup(
+        sessionId: session.id,
+        byUserId: uid,
+        reason: reason,
+      );
+      if (mounted) {
+        context.go(AppRouteLocations.mainTab(MainShellTab.session));
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not cancel setup: $error')),
+        );
+      }
+    }
   }
 
   Widget _buildLobbyShell(Session session, String uid, _LobbyState lobbyState) {
@@ -592,7 +675,7 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
               ),
               const SizedBox(height: 12),
               OutlinedButton(
-                onPressed: _isSavingReady
+                onPressed: _isSavingReady || !_isPlanValid
                     ? null
                     : () => _markReady(session),
                 child: const Text('Edit & Ready'),
@@ -712,11 +795,22 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
           ),
           const SizedBox(height: 12),
           OutlinedButton(
-            onPressed: () {
-              ref.read(sessionServiceProvider).declineInvite(
-                sessionId: session.id,
-                userId: uid,
-              );
+            onPressed: () async {
+              try {
+                await ref.read(sessionServiceProvider).declineInvite(
+                  sessionId: session.id,
+                  userId: uid,
+                );
+                if (mounted) {
+                  context.go(AppRouteLocations.mainTab(MainShellTab.session));
+                }
+              } catch (error) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Could not decline: $error')),
+                  );
+                }
+              }
             },
             child: const Text('Decline'),
           ),

@@ -53,7 +53,6 @@ class AppRoutes {
   static const main = '/';
   static const startSession = '/session/start';
   static const matchmaking = '/session/matchmaking';
-  static const sessionAccept = '/session/accept/:sessionId';
   static const gymSessionSetup = '/session/setup/:sessionId';
   static const sessionRoom = '/session/room/:sessionId';
   static const recap = '/session/recap/:sessionId';

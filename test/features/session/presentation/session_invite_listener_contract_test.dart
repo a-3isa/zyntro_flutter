@@ -17,6 +17,6 @@ void main() {
     expect(listener, contains('expiresAt'));
     expect(listener, contains("'Decline'"));
     expect(listener, contains("'Accept'"));
-    expect(listener, contains('AppRouteLocations.sessionAccept'));
+    expect(listener, contains('AppRouteLocations.gymSessionSetup'));
   });
 }

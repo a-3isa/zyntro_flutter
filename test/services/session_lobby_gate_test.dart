@@ -51,6 +51,18 @@ void main() {
       );
     });
 
+    test('false when the invitation has been declined', () {
+      expect(
+        shouldGoLive(
+          requiredRoster: roster,
+          participants: ['h', 'f'],
+          planReadiness: {'h': true, 'f': true},
+          invitationStatus: 'declined',
+        ),
+        isFalse,
+      );
+    });
+
     test('true when roster joined, all ready, invite accepted', () {
       expect(
         shouldGoLive(
