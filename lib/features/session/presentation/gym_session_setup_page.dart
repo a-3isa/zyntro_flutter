@@ -13,6 +13,22 @@ import '../domain/gym_session_plan.dart';
 import 'widgets/gym_exercise_picker_sheet.dart';
 import 'widgets/gym_plan_editor.dart';
 
+// ---------------------------------------------------------------------------
+// Lobby state enum — private to this file.
+// ---------------------------------------------------------------------------
+enum _LobbyState {
+  terminalCancelled, // status == cancelled (host cancelled / friend left)
+  terminalDeclined, // invitationStatus == declined (friend declined before joining)
+  hostBuildingPlan, // gym host: editor (ready disabled until friend joins)
+  hostNonGymConfirm, // non-gym host: "I'm ready" (disabled until friend joins)
+  hostWaitingForBuddy, // host is ready; waiting for friend to join/agree
+  friendChoosingCategory,
+  friendWaitingForHostPlan,
+  friendReviewPlan,
+  friendConfirm, // non-gym/different-cat friend: "Ready to start?"
+  selfWaitingForPartner,
+}
+
 /// Interactive gym setup flow before a session goes live.
 class GymSessionSetupPage extends ConsumerStatefulWidget {
   final String sessionId;
@@ -38,7 +54,80 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
   bool _isLoadingPlan = true;
   bool _isSavingReady = false;
   bool _isReady = false;
-  bool _readyButtonPressed = false;
+
+  /// The "I'm ready" action is enabled only once the invited friend has joined
+  /// (solo/matchmaking sessions have no invited friend → always enabled). The
+  /// gate also enforces this server-side; this is the UI mirror.
+  /// NOTE: the Session model has no `invitedUserIds`; the single invited friend
+  /// is `partnerId` with `partnerKind == realFriend`.
+  bool _readyEnabled(Session session) {
+    final friend = session.partnerId;
+    if (session.partnerKind != PairedPartnerKind.realFriend || friend == null) {
+      return true;
+    }
+    return session.participants.contains(friend);
+  }
+
+  _LobbyState _resolveState(Session session, String uid) {
+    final isHost = session.hostId == uid;
+    final hostType = WorkoutType.fromString(session.type);
+
+    // Terminal states first — neither side can proceed past these.
+    if (session.status == SessionStatus.cancelled) {
+      return _LobbyState.terminalCancelled;
+    }
+    if (session.invitationStatus == WorkoutInvitationStatus.declined) {
+      return _LobbyState.terminalDeclined;
+    }
+
+    final viewerType =
+        WorkoutType.fromString(session.participantTypes[uid] ?? session.type);
+
+    // Matchmaking / non-invite setup sessions reuse this same page but must
+    // KEEP the legacy behavior: every participant builds independently and marks
+    // ready — no friend handshake, no waiting-for-host, no category step.
+    // Friend invites are exactly those with `partnerKind == realFriend`.
+    if (session.partnerKind != PairedPartnerKind.realFriend) {
+      if (_isReady) return _LobbyState.selfWaitingForPartner;
+      return viewerType == WorkoutType.gym
+          ? _LobbyState.hostBuildingPlan
+          : _LobbyState.hostNonGymConfirm;
+    }
+
+    if (isHost) {
+      if (_isReady) return _LobbyState.hostWaitingForBuddy;
+      // Host prepares WHILE the friend decides (invite-first, build-after).
+      // The editor / confirm is always available; only the ready button is gated
+      // via _readyEnabled(session).
+      return hostType == WorkoutType.gym
+          ? _LobbyState.hostBuildingPlan
+          : _LobbyState.hostNonGymConfirm;
+    }
+
+    // Friend — a pending invitee (not yet in participants) stays on the
+    // category chooser with a Join button until joinSetup adds them to the
+    // roster.
+    final joined = session.participants.contains(uid);
+    if (!joined) return _LobbyState.friendChoosingCategory;
+    final myType =
+        WorkoutType.fromString(session.participantTypes[uid] ?? session.type);
+    if (_isReady) return _LobbyState.selfWaitingForPartner;
+    final sameAsHost = myType == hostType;
+    if (sameAsHost && myType == WorkoutType.gym) {
+      final hostPlan = ref
+          .watch(gymSessionPlanProvider((
+            sessionId: session.id,
+            userId: session.hostId,
+          )))
+          .valueOrNull;
+      if (hostPlan == null || !hostPlan.isReady) {
+        return _LobbyState.friendWaitingForHostPlan;
+      }
+      return _LobbyState.friendReviewPlan;
+    }
+    if (myType == WorkoutType.gym) return _LobbyState.hostBuildingPlan; // friend builds own
+    return _LobbyState.friendConfirm;
+  }
 
   @override
   void initState() {
@@ -58,23 +147,20 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
       currentSessionProvider(widget.sessionId).future,
     );
     if (!mounted || authUser == null || session == null) {
-      if (mounted) {
-        setState(() => _isLoadingPlan = false);
-      }
+      if (mounted) setState(() => _isLoadingPlan = false);
       return;
     }
-
-    final sessionService = ref.read(sessionServiceProvider);
+    // Pending invitee (not yet a participant): no joinSession / ensureGymPlan /
+    // presence / event / plan-doc writes until joinSetup runs from the lobby.
     if (!session.participants.contains(authUser.id)) {
-      await sessionService.joinSession(widget.sessionId, authUser.id);
+      if (mounted) setState(() => _isLoadingPlan = false);
+      return;
     }
-
-    final plan = await sessionService.ensureGymPlan(
-      sessionId: widget.sessionId,
-      hostId: session.hostId,
-      userId: authUser.id,
-    );
-
+    final plan = await ref.read(sessionServiceProvider).ensureGymPlan(
+          sessionId: widget.sessionId,
+          hostId: session.hostId,
+          userId: authUser.id,
+        );
     if (!mounted) return;
     setState(() {
       _draftExercises = _reindexExercises(plan.exercises);
@@ -174,6 +260,47 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
     }
   }
 
+  /// Non-gym / parallel ready path — writes a stub plan (no exercises required)
+  /// and flips readiness. Does NOT route through _markReady which requires
+  /// _isPlanValid (≥1 exercise).
+  Future<void> _confirmReadyNoPlan(Session session) async {
+    if (_isSavingReady) return;
+    final authUser = ref.read(authSessionProvider).valueOrNull;
+    if (authUser == null) return;
+    setState(() => _isSavingReady = true);
+    final svc = ref.read(sessionServiceProvider);
+    final myType = WorkoutType.fromString(
+      session.participantTypes[authUser.id] ?? session.type,
+    );
+    try {
+      await svc.saveGymPlan(
+        sessionId: widget.sessionId,
+        plan: GymSessionPlan.defaultPersonalPlan(
+          userId: authUser.id,
+          workoutType: myType,
+        ), // ready stub, no exercises required for non-gym/parallel
+      );
+      await svc.setGymPlanReady(
+        sessionId: widget.sessionId,
+        userId: authUser.id,
+        isReady: true,
+      );
+      if (mounted) {
+        setState(() {
+          _isReady = true;
+          _isSavingReady = false;
+        });
+      }
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isSavingReady = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Unable to confirm: $error'),
+        backgroundColor: AppColors.error,
+      ));
+    }
+  }
+
   List<PlannedExercise> _reindexExercises(List<PlannedExercise> exercises) {
     return exercises.asMap().entries.map((entry) {
       return _withOrderAndSets(
@@ -222,8 +349,13 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
       if (session == null || session.phase != SessionPhase.live) return;
 
       _didRedirect = true;
+      final authUser = ref.read(authSessionProvider).valueOrNull;
+      final myType =
+          authUser != null
+              ? (session.participantTypes[authUser.id] ?? session.type)
+              : session.type;
       // context.go: entering live session — replace setup in stack so back doesn't return here
-      context.go(AppRouteLocations.sessionRoom(session.id, type: session.type));
+      context.go(AppRouteLocations.sessionRoom(session.id, type: myType));
     });
 
     final sessionAsync = ref.watch(currentSessionProvider(widget.sessionId));
@@ -245,7 +377,11 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
                   );
                 }
 
-                return _buildSetupShell(session);
+                final authUser = ref.watch(authSessionProvider).valueOrNull;
+                if (authUser == null) return _buildLoadingShell();
+
+                final lobbyState = _resolveState(session, authUser.id);
+                return _buildLobbyShell(session, authUser.id, lobbyState);
               },
             ),
           ),
@@ -254,46 +390,51 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
     );
   }
 
-  Widget _buildLoadingShell() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        SizedBox(
-          width: 32,
-          height: 32,
-          child: CircularProgressIndicator(
-            strokeWidth: 3,
-            color: AppColors.userAccent,
-          ),
-        ),
-        const SizedBox(height: 20),
-        Text(
-          'Preparing your gym session',
-          style: AppTextStyles.h5.copyWith(
-            color: AppColors.textV2Primary,
-            letterSpacing: -0.3,
-          ),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Loading the setup details now.',
-          style: AppTextStyles.body.copyWith(color: AppColors.textV2Secondary),
-          textAlign: TextAlign.center,
-        ),
-      ],
-    );
+  Widget _buildLobbyShell(Session session, String uid, _LobbyState lobbyState) {
+    switch (lobbyState) {
+      case _LobbyState.terminalCancelled:
+        return _buildTerminalPanel(
+          message: 'This setup was cancelled',
+        );
+      case _LobbyState.terminalDeclined:
+        return _buildTerminalPanel(
+          message: 'Your buddy declined',
+        );
+      case _LobbyState.hostWaitingForBuddy:
+        return _buildWaitingView(
+          title: 'Waiting for your buddy to agree',
+        );
+      case _LobbyState.friendWaitingForHostPlan:
+        return _buildWaitingView(
+          title: 'Waiting for the host to finish the plan',
+        );
+      case _LobbyState.selfWaitingForPartner:
+        return _buildWaitingView(
+          title: 'Waiting for your buddy',
+        );
+      case _LobbyState.friendChoosingCategory:
+        // Task 9 will implement LobbyCategoryGrid + Join/Decline.
+        // For now fall through to a simple waiting view.
+        return _buildWaitingView(
+          title: 'Choose your workout type to join',
+        );
+      case _LobbyState.hostBuildingPlan:
+      case _LobbyState.friendReviewPlan:
+        return _buildSetupShell(session, uid, lobbyState);
+      case _LobbyState.hostNonGymConfirm:
+      case _LobbyState.friendConfirm:
+        return _buildNonGymConfirmShell(session, uid, lobbyState);
+    }
   }
 
-  Widget _buildSetupShell(Session session) {
-    final authUser = ref.watch(authSessionProvider).valueOrNull;
+  Widget _buildSetupShell(Session session, String uid, _LobbyState lobbyState) {
     final isInvitedSameGymCopy =
-        authUser != null &&
-        authUser.id != session.hostId &&
+        uid != session.hostId &&
         session.partnerKind == PairedPartnerKind.realFriend &&
         session.participantTypes[session.hostId] == WorkoutType.gym.value &&
-        session.participantTypes[authUser.id] == WorkoutType.gym.value;
+        session.participantTypes[uid] == WorkoutType.gym.value;
+
+    final readyEnabled = _readyEnabled(session);
 
     return SingleChildScrollView(
       child: Column(
@@ -359,72 +500,189 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
               isLocked: _isReady,
             ),
             const SizedBox(height: 16),
-            Text(
-              _isReady
-                  ? 'Waiting for the rest of the group to finish setup.'
-                  : isInvitedSameGymCopy
-                  ? 'Review the host gym plan, then adjust only your personal copy.'
-                  : 'Each athlete can personalize their own copy of this plan before the room starts.',
-              style: AppTextStyles.caption.copyWith(
-                fontSize: 13,
-                color: AppColors.textV2Secondary,
+            if (!readyEnabled)
+              Text(
+                'Waiting for your buddy to join',
+                style: AppTextStyles.caption.copyWith(
+                  fontSize: 13,
+                  color: AppColors.textV2Secondary,
+                ),
+                textAlign: TextAlign.center,
+              )
+            else
+              Text(
+                _isReady
+                    ? 'Waiting for the rest of the group to finish setup.'
+                    : isInvitedSameGymCopy
+                    ? 'Review the host gym plan, then adjust only your personal copy.'
+                    : 'Each athlete can personalize their own copy of this plan before the room starts.',
+                style: AppTextStyles.caption.copyWith(
+                  fontSize: 13,
+                  color: AppColors.textV2Secondary,
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
-            ),
             const SizedBox(height: 20),
-            GestureDetector(
-              onTap: _isReady || !_isPlanValid || _isSavingReady
+            FilledButton(
+              onPressed: _isReady || !_isPlanValid || _isSavingReady || !readyEnabled
                   ? null
                   : () => _markReady(session),
-              onTapDown: _isReady || !_isPlanValid || _isSavingReady
-                  ? null
-                  : (_) => setState(() => _readyButtonPressed = true),
-              onTapUp: _isReady || !_isPlanValid || _isSavingReady
-                  ? null
-                  : (_) => setState(() => _readyButtonPressed = false),
-              onTapCancel: _isReady || !_isPlanValid || _isSavingReady
-                  ? null
-                  : () => setState(() => _readyButtonPressed = false),
-              child: AnimatedScale(
-                scale: _readyButtonPressed
-                    ? AppAnimations.buttonPressScale
-                    : 1.0,
-                duration: AppDurations.fast,
-                curve: AppCurves.press,
-                child: Container(
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: _isReady || !_isPlanValid || _isSavingReady
-                        ? AppColors.surfaceV2Active
-                        : AppColors.userAccent,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Center(
-                    child: _isSavingReady
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: AppColors.backgroundV2,
-                            ),
-                          )
-                        : Text(
-                            _isReady ? 'Ready — Locked in' : 'I\'m Ready',
-                            style: AppTextStyles.label.copyWith(
-                              fontSize: 15,
-                              color: _isReady || !_isPlanValid
-                                  ? AppColors.textV2Tertiary
-                                  : AppColors.backgroundV2,
-                            ),
-                          ),
-                  ),
-                ),
-              ),
+              child: _isSavingReady
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.backgroundV2,
+                      ),
+                    )
+                  : Text(_isReady ? 'Ready — Locked in' : "I'm ready"),
             ),
           ],
         ],
       ),
+    );
+  }
+
+  Widget _buildNonGymConfirmShell(
+      Session session, String uid, _LobbyState lobbyState) {
+    final isHost = uid == session.hostId;
+    final readyEnabled = _readyEnabled(session);
+
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.userAccent.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Icon(
+            Icons.directions_run_rounded,
+            color: AppColors.userAccent,
+            size: 32,
+          ),
+        ),
+        const SizedBox(height: 20),
+        Text(
+          session.title,
+          style: AppTextStyles.h3.copyWith(
+            color: AppColors.textV2Primary,
+            letterSpacing: -0.8,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 10),
+        if (!readyEnabled)
+          Text(
+            'Waiting for your buddy to join',
+            style: AppTextStyles.body.copyWith(color: AppColors.textV2Secondary),
+            textAlign: TextAlign.center,
+          ),
+        const SizedBox(height: 24),
+        FilledButton(
+          onPressed: _isSavingReady || (isHost && !readyEnabled)
+              ? null
+              : () => _confirmReadyNoPlan(session),
+          child: _isSavingReady
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.backgroundV2,
+                  ),
+                )
+              : const Text("Ready to start?"),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWaitingView({required String title}) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox(
+          width: 32,
+          height: 32,
+          child: CircularProgressIndicator(strokeWidth: 3),
+        ),
+        const SizedBox(height: 20),
+        Text(
+          title,
+          style: AppTextStyles.h5.copyWith(
+            color: AppColors.textV2Primary,
+            letterSpacing: -0.3,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTerminalPanel({required String message}) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(
+          Icons.info_outline_rounded,
+          color: AppColors.error,
+          size: 48,
+        ),
+        const SizedBox(height: 16),
+        Text(
+          message,
+          style: AppTextStyles.h5.copyWith(
+            color: AppColors.textV2Primary,
+            letterSpacing: -0.3,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 24),
+        FilledButton(
+          onPressed: () =>
+              context.go(AppRouteLocations.mainTab(MainShellTab.session)),
+          child: const Text('Back to Train'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLoadingShell() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: 32,
+          height: 32,
+          child: CircularProgressIndicator(
+            strokeWidth: 3,
+            color: AppColors.userAccent,
+          ),
+        ),
+        const SizedBox(height: 20),
+        Text(
+          'Preparing your gym session',
+          style: AppTextStyles.h5.copyWith(
+            color: AppColors.textV2Primary,
+            letterSpacing: -0.3,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Loading the setup details now.',
+          style: AppTextStyles.body.copyWith(color: AppColors.textV2Secondary),
+          textAlign: TextAlign.center,
+        ),
+      ],
     );
   }
 

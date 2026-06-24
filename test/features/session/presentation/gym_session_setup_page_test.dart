@@ -339,6 +339,9 @@ void main() {
       final sessionService = MockSessionService();
       final userCacheService = MockUserCacheService();
       final controller = StreamController<Session?>();
+      // The resolver watches gymSessionPlanProvider for the host plan to decide
+      // whether to show friendReviewPlan vs friendWaitingForHostPlan.
+      final hostPlanController = StreamController<GymSessionPlan?>();
 
       final hostExercise = PlannedExercise.custom(
         id: 'host-squat',
@@ -374,6 +377,10 @@ void main() {
           overrides: [
             sessionServiceProvider.overrideWithValue(sessionService),
             userCacheServiceProvider.overrideWithValue(userCacheService),
+            // Provide a ready host plan so the resolver lands on friendReviewPlan.
+            gymSessionPlanProvider.overrideWith(
+              (ref, params) => hostPlanController.stream,
+            ),
             authSessionProvider.overrideWith(
               (ref) => Stream.value(
                 const AuthUserEntity(
@@ -406,6 +413,16 @@ void main() {
         ),
       );
 
+      // Emit a ready host plan so the resolver lands on friendReviewPlan.
+      hostPlanController.add(
+        GymSessionPlan(
+          userId: 'host-1',
+          source: GymSessionPlanSource.hostTemplate,
+          isReady: true,
+          exercises: [hostExercise],
+        ),
+      );
+
       await tester.pumpAndSettle();
 
       expect(find.text('Back Squat'), findsOneWidget);
@@ -420,7 +437,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('2').last);
       await tester.pumpAndSettle();
-      await tester.tap(find.text("I'm Ready"));
+      await tester.tap(find.text("I'm ready"));
       await tester.pump();
 
       final savedPlan =
@@ -437,6 +454,90 @@ void main() {
       expect(savedPlan.exercises.single.plannedSets, 2);
 
       await controller.close();
+      await hostPlanController.close();
     },
   );
+
+  testWidgets('host with pending invite can build the plan but ready is disabled', (tester) async {
+    final sessionService = MockSessionService();
+    final userCacheService = MockUserCacheService();
+    final controller = StreamController<Session?>();
+
+    when(
+      () => sessionService.listenToSession('session-1'),
+    ).thenAnswer((_) => controller.stream);
+    when(
+      () => sessionService.ensureGymPlan(
+        sessionId: 'session-1',
+        hostId: 'host-1',
+        userId: 'host-1',
+      ),
+    ).thenAnswer(
+      (_) async => const GymSessionPlan(
+        userId: 'host-1',
+        source: GymSessionPlanSource.hostTemplate,
+        isReady: false,
+        exercises: [],
+      ),
+    );
+    when(
+      () => userCacheService.warmSessionParticipants(any()),
+    ).thenAnswer((_) async {});
+
+    await tester.pumpWidget(
+      _buildApp(
+        overrides: [
+          sessionServiceProvider.overrideWithValue(sessionService),
+          userCacheServiceProvider.overrideWithValue(userCacheService),
+          authSessionProvider.overrideWith(
+            (ref) => Stream.value(
+              const AuthUserEntity(
+                id: 'host-1',
+                email: 'host@example.com',
+                displayName: 'Host',
+                photoUrl: null,
+                emailVerified: true,
+                providerIds: ['password'],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    // Session: hostId == me, participants == [me], partnerKind == realFriend,
+    // partnerId == 'friend-1', invitationStatus == pending, type == gym,
+    // status == active, phase == setup.
+    controller.add(
+      Session(
+        id: 'session-1',
+        type: 'gym',
+        title: 'Gym Setup',
+        hostId: 'host-1',
+        participants: const ['host-1'],
+        status: SessionStatus.active,
+        phase: SessionPhase.setup,
+        partnerKind: PairedPartnerKind.realFriend,
+        partnerId: 'friend-1',
+        invitationStatus: WorkoutInvitationStatus.pending,
+        participantTypes: const {'host-1': 'gym'},
+        createdAt: DateTime(2026),
+        startedAt: DateTime(2026),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    // The host builds the plan WHILE the friend decides (invite-first):
+    expect(find.byType(GymPlanEditor), findsOneWidget); // editor visible
+    expect(find.text('Waiting for your buddy to join'), findsOneWidget); // ready hint
+    // The "I'm ready" button is present but disabled (onPressed == null) because
+    // the invited friend has not joined yet.
+    final readyButton = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, "I'm ready"),
+    );
+    expect(readyButton.onPressed, isNull);
+
+    await controller.close();
+  });
 }
