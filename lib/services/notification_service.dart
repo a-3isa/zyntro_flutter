@@ -435,8 +435,7 @@ class NotificationService {
         }
         if (!navigatorContext.mounted) return;
         navigatorContext.push(
-          AppRouteLocations.sessionAccept(sessionId),
-          extra: data,
+          AppRouteLocations.gymSessionSetup(sessionId),
         );
         return;
       }

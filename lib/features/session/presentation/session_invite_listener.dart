@@ -92,7 +92,7 @@ class _SessionInviteListenerState extends ConsumerState<SessionInviteListener> {
               .declineInvite(sessionId: sessionId, userId: userId);
         }
       } else if (action == 'Accept' && mounted) {
-        context.push(AppRouteLocations.sessionAccept(sessionId), extra: data);
+        context.go(AppRouteLocations.gymSessionSetup(sessionId));
       }
     } catch (error) {
       if (mounted) {

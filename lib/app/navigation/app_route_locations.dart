@@ -94,9 +94,7 @@ class AppRouteLocations {
     return '/user/$userId/following';
   }
 
-  static String sessionAccept(String sessionId) {
-    return '/session/accept/$sessionId';
-  }
+  static String sessionAccept(String sessionId) => gymSessionSetup(sessionId);
 
   static String sessionEntry({
     required String sessionId,
