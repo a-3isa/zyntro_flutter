@@ -299,4 +299,6 @@ const String appName = 'Zyntro';
 const String pairedBotFriendId = 'zyntro_bot_friend';
 
 /// Real friend invitations expire if not answered within this period.
-const Duration pairedInviteTimeout = Duration(seconds: 30);
+/// Long enough for the invite-first lobby handshake: the friend must be able to
+/// receive the push and accept while the host is still building the plan.
+const Duration pairedInviteTimeout = Duration(minutes: 10);
