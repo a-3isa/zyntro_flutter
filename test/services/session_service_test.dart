@@ -32,7 +32,7 @@ class MockQuerySnapshot extends Mock
 // ignore: subtype_of_sealed_class
 class MockQuery extends Mock implements Query<Map<String, dynamic>> {}
 
-class MockRef extends Mock implements Ref {}
+final _testRefProvider = Provider<Ref>((ref) => ref);
 
 class MockUserCacheService extends Mock implements UserCacheService {}
 
@@ -106,7 +106,7 @@ Map<String, dynamic> buildPairedSessionData({
 void main() {
   late SessionService sessionService;
   late MockFirebaseFirestore mockFirestore;
-  late MockRef mockRef;
+  late Ref testRef;
   late MockUserCacheService mockUserCacheService;
   late MockNotificationService mockNotificationService;
   late MockSessionAnalyticsService mockSessionAnalyticsService;
@@ -122,7 +122,6 @@ void main() {
 
   setUp(() {
     mockFirestore = MockFirebaseFirestore();
-    mockRef = MockRef();
     mockUserCacheService = MockUserCacheService();
     mockNotificationService = MockNotificationService();
     mockSessionAnalyticsService = MockSessionAnalyticsService();
@@ -131,19 +130,18 @@ void main() {
     mockSessionDoc = MockDocumentReference();
     mockBatch = MockBatch();
 
-    // Setup Ref
-    when(
-      () => mockRef.read(userCacheServiceProvider),
-    ).thenReturn(mockUserCacheService);
-    when(
-      () => mockRef.read(notificationServiceProvider),
-    ).thenReturn(mockNotificationService);
-    when(
-      () => mockRef.read(sessionAnalyticsServiceProvider),
-    ).thenReturn(mockSessionAnalyticsService);
-    when(
-      () => mockRef.read(followServiceProvider),
-    ).thenReturn(mockFollowService);
+    final container = ProviderContainer(
+      overrides: [
+        userCacheServiceProvider.overrideWithValue(mockUserCacheService),
+        notificationServiceProvider.overrideWithValue(mockNotificationService),
+        sessionAnalyticsServiceProvider.overrideWithValue(
+          mockSessionAnalyticsService,
+        ),
+        followServiceProvider.overrideWithValue(mockFollowService),
+      ],
+    );
+    addTearDown(container.dispose);
+    testRef = container.read(_testRefProvider);
 
     // Setup Firestore
     when(
@@ -175,7 +173,7 @@ void main() {
       ),
     ).thenAnswer((_) async => true);
 
-    sessionService = SessionService(mockFirestore, mockRef);
+    sessionService = SessionService(mockFirestore, testRef);
   });
 
   group('SessionService', () {
@@ -472,7 +470,9 @@ void main() {
       // Assert: batch.update was called with participants arrayUnion + participantTypes + invitationStatus
       final capturedUpdates = verify(
         () => mockBatch.update(any(), captureAny()),
-      ).captured.cast<Map<String, dynamic>>();
+      ).captured.map((value) {
+        return Map<String, dynamic>.from(value as Map);
+      }).toList();
 
       expect(capturedUpdates, isNotEmpty);
       final updateData = capturedUpdates.first;
