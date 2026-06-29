@@ -54,7 +54,7 @@ class _MatchmakingPageState extends ConsumerState<MatchmakingPage>
   }
 
   Future<void> _startMatchmaking() async {
-    final authUser = ref.read(authSessionProvider).valueOrNull;
+    final authUser = ref.read(authSessionProvider).value;
     if (authUser == null) {
       setState(() {
         _error = 'You must be signed in to find a match.';

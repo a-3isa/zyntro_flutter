@@ -235,7 +235,7 @@ class SessionService {
       'invitedUserIds': invitedUserIds ?? [],
       if (invitedFriendId != null)
         'partnerKind': PairedPartnerKind.realFriend.value,
-      if (invitedFriendId != null) 'partnerId': invitedFriendId,
+      'partnerId': ?invitedFriendId,
       if (invitedFriendId != null)
         'invitationStatus': WorkoutInvitationStatus.pending.value,
       if (invitedFriendId != null)
@@ -337,9 +337,7 @@ class SessionService {
           // frozen for participant updates by the security rules, and clearing
           // status alone is enough to free checkActiveSession.
           try {
-            await sessionRef.update({
-              'status': SessionStatus.cancelled.value,
-            });
+            await sessionRef.update({'status': SessionStatus.cancelled.value});
           } catch (cleanupError) {
             debugPrint(
               '[SessionService] Orphan session cleanup failed: $cleanupError',
@@ -686,7 +684,7 @@ class SessionService {
               'userId': userId,
               'text': text,
               'timestamp': FieldValue.serverTimestamp(),
-              if (data != null) 'data': data,
+              'data': ?data,
             }),
         operationType: 'session_event',
         maxFailures: 5,
@@ -715,7 +713,7 @@ class SessionService {
         'type': type.value,
         'userId': userId,
         'text': text,
-        if (data != null) 'data': data,
+        'data': ?data,
       });
       // Re-throw to notify caller that operation was queued
       rethrow;

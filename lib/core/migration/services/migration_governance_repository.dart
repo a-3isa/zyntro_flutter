@@ -45,10 +45,9 @@ class MigrationGovernanceRepository {
   final Map<String, MigrationBacklogItem> _backlogItems = {};
 
   MigrationGovernanceRepository({
-    required MigrationStateMachine stateMachine,
-    required ValidationEvidenceService validationEvidenceService,
-  }) : _stateMachine = stateMachine,
-       _validationEvidenceService = validationEvidenceService;
+    required this._stateMachine,
+    required this._validationEvidenceService,
+  });
 
   Future<MigrationSlice> getOrCreateAuthSlice() async {
     final existing = _slices['auth'];

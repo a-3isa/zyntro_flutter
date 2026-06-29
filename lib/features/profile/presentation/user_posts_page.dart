@@ -25,7 +25,7 @@ class _UserPostsPageState extends ConsumerState<UserPostsPage> {
   @override
   Widget build(BuildContext context) {
     final postsAsync = ref.watch(userPostsProvider(widget.userId));
-    final currentUid = ref.watch(authSessionProvider).valueOrNull?.id;
+    final currentUid = ref.watch(authSessionProvider).value?.id;
     final isOwner = currentUid == widget.userId;
 
     return Scaffold(

@@ -85,7 +85,7 @@ class _SessionInviteListenerState extends ConsumerState<SessionInviteListener> {
           .markNotificationAsRead(notification);
 
       if (action == 'Decline') {
-        final userId = ref.read(authSessionProvider).valueOrNull?.id;
+        final userId = ref.read(authSessionProvider).value?.id;
         if (userId != null) {
           await ref
               .read(sessionServiceProvider)
@@ -107,12 +107,12 @@ class _SessionInviteListenerState extends ConsumerState<SessionInviteListener> {
 
   @override
   Widget build(BuildContext context) {
-    final userId = ref.watch(authSessionProvider).valueOrNull?.id;
+    final userId = ref.watch(authSessionProvider).value?.id;
     if (userId != null) {
       ref.listen<AsyncValue<List<AppNotification>>>(
         userNotificationsProvider(userId),
         (_, next) {
-          final notifications = next.valueOrNull;
+          final notifications = next.value;
           if (notifications == null || _isShowingInvite) return;
 
           for (final notification in notifications) {

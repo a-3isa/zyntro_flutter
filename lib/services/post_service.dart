@@ -249,7 +249,9 @@ class PostService {
         .orderBy('createdAt', descending: true)
         .limit(limit)
         .snapshots()
-        .map((snap) => snap.docs.map((doc) => Post.fromFirestore(doc)).toList());
+        .map(
+          (snap) => snap.docs.map((doc) => Post.fromFirestore(doc)).toList(),
+        );
   }
 
   // Prefetch cache
@@ -506,11 +508,11 @@ class PostService {
   Future<void> likePost(String postId, String userId, {String? userName}) {
     final offlineManager = _ref.read(offlineManagerProvider);
     if (!offlineManager.isOnline) {
-      return offlineManager.queueOperation(
-        'like_post',
-        {'postId': postId, 'userId': userId, if (userName != null) 'userName': userName},
-        id: 'like_${postId}_$userId',
-      );
+      return offlineManager.queueOperation('like_post', {
+        'postId': postId,
+        'userId': userId,
+        'userName': ?userName,
+      }, id: 'like_${postId}_$userId');
     }
     return reactToPost(
       postId,
@@ -574,11 +576,10 @@ class PostService {
   Future<void> unlikePost(String postId, String userId) {
     final offlineManager = _ref.read(offlineManagerProvider);
     if (!offlineManager.isOnline) {
-      return offlineManager.queueOperation(
-        'unlike_post',
-        {'postId': postId, 'userId': userId},
-        id: 'unlike_${postId}_$userId',
-      );
+      return offlineManager.queueOperation('unlike_post', {
+        'postId': postId,
+        'userId': userId,
+      }, id: 'unlike_${postId}_$userId');
     }
     return removeReaction(postId, userId);
   }
@@ -687,7 +688,7 @@ class PostService {
       'text': text,
       'type': audioUrl != null ? 'audio' : 'text',
       'createdAt': FieldValue.serverTimestamp(),
-      if (audioUrl != null) 'audioUrl': audioUrl,
+      'audioUrl': ?audioUrl,
     });
 
     batch.update(_firestore.collection('posts').doc(postId), {

@@ -160,11 +160,13 @@ class _GymExercisePickerSheetState
       }
     }
     // Local custom fallback (no userId or service error)
-    _selectExercise(ExercisePickerResult(
-      id: 'custom_${DateTime.now().microsecondsSinceEpoch}',
-      source: ExerciseResultSource.custom,
-      name: result,
-    ));
+    _selectExercise(
+      ExercisePickerResult(
+        id: 'custom_${DateTime.now().microsecondsSinceEpoch}',
+        source: ExerciseResultSource.custom,
+        name: result,
+      ),
+    );
   }
 
   @override
@@ -218,9 +220,7 @@ class _GymExercisePickerSheetState
                 onChanged: (v) => _doSearch(v.trim()),
               ),
               const SizedBox(height: 16),
-              Flexible(
-                child: _buildResultsArea(query, showNoResults),
-              ),
+              Flexible(child: _buildResultsArea(query, showNoResults)),
             ],
           ),
         ),
@@ -266,21 +266,25 @@ class _GymExercisePickerSheetState
       separatorBuilder: (context, idx) => const Divider(height: 1),
       itemBuilder: (context, index) {
         final result = _results[index];
-        final detail = [result.muscleGroup, result.equipment]
-            .where((v) => v != null && v.isNotEmpty)
-            .join(' • ');
-        return ListTile(
-          title: Text(
-            result.name,
-            style: const TextStyle(color: AppColors.textV2Primary),
+        final detail = [
+          result.muscleGroup,
+          result.equipment,
+        ].where((v) => v != null && v.isNotEmpty).join(' • ');
+        return Material(
+          type: MaterialType.transparency,
+          child: ListTile(
+            title: Text(
+              result.name,
+              style: const TextStyle(color: AppColors.textV2Primary),
+            ),
+            subtitle: detail.isNotEmpty
+                ? Text(
+                    detail,
+                    style: const TextStyle(color: AppColors.textV2Secondary),
+                  )
+                : null,
+            onTap: () => _selectExercise(result),
           ),
-          subtitle: detail.isNotEmpty
-              ? Text(
-                  detail,
-                  style: const TextStyle(color: AppColors.textV2Secondary),
-                )
-              : null,
-          onTap: () => _selectExercise(result),
         );
       },
     );
@@ -325,11 +329,16 @@ class _SetCountSelector extends StatelessWidget {
                 onTap: onBack,
                 child: const Row(
                   children: [
-                    Icon(Icons.arrow_back_ios_new_rounded,
-                        size: 16, color: AppColors.textV2Secondary),
+                    Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      size: 16,
+                      color: AppColors.textV2Secondary,
+                    ),
                     SizedBox(width: 4),
-                    Text('Back',
-                        style: TextStyle(color: AppColors.textV2Secondary)),
+                    Text(
+                      'Back',
+                      style: TextStyle(color: AppColors.textV2Secondary),
+                    ),
                   ],
                 ),
               ),
@@ -346,8 +355,7 @@ class _SetCountSelector extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   exercise.muscleGroup!,
-                  style:
-                      const TextStyle(color: AppColors.textV2Secondary),
+                  style: const TextStyle(color: AppColors.textV2Secondary),
                 ),
               ],
               const SizedBox(height: 24),
@@ -362,8 +370,10 @@ class _SetCountSelector extends StatelessWidget {
               Row(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.remove_circle_outline,
-                        color: AppColors.textV2Secondary),
+                    icon: const Icon(
+                      Icons.remove_circle_outline,
+                      color: AppColors.textV2Secondary,
+                    ),
                     onPressed: setCount > _minSets
                         ? () => onSetCountChanged(setCount - 1)
                         : null,
@@ -383,8 +393,10 @@ class _SetCountSelector extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   IconButton(
-                    icon: const Icon(Icons.add_circle_outline,
-                        color: AppColors.textV2Secondary),
+                    icon: const Icon(
+                      Icons.add_circle_outline,
+                      color: AppColors.textV2Secondary,
+                    ),
                     onPressed: setCount < _maxSets
                         ? () => onSetCountChanged(setCount + 1)
                         : null,
@@ -426,10 +438,7 @@ class _SetCountSelector extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _NoMatchesState extends StatelessWidget {
-  const _NoMatchesState({
-    required this.query,
-    required this.onAddCustom,
-  });
+  const _NoMatchesState({required this.query, required this.onAddCustom});
 
   final String query;
   final VoidCallback onAddCustom;

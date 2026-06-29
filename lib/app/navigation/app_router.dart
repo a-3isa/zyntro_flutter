@@ -249,12 +249,14 @@ final routerProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       // Hold on splash while an incomplete restored session is signed out.
       if (signingOut) {
-        return state.matchedLocation == AppRoutes.splash ? null : AppRoutes.splash;
+        return state.matchedLocation == AppRoutes.splash
+            ? null
+            : AppRoutes.splash;
       }
 
-      final isLoggedIn = authState.valueOrNull != null;
+      final isLoggedIn = authState.value != null;
       final isLoading = authState.isLoading;
-      final isRollbackActive = rollbackActive.valueOrNull ?? false;
+      final isRollbackActive = rollbackActive.value ?? false;
 
       final loc = state.matchedLocation;
       // Entry pages a logged-out user may sit on. Onboarding is intentionally
@@ -293,7 +295,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         return null; // wait for the check before deciding
       }
       final isProfileComplete =
-          !hasCompletionError && (profileComplete.valueOrNull ?? false);
+          !hasCompletionError && (profileComplete.value ?? false);
 
       if (isProfileComplete) {
         // Returning, set-up users go straight to the app (home/feed).
@@ -435,7 +437,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           final extra = state.extra as Map<String, dynamic>?;
           final initialAudioUrl =
               extra?['initialAudioUrl'] as String? ??
-              state.uri.queryParameters['audioUrl'];
+              extra?['audioUrl'] as String?;
           final plannedExercises =
               (extra?['plannedExercises'] as List<dynamic>?)
                   ?.cast<PlannedExercise>();

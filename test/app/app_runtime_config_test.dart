@@ -20,19 +20,19 @@ void main() {
     test('uses debug app check providers outside production', () {
       expect(
         AppRuntimeEnvironment.dev.androidProvider,
-        AndroidProvider.debug,
+        isA<AndroidDebugProvider>(),
       );
-      expect(AppRuntimeEnvironment.dev.appleProvider, AppleProvider.debug);
+      expect(AppRuntimeEnvironment.dev.appleProvider, isA<AppleDebugProvider>());
     });
 
     test('uses hardened app check providers in production', () {
       expect(
         AppRuntimeEnvironment.prod.androidProvider,
-        AndroidProvider.playIntegrity,
+        isA<AndroidPlayIntegrityProvider>(),
       );
       expect(
         AppRuntimeEnvironment.prod.appleProvider,
-        AppleProvider.appAttestWithDeviceCheckFallback,
+        isA<AppleAppAttestWithDeviceCheckFallbackProvider>(),
       );
     });
   });

@@ -160,7 +160,7 @@ class _ChangeEmailPageState extends ConsumerState<ChangeEmailPage> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authSessionProvider);
-    final currentEmail = authState.valueOrNull?.email ?? '';
+    final currentEmail = authState.value?.email ?? '';
 
     return Scaffold(
       backgroundColor: AppColors.backgroundV2,

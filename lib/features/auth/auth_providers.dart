@@ -112,7 +112,7 @@ final authSessionProvider = StreamProvider<AuthUserEntity?>((ref) {
 /// Profile completion state used by routing decisions.
 final authProfileCompletionProvider = FutureProvider<bool>((ref) async {
   final authState = ref.watch(authSessionProvider);
-  final uid = authState.valueOrNull?.id;
+  final uid = authState.value?.id;
   if (uid == null) return false;
 
   final result = await ref
@@ -128,7 +128,7 @@ final authProfileCompletionProvider = FutureProvider<bool>((ref) async {
 /// Current authenticated user's profile in domain form.
 final authUserProfileProvider = FutureProvider<UserProfileEntity?>((ref) async {
   final authState = ref.watch(authSessionProvider);
-  final uid = authState.valueOrNull?.id;
+  final uid = authState.value?.id;
   if (uid == null) return null;
 
   final result = await ref.read(authenticationUseCaseProvider).getUserProfile(
@@ -144,7 +144,7 @@ final authUserProfileProvider = FutureProvider<UserProfileEntity?>((ref) async {
 /// ARGB/RGB hex string). Defaults to the app's neon green when absent.
 /// Drives [AppColors.userAccent] app-wide via the root widget.
 final accentColorProvider = Provider<Color>((ref) {
-  final profile = ref.watch(authUserProfileProvider).valueOrNull;
+  final profile = ref.watch(authUserProfileProvider).value;
   return _parseAccent(profile?.avatarConfig) ?? AppColors.accentLime;
 });
 

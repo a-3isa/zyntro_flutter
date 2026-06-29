@@ -70,7 +70,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
   void _savePrivatelyIfNeeded() {
     if (_createdPostId != null || _privateSaveDone || _session == null) return;
     _privateSaveDone = true;
-    final uid = ref.read(authSessionProvider).valueOrNull?.id;
+    final uid = ref.read(authSessionProvider).value?.id;
     if (uid == null) return;
     final postService = ref.read(postServiceProvider);
     final session = _session!;
@@ -234,7 +234,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
   Future<void> _handleShare() async {
     if (_session == null) return;
 
-    final uid = ref.read(authSessionProvider).valueOrNull?.id;
+    final uid = ref.read(authSessionProvider).value?.id;
     if (uid == null) return;
 
     // When offline, queue the share so it fires once connectivity returns.
@@ -459,7 +459,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
     final points = _calcPoints(totalSets);
     final exercises = summary?.exercises ?? [];
 
-    final authUser = ref.watch(authSessionProvider).valueOrNull;
+    final authUser = ref.watch(authSessionProvider).value;
     final username = authUser?.displayName ?? 'you';
     final yourWorkoutType = authUser != null
         ? session.participantTypes[authUser.id] ?? session.type
@@ -525,7 +525,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
                           Builder(builder: (ctx) {
                             final isOnline = ref
                                 .watch(connectivityProvider)
-                                .valueOrNull ?? true;
+                                .value ?? true;
                             if (isOnline) return const SizedBox.shrink();
                             return Container(
                               margin: const EdgeInsets.only(bottom: 8),

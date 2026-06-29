@@ -185,7 +185,7 @@ final buddyServiceProvider = Provider<BuddyService>((ref) {
 /// Current buddy pair provider.
 final currentBuddyPairProvider = FutureProvider<BuddyPair?>((ref) async {
   final authState = ref.watch(authSessionProvider);
-  final uid = authState.valueOrNull?.id;
+  final uid = authState.value?.id;
   if (uid == null) return null;
   return ref.watch(buddyServiceProvider).getBuddyPair(uid);
 });

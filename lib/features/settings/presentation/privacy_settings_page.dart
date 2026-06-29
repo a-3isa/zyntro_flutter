@@ -49,7 +49,7 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
   Widget build(BuildContext context) {
     final userAsync = ref.watch(authUserProfileProvider);
     final authState = ref.watch(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
 
     return Scaffold(
       backgroundColor: AppColors.backgroundV2,

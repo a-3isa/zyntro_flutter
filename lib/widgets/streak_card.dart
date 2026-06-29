@@ -111,7 +111,7 @@ class _StreakCardState extends State<StreakCard>
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(AppBorderRadius.xl),
-          border: Border.all(color: AppColors.userAccent),
+          border: Border.all(color: AppColors.warmBorder),
           boxShadow: [
             BoxShadow(
               color: const Color(0x2E000000),

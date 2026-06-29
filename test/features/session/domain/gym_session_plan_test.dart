@@ -104,6 +104,56 @@ void main() {
         );
         expect(ex.toMap()['personalExerciseId'], 'pers-xyz');
       });
+
+      test('copyWithPlanFields preserves catalog identity', () {
+        final original = PlannedExercise.catalog(
+          id: 'pe-6',
+          exerciseId: 'cat-row',
+          name: 'Row',
+          plannedSets: 3,
+          order: 0,
+          muscleGroup: 'back',
+          equipment: 'Cable',
+        );
+
+        final copied = original.copyWithPlanFields(
+          id: 'pe-7',
+          plannedSets: 5,
+          order: 2,
+        );
+
+        expect(copied.source, PlannedExerciseSource.catalog);
+        expect(copied.id, 'pe-7');
+        expect(copied.exerciseId, 'cat-row');
+        expect(copied.personalExerciseId, isNull);
+        expect(copied.plannedSets, 5);
+        expect(copied.order, 2);
+        expect(copied.muscleGroup, 'back');
+        expect(copied.equipment, 'Cable');
+      });
+
+      test('copyWithPlanFields preserves custom identity', () {
+        final original = PlannedExercise.custom(
+          id: 'pe-8',
+          name: 'Custom Lift',
+          plannedSets: 2,
+          order: 0,
+          personalExerciseId: 'pers-row',
+          muscleGroup: 'back',
+          equipment: 'Cable',
+        );
+
+        final copied = original.copyWithPlanFields(plannedSets: 4, order: 3);
+
+        expect(copied.source, PlannedExerciseSource.custom);
+        expect(copied.id, 'pe-8');
+        expect(copied.exerciseId, isNull);
+        expect(copied.personalExerciseId, 'pers-row');
+        expect(copied.plannedSets, 4);
+        expect(copied.order, 3);
+        expect(copied.muscleGroup, 'back');
+        expect(copied.equipment, 'Cable');
+      });
     });
 
     group('PlannedExercise set count validation (1-20)', () {

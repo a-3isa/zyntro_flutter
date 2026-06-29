@@ -47,12 +47,10 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         notificationServiceProvider.overrideWithValue(notificationService),
-        authSessionProvider.overrideWith((ref) => Stream.value(user)),
+        authSessionProvider.overrideWithValue(const AsyncValue.data(user)),
       ],
     );
     addTearDown(container.dispose);
-
-    await container.read(authSessionProvider.future);
 
     await tester.pumpWidget(
       UncontrolledProviderScope(
@@ -72,12 +70,14 @@ void main() {
     await tester.tap(find.byType(Switch).first);
     await tester.pumpAndSettle();
 
-    final captured = verify(
-      () => notificationService.updateNotificationPreferences(
-        user.id,
-        captureAny(),
-      ),
-    ).captured.single as NotificationPreferences;
+    final captured =
+        verify(
+              () => notificationService.updateNotificationPreferences(
+                user.id,
+                captureAny(),
+              ),
+            ).captured.single
+            as NotificationPreferences;
 
     expect(captured.pushEnabled, isFalse);
     expect(captured.sessionInvites, isFalse);

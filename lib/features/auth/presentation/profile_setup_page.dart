@@ -41,7 +41,7 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
       }
 
       final authState = ref.read(authSessionProvider);
-      final user = authState.valueOrNull;
+      final user = authState.value;
 
       if (user != null) {
         final providerData = user.providerIds;
@@ -77,7 +77,7 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
 
     try {
       final authState = ref.read(authSessionProvider);
-      final uid = authState.valueOrNull?.id;
+      final uid = authState.value?.id;
 
       if (uid == null) throw Exception('User not authenticated');
 
@@ -156,7 +156,7 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
                 Consumer(
                   builder: (context, ref, child) {
                     final authState = ref.watch(authSessionProvider);
-                    final user = authState.valueOrNull;
+                    final user = authState.value;
 
                     if (user != null && !user.emailVerified && _authProvider == 'email') {
                       return Padding(

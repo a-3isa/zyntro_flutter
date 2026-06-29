@@ -271,7 +271,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
 
   Future<void> _loadNotificationPreferences() async {
     final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
     if (uid != null) {
       final prefs = await ref
           .read(notificationServiceProvider)
@@ -286,7 +286,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
 
   Future<void> _loadRecentExercises() async {
     final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
     if (uid != null) {
       final exercises = await ref
           .read(sessionAnalyticsServiceProvider)
@@ -358,7 +358,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
 
   Future<void> _initPresence() async {
     final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
     if (uid != null) {
       _presenceUserId = uid;
       _presenceServiceRef = ref.read(presenceServiceProvider);
@@ -527,7 +527,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   }
 
   Future<void> _terminateSessionInactive() async {
-    final uid = ref.read(authSessionProvider).valueOrNull?.id;
+    final uid = ref.read(authSessionProvider).value?.id;
     if (uid == null || !mounted) return;
     await ref
         .read(sessionServiceProvider)
@@ -541,7 +541,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
     if (uid == null) return;
 
     final presenceService = ref.read(presenceServiceProvider);
@@ -606,7 +606,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   // Monitor events for voice notes
   void _monitorVoiceNotes(List<TimelineEvent> events) async {
     final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
     if (uid == null) return;
 
     // Get perfs inside method or cache them
@@ -735,9 +735,9 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     // Check availability based on turn-based rules
     final session = ref
         .read(currentSessionProvider(widget.sessionId))
-        .valueOrNull;
+        .value;
     final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
 
     if (session != null &&
         session.derivedMode == SessionMode.turnBased &&
@@ -759,7 +759,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
 
     try {
       final authState = ref.read(authSessionProvider);
-      final uid = authState.valueOrNull?.id;
+      final uid = authState.value?.id;
       if (uid == null) return false;
 
       // Add to local exercises
@@ -1018,7 +1018,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       if (!mounted) return;
       final latestSession = ref
           .read(currentSessionProvider(widget.sessionId))
-          .valueOrNull;
+          .value;
       if (latestSession?.activeUserId != pairedBotFriendId) {
         _isProcessingBotTurn = false;
         return;
@@ -1098,9 +1098,9 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     // Check availability based on turn-based rules
     final session = ref
         .read(currentSessionProvider(widget.sessionId))
-        .valueOrNull;
+        .value;
     final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
 
     if (session != null &&
         session.derivedMode == SessionMode.turnBased &&
@@ -1338,7 +1338,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
 
     try {
       final authState = ref.read(authSessionProvider);
-      final uid = authState.valueOrNull?.id;
+      final uid = authState.value?.id;
       if (uid == null) return;
 
       // Calculate duration in seconds for storage
@@ -1495,8 +1495,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   Widget _buildDispatchedInputSection() {
     final session = ref
         .watch(currentSessionProvider(widget.sessionId))
-        .valueOrNull;
-    final uid = ref.watch(authSessionProvider).valueOrNull?.id;
+        .value;
+    final uid = ref.watch(authSessionProvider).value?.id;
     if (session == null || uid == null) {
       return _buildInputSection();
     }
@@ -1504,7 +1504,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     if (_isSoloSession) {
       if (_plannedExercises.isNotEmpty) {
         final events = [
-          ...?ref.watch(sessionEventsProvider(widget.sessionId)).valueOrNull,
+          ...?ref.watch(sessionEventsProvider(widget.sessionId)).value,
           ..._localPendingEvents,
         ];
         final soloPlans = {
@@ -1526,7 +1526,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     }
 
     final events = [
-      ...?ref.watch(sessionEventsProvider(widget.sessionId)).valueOrNull,
+      ...?ref.watch(sessionEventsProvider(widget.sessionId)).value,
       ..._localPendingEvents,
     ];
     final plans = <String, GymSessionPlan>{};
@@ -1538,7 +1538,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
               userId: participantId,
             )),
           )
-          .valueOrNull;
+          .value;
       if (plan != null && plan.exercises.isNotEmpty) {
         plans[participantId] = plan;
       }
@@ -1791,7 +1791,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     required Map<String, GymSessionPlan> plans,
   }) async {
     PlannedExercise? pickedExercise;
-    final uid = ref.read(authSessionProvider).valueOrNull?.id;
+    final uid = ref.read(authSessionProvider).value?.id;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -1822,25 +1822,10 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                   .reduce((a, b) => a > b ? a : b) +
               1;
     final picked = pickedExercise!;
-    final exercise = picked.source == PlannedExerciseSource.catalog
-        ? PlannedExercise.catalog(
-            id: 'extra_${DateTime.now().microsecondsSinceEpoch}',
-            exerciseId: picked.exerciseId!,
-            name: picked.name,
-            plannedSets: picked.plannedSets,
-            order: nextOrder,
-            muscleGroup: picked.muscleGroup,
-            equipment: picked.equipment,
-          )
-        : PlannedExercise.custom(
-            id: 'extra_${DateTime.now().microsecondsSinceEpoch}',
-            name: picked.name,
-            plannedSets: picked.plannedSets,
-            order: nextOrder,
-            personalExerciseId: picked.personalExerciseId,
-            muscleGroup: picked.muscleGroup,
-            equipment: picked.equipment,
-          );
+    final exercise = picked.copyWithPlanFields(
+      id: 'extra_${DateTime.now().microsecondsSinceEpoch}',
+      order: nextOrder,
+    );
     final updatedPlan = GymSessionPlan(
       userId: currentPlan.userId,
       workoutType: currentPlan.workoutType,
@@ -2067,7 +2052,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     setState(() => _isLogging = true);
     try {
       final authState = ref.read(authSessionProvider);
-      final uid = authState.valueOrNull?.id;
+      final uid = authState.value?.id;
       if (uid == null) return;
 
       final eventText = '${_workoutType.displayName}: ${duration}min session';
@@ -2670,7 +2655,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     double totalDistance = 0.0;
 
     final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
     if (uid == null) return;
 
     final myProgress = _participantProgress[uid];
@@ -2856,9 +2841,9 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     ref.listen(currentSessionProvider(widget.sessionId), (previous, next) {
       next.whenData((session) async {
         if (session == null) return;
-        final previousSession = previous?.valueOrNull;
+        final previousSession = previous?.value;
         final authState = ref.read(authSessionProvider);
-        final currentUserId = authState.valueOrNull?.id;
+        final currentUserId = authState.value?.id;
 
         // Check if turn changed to me
         if (session.derivedMode == SessionMode.turnBased &&
@@ -2946,7 +2931,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   Widget _buildV2SessionHeader(BuildContext context) {
     final session = ref
         .watch(currentSessionProvider(widget.sessionId))
-        .valueOrNull;
+        .value;
     final isBotPartner = session?.partnerKind == PairedPartnerKind.bot;
     final inviteStatus = session?.invitationStatus;
     final setupStatusChip = session?.phase == SessionPhase.setup
@@ -3243,7 +3228,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   Widget _buildV2ProgressRow(BuildContext context) {
     final session = ref
         .watch(currentSessionProvider(widget.sessionId))
-        .valueOrNull;
+        .value;
     final planStatusLabel = session?.phase == SessionPhase.setup
         ? 'Plan pending'
         : 'Plan submitted';

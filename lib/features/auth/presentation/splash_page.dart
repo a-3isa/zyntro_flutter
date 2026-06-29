@@ -15,7 +15,7 @@ class SplashPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authSessionProvider);
-    final user = authState.valueOrNull;
+    final user = authState.value;
 
     // Auth resolving, or already signed in → loader while the router routes.
     if (authState.isLoading || user != null) {

@@ -95,7 +95,7 @@ class PresenceService {
         'status': status.value,
         'lastChanged': FieldValue.serverTimestamp(),
         'userId': userId,
-        if (isTyping != null) 'isTyping': isTyping,
+        'isTyping': ?isTyping,
       };
 
       await _firestore
@@ -296,4 +296,3 @@ final sessionPresenceProvider =
     StreamProvider.family<List<UserPresence>, String>((ref, sessionId) {
       return ref.watch(presenceServiceProvider).listenToAllPresence(sessionId);
     });
-

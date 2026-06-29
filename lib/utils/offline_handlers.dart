@@ -41,6 +41,18 @@ OfflineErrorCategory categorizeError(Object error) {
   return OfflineErrorCategory.unknown;
 }
 
+void _debugPrintStack(StackTrace stack) {
+  if (kDebugMode) {
+    debugPrint('[OfflineHandlers] Stack: $stack');
+  }
+}
+
+void _debugPrintLocalPath(String localPath) {
+  if (kDebugMode) {
+    debugPrint('[OfflineHandlers] Local path: $localPath');
+  }
+}
+
 /// Register offline operation handlers.
 Future<void> registerOfflineHandlers(ProviderContainer container) async {
   final offlineManager = container.read(offlineManagerProvider);
@@ -101,7 +113,7 @@ Future<void> registerOfflineHandlers(ProviderContainer container) async {
         debugPrint(
           '[OfflineHandlers] Batch sync failed for session $sessionId: $e (category: $errorCategory)',
         );
-        debugPrint('[OfflineHandlers] Stack: $stack');
+        _debugPrintStack(stack);
 
         // If batch fails, mark all as failed for re-queue with individual retry
         for (var i = 0; i < sessionOps.length; i++) {
@@ -157,7 +169,7 @@ Future<void> registerOfflineHandlers(ProviderContainer container) async {
       debugPrint(
         '[OfflineHandlers] Payload summary: sessionId=$sessionId, type=$type',
       );
-      debugPrint('[OfflineHandlers] Stack: $stack');
+      _debugPrintStack(stack);
 
       // For validation errors after 3 retries, just log and don't rethrow
       // to allow discarding
@@ -192,7 +204,7 @@ Future<void> registerOfflineHandlers(ProviderContainer container) async {
         '[OfflineHandlers] Session end failed: $e (category: $errorCategory)',
       );
       debugPrint('[OfflineHandlers] Operation ID: ${op.id}');
-      debugPrint('[OfflineHandlers] Stack: $stack');
+      _debugPrintStack(stack);
       rethrow;
     }
   });
@@ -224,7 +236,7 @@ Future<void> registerOfflineHandlers(ProviderContainer container) async {
         '[OfflineHandlers] Post create failed: $e (category: $errorCategory)',
       );
       debugPrint('[OfflineHandlers] Operation ID: ${op.id}');
-      debugPrint('[OfflineHandlers] Stack: $stack');
+      _debugPrintStack(stack);
       rethrow;
     }
   });
@@ -244,18 +256,16 @@ Future<void> registerOfflineHandlers(ProviderContainer container) async {
     }
 
     try {
-      await container.read(postServiceProvider).likePost(
-            postId,
-            userId,
-            userName: userName,
-          );
+      await container
+          .read(postServiceProvider)
+          .likePost(postId, userId, userName: userName);
     } catch (e, stack) {
       final errorCategory = categorizeError(e);
       debugPrint(
         '[OfflineHandlers] Like post failed: $e (category: $errorCategory)',
       );
       debugPrint('[OfflineHandlers] Operation ID: ${op.id}');
-      debugPrint('[OfflineHandlers] Stack: $stack');
+      _debugPrintStack(stack);
       rethrow;
     }
   });
@@ -281,7 +291,7 @@ Future<void> registerOfflineHandlers(ProviderContainer container) async {
         '[OfflineHandlers] Unlike post failed: $e (category: $errorCategory)',
       );
       debugPrint('[OfflineHandlers] Operation ID: ${op.id}');
-      debugPrint('[OfflineHandlers] Stack: $stack');
+      _debugPrintStack(stack);
       rethrow;
     }
   });
@@ -305,7 +315,10 @@ Future<void> registerOfflineHandlers(ProviderContainer container) async {
     }
 
     try {
-      await container.read(postServiceProvider).addComment( // ignore: deprecated_member_use
+      await container
+          .read(postServiceProvider)
+          // ignore: deprecated_member_use_from_same_package
+          .addComment(
             postId: postId,
             userId: userId,
             userName: userName ?? 'Unknown',
@@ -318,7 +331,7 @@ Future<void> registerOfflineHandlers(ProviderContainer container) async {
         '[OfflineHandlers] Add comment failed: $e (category: $errorCategory)',
       );
       debugPrint('[OfflineHandlers] Operation ID: ${op.id}');
-      debugPrint('[OfflineHandlers] Stack: $stack');
+      _debugPrintStack(stack);
       rethrow;
     }
   });
@@ -354,8 +367,8 @@ Future<void> registerOfflineHandlers(ProviderContainer container) async {
         '[OfflineHandlers] Voice note upload failed: $e (category: $errorCategory)',
       );
       debugPrint('[OfflineHandlers] Operation ID: ${op.id}');
-      debugPrint('[OfflineHandlers] Local path: $localPath');
-      debugPrint('[OfflineHandlers] Stack: $stack');
+      _debugPrintLocalPath(localPath);
+      _debugPrintStack(stack);
       rethrow;
     }
   });

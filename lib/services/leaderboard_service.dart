@@ -84,37 +84,13 @@ class LeaderboardService {
             .where(FieldPath.documentId, whereIn: chunk)
             .get();
 
-        for (final doc in querySnapshot.docs) {
-          final data = doc.data();
-
-          // Fetch streak from user's stats subcollection
-          int streak = 0;
-          try {
-            final statsDoc = await _firestore
-                .collection('users')
-                .doc(doc.id)
-                .collection('stats')
-                .doc('current')
-                .get();
-            if (statsDoc.exists) {
-              streak = statsDoc.data()?['currentStreak'] ?? 0;
-            }
-          } catch (e) {
-            debugPrint('Error fetching streak for ${doc.id}: $e');
-          }
-
-          entries.add(
-            LeaderboardEntry(
-              userId: doc.id,
-              displayName: data['displayName'] ?? 'Unknown',
-              photoURL: data['photoURL'],
-              score: data['workoutScore'] ?? 0,
-              streak: streak,
-              rank: 0, // Will be assigned after sorting
-              isCurrentUser: doc.id == currentUserId,
+        entries.addAll(
+          await Future.wait(
+            querySnapshot.docs.map(
+              (doc) => _buildFriendLeaderboardEntry(doc, currentUserId),
             ),
-          );
-        }
+          ),
+        );
       }
 
       // Sort by streak descending first, then by score descending
@@ -142,6 +118,39 @@ class LeaderboardService {
       debugPrint('Error getting friends leaderboard: $e');
       return [];
     }
+  }
+
+  Future<LeaderboardEntry> _buildFriendLeaderboardEntry(
+    QueryDocumentSnapshot<Map<String, dynamic>> doc,
+    String currentUserId,
+  ) async {
+    final data = doc.data();
+
+    // Fetch streak from user's stats subcollection.
+    int streak = 0;
+    try {
+      final statsDoc = await _firestore
+          .collection('users')
+          .doc(doc.id)
+          .collection('stats')
+          .doc('current')
+          .get();
+      if (statsDoc.exists) {
+        streak = statsDoc.data()?['currentStreak'] ?? 0;
+      }
+    } catch (e) {
+      debugPrint('Error fetching streak for ${doc.id}: $e');
+    }
+
+    return LeaderboardEntry(
+      userId: doc.id,
+      displayName: data['displayName'] ?? 'Unknown',
+      photoURL: data['photoURL'],
+      score: data['workoutScore'] ?? 0,
+      streak: streak,
+      rank: 0, // Will be assigned after sorting
+      isCurrentUser: doc.id == currentUserId,
+    );
   }
 
   /// Get global leaderboard (top 50 users by workoutScore).

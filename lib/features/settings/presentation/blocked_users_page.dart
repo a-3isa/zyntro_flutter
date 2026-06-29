@@ -76,7 +76,7 @@ class _BlockedUsersPageState extends ConsumerState<BlockedUsersPage> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
     final blockedUsersAsync = ref.watch(blockedUsersProvider);
 
     return Scaffold(

@@ -73,7 +73,7 @@ class SessionPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
 
     // Load recent sessions
     final recentAsync = uid != null
@@ -317,7 +317,7 @@ class _WeeklyRingCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final streakAsync =
         uid != null ? ref.watch(userStreakProvider(uid!)) : null;
-    final userStreak = streakAsync?.valueOrNull;
+    final userStreak = streakAsync?.value;
     const goal = 5;
     final done = userStreak?.weeklyWorkouts ?? 0;
     final streak = userStreak?.currentStreak ?? 0;

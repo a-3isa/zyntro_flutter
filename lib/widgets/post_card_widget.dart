@@ -69,7 +69,7 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
 
   Future<void> _fetchReactionData() async {
     final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
     final postService = ref.read(postServiceProvider);
 
     try {
@@ -109,7 +109,7 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
 
   Widget _buildFullCard(BuildContext context) {
     final authState = ref.read(authSessionProvider);
-    final currentUserId = authState.valueOrNull?.id;
+    final currentUserId = authState.value?.id;
     final isOwnPost = currentUserId == widget.post.authorId;
 
     final author = ref
@@ -736,7 +736,7 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
 
   Future<void> _handleReaction(ReactionType type) async {
     final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
     if (uid == null) return;
 
     final currentReaction = _userReaction;
@@ -790,7 +790,7 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
     required String authorName,
   }) async {
     final authState = ref.read(authSessionProvider);
-    final currentUserId = authState.valueOrNull?.id;
+    final currentUserId = authState.value?.id;
     if (currentUserId == null) return;
 
     switch (action) {

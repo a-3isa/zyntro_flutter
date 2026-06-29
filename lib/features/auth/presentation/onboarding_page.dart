@@ -116,7 +116,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     final seq = ++_usernameCheckSeq;
     _usernameDebounce = Timer(const Duration(milliseconds: 400), () async {
       try {
-        final uid = ref.read(authSessionProvider).valueOrNull?.id;
+        final uid = ref.read(authSessionProvider).value?.id;
         final available = await service.isAvailable(raw, currentUserId: uid);
         if (!mounted || seq != _usernameCheckSeq) return;
         setState(() {
@@ -138,7 +138,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
   /// Claim the username, then advance to the Training step.
   Future<void> _claimUsernameAndContinue() async {
     if (_claimingUsername) return;
-    final uid = ref.read(authSessionProvider).valueOrNull?.id;
+    final uid = ref.read(authSessionProvider).value?.id;
     if (uid == null) return;
 
     setState(() => _claimingUsername = true);
@@ -171,7 +171,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
   Future<void> _finishOnboarding() async {
     if (_isFinishing) return;
     HapticFeedback.heavyImpact();
-    final uid = ref.read(authSessionProvider).valueOrNull?.id;
+    final uid = ref.read(authSessionProvider).value?.id;
     if (uid == null) return;
 
     setState(() => _isFinishing = true);

@@ -60,10 +60,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   Widget build(BuildContext context) {
     final authState = ref.watch(authSessionProvider);
     final profileAsync = ref.watch(authUserProfileProvider);
-    final displayName = authState.valueOrNull?.displayName ?? 'Zyntro User';
-    final photoUrl = profileAsync.valueOrNull?.photoUrl ?? authState.valueOrNull?.photoUrl;
-    final username = profileAsync.valueOrNull?.username ?? displayName.toLowerCase().replaceAll(' ', '_');
-    final userId = authState.valueOrNull?.id;
+    final displayName = authState.value?.displayName ?? 'Zyntro User';
+    final photoUrl = profileAsync.value?.photoUrl ?? authState.value?.photoUrl;
+    final username = profileAsync.value?.username ?? displayName.toLowerCase().replaceAll(' ', '_');
+    final userId = authState.value?.id;
     final rankAsync = userId != null ? ref.watch(currentUserRankProvider(userId)) : null;
     final rankLabel = rankAsync?.whenOrNull(
       data: (r) => r.rank != null
@@ -391,7 +391,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   Widget _buildConnectedAccountsCard(BuildContext context) {
     final profileAsync = ref.watch(authUserProfileProvider);
     final isFbConnected =
-        profileAsync.valueOrNull?.isFacebookConnected ?? false;
+        profileAsync.value?.isFacebookConnected ?? false;
 
     return _buildSectionCard([
       InkWell(
@@ -469,7 +469,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   Future<void> _connectFacebook(BuildContext context) async {
     HapticFeedback.lightImpact();
-    final uid = ref.read(authSessionProvider).valueOrNull?.id;
+    final uid = ref.read(authSessionProvider).value?.id;
     if (uid == null) return;
 
     final messenger = ScaffoldMessenger.of(context);
@@ -552,7 +552,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
 
     if (confirmed == true && mounted) {
-      final uid = ref.read(authSessionProvider).valueOrNull?.id;
+      final uid = ref.read(authSessionProvider).value?.id;
       if (uid == null) return;
       final fbService = ref.read(facebookLinkServiceProvider);
       await fbService.disconnectFacebook(uid);
@@ -799,7 +799,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     if (confirmed == true && mounted) {
       HapticFeedback.heavyImpact();
       // T040: clear offline caches before signing out.
-      final userId = ref.read(authSessionProvider).valueOrNull?.id;
+      final userId = ref.read(authSessionProvider).value?.id;
       if (userId != null) {
         await ref.read(feedCacheServiceProvider).clearCache();
         await ref.read(profileCacheServiceProvider).clearCache(userId);

@@ -27,7 +27,8 @@ void main() {
       expect(rules, contains('isImageContent()'));
       expect(rules, contains('isUnder5Mb()'));
       expect(rules, contains('allow read: if isAuthenticated();'));
-      expect(rules, contains('allow write: if isAuthenticated() && isImageContent() && isUnder5Mb();'));
+      expect(rules, contains('isPostOwner(postId)'));
+      expect(rules, contains('allow write: if isPostOwner(postId) && isImageContent() && isUnder5Mb();'));
     });
 
     test('scopes profile photo writes to the owning user', () {

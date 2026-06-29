@@ -13,7 +13,7 @@ class ZyntroApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
-    final themeMode = ref.watch(themeModeProvider).valueOrNull ?? ThemeMode.system;
+    final themeMode = ref.watch(themeModeProvider).value ?? ThemeMode.system;
 
     // Apply the signed-in user's chosen neon color app-wide. Watching this
     // rebuilds the whole app when the color changes (login / onboarding /

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/navigation/app_route_locations.dart';
 import '../../../core/theme/app_theme.dart';
@@ -180,11 +181,11 @@ class _MainShellState extends ConsumerState<MainShell>
                     bottom: false,
                     child: Builder(builder: (_) {
                       final isOffline =
-                          !(ref.watch(connectivityProvider).valueOrNull ?? true);
+                          !(ref.watch(connectivityProvider).value ?? true);
                       final queueCount =
-                          ref.watch(pendingQueueCountProvider).valueOrNull ?? 0;
+                          ref.watch(pendingQueueCountProvider).value ?? 0;
                       final syncProgress =
-                          ref.watch(syncProgressProvider).valueOrNull;
+                          ref.watch(syncProgressProvider).value;
                       final isSyncing = syncProgress != null &&
                           syncProgress.remaining > 0 &&
                           !isOffline;

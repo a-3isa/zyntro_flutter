@@ -18,12 +18,10 @@ class AuthRemoteDataSource {
   final NotificationService _notificationService;
 
   AuthRemoteDataSource({
-    required fb.FirebaseAuth auth,
-    required FirebaseFirestore firestore,
-    required NotificationService notificationService,
-  }) : _auth = auth,
-       _firestore = firestore,
-       _notificationService = notificationService;
+    required this._auth,
+    required this._firestore,
+    required this._notificationService,
+  });
 
   /// True if the Firebase SDK already has a user in memory (synchronous read
   /// from local persistence — available immediately after initializeApp).
@@ -109,14 +107,13 @@ class AuthRemoteDataSource {
       // GMS needs this to issue an idToken that Firebase Auth can verify.
       const serverClientId =
           '146147804221-i1dgf7t2t2lf9puara1ukeskar1gtbkt.apps.googleusercontent.com';
-      final googleSignIn = GoogleSignIn(serverClientId: serverClientId);
-      final googleUser = await googleSignIn.signIn();
-      if (googleUser == null) return null; // user dismissed picker
+      final googleSignIn = GoogleSignIn.instance;
+      await googleSignIn.initialize(serverClientId: serverClientId);
+      final googleUser = await googleSignIn.authenticate();
 
-      final googleAuth = await googleUser.authentication;
+      final googleAuth = googleUser.authentication;
       final credential = fb.GoogleAuthProvider.credential(
         idToken: googleAuth.idToken,
-        accessToken: googleAuth.accessToken,
       );
 
       final result = await _auth.signInWithCredential(credential);
@@ -135,6 +132,15 @@ class AuthRemoteDataSource {
     } on fb.FirebaseAuthException catch (e) {
       if (e.code == 'canceled') return null;
       throw _mapFirebaseAuthException(e);
+    } on GoogleSignInException catch (e) {
+      if (e.code == GoogleSignInExceptionCode.canceled ||
+          e.code == GoogleSignInExceptionCode.interrupted ||
+          e.code == GoogleSignInExceptionCode.uiUnavailable) {
+        return null;
+      }
+      throw AuthDataException.unknown(
+        'Google Sign-In failed. Please try again.',
+      );
     } on AuthDataException {
       rethrow;
     } catch (e) {
@@ -339,14 +345,13 @@ class AuthRemoteDataSource {
         // Only write photoURL when we actually have one. Writing null here on a
         // merge (e.g. when onboarding completes) would wipe the photo captured
         // from a Google/Facebook sign-in.
-        if (photoUrl != null) 'photoURL': photoUrl,
+        'photoURL': ?photoUrl,
         'isPrivate': false,
         'workoutPreference': workoutPreference.value,
         'beginnerFlag': beginnerFlag,
-        if (avatarConfig != null) 'avatarConfig': avatarConfig,
+        'avatarConfig': ?avatarConfig,
         'updatedAt': FieldValue.serverTimestamp(),
-        if (trainingDaysPerWeek != null)
-          'trainingDaysPerWeek': trainingDaysPerWeek,
+        'trainingDaysPerWeek': ?trainingDaysPerWeek,
       };
 
       // Preserve an existing auth provider (facebook/google). Only default to

@@ -315,7 +315,10 @@ class NotificationService {
     );
 
     await _localNotifications.initialize(
-      const InitializationSettings(android: androidSettings, iOS: iosSettings),
+      settings: const InitializationSettings(
+        android: androidSettings,
+        iOS: iosSettings,
+      ),
       onDidReceiveNotificationResponse: _onNotificationTapped,
     );
 
@@ -365,14 +368,14 @@ class NotificationService {
   }
 
   void _onNotificationTapped(NotificationResponse response) {
-    debugPrint(
-      '[NotificationService] Notification tapped: ${response.payload}',
-    );
+    debugPrint('[NotificationService] Notification tapped');
     // Handle navigation based on payload
     if (response.payload != null) {
       try {
         final data = jsonDecode(response.payload!) as Map<String, dynamic>;
-        debugPrint('[NotificationService] Payload data: $data');
+        debugPrint(
+          '[NotificationService] Payload data: ${_redactedNotificationDataForLog(data)}',
+        );
         _navigateBasedOnData(data);
       } catch (e) {
         debugPrint('[NotificationService] Error parsing payload: $e');
@@ -388,7 +391,9 @@ class NotificationService {
   }
 
   void _handleNotificationOpen(RemoteMessage message) {
-    debugPrint('[NotificationService] Notification opened: ${message.data}');
+    debugPrint(
+      '[NotificationService] Notification opened: ${_redactedNotificationDataForLog(message.data)}',
+    );
     unawaited(_navigateBasedOnData(message.data));
   }
 
@@ -415,7 +420,6 @@ class NotificationService {
       final notificationType = data['type'] as String?;
       final sessionType =
           data['sessionType'] as String? ?? WorkoutType.gym.value;
-      final audioUrl = data['audioUrl'] as String?;
 
       // Session invites go to the acceptance page so the friend can choose
       // their workout type and plan before joining.
@@ -434,16 +438,13 @@ class NotificationService {
           }
         }
         if (!navigatorContext.mounted) return;
-        navigatorContext.push(
-          AppRouteLocations.gymSessionSetup(sessionId),
-        );
+        navigatorContext.push(AppRouteLocations.gymSessionSetup(sessionId));
         return;
       }
 
       String location = AppRouteLocations.sessionRoom(
         sessionId,
         type: sessionType,
-        audioUrl: audioUrl,
       );
 
       try {
@@ -459,7 +460,6 @@ class NotificationService {
             phase: SessionPhase.fromString(
               sessionData['phase'] as String? ?? SessionPhase.live.value,
             ),
-            audioUrl: audioUrl,
           );
         }
       } catch (error) {
@@ -502,10 +502,13 @@ class NotificationService {
     );
 
     await _localNotifications.show(
-      message.hashCode,
-      message.notification?.title ?? 'Zyntro',
-      message.notification?.body ?? '',
-      const NotificationDetails(android: androidDetails, iOS: iosDetails),
+      id: message.hashCode,
+      title: message.notification?.title ?? 'Zyntro',
+      body: message.notification?.body ?? '',
+      notificationDetails: const NotificationDetails(
+        android: androidDetails,
+        iOS: iosDetails,
+      ),
       payload: jsonEncode(message.data),
     );
   }
@@ -1251,6 +1254,23 @@ class NotificationService {
   }
 }
 
+const _notificationLogRedactions = <String, String>{
+  'audioUrl': '<redacted>',
+  'token': '<redacted>',
+  'idToken': '<redacted>',
+  'appCheckToken': '<redacted>',
+  'Authorization': '<redacted>',
+  'X-Firebase-AppCheck': '<redacted>',
+};
+
+Map<String, dynamic> _redactedNotificationDataForLog(
+  Map<String, dynamic> data,
+) {
+  return data.map((key, value) {
+    return MapEntry(key, _notificationLogRedactions[key] ?? value);
+  });
+}
+
 Future<String> getDeviceId() async {
   final prefs = await SharedPreferences.getInstance();
   String? deviceId = prefs.getString('device_id');
@@ -1265,7 +1285,9 @@ Future<String> getDeviceId() async {
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // Background isolate: Firebase must be re-initialised before any Firebase call.
   await Firebase.initializeApp();
-  debugPrint('[FCM] Background message received: ${message.messageId} type=${message.data['type']}');
+  debugPrint(
+    '[FCM] Background message received: ${message.messageId} type=${message.data['type']}',
+  );
   // Data-only messages (no notification field) arrive here.
   // Notification-field messages are shown automatically by the OS; we only
   // need to handle side-effects here (e.g. badge counts, local DB updates).

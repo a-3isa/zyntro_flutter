@@ -46,6 +46,53 @@ void main() {
       expect(rules, contains('match /inviteCodes/{inviteCode}'));
     });
 
+    test('invite codes are redeemable by code but not listable', () {
+      final idx = rules.indexOf('match /inviteCodes/{inviteCode}');
+      expect(idx, isNonNegative);
+      final section = rules.substring(
+        idx,
+        rules.indexOf('match /events/{eventId}', idx),
+      );
+
+      expect(section, contains('allow get: if isAuthenticated();'));
+      expect(section, contains('allow list: if false;'));
+      expect(section, contains('isBuddyInviteCodeRedeemUpdate()'));
+      expect(
+        rules,
+        contains('request.resource.data.usedBy == request.auth.uid'),
+      );
+      expect(rules, contains('resource.data.expiresAt > request.time'));
+    });
+
+    test('buddy pair invite accept cannot add caller without redeemed code', () {
+      final idx = rules.indexOf('match /buddyPairs/{pairId}');
+      expect(idx, isNonNegative);
+      final section = rules.substring(
+        idx,
+        rules.indexOf('match /inviteCodes/{inviteCode}', idx),
+      );
+
+      expect(section, contains('isBuddyPairInviteAcceptUpdate()'));
+      expect(
+        rules,
+        contains(
+          '!hasParticipant(resource.data.participants, request.auth.uid)',
+        ),
+      );
+      expect(
+        rules,
+        contains(
+          'request.resource.data.participants.hasAll(resource.data.participants)',
+        ),
+      );
+      expect(
+        rules,
+        contains(
+          r'getAfter(/databases/$(database)/documents/inviteCodes/$(resource.data.inviteCode)).data.usedBy == request.auth.uid',
+        ),
+      );
+    });
+
     test('require joined-event writes before leaderboard counts change', () {
       expect(
         rules,
@@ -65,6 +112,7 @@ void main() {
       expect(rules, contains('isPrivilegedUserCreate()'));
       expect(rules, contains('isPrivilegedUserFieldChange()'));
       expect(rules, contains('hasGlobalLeaderboardAccess'));
+      expect(rules, contains('globalAccessGrantedAt'));
       expect(rules, contains('isModerator'));
     });
 
@@ -75,6 +123,14 @@ void main() {
           'allow create: if isOwner(userId) && request.resource.data.userId == userId;',
         ),
       );
+    });
+
+    test('post comments and reactions bind created identity to auth user', () {
+      expect(
+        rules,
+        contains('request.resource.data.authorId == request.auth.uid'),
+      );
+      expect(rules, contains('reactionId == request.auth.uid'));
     });
 
     test('prevents followers from self-approving follow requests', () {

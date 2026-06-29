@@ -37,16 +37,12 @@ class AuthController {
   final TelemetryBaselineService _telemetryBaselineService;
 
   AuthController({
-    required AuthenticationUseCase useCase,
-    required MigrationGovernanceRepository migrationRepository,
-    required ValidationEvidenceService validationEvidenceService,
-    required DomainFailureCategoryMapper domainFailureCategoryMapper,
-    required TelemetryBaselineService telemetryBaselineService,
-  }) : _useCase = useCase,
-       _migrationRepository = migrationRepository,
-       _validationEvidenceService = validationEvidenceService,
-       _domainFailureCategoryMapper = domainFailureCategoryMapper,
-       _telemetryBaselineService = telemetryBaselineService;
+    required this._useCase,
+    required this._migrationRepository,
+    required this._validationEvidenceService,
+    required this._domainFailureCategoryMapper,
+    required this._telemetryBaselineService,
+  });
 
   Future<AuthUserEntity> signInWithEmail(String email, String password) async {
     await ensureMigrationSliceInitialized();

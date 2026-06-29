@@ -22,7 +22,7 @@ class ModerationQueuePage extends ConsumerStatefulWidget {
 
 final isModeratorProvider = FutureProvider<bool>((ref) async {
   final authState = ref.watch(authSessionProvider);
-  final uid = authState.valueOrNull?.id;
+  final uid = authState.value?.id;
   if (uid == null) return false;
   return ref.read(moderationServiceProvider).isModerator(uid);
 });
@@ -215,7 +215,7 @@ class _ModerationQueuePageState extends ConsumerState<ModerationQueuePage> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authSessionProvider);
-    final moderatorId = authState.valueOrNull?.id;
+    final moderatorId = authState.value?.id;
     final isModeratorAsync = ref.watch(isModeratorProvider);
     final reportsAsync = ref.watch(pendingReportsProvider);
 

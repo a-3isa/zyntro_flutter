@@ -64,7 +64,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
             .read(authControllerProvider)
             .getUserProfile(post.authorId);
         final authState = ref.read(authSessionProvider);
-        final uid = authState.valueOrNull?.id;
+        final uid = authState.value?.id;
 
         // Fetch reaction data
         final counts = await postService.getReactionCounts(widget.postId);
@@ -96,7 +96,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
     HapticManager.medium();
 
     final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
     if (uid == null || _post == null) return;
 
     final previousReaction = _currentReaction;
@@ -166,7 +166,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
     if (_commentController.text.trim().isEmpty || _post == null) return;
 
     final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
     if (uid == null) return;
 
     final user = await ref.read(authControllerProvider).getUserProfile(uid);
@@ -809,7 +809,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
       child: commentsAsync.when(
         data: (comments) {
           final blockedUserIds =
-              ref.watch(blockedUserIdsProvider).valueOrNull ?? [];
+              ref.watch(blockedUserIdsProvider).value ?? [];
           final filtered = comments
               .where((c) => !blockedUserIds.contains(c.authorId))
               .toList();
@@ -854,7 +854,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
 
   Widget _buildCommentTile(Comment comment) {
     final authState = ref.read(authSessionProvider);
-    final currentUserId = authState.valueOrNull?.id;
+    final currentUserId = authState.value?.id;
     final isOwnComment = currentUserId == comment.authorId;
 
     return Padding(
@@ -966,14 +966,14 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
 
   bool _isOwnPost() {
     final authState = ref.read(authSessionProvider);
-    final currentUserId = authState.valueOrNull?.id;
+    final currentUserId = authState.value?.id;
     return _post != null && currentUserId == _post!.authorId;
   }
 
   Future<void> _handlePostAction(String action) async {
     if (_post == null) return;
     final authState = ref.read(authSessionProvider);
-    final currentUserId = authState.valueOrNull?.id;
+    final currentUserId = authState.value?.id;
     if (currentUserId == null) return;
 
     final authorName = _author?.displayName ?? 'User';
@@ -1007,7 +1007,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
     required Comment comment,
   }) async {
     final authState = ref.read(authSessionProvider);
-    final currentUserId = authState.valueOrNull?.id;
+    final currentUserId = authState.value?.id;
     if (currentUserId == null) return;
 
     switch (action) {
@@ -1028,7 +1028,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
 
   Future<void> _blockUser(String userId, String userName) async {
     final authState = ref.read(authSessionProvider);
-    final currentUserId = authState.valueOrNull?.id;
+    final currentUserId = authState.value?.id;
     if (currentUserId == null) return;
 
     final confirmed = await showDialog<bool>(

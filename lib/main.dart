@@ -23,6 +23,9 @@ import 'services/feed_cache_service.dart';
 
 const _appCheckDebugChannelName = 'zyntro/debug';
 const _appCheckDebugSecretMethodName = 'getAppCheckDebugSecret';
+const _logAppCheckDebugSecret = bool.fromEnvironment(
+  'LOG_APP_CHECK_DEBUG_SECRET',
+);
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -56,11 +59,11 @@ void main() async {
   // doesn't prevent runApp() from being called.
   try {
     await FirebaseAppCheck.instance.activate(
-      androidProvider: environment.androidProvider,
-      appleProvider: environment.appleProvider,
+      providerAndroid: environment.androidProvider,
+      providerApple: environment.appleProvider,
     );
   } catch (e, st) {
-    debugPrint('[AppCheck] Activation failed (non-fatal): $e\n$st');
+    _debugPrintStartupFailure('AppCheck', e, st);
   }
 
   await _logAndroidAppCheckDebugSecretIfNeeded(environment);
@@ -77,21 +80,21 @@ void main() async {
   try {
     await container.read(notificationServiceProvider).init();
   } catch (e, st) {
-    debugPrint('[NotificationService] Init failed (non-fatal): $e\n$st');
+    _debugPrintStartupFailure('NotificationService', e, st);
   }
 
   // Initialize storage service
   try {
     await container.read(storageServiceProvider).init();
   } catch (e, st) {
-    debugPrint('[StorageService] Init failed (non-fatal): $e\n$st');
+    _debugPrintStartupFailure('StorageService', e, st);
   }
 
   // Register offline handlers
   try {
     await registerOfflineHandlers(container);
   } catch (e, st) {
-    debugPrint('[OfflineHandlers] Init failed (non-fatal): $e\n$st');
+    _debugPrintStartupFailure('OfflineHandlers', e, st);
   }
 
   runApp(
@@ -100,6 +103,17 @@ void main() async {
       child: const ErrorBoundaryWidget(child: ZyntroApp()),
     ),
   );
+}
+
+void _debugPrintStartupFailure(
+  String component,
+  Object error, [
+  StackTrace? stackTrace,
+]) {
+  debugPrint('[$component] Init failed (non-fatal): $error');
+  if (kDebugMode && stackTrace != null) {
+    debugPrint('[$component] Stack: $stackTrace');
+  }
 }
 
 Future<void> _loadLocalEnvironment(String envFile) async {
@@ -127,7 +141,13 @@ Future<void> _logAndroidAppCheckDebugSecretIfNeeded(
   if (!kDebugMode || defaultTargetPlatform != TargetPlatform.android) {
     return;
   }
-  if (environment.androidProvider != AndroidProvider.debug) {
+  if (!environment.usesAndroidDebugAppCheckProvider) {
+    return;
+  }
+  if (!_logAppCheckDebugSecret) {
+    debugPrint(
+      '[AppCheck] Android debug secret check disabled. Use --dart-define=LOG_APP_CHECK_DEBUG_SECRET=true to verify local availability.',
+    );
     return;
   }
 
@@ -151,7 +171,9 @@ Future<void> _logAndroidAppCheckDebugSecretIfNeeded(
       return;
     }
 
-    debugPrint('[AppCheck] Android debug secret: $secret');
+    debugPrint(
+      '[AppCheck] Android debug secret is available but is not printed by the app.',
+    );
   } on MissingPluginException {
     debugPrint(
       '[AppCheck] Android debug secret channel is unavailable in this build.',

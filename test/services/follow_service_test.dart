@@ -30,7 +30,7 @@ class MockDocumentReference extends Mock
 class MockDocumentSnapshot extends Mock
     implements DocumentSnapshot<Map<String, dynamic>> {}
 
-class MockRef extends Mock implements Ref {}
+final _testRefProvider = Provider<Ref>((ref) => ref);
 
 void main() {
   test('public follows dispatch new follower notifications', () {
@@ -40,14 +40,24 @@ void main() {
     expect(source, isNot(contains("I'll leave it as is")));
   });
 
+  test('follower list lookups use chunked Firestore whereIn reads', () {
+    final source = File('lib/services/follow_service.dart').readAsStringSync();
+
+    expect(source, contains('static const _userLookupChunkSize = 10'));
+    expect(source, contains('where(FieldPath.documentId, whereIn: chunk)'));
+    expect(source, isNot(contains("collection('users').doc(id).get()")));
+  });
+
   late FollowService followService;
   late MockFirebaseFirestore mockFirestore;
-  late MockRef mockRef;
+  late Ref testRef;
 
   setUp(() {
     mockFirestore = MockFirebaseFirestore();
-    mockRef = MockRef();
-    followService = FollowService(mockFirestore, mockRef);
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    testRef = container.read(_testRefProvider);
+    followService = FollowService(mockFirestore, testRef);
   });
 
   test('getFollowingIds returns list of ids', () async {

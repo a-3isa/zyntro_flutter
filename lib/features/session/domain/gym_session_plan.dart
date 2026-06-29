@@ -203,6 +203,34 @@ class PlannedExercise {
     };
   }
 
+  PlannedExercise copyWithPlanFields({
+    String? id,
+    int? plannedSets,
+    int? order,
+  }) {
+    if (source == PlannedExerciseSource.catalog) {
+      return PlannedExercise.catalog(
+        id: id ?? this.id,
+        exerciseId: exerciseId!,
+        name: name,
+        plannedSets: plannedSets ?? this.plannedSets,
+        order: order ?? this.order,
+        muscleGroup: muscleGroup,
+        equipment: equipment,
+      );
+    }
+
+    return PlannedExercise.custom(
+      id: id ?? this.id,
+      name: name,
+      plannedSets: plannedSets ?? this.plannedSets,
+      order: order ?? this.order,
+      personalExerciseId: personalExerciseId,
+      muscleGroup: muscleGroup,
+      equipment: equipment,
+    );
+  }
+
   static void _validate({
     required String id,
     required String name,

@@ -86,6 +86,35 @@ service cloud.firestore {
         request.resource.data.declinedBy == request.auth.uid;
     }
 
+    function isBuddyInviteCodeRedeemUpdate() {
+      return isAuthenticated() &&
+        resource.data.creatorId != request.auth.uid &&
+        !resource.data.keys().hasAny(['usedAt', 'usedBy']) &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['usedAt', 'usedBy']) &&
+        request.resource.data.usedBy == request.auth.uid &&
+        request.resource.data.usedAt is timestamp &&
+        resource.data.expiresAt is timestamp &&
+        resource.data.expiresAt > request.time;
+    }
+
+    function isBuddyPairInviteAcceptUpdate() {
+      return isAuthenticated() &&
+        resource.data.status == 'pending' &&
+        resource.data.initiatorId != request.auth.uid &&
+        !hasParticipant(resource.data.participants, request.auth.uid) &&
+        request.resource.data.participants.size() ==
+          resource.data.participants.size() + 1 &&
+        request.resource.data.participants.hasAll(resource.data.participants) &&
+        hasParticipant(request.resource.data.participants, request.auth.uid) &&
+        request.resource.data.status == 'active' &&
+        request.resource.data.activatedAt is timestamp &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['participants', 'status', 'activatedAt']) &&
+        existsAfter(/databases/$(database)/documents/inviteCodes/$(resource.data.inviteCode)) &&
+        getAfter(/databases/$(database)/documents/inviteCodes/$(resource.data.inviteCode)).data.usedBy == request.auth.uid;
+    }
+
     function isPlanOwner(planUserId) {
       return planUserId == request.auth.uid;
     }
@@ -117,11 +146,6 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isModerator == true;
     }
 
-    function isModerationFieldChange() {
-      return request.resource.data.diff(resource.data).affectedKeys()
-        .hasAny(['isModerator', 'isBanned', 'bannedUntil', 'banReason']);
-    }
-
     function privilegedUserFields() {
       return [
         'isModerator',
@@ -129,6 +153,7 @@ service cloud.firestore {
         'bannedUntil',
         'banReason',
         'hasGlobalLeaderboardAccess',
+        'globalAccessGrantedAt',
         'globalLeaderboardAccessGrantedAt',
         'globalLeaderboardPaymentId',
         'transactions'
@@ -283,14 +308,19 @@ service cloud.firestore {
 
       match /comments/{commentId} {
         allow read: if isAuthenticated();
-        allow create: if isAuthenticated();
+        allow create: if isAuthenticated() &&
+          request.resource.data.authorId == request.auth.uid &&
+          request.resource.data.keys()
+            .hasOnly(['authorId', 'authorName', 'authorPhotoURL', 'text', 'type', 'createdAt', 'audioUrl']);
         allow update: if isAuthenticated() && resource.data.authorId == request.auth.uid;
         allow delete: if isAuthenticated() && resource.data.authorId == request.auth.uid;
       }
 
       match /reactions/{reactionId} {
         allow read: if isAuthenticated();
-        allow create: if isAuthenticated();
+        allow create: if isAuthenticated() &&
+          reactionId == request.auth.uid &&
+          request.resource.data.keys().hasOnly(['type', 'createdAt']);
         allow update: if isAuthenticated() && reactionId == request.auth.uid;
         allow delete: if isAuthenticated() && reactionId == request.auth.uid;
       }
@@ -333,18 +363,22 @@ service cloud.firestore {
         request.resource.data.initiatorId == request.auth.uid &&
         request.resource.data.participants.size() == 1 &&
         request.resource.data.participants[0] == request.auth.uid;
-      allow update: if isAuthenticated() &&
-        hasParticipant(request.resource.data.participants, request.auth.uid);
+      allow update: if isAuthenticated() && (
+        hasParticipant(resource.data.participants, request.auth.uid) ||
+        isBuddyPairInviteAcceptUpdate()
+      );
       allow delete: if false;
     }
 
     match /inviteCodes/{inviteCode} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && request.resource.data.creatorId == request.auth.uid;
-      allow update: if isAuthenticated() && (
-        resource.data.creatorId == request.auth.uid ||
-        request.resource.data.usedBy == request.auth.uid
-      );
+      allow get: if isAuthenticated();
+      allow list: if false;
+      allow create: if isAuthenticated() &&
+        request.resource.data.creatorId == request.auth.uid &&
+        request.resource.data.keys().hasOnly(['code', 'creatorId', 'buddyPairId', 'expiresAt']) &&
+        request.resource.data.code == inviteCode &&
+        request.resource.data.expiresAt is timestamp;
+      allow update: if isBuddyInviteCodeRedeemUpdate();
       allow delete: if false;
     }
 

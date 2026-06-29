@@ -19,7 +19,7 @@ class ThemeModeNotifier extends AsyncNotifier<ThemeMode> {
   }
 
   void toggle() {
-    final current = state.valueOrNull ?? ThemeMode.system;
+    final current = state.value ?? ThemeMode.system;
     final next = current == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
     setThemeMode(next);
   }

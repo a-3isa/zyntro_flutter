@@ -51,6 +51,7 @@ android/key.properties
 *.keystore
 *.properties
 # Firebase service files (download fresh for each environment)
+lib/firebase_options.dart
 android/app/google-services.json
 android/app/src/*/google-services.json
 ios/Runner/GoogleService-Info.plist
@@ -82,6 +83,8 @@ specs/
 Thumbs.db
 *.tmp
 keytool_report.txt
+android/android_keys.txt
+android_keys.txt
 
 .claude/
 .codex/

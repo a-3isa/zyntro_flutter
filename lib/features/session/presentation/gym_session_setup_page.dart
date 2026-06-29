@@ -82,8 +82,9 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
       return _LobbyState.terminalDeclined;
     }
 
-    final viewerType =
-        WorkoutType.fromString(session.participantTypes[uid] ?? session.type);
+    final viewerType = WorkoutType.fromString(
+      session.participantTypes[uid] ?? session.type,
+    );
 
     // Matchmaking / non-invite setup sessions reuse this same page but must
     // KEEP the legacy behavior: every participant builds independently and marks
@@ -111,23 +112,28 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
     // roster.
     final joined = session.participants.contains(uid);
     if (!joined) return _LobbyState.friendChoosingCategory;
-    final myType =
-        WorkoutType.fromString(session.participantTypes[uid] ?? session.type);
+    final myType = WorkoutType.fromString(
+      session.participantTypes[uid] ?? session.type,
+    );
     if (_isReady) return _LobbyState.selfWaitingForPartner;
     final sameAsHost = myType == hostType;
     if (sameAsHost && myType == WorkoutType.gym) {
       final hostPlan = ref
-          .watch(gymSessionPlanProvider((
-            sessionId: session.id,
-            userId: session.hostId,
-          )))
-          .valueOrNull;
+          .watch(
+            gymSessionPlanProvider((
+              sessionId: session.id,
+              userId: session.hostId,
+            )),
+          )
+          .value;
       if (hostPlan == null || !hostPlan.isReady) {
         return _LobbyState.friendWaitingForHostPlan;
       }
       return _LobbyState.friendReviewPlan;
     }
-    if (myType == WorkoutType.gym) return _LobbyState.hostBuildingPlan; // friend builds own
+    if (myType == WorkoutType.gym) {
+      return _LobbyState.hostBuildingPlan; // friend builds own
+    }
     return _LobbyState.friendConfirm;
   }
 
@@ -158,7 +164,9 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
       if (mounted) setState(() => _isLoadingPlan = false);
       return;
     }
-    final plan = await ref.read(sessionServiceProvider).ensureGymPlan(
+    final plan = await ref
+        .read(sessionServiceProvider)
+        .ensureGymPlan(
           sessionId: widget.sessionId,
           hostId: session.hostId,
           userId: authUser.id,
@@ -215,6 +223,24 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
     setState(() => _draftExercises = updated);
   }
 
+  void _queueLiveRedirect(Session session) {
+    if (!mounted || _didRedirect || session.phase != SessionPhase.live) {
+      return;
+    }
+
+    _didRedirect = true;
+    final authUser = ref.read(authSessionProvider).value;
+    final myType = authUser != null
+        ? (session.participantTypes[authUser.id] ?? session.type)
+        : session.type;
+
+    // Entering live session replaces setup in the stack so back does not return here.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.go(AppRouteLocations.sessionRoom(session.id, type: myType));
+    });
+  }
+
   bool get _isPlanValid {
     return _draftExercises.isNotEmpty &&
         _draftExercises.every((exercise) => exercise.plannedSets > 0);
@@ -223,7 +249,7 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
   Future<void> _markReady(Session session) async {
     if (_isSavingReady || !_isPlanValid) return;
 
-    final authUser = ref.read(authSessionProvider).valueOrNull;
+    final authUser = ref.read(authSessionProvider).value;
     if (authUser == null) return;
 
     setState(() => _isSavingReady = true);
@@ -267,7 +293,7 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
   /// _isPlanValid (≥1 exercise).
   Future<void> _confirmReadyNoPlan(Session session) async {
     if (_isSavingReady) return;
-    final authUser = ref.read(authSessionProvider).valueOrNull;
+    final authUser = ref.read(authSessionProvider).value;
     if (authUser == null) return;
     setState(() => _isSavingReady = true);
     final svc = ref.read(sessionServiceProvider);
@@ -296,10 +322,12 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _isSavingReady = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Unable to confirm: $error'),
-        backgroundColor: AppColors.error,
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Unable to confirm: $error'),
+          backgroundColor: AppColors.error,
+        ),
+      );
     }
   }
 
@@ -310,7 +338,7 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
 
   // Join button (pending invitee only): joins setup with the chosen category.
   Future<void> _onJoinSetup(Session session) async {
-    final uid = ref.read(authSessionProvider).valueOrNull?.id;
+    final uid = ref.read(authSessionProvider).value?.id;
     final type = _friendChosenType ?? WorkoutType.fromString(session.type);
     if (uid == null) return;
     try {
@@ -350,9 +378,14 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
   }
 
   Future<void> _onAgreeHostPlan(Session session) async {
-    final hostPlan = ref.read(gymSessionPlanProvider(
-      (sessionId: session.id, userId: session.hostId),
-    )).valueOrNull;
+    final hostPlan = ref
+        .read(
+          gymSessionPlanProvider((
+            sessionId: session.id,
+            userId: session.hostId,
+          )),
+        )
+        .value;
     if (hostPlan == null) return;
     setState(() => _draftExercises = _reindexExercises(hostPlan.exercises));
     await _markReady(session); // writes own copy + setGymPlanReady
@@ -373,25 +406,9 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
     required int order,
     required int plannedSets,
   }) {
-    if (exercise.source == PlannedExerciseSource.catalog) {
-      return PlannedExercise.catalog(
-        id: exercise.id,
-        exerciseId: exercise.exerciseId!,
-        name: exercise.name,
-        plannedSets: plannedSets,
-        order: order,
-        muscleGroup: exercise.muscleGroup,
-        equipment: exercise.equipment,
-      );
-    }
-
-    return PlannedExercise.custom(
-      id: exercise.id,
-      name: exercise.name,
-      plannedSets: plannedSets,
+    return exercise.copyWithPlanFields(
       order: order,
-      muscleGroup: exercise.muscleGroup,
-      equipment: exercise.equipment,
+      plannedSets: plannedSets,
     );
   }
 
@@ -401,29 +418,19 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
       previous,
       next,
     ) {
-      final session = next.valueOrNull;
-      if (!mounted || _didRedirect) return;
-      if (session == null || session.phase != SessionPhase.live) return;
-
-      _didRedirect = true;
-      final authUser = ref.read(authSessionProvider).valueOrNull;
-      final myType =
-          authUser != null
-              ? (session.participantTypes[authUser.id] ?? session.type)
-              : session.type;
-      // context.go: entering live session — replace setup in stack so back doesn't return here
-      context.go(AppRouteLocations.sessionRoom(session.id, type: myType));
+      final session = next.value;
+      if (session != null) _queueLiveRedirect(session);
     });
 
     final sessionAsync = ref.watch(currentSessionProvider(widget.sessionId));
 
     // Resolve session and uid for optional cancel AppBar.
-    final session = sessionAsync.valueOrNull;
-    final authUser = ref.watch(authSessionProvider).valueOrNull;
-    final lobbyState =
-        session != null && authUser != null
-            ? _resolveState(session, authUser.id)
-            : null;
+    final session = sessionAsync.value;
+    final authUser = ref.watch(authSessionProvider).value;
+    if (session != null) _queueLiveRedirect(session);
+    final lobbyState = session != null && authUser != null
+        ? _resolveState(session, authUser.id)
+        : null;
     final showCancel =
         session != null &&
         authUser != null &&
@@ -470,7 +477,7 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
                   );
                 }
 
-                final authUser = ref.watch(authSessionProvider).valueOrNull;
+                final authUser = ref.watch(authSessionProvider).value;
                 if (authUser == null) return _buildLoadingShell();
 
                 final lobbyState = _resolveState(session, authUser.id);
@@ -513,11 +520,9 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
     final isHost = session.hostId == uid;
     final reason = isHost ? 'setup_host_cancelled' : 'setup_partner_left';
     try {
-      await ref.read(sessionServiceProvider).cancelSetup(
-        sessionId: session.id,
-        byUserId: uid,
-        reason: reason,
-      );
+      await ref
+          .read(sessionServiceProvider)
+          .cancelSetup(sessionId: session.id, byUserId: uid, reason: reason);
       if (mounted) {
         context.go(AppRouteLocations.mainTab(MainShellTab.session));
       }
@@ -533,25 +538,17 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
   Widget _buildLobbyShell(Session session, String uid, _LobbyState lobbyState) {
     switch (lobbyState) {
       case _LobbyState.terminalCancelled:
-        return _buildTerminalPanel(
-          message: 'This setup was cancelled',
-        );
+        return _buildTerminalPanel(message: 'This setup was cancelled');
       case _LobbyState.terminalDeclined:
-        return _buildTerminalPanel(
-          message: 'Your buddy declined',
-        );
+        return _buildTerminalPanel(message: 'Your buddy declined');
       case _LobbyState.hostWaitingForBuddy:
-        return _buildWaitingView(
-          title: 'Waiting for your buddy to agree',
-        );
+        return _buildWaitingView(title: 'Waiting for your buddy to agree');
       case _LobbyState.friendWaitingForHostPlan:
         return _buildWaitingView(
           title: 'Waiting for the host to finish the plan',
         );
       case _LobbyState.selfWaitingForPartner:
-        return _buildWaitingView(
-          title: 'Waiting for your buddy',
-        );
+        return _buildWaitingView(title: 'Waiting for your buddy');
       case _LobbyState.friendChoosingCategory:
         return _buildFriendChoosingCategoryShell(session, uid);
       case _LobbyState.hostBuildingPlan:
@@ -661,7 +658,9 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
             const SizedBox(height: 20),
             if (lobbyState == _LobbyState.friendReviewPlan && !_isReady) ...[
               FilledButton(
-                onPressed: _isSavingReady ? null : () => _onAgreeHostPlan(session),
+                onPressed: _isSavingReady
+                    ? null
+                    : () => _onAgreeHostPlan(session),
                 child: _isSavingReady
                     ? const SizedBox(
                         width: 20,
@@ -682,7 +681,8 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
               ),
             ] else
               FilledButton(
-                onPressed: _isReady || !_isPlanValid || _isSavingReady || !readyEnabled
+                onPressed:
+                    _isReady || !_isPlanValid || _isSavingReady || !readyEnabled
                     ? null
                     : () => _markReady(session),
                 child: _isSavingReady
@@ -703,7 +703,10 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
   }
 
   Widget _buildNonGymConfirmShell(
-      Session session, String uid, _LobbyState lobbyState) {
+    Session session,
+    String uid,
+    _LobbyState lobbyState,
+  ) {
     final isHost = uid == session.hostId;
     final readyEnabled = _readyEnabled(session);
 
@@ -737,7 +740,9 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
         if (!readyEnabled)
           Text(
             'Waiting for your buddy to join',
-            style: AppTextStyles.body.copyWith(color: AppColors.textV2Secondary),
+            style: AppTextStyles.body.copyWith(
+              color: AppColors.textV2Secondary,
+            ),
             textAlign: TextAlign.center,
           ),
         const SizedBox(height: 24),
@@ -779,7 +784,9 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
           const SizedBox(height: 8),
           Text(
             'Pick a category to join the session.',
-            style: AppTextStyles.body.copyWith(color: AppColors.textV2Secondary),
+            style: AppTextStyles.body.copyWith(
+              color: AppColors.textV2Secondary,
+            ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),
@@ -790,17 +797,18 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
           ),
           const SizedBox(height: 24),
           FilledButton(
-            onPressed: _friendChosenType == null ? null : () => _onJoinSetup(session),
+            onPressed: _friendChosenType == null
+                ? null
+                : () => _onJoinSetup(session),
             child: const Text('Join'),
           ),
           const SizedBox(height: 12),
           OutlinedButton(
             onPressed: () async {
               try {
-                await ref.read(sessionServiceProvider).declineInvite(
-                  sessionId: session.id,
-                  userId: uid,
-                );
+                await ref
+                    .read(sessionServiceProvider)
+                    .declineInvite(sessionId: session.id, userId: uid);
                 if (mounted) {
                   context.go(AppRouteLocations.mainTab(MainShellTab.session));
                 }

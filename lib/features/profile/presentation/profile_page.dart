@@ -94,7 +94,7 @@ final otherUserProfileProvider = StreamProvider.family<User?, String>((
 });
 
 final currentUserProfileProvider = StreamProvider<User?>((ref) {
-  final uid = ref.watch(authSessionProvider).valueOrNull?.id;
+  final uid = ref.watch(authSessionProvider).value?.id;
   if (uid == null) return Stream.value(null);
   return ref
       .watch(authFirestoreProvider)
@@ -126,7 +126,7 @@ final followStatusProvider = StreamProvider.family<FollowStatus?, String>((
   targetUserId,
 ) {
   final authState = ref.watch(authSessionProvider);
-  final currentUserId = authState.valueOrNull?.id;
+  final currentUserId = authState.value?.id;
   if (currentUserId == null || currentUserId == targetUserId) {
     return Stream.value(null);
   }
@@ -140,7 +140,7 @@ final targetFollowsCurrentProvider = StreamProvider.family<bool, String>((
   ref,
   targetUserId,
 ) {
-  final currentUserId = ref.watch(authSessionProvider).valueOrNull?.id;
+  final currentUserId = ref.watch(authSessionProvider).value?.id;
   if (currentUserId == null || currentUserId == targetUserId) {
     return Stream.value(false);
   }
@@ -180,10 +180,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   User? _cachedUser;
 
   String? get _targetUserId =>
-      widget.userId ?? ref.read(authSessionProvider).valueOrNull?.id;
+      widget.userId ?? ref.read(authSessionProvider).value?.id;
 
   bool get _isCurrentUser {
-    final currentId = ref.read(authSessionProvider).valueOrNull?.id;
+    final currentId = ref.read(authSessionProvider).value?.id;
     return widget.userId == null || widget.userId == currentId;
   }
 
@@ -216,7 +216,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         ? ref.watch(currentUserProfileProvider)
         : ref.watch(otherUserProfileProvider(targetUserId));
 
-    final isOnline = ref.watch(connectivityProvider).valueOrNull ?? true;
+    final isOnline = ref.watch(connectivityProvider).value ?? true;
 
     // T035: helper to render profile content (used from data, loading, error).
     Widget profileContent(User user, {bool fromCache = false}) {
@@ -344,9 +344,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
   Future<void> _handleFollow(String targetUserId, bool isPrivate) async {
     final authState = ref.read(authSessionProvider);
-    final currentUserId = authState.valueOrNull?.id;
+    final currentUserId = authState.value?.id;
     if (currentUserId == null) return;
-    final followerName = authState.valueOrNull?.displayName ?? 'Someone';
+    final followerName = authState.value?.displayName ?? 'Someone';
 
     HapticFeedback.mediumImpact();
     setState(() => _isFollowLoading = true);
@@ -406,7 +406,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     if (confirmed != true) return;
 
     final authState = ref.read(authSessionProvider);
-    final currentUserId = authState.valueOrNull?.id;
+    final currentUserId = authState.value?.id;
     if (currentUserId == null) return;
 
     HapticFeedback.mediumImpact();
@@ -433,7 +433,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     String targetUserName = '',
   }) async {
     final authState = ref.read(authSessionProvider);
-    final currentUserId = authState.valueOrNull?.id;
+    final currentUserId = authState.value?.id;
     if (currentUserId == null) return;
 
     switch (action) {
@@ -486,12 +486,12 @@ class _ProfileContent extends ConsumerWidget {
     if (!isCurrentUser && user.isPrivate) {
       final followStatusAsync = ref.watch(followStatusProvider(targetUserId));
       final isFollowing =
-          followStatusAsync.valueOrNull == FollowStatus.approved;
+          followStatusAsync.value == FollowStatus.approved;
       if (!isFollowing) {
         return _PrivateProfileView(
           user: user,
           targetUserId: targetUserId,
-          followStatus: followStatusAsync.valueOrNull,
+          followStatus: followStatusAsync.value,
           isFollowLoading: isFollowLoading,
           onFollow: onFollow,
         );
@@ -579,7 +579,7 @@ class _PrivateProfileView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isPending = followStatus == FollowStatus.pending;
-    final currentUserId = ref.read(authSessionProvider).valueOrNull?.id;
+    final currentUserId = ref.read(authSessionProvider).value?.id;
 
     return Scaffold(
       backgroundColor: AppColors.backgroundV2,
@@ -842,8 +842,8 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
     final postsAsync = ref.watch(userPostsProvider(targetUserId));
 
     ref.listen(userSessionsProvider(targetUserId), (previous, next) {
-      final previousCount = previous?.valueOrNull?.length;
-      final nextCount = next.valueOrNull?.length;
+      final previousCount = previous?.value?.length;
+      final nextCount = next.value?.length;
       if (previousCount != null &&
           nextCount != null &&
           previousCount != nextCount) {
@@ -854,14 +854,14 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
     });
 
     final int workouts =
-        sessionsAsync.valueOrNull?.length ??
-        streakAsync.valueOrNull?.totalWorkouts ??
+        sessionsAsync.value?.length ??
+        streakAsync.value?.totalWorkouts ??
         0;
-    final int streak = streakAsync.valueOrNull?.currentStreak ?? 0;
-    final int followers = followersAsync.valueOrNull ?? 0;
-    final int following = followingAsync.valueOrNull ?? 0;
+    final int streak = streakAsync.value?.currentStreak ?? 0;
+    final int followers = followersAsync.value ?? 0;
+    final int following = followingAsync.value ?? 0;
     final int points = workouts * 10;
-    final int postCount = postsAsync.valueOrNull?.length ?? 0;
+    final int postCount = postsAsync.value?.length ?? 0;
 
     final rankAsync = ref.watch(currentUserRankProvider(targetUserId));
     final rankInfo = rankAsync.whenOrNull(
@@ -871,12 +871,12 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
 
     final followsMe =
         !isCurrentUser &&
-        (ref.watch(targetFollowsCurrentProvider(targetUserId)).valueOrNull ??
+        (ref.watch(targetFollowsCurrentProvider(targetUserId)).value ??
             false);
     // Buddy = mutual approved follow (I follow them AND they follow me).
     final iFollowThem =
         !isCurrentUser &&
-        (ref.watch(followStatusProvider(targetUserId)).valueOrNull ==
+        (ref.watch(followStatusProvider(targetUserId)).value ==
             FollowStatus.approved);
     final bool isBuddy = followsMe && iFollowThem;
 
@@ -1613,18 +1613,6 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
     );
   }
 
-  // ignore: unused_element
-  void _showBuddiesSheet(BuildContext context, String targetUserId) {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: AppColors.surfaceV2,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      isScrollControlled: true,
-      builder: (_) => _BuddiesSheet(targetUserId: targetUserId),
-    );
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1928,7 +1916,7 @@ class _ActionRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final sessionsAsync = ref.watch(userSessionsProvider(targetUserId));
     final userAsync = ref.watch(currentUserProfileProvider);
-    final trainingDaysGoal = (userAsync.valueOrNull == null ? null : null) ?? 4;
+    final trainingDaysGoal = (userAsync.value == null ? null : null) ?? 4;
 
     // Count sessions started this week
     final now = DateTime.now();
@@ -1939,7 +1927,7 @@ class _ActionRow extends ConsumerWidget {
       startOfWeek.day,
     );
     final weeklyDone =
-        sessionsAsync.valueOrNull
+        sessionsAsync.value
             ?.where((s) => s.startedAt.isAfter(weekStart))
             .length ??
         0;
@@ -2060,7 +2048,7 @@ class _FollowButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final followStatusAsync = ref.watch(followStatusProvider(targetUserId));
     final authState = ref.watch(authSessionProvider);
-    final currentUserId = authState.valueOrNull?.id;
+    final currentUserId = authState.value?.id;
 
     return followStatusAsync.when(
       data: (status) {
@@ -2179,7 +2167,7 @@ class _PostsTab extends ConsumerWidget {
     if (!isCurrentUser && isPrivate) {
       final followStatusAsync = ref.watch(followStatusProvider(targetUserId));
       final isFollowing =
-          followStatusAsync.valueOrNull == FollowStatus.approved;
+          followStatusAsync.value == FollowStatus.approved;
       if (!isFollowing) return _buildLocked(context);
     }
 

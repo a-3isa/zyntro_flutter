@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -58,7 +59,8 @@ class _FeedPageState extends ConsumerState<FeedPage>
           children: [
             _V2FeedHeader(
               onNotificationsTap: () => context.push(AppRoutes.notifications),
-              onSocialTap: () => context.go(AppRouteLocations.mainTab(MainShellTab.social)),
+              onSocialTap: () =>
+                  context.go(AppRouteLocations.mainTab(MainShellTab.social)),
               tabController: _tabController,
             ),
             Expanded(
@@ -68,7 +70,7 @@ class _FeedPageState extends ConsumerState<FeedPage>
                   _FeedTab(
                     fetchPosts: (cursor) async {
                       final authState = ref.read(authSessionProvider);
-                      final uid = authState.valueOrNull?.id;
+                      final uid = authState.value?.id;
                       if (uid == null) {
                         return FeedResult(
                           posts: [],
@@ -78,12 +80,14 @@ class _FeedPageState extends ConsumerState<FeedPage>
                       final followingIds = await ref
                           .read(followServiceProvider)
                           .getFollowingIds(uid);
-                      return ref.read(postServiceProvider).getFollowingPosts(
-                        currentUserId: uid,
-                        followingIds: followingIds,
-                        limit: 10,
-                        startAfterDoc: cursor?.lastDoc,
-                      );
+                      return ref
+                          .read(postServiceProvider)
+                          .getFollowingPosts(
+                            currentUserId: uid,
+                            followingIds: followingIds,
+                            limit: 10,
+                            startAfterDoc: cursor?.lastDoc,
+                          );
                     },
                     feedKey: 'following',
                     requiresAuth: true,
@@ -123,9 +127,10 @@ class _V2FeedHeader extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final userId = ref.watch(authSessionProvider).valueOrNull?.id;
-    final hasUnread = userId != null &&
-        (ref.watch(unreadCountProvider(userId)).valueOrNull ?? 0) > 0;
+    final userId = ref.watch(authSessionProvider).value?.id;
+    final hasUnread =
+        userId != null &&
+        (ref.watch(unreadCountProvider(userId)).value ?? 0) > 0;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
       child: Column(
@@ -142,7 +147,7 @@ class _V2FeedHeader extends ConsumerWidget {
                 ),
               ),
               const Spacer(),
-              
+
               GestureDetector(
                 onTap: onNotificationsTap,
                 child: SizedBox(
@@ -177,7 +182,8 @@ class _V2FeedHeader extends ConsumerWidget {
                     ],
                   ),
                 ),
-              ),if (onSocialTap != null) ...[
+              ),
+              if (onSocialTap != null) ...[
                 GestureDetector(
                   onTap: onSocialTap,
                   child: const Padding(
@@ -216,9 +222,7 @@ class _V2FeedHeader extends ConsumerWidget {
                 fontWeight: FontWeight.w600,
                 fontSize: 13,
               ),
-              unselectedLabelStyle: AppTextStyles.body.copyWith(
-                fontSize: 13,
-              ),
+              unselectedLabelStyle: AppTextStyles.body.copyWith(fontSize: 13),
               tabs: const [
                 Tab(text: 'Following'),
                 Tab(text: 'Discover'),
@@ -328,7 +332,7 @@ class _FeedTabState extends ConsumerState<_FeedTab>
   Future<void> _loadInitial() async {
     if (widget.requiresAuth) {
       final authState = ref.read(authSessionProvider);
-      if (authState.valueOrNull?.id == null) {
+      if (authState.value?.id == null) {
         if (mounted) {
           setState(() {
             _isLoading = false;
@@ -420,7 +424,7 @@ class _FeedTabState extends ConsumerState<_FeedTab>
 
     // Watch blocked user IDs for filtering
     final blockedUserIdsAsync = ref.watch(blockedUserIdsProvider);
-    final blockedUserIds = blockedUserIdsAsync.valueOrNull ?? [];
+    final blockedUserIds = blockedUserIdsAsync.value ?? [];
 
     if (_isLoading && _posts.isEmpty) {
       // T020: show skeleton only when there is no cached content to display.
@@ -500,34 +504,34 @@ class _FeedTabState extends ConsumerState<_FeedTab>
                 color: AppColors.textV2Secondary,
               ),
             ),
-              const SizedBox(height: AppSpacing.lg),
-              Text(
-                'No posts yet',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textV2Primary,
-                  fontSize: AppFontSize.lg,
-                ),
+            const SizedBox(height: AppSpacing.lg),
+            Text(
+              'No posts yet',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: AppColors.textV2Primary,
+                fontSize: AppFontSize.lg,
               ),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                'Follow some users to see their workouts',
-                style: TextStyle(color: AppColors.textV2Secondary),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'Follow some users to see their workouts',
+              style: TextStyle(color: AppColors.textV2Secondary),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            OutlinedButton(
+              onPressed: () {
+                HapticManager.light();
+                _refresh();
+              },
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.userAccent,
+                side: BorderSide(color: AppColors.userAccent),
               ),
-              const SizedBox(height: AppSpacing.lg),
-              OutlinedButton(
-                onPressed: () {
-                  HapticManager.light();
-                  _refresh();
-                },
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.userAccent,
-                  side: BorderSide(color: AppColors.userAccent),
-                ),
-                child: const Text('Refresh'),
-              ),
-            ],
-          ),
+              child: const Text('Refresh'),
+            ),
+          ],
+        ),
       );
     }
 
@@ -540,17 +544,18 @@ class _FeedTabState extends ConsumerState<_FeedTab>
           },
           color: AppColors.userAccent,
           child: ListView.builder(
+            scrollCacheExtent: const ScrollCacheExtent.pixels(500),
             controller: _scrollController,
             physics: const BouncingScrollPhysics(
               parent: AlwaysScrollableScrollPhysics(),
             ),
-            cacheExtent: 500,
             padding: EdgeInsets.zero,
             itemCount: filteredPosts.length + 1 + (_isLoadingMore ? 1 : 0),
             itemBuilder: (context, index) {
               if (index == 0) {
                 // T042: stale amber chip shown when cache is older than TTL.
-                final isStale = widget.useCache &&
+                final isStale =
+                    widget.useCache &&
                     ref.read(feedCacheServiceProvider).isStale;
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -565,25 +570,35 @@ class _FeedTabState extends ConsumerState<_FeedTab>
                           },
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 8),
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.amber.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(
-                                  color: Colors.amber.withValues(alpha: 0.5)),
-                            ),
-                            child: Row(children: [
-                              const Icon(Icons.history,
-                                  size: 16, color: Colors.amber),
-                              const SizedBox(width: 8),
-                              const Expanded(
-                                child: Text(
-                                  'Showing cached feed — tap to refresh',
-                                  style: TextStyle(
-                                      color: Colors.amber, fontSize: 13),
-                                ),
+                                color: Colors.amber.withValues(alpha: 0.5),
                               ),
-                            ]),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.history,
+                                  size: 16,
+                                  color: Colors.amber,
+                                ),
+                                const SizedBox(width: 8),
+                                const Expanded(
+                                  child: Text(
+                                    'Showing cached feed — tap to refresh',
+                                    style: TextStyle(
+                                      color: Colors.amber,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -663,7 +678,7 @@ class _FeedTabState extends ConsumerState<_FeedTab>
   /// Fetch reaction data (counts and user's reaction) for a list of posts.
   Future<void> _fetchReactionData(List<Post> posts) async {
     final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
     final postService = ref.read(postServiceProvider);
 
     // Fetch reaction counts and user reactions in parallel
@@ -686,10 +701,12 @@ class _FeedTabState extends ConsumerState<_FeedTab>
 
   Widget _buildPostCard(Post post) {
     final authState = ref.read(authSessionProvider);
-    final currentUserId = authState.valueOrNull?.id;
+    final currentUserId = authState.value?.id;
     final isOwnPost = currentUserId == post.authorId;
 
-    final author = ref.watch(userCacheServiceProvider).getUserSync(post.authorId);
+    final author = ref
+        .watch(userCacheServiceProvider)
+        .getUserSync(post.authorId);
     final authorName = author?.displayName ?? 'User';
     final hasImage = post.mediaURLs != null && post.mediaURLs!.isNotEmpty;
     final typeColor = AppColors.typeColor(post.type);
@@ -702,7 +719,12 @@ class _FeedTabState extends ConsumerState<_FeedTab>
         context.push('/post/${post.id}');
       },
       child: Container(
-        margin: const EdgeInsets.fromLTRB(AppSpacing.md, 0, AppSpacing.md, AppSpacing.md),
+        margin: const EdgeInsets.fromLTRB(
+          AppSpacing.md,
+          0,
+          AppSpacing.md,
+          AppSpacing.md,
+        ),
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(AppBorderRadius.xl),
@@ -754,7 +776,9 @@ class _FeedTabState extends ConsumerState<_FeedTab>
                   ),
                   // Bottom gradient fade
                   Positioned(
-                    left: 0, right: 0, bottom: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
                     height: 120,
                     child: Container(
                       decoration: BoxDecoration(
@@ -771,11 +795,14 @@ class _FeedTabState extends ConsumerState<_FeedTab>
                   ),
                   // Author overlay at bottom
                   Positioned(
-                    left: 16, right: 16, bottom: 14,
+                    left: 16,
+                    right: 16,
+                    bottom: 14,
                     child: Row(
                       children: [
                         Container(
-                          width: 32, height: 32,
+                          width: 32,
+                          height: 32,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             border: Border.all(
@@ -824,20 +851,34 @@ class _FeedTabState extends ConsumerState<_FeedTab>
                   // More menu (own-post check)
                   if (!isOwnPost)
                     Positioned(
-                      top: 12, right: 8,
+                      top: 12,
+                      right: 8,
                       child: PopupMenuButton<String>(
-                        icon: const Icon(Icons.more_horiz, color: Colors.white70, size: 20),
+                        icon: const Icon(
+                          Icons.more_horiz,
+                          color: Colors.white70,
+                          size: 20,
+                        ),
                         onSelected: (value) => _handlePostAction(
                           action: value,
                           post: post,
                           authorName: authorName,
                         ),
                         itemBuilder: (context) => [
-                          const PopupMenuItem(value: 'report_post', child: Text('Report Post')),
-                          const PopupMenuItem(value: 'report_user', child: Text('Report User')),
+                          const PopupMenuItem(
+                            value: 'report_post',
+                            child: Text('Report Post'),
+                          ),
+                          const PopupMenuItem(
+                            value: 'report_user',
+                            child: Text('Report User'),
+                          ),
                           const PopupMenuItem(
                             value: 'block_user',
-                            child: Text('Block User', style: TextStyle(color: Colors.red)),
+                            child: Text(
+                              'Block User',
+                              style: TextStyle(color: Colors.red),
+                            ),
                           ),
                         ],
                       ),
@@ -879,10 +920,7 @@ class _FeedTabState extends ConsumerState<_FeedTab>
               ),
             ),
             // Divider between cards
-            Container(
-              height: 8,
-              color: AppColors.backgroundV2,
-            ),
+            Container(height: 8, color: AppColors.backgroundV2),
           ],
         ),
       ),
@@ -908,7 +946,7 @@ class _FeedTabState extends ConsumerState<_FeedTab>
     HapticManager.medium();
 
     final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
     if (uid == null) return;
 
     final currentReaction = _userReactions[post.id];
@@ -978,7 +1016,7 @@ class _FeedTabState extends ConsumerState<_FeedTab>
     required String authorName,
   }) async {
     final authState = ref.read(authSessionProvider);
-    final currentUserId = authState.valueOrNull?.id;
+    final currentUserId = authState.value?.id;
     if (currentUserId == null) return;
 
     switch (action) {
@@ -1052,7 +1090,6 @@ class _FeedTabState extends ConsumerState<_FeedTab>
     }
   }
 }
-
 
 class _PressableCard extends StatefulWidget {
   const _PressableCard({required this.child, required this.onTap});

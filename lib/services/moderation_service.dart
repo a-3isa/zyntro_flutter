@@ -52,7 +52,7 @@ class ModerationService {
       'reportedUserId': postAuthorId,
       'reportedPostId': postId,
       'reason': reason.value,
-      if (description != null) 'description': description,
+      'description': ?description,
       'status': ReportStatus.pending.value,
       'createdAt': FieldValue.serverTimestamp(),
     });
@@ -72,7 +72,7 @@ class ModerationService {
       'reportedUserId': commentAuthorId,
       'reportedCommentId': commentId,
       'reason': reason.value,
-      if (description != null) 'description': description,
+      'description': ?description,
       'status': ReportStatus.pending.value,
       'createdAt': FieldValue.serverTimestamp(),
     });
@@ -252,7 +252,7 @@ final moderationServiceProvider = Provider<ModerationService>((ref) {
 /// Blocked user IDs provider.
 final blockedUserIdsProvider = FutureProvider<List<String>>((ref) async {
   final authState = ref.watch(authSessionProvider);
-  final uid = authState.valueOrNull?.id;
+  final uid = authState.value?.id;
   if (uid == null) return [];
 
   return ref.watch(moderationServiceProvider).getBlockedUserIds(uid);
@@ -261,7 +261,7 @@ final blockedUserIdsProvider = FutureProvider<List<String>>((ref) async {
 /// Blocked users list provider.
 final blockedUsersProvider = FutureProvider<List<User>>((ref) async {
   final authState = ref.watch(authSessionProvider);
-  final uid = authState.valueOrNull?.id;
+  final uid = authState.value?.id;
   if (uid == null) return [];
 
   return ref.watch(moderationServiceProvider).getBlockedUsers(uid);
@@ -271,4 +271,3 @@ final blockedUsersProvider = FutureProvider<List<User>>((ref) async {
 final pendingReportsProvider = FutureProvider<List<Report>>((ref) async {
   return ref.watch(moderationServiceProvider).getPendingReports();
 });
-

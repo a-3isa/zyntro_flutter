@@ -13,6 +13,7 @@ import 'notification_service.dart';
 class FollowService {
   final FirebaseFirestore _firestore;
   final Ref _ref;
+  static const _userLookupChunkSize = 10;
 
   // Simple in-memory cache for mutual follows to reduce reads
   final Map<String, List<User>> _mutualFollowsCache = {};
@@ -237,6 +238,33 @@ class FollowService {
         .delete();
   }
 
+  Future<List<User>> _fetchUsersByIds(List<String> userIds) async {
+    if (userIds.isEmpty) return [];
+
+    final uniqueIds = userIds.toSet().toList(growable: false);
+    final usersById = <String, User>{};
+
+    for (var i = 0; i < uniqueIds.length; i += _userLookupChunkSize) {
+      final chunk = uniqueIds.sublist(
+        i,
+        (i + _userLookupChunkSize).clamp(0, uniqueIds.length),
+      );
+      final snapshot = await _firestore
+          .collection('users')
+          .where(FieldPath.documentId, whereIn: chunk)
+          .get();
+
+      for (final doc in snapshot.docs) {
+        usersById[doc.id] = User.fromFirestore(doc);
+      }
+    }
+
+    return userIds
+        .map((id) => usersById[id])
+        .whereType<User>()
+        .toList(growable: false);
+  }
+
   /// Get pending follow requests for a user.
   /// Matches RN getPendingFollowRequests.
   Future<List<User>> getPendingFollowRequests(String userId) async {
@@ -251,19 +279,7 @@ class FollowService {
         .toList();
 
     if (followerIds.isEmpty) return [];
-
-    // Fetch user profiles
-    final users = <User>[];
-    // Optimize: Batch fetch if < 10, otherwise chunk?
-    // Firestore 'where in' limit is 10.
-    // Loop one by one is slow.
-    for (final id in followerIds) {
-      final userDoc = await _firestore.collection('users').doc(id).get();
-      if (userDoc.exists) {
-        users.add(User.fromFirestore(userDoc));
-      }
-    }
-    return users;
+    return _fetchUsersByIds(followerIds);
   }
 
   /// Get followers list for a user.
@@ -280,15 +296,7 @@ class FollowService {
         .toList();
 
     if (followerIds.isEmpty) return [];
-
-    final users = <User>[];
-    for (final id in followerIds) {
-      final userDoc = await _firestore.collection('users').doc(id).get();
-      if (userDoc.exists) {
-        users.add(User.fromFirestore(userDoc));
-      }
-    }
-    return users;
+    return _fetchUsersByIds(followerIds);
   }
 
   /// Get following list for a user.
@@ -305,15 +313,7 @@ class FollowService {
         .toList();
 
     if (followeeIds.isEmpty) return [];
-
-    final users = <User>[];
-    for (final id in followeeIds) {
-      final userDoc = await _firestore.collection('users').doc(id).get();
-      if (userDoc.exists) {
-        users.add(User.fromFirestore(userDoc));
-      }
-    }
-    return users;
+    return _fetchUsersByIds(followeeIds);
   }
 
   /// Get list of IDs that the user follows.
@@ -440,7 +440,7 @@ final followServiceProvider = Provider<FollowService>((ref) {
 /// Pending follow requests count provider.
 final pendingFollowRequestsCountProvider = FutureProvider<int>((ref) async {
   final authState = ref.watch(authSessionProvider);
-  final uid = authState.valueOrNull?.id;
+  final uid = authState.value?.id;
   if (uid == null) return 0;
 
   final requests = await ref

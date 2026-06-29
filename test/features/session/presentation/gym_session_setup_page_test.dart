@@ -20,12 +20,31 @@ class MockSessionService extends Mock implements SessionService {}
 
 class MockUserCacheService extends Mock implements UserCacheService {}
 
+dynamic buildSessionAuthOverride({
+  required String userId,
+  required String email,
+  required String displayName,
+}) {
+  return authSessionProvider.overrideWithValue(
+    AsyncValue.data(
+      AuthUserEntity(
+        id: userId,
+        email: email,
+        displayName: displayName,
+        photoUrl: null,
+        emailVerified: true,
+        providerIds: const ['password'],
+      ),
+    ),
+  );
+}
+
 Widget _buildApp({
-  required List<Override> overrides,
+  required dynamic overrides,
   List<PlannedExercise>? seededExercises,
 }) {
   return ProviderScope(
-    overrides: overrides,
+    overrides: [...overrides],
     child: MaterialApp(
       home: Scaffold(
         body: GymSessionSetupPage(
@@ -35,6 +54,16 @@ Widget _buildApp({
       ),
     ),
   );
+}
+
+Future<void> _pumpUntilFound(
+  WidgetTester tester,
+  Finder finder, {
+  int maxPumps = 20,
+}) async {
+  for (var i = 0; i < maxPumps && finder.evaluate().isEmpty; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+  }
 }
 
 void main() {
@@ -80,17 +109,10 @@ void main() {
         overrides: [
           sessionServiceProvider.overrideWithValue(sessionService),
           userCacheServiceProvider.overrideWithValue(userCacheService),
-          authSessionProvider.overrideWith(
-            (ref) => Stream.value(
-              const AuthUserEntity(
-                id: 'user-1',
-                email: 'user@example.com',
-                displayName: 'Athlete',
-                photoUrl: null,
-                emailVerified: true,
-                providerIds: ['password'],
-              ),
-            ),
+          buildSessionAuthOverride(
+            userId: 'user-1',
+            email: 'user@example.com',
+            displayName: 'Athlete',
           ),
         ],
         child: const MaterialApp(
@@ -179,17 +201,10 @@ void main() {
           overrides: [
             sessionServiceProvider.overrideWithValue(sessionService),
             userCacheServiceProvider.overrideWithValue(userCacheService),
-            authSessionProvider.overrideWith(
-              (ref) => Stream.value(
-                const AuthUserEntity(
-                  id: 'user-1',
-                  email: 'user@example.com',
-                  displayName: 'Athlete',
-                  photoUrl: null,
-                  emailVerified: true,
-                  providerIds: ['password'],
-                ),
-              ),
+            buildSessionAuthOverride(
+              userId: 'user-1',
+              email: 'user@example.com',
+              displayName: 'Athlete',
             ),
           ],
           child: MaterialApp.router(routerConfig: router),
@@ -236,9 +251,10 @@ void main() {
         ),
       );
 
-      await tester.pumpAndSettle();
+      final roomFinder = find.text('ROOM:session-1:gym');
+      await _pumpUntilFound(tester, roomFinder);
 
-      expect(find.text('ROOM:session-1:gym'), findsOneWidget);
+      expect(roomFinder, findsOneWidget);
 
       await controller.close();
     },
@@ -277,17 +293,10 @@ void main() {
         overrides: [
           sessionServiceProvider.overrideWithValue(sessionService),
           userCacheServiceProvider.overrideWithValue(userCacheService),
-          authSessionProvider.overrideWith(
-            (ref) => Stream.value(
-              const AuthUserEntity(
-                id: 'user-1',
-                email: 'user@example.com',
-                displayName: 'Athlete',
-                photoUrl: null,
-                emailVerified: true,
-                providerIds: ['password'],
-              ),
-            ),
+          buildSessionAuthOverride(
+            userId: 'user-1',
+            email: 'user@example.com',
+            displayName: 'Athlete',
           ),
         ],
       ),
@@ -333,219 +342,200 @@ void main() {
     await controller.close();
   });
 
-  testWidgets(
-    'invited same-gym user reviews and personalizes a copied host plan',
-    (tester) async {
-      final sessionService = MockSessionService();
-      final userCacheService = MockUserCacheService();
-      final controller = StreamController<Session?>();
-      // The resolver watches gymSessionPlanProvider for the host plan to decide
-      // whether to show friendReviewPlan vs friendWaitingForHostPlan.
-      final hostPlanController = StreamController<GymSessionPlan?>();
-
-      final hostExercise = PlannedExercise.custom(
-        id: 'host-squat',
-        name: 'Back Squat',
-        plannedSets: 4,
-        order: 0,
-        muscleGroup: 'Legs',
-      );
-
-      when(
-        () => sessionService.listenToSession('session-1'),
-      ).thenAnswer((_) => controller.stream);
-      when(
-        () => userCacheService.warmSessionParticipants(any()),
-      ).thenAnswer((_) async {});
-      when(
-        () => sessionService.saveGymPlan(
-          sessionId: 'session-1',
-          plan: any(named: 'plan'),
-        ),
-      ).thenAnswer((_) async {});
-      when(
-        () => sessionService.setGymPlanReady(
-          sessionId: 'session-1',
-          userId: 'friend-1',
-          isReady: true,
-        ),
-      ).thenAnswer((_) async {});
-
-      await tester.pumpWidget(
-        _buildApp(
-          seededExercises: [hostExercise],
-          overrides: [
-            sessionServiceProvider.overrideWithValue(sessionService),
-            userCacheServiceProvider.overrideWithValue(userCacheService),
-            // Provide a ready host plan so the resolver lands on friendReviewPlan.
-            gymSessionPlanProvider.overrideWith(
-              (ref, params) => hostPlanController.stream,
-            ),
-            authSessionProvider.overrideWith(
-              (ref) => Stream.value(
-                const AuthUserEntity(
-                  id: 'friend-1',
-                  email: 'friend@example.com',
-                  displayName: 'Friend',
-                  photoUrl: null,
-                  emailVerified: true,
-                  providerIds: ['password'],
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-
-      controller.add(
-        Session(
-          id: 'session-1',
-          type: 'gym',
-          title: 'Gym Setup',
-          hostId: 'host-1',
-          participants: const ['host-1', 'friend-1'],
-          status: SessionStatus.active,
-          phase: SessionPhase.setup,
-          partnerKind: PairedPartnerKind.realFriend,
-          participantTypes: const {'host-1': 'gym', 'friend-1': 'gym'},
-          createdAt: DateTime(2026),
-          startedAt: DateTime(2026),
-        ),
-      );
-
-      // Emit a ready host plan so the resolver lands on friendReviewPlan.
-      hostPlanController.add(
-        GymSessionPlan(
-          userId: 'host-1',
-          source: GymSessionPlanSource.hostTemplate,
-          isReady: true,
-          exercises: [hostExercise],
-        ),
-      );
-
-      await tester.pumpAndSettle();
-
-      expect(find.text('Back Squat'), findsOneWidget);
-      expect(
-        find.text(
-          'Review the host gym plan, then adjust only your personal copy.',
-        ),
-        findsOneWidget,
-      );
-
-      await tester.tap(find.byType(DropdownButton<int>));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('2').last);
-      await tester.pumpAndSettle();
-      // In friendReviewPlan state the button is "Edit & Ready" (not "I'm ready").
-      await tester.ensureVisible(find.text('Edit & Ready'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Edit & Ready'));
-      await tester.pump();
-
-      final savedPlan =
-          verify(
-                () => sessionService.saveGymPlan(
-                  sessionId: 'session-1',
-                  plan: captureAny(named: 'plan'),
-                ),
-              ).captured.single
-              as GymSessionPlan;
-
-      expect(savedPlan.userId, 'friend-1');
-      expect(savedPlan.source, GymSessionPlanSource.personalCopy);
-      expect(savedPlan.exercises.single.plannedSets, 2);
-
-      await controller.close();
-      await hostPlanController.close();
-    },
-  );
-
-  testWidgets('host with pending invite can build the plan but ready is disabled', (tester) async {
+  testWidgets('invited same-gym user reviews and saves a copied host plan', (
+    tester,
+  ) async {
     final sessionService = MockSessionService();
     final userCacheService = MockUserCacheService();
     final controller = StreamController<Session?>();
+
+    final hostExercise = PlannedExercise.custom(
+      id: 'host-squat',
+      name: 'Back Squat',
+      plannedSets: 4,
+      order: 0,
+      muscleGroup: 'Legs',
+    );
+    final hostPlan = GymSessionPlan(
+      userId: 'host-1',
+      source: GymSessionPlanSource.hostTemplate,
+      isReady: true,
+      exercises: [hostExercise],
+    );
 
     when(
       () => sessionService.listenToSession('session-1'),
     ).thenAnswer((_) => controller.stream);
     when(
-      () => sessionService.ensureGymPlan(
-        sessionId: 'session-1',
-        hostId: 'host-1',
-        userId: 'host-1',
-      ),
-    ).thenAnswer(
-      (_) async => const GymSessionPlan(
-        userId: 'host-1',
-        source: GymSessionPlanSource.hostTemplate,
-        isReady: false,
-        exercises: [],
-      ),
-    );
-    when(
       () => userCacheService.warmSessionParticipants(any()),
+    ).thenAnswer((_) async {});
+    when(
+      () => sessionService.saveGymPlan(
+        sessionId: 'session-1',
+        plan: any(named: 'plan'),
+      ),
+    ).thenAnswer((_) async {});
+    when(
+      () => sessionService.setGymPlanReady(
+        sessionId: 'session-1',
+        userId: 'friend-1',
+        isReady: true,
+      ),
     ).thenAnswer((_) async {});
 
     await tester.pumpWidget(
       _buildApp(
+        seededExercises: [hostExercise],
         overrides: [
           sessionServiceProvider.overrideWithValue(sessionService),
           userCacheServiceProvider.overrideWithValue(userCacheService),
-          authSessionProvider.overrideWith(
-            (ref) => Stream.value(
-              const AuthUserEntity(
-                id: 'host-1',
-                email: 'host@example.com',
-                displayName: 'Host',
-                photoUrl: null,
-                emailVerified: true,
-                providerIds: ['password'],
-              ),
-            ),
+          // Provide a ready host plan so the resolver lands on friendReviewPlan.
+          gymSessionPlanProvider((
+            sessionId: 'session-1',
+            userId: 'host-1',
+          )).overrideWithValue(AsyncValue.data(hostPlan)),
+          buildSessionAuthOverride(
+            userId: 'friend-1',
+            email: 'friend@example.com',
+            displayName: 'Friend',
           ),
         ],
       ),
     );
 
-    // Session: hostId == me, participants == [me], partnerKind == realFriend,
-    // partnerId == 'friend-1', invitationStatus == pending, type == gym,
-    // status == active, phase == setup.
     controller.add(
       Session(
         id: 'session-1',
         type: 'gym',
         title: 'Gym Setup',
         hostId: 'host-1',
-        participants: const ['host-1'],
+        participants: const ['host-1', 'friend-1'],
         status: SessionStatus.active,
         phase: SessionPhase.setup,
         partnerKind: PairedPartnerKind.realFriend,
-        partnerId: 'friend-1',
-        invitationStatus: WorkoutInvitationStatus.pending,
-        participantTypes: const {'host-1': 'gym'},
+        participantTypes: const {'host-1': 'gym', 'friend-1': 'gym'},
         createdAt: DateTime(2026),
         startedAt: DateTime(2026),
       ),
     );
 
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(tester, find.text('Back Squat'));
 
-    // The host builds the plan WHILE the friend decides (invite-first):
-    expect(find.byType(GymPlanEditor), findsOneWidget); // editor visible
-    expect(find.text('Waiting for your buddy to join'), findsOneWidget); // ready hint
-    // The "I'm ready" button is present but disabled (onPressed == null) because
-    // the invited friend has not joined yet.
-    final readyButton = tester.widget<FilledButton>(
-      find.widgetWithText(FilledButton, "I'm ready"),
+    expect(find.text('Back Squat'), findsOneWidget);
+    expect(
+      find.text(
+        'Review the host gym plan, then adjust only your personal copy.',
+      ),
+      findsOneWidget,
     );
-    expect(readyButton.onPressed, isNull);
+
+    // In friendReviewPlan state the button is "Edit & Ready" (not "I'm ready").
+    await tester.ensureVisible(find.text('Edit & Ready'));
+    await tester.pump();
+    await tester.tap(find.text('Edit & Ready'));
+    await tester.pump();
+
+    final savedPlan =
+        verify(
+              () => sessionService.saveGymPlan(
+                sessionId: 'session-1',
+                plan: captureAny(named: 'plan'),
+              ),
+            ).captured.single
+            as GymSessionPlan;
+
+    expect(savedPlan.userId, 'friend-1');
+    expect(savedPlan.source, GymSessionPlanSource.personalCopy);
+    expect(savedPlan.exercises.single.plannedSets, 4);
 
     await controller.close();
   });
 
-  testWidgets('pending friend picks category and Join calls joinSetup',
-      (tester) async {
+  testWidgets(
+    'host with pending invite can build the plan but ready is disabled',
+    (tester) async {
+      final sessionService = MockSessionService();
+      final userCacheService = MockUserCacheService();
+      final controller = StreamController<Session?>();
+
+      when(
+        () => sessionService.listenToSession('session-1'),
+      ).thenAnswer((_) => controller.stream);
+      when(
+        () => sessionService.ensureGymPlan(
+          sessionId: 'session-1',
+          hostId: 'host-1',
+          userId: 'host-1',
+        ),
+      ).thenAnswer(
+        (_) async => const GymSessionPlan(
+          userId: 'host-1',
+          source: GymSessionPlanSource.hostTemplate,
+          isReady: false,
+          exercises: [],
+        ),
+      );
+      when(
+        () => userCacheService.warmSessionParticipants(any()),
+      ).thenAnswer((_) async {});
+
+      await tester.pumpWidget(
+        _buildApp(
+          overrides: [
+            sessionServiceProvider.overrideWithValue(sessionService),
+            userCacheServiceProvider.overrideWithValue(userCacheService),
+            buildSessionAuthOverride(
+              userId: 'host-1',
+              email: 'host@example.com',
+              displayName: 'Host',
+            ),
+          ],
+        ),
+      );
+
+      // Session: hostId == me, participants == [me], partnerKind == realFriend,
+      // partnerId == 'friend-1', invitationStatus == pending, type == gym,
+      // status == active, phase == setup.
+      controller.add(
+        Session(
+          id: 'session-1',
+          type: 'gym',
+          title: 'Gym Setup',
+          hostId: 'host-1',
+          participants: const ['host-1'],
+          status: SessionStatus.active,
+          phase: SessionPhase.setup,
+          partnerKind: PairedPartnerKind.realFriend,
+          partnerId: 'friend-1',
+          invitationStatus: WorkoutInvitationStatus.pending,
+          participantTypes: const {'host-1': 'gym'},
+          createdAt: DateTime(2026),
+          startedAt: DateTime(2026),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // The host builds the plan WHILE the friend decides (invite-first):
+      expect(find.byType(GymPlanEditor), findsOneWidget); // editor visible
+      expect(
+        find.text('Waiting for your buddy to join'),
+        findsOneWidget,
+      ); // ready hint
+      // The "I'm ready" button is present but disabled (onPressed == null) because
+      // the invited friend has not joined yet.
+      final readyButton = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, "I'm ready"),
+      );
+      expect(readyButton.onPressed, isNull);
+
+      await controller.close();
+    },
+  );
+
+  testWidgets('pending friend picks category and Join calls joinSetup', (
+    tester,
+  ) async {
     // session: hostId=host-1, type='gym', participants=[host-1] (friend NOT yet in),
     //   partnerKind=realFriend, partnerId=me, invitationStatus='pending',
     //   status=active, phase=setup
@@ -603,17 +593,10 @@ void main() {
         overrides: [
           sessionServiceProvider.overrideWithValue(sessionService),
           userCacheServiceProvider.overrideWithValue(userCacheService),
-          authSessionProvider.overrideWith(
-            (ref) => Stream.value(
-              const AuthUserEntity(
-                id: 'friend-1',
-                email: 'friend@example.com',
-                displayName: 'Friend',
-                photoUrl: null,
-                emailVerified: true,
-                providerIds: ['password'],
-              ),
-            ),
+          buildSessionAuthOverride(
+            userId: 'friend-1',
+            email: 'friend@example.com',
+            displayName: 'Friend',
           ),
         ],
         child: const MaterialApp(

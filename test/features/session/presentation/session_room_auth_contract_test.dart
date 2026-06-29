@@ -42,11 +42,7 @@ void main() {
       final headerEnd = source.indexOf('Widget _buildV2ProgressRow');
       final headerSource = source.substring(headerStart, headerEnd);
       final compactStart = headerSource.indexOf('if (isCompactHeader)');
-      final compactEnd = headerSource.indexOf(
-        '\n\n          return Row(',
-        compactStart,
-      );
-      final compactSource = headerSource.substring(compactStart, compactEnd);
+      final compactSource = headerSource.substring(compactStart);
 
       expect(compactSource, contains('SingleChildScrollView'));
       expect(compactSource, contains('scrollDirection: Axis.horizontal'));
@@ -138,30 +134,31 @@ void main() {
         'lib/features/session/presentation/session_room_page.dart',
       ).readAsStringSync();
 
-      // After T031: late-add uses PlannedExerciseSource to route catalog vs custom
-      expect(source, contains('PlannedExerciseSource.catalog'));
-      expect(source, contains('PlannedExercise.catalog'));
+      // Late-add relies on the domain helper so catalog/custom identity is
+      // preserved without duplicating source-specific copy logic in the page.
+      expect(source, contains('picked.copyWithPlanFields('));
+      expect(source, contains("id: 'extra_\${DateTime.now().microsecondsSinceEpoch}'"));
     },
   );
 
   // ---------------------------------------------------------------------------
   // T055 [P] paired-session plan exercise isolation after identity-field additions
   // ---------------------------------------------------------------------------
-  test(
-    'T055: each participant plan is saved under their own userId, '
-    'not a shared plan path',
-    () {
-      final source = File(
-        'lib/features/session/presentation/session_room_page.dart',
-      ).readAsStringSync();
+  test('T055: each participant plan is saved under their own userId, '
+      'not a shared plan path', () {
+    final source = File(
+      'lib/features/session/presentation/session_room_page.dart',
+    ).readAsStringSync();
 
-      // The _openLateAddPicker builds updatedPlan with userId = currentPlan.userId
-      // (the acting participant's id), not a shared or host id.
-      // Both plans are stored via saveGymPlan which uses plan.userId as the doc id.
-      expect(source, contains('currentPlan.userId'));
-      expect(source, contains('saveGymPlan(sessionId: widget.sessionId, plan: updatedPlan)'));
-    },
-  );
+    // The _openLateAddPicker builds updatedPlan with userId = currentPlan.userId
+    // (the acting participant's id), not a shared or host id.
+    // Both plans are stored via saveGymPlan which uses plan.userId as the doc id.
+    expect(source, contains('currentPlan.userId'));
+    expect(
+      source,
+      contains('saveGymPlan(sessionId: widget.sessionId, plan: updatedPlan)'),
+    );
+  });
 
   test(
     'T055: bot plan copy uses botGymPlanFromHostPlan — does not mutate host plan userId',

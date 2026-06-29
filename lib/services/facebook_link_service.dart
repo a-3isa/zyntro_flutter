@@ -35,8 +35,7 @@ final class FacebookLinkFailure<T> extends FacebookLinkResult<T> {
 class FacebookLinkService {
   final FirebaseFirestore _firestore;
 
-  const FacebookLinkService({required FirebaseFirestore firestore})
-      : _firestore = firestore;
+  const FacebookLinkService({required this._firestore});
 
   /// Launches the Facebook login dialog, stores the facebookUid in Firestore,
   /// and returns matched Zyntro users who are friends on Facebook.
@@ -143,12 +142,16 @@ class FacebookLinkService {
       final uri = Uri.https('graph.facebook.com', '/me/friends', {
         'fields': 'id',
         'limit': '200',
-        'access_token': tokenString,
       });
 
-      final response = await http.get(uri);
+      final response = await http.get(
+        uri,
+        headers: {'Authorization': 'Bearer $tokenString'},
+      );
       if (response.statusCode != 200) {
-        debugPrint('[FacebookLinkService] Graph API error: ${response.body}');
+        debugPrint(
+          '[FacebookLinkService] Graph API error: status=${response.statusCode}',
+        );
         return [];
       }
 

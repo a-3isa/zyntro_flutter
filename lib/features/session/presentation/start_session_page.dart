@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -65,9 +66,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
   int _weekSessions = 0;
   static const int _weekTarget = 5;
   int _streakDays = 0;
-  int _totalSessions = 0;
   List<Session> _recentSessions = [];
-  bool _isLoadingStats = true;
 
   static const _prefKeyType = 'last_workout_type';
 
@@ -104,10 +103,8 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
   }
 
   Future<void> _loadStats() async {
-    final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = await _readCurrentUserId();
     if (uid == null) {
-      if (mounted) setState(() => _isLoadingStats = false);
       return;
     }
     try {
@@ -128,21 +125,28 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
       if (mounted) {
         setState(() {
           _weekSessions = weekCount;
-          _totalSessions = allSessions.length;
           _recentSessions = allSessions.take(3).toList();
           _streakDays = weekCount; // approximate from this-week count
-          _isLoadingStats = false;
         });
       }
     } catch (_) {
-      if (mounted) setState(() => _isLoadingStats = false);
+      // Keep the home stats fallback values when history loading fails.
+    }
+  }
+
+  Future<String?> _readCurrentUserId() async {
+    final current = ref.read(authSessionProvider).value?.id;
+    if (current != null) return current;
+    try {
+      return (await ref.read(authSessionProvider.future))?.id;
+    } catch (_) {
+      return null;
     }
   }
 
   Future<void> _loadMutualFollows() async {
     setState(() => _isLoadingFollows = true);
-    final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = await _readCurrentUserId();
     if (uid == null) {
       if (mounted) setState(() => _isLoadingFollows = false);
       return;
@@ -168,8 +172,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
   /// Fails silently — the strip simply stays hidden if this errors or returns empty.
   Future<void> _loadLiveFriends() async {
     try {
-      final authState = ref.read(authSessionProvider);
-      final uid = authState.valueOrNull?.id;
+      final uid = await _readCurrentUserId();
       if (uid == null) return;
 
       final follows = await ref
@@ -203,163 +206,58 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
   }
 
   Future<void> _handleStartSession() async {
+    await _startSelectedSession(includeEmptyPlanExtra: false);
+  }
+
+  Future<void> _startSelectedSession({
+    required bool includeEmptyPlanExtra,
+  }) async {
     final type = _selectedType;
     if (type == null) return;
     setState(() => _isLoading = true);
 
     try {
-      final authState = ref.read(authSessionProvider);
-      final uid = authState.valueOrNull?.id;
+      final uid = await _readCurrentUserId();
       if (uid == null) throw Exception('Not authenticated');
 
       final sessionService = ref.read(sessionServiceProvider);
       final existingSessionId = await sessionService.checkActiveSession(uid);
-
-      if (existingSessionId != null && mounted) {
-        setState(() => _isLoading = false);
-        final action = await showModalBottomSheet<String>(
-          context: context,
-          backgroundColor: Colors.transparent,
-          builder: (ctx) => Container(
-            margin: const EdgeInsets.all(16),
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceV2Elevated,
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Active Session Found',
-                  style: AppTextStyles.h4.copyWith(
-                    color: AppColors.textV2Primary,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'You already have a workout in progress. Resume it or end it to start a new one.',
-                  style: AppTextStyles.body.copyWith(
-                    color: AppColors.textV2Secondary,
-                    height: 1.5,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                ZyntroButton(
-                  title: 'Resume Active Session',
-                  variant: ZyntroButtonVariant.primary,
-                  fullWidth: true,
-                  onPressed: () => Navigator.pop(ctx, 'resume'),
-                ),
-                const SizedBox(height: 8),
-                ZyntroButton(
-                  title: 'End Old & Start New',
-                  variant: ZyntroButtonVariant.destructive,
-                  fullWidth: true,
-                  onPressed: () => Navigator.pop(ctx, 'end'),
-                ),
-                const SizedBox(height: 8),
-                ZyntroButton(
-                  title: 'Cancel',
-                  variant: ZyntroButtonVariant.ghost,
-                  fullWidth: true,
-                  onPressed: () => Navigator.pop(ctx, 'cancel'),
-                ),
-                const SizedBox(height: 8),
-              ],
-            ),
-          ),
+      if (existingSessionId != null) {
+        final shouldCreateNew = await _resolveActiveSessionConflict(
+          sessionService: sessionService,
+          uid: uid,
+          type: type,
+          existingSessionId: existingSessionId,
         );
-
-        if (!mounted) return;
-
-        if (action == 'resume') {
-          context.push(
-            AppRouteLocations.sessionRoom(existingSessionId, type: type.value),
-          );
-          return;
-        } else if (action == 'end') {
-          setState(() => _isLoading = true);
-          await sessionService.endSession(existingSessionId, uid, null);
-        } else {
-          return;
-        }
+        if (!shouldCreateNew) return;
       }
 
-      // Build invited list from selected friends
-      final invitedIds =
-          _partnerMode == 'friends' && _selectedFriends.isNotEmpty
-          ? _selectedFriends.toList()
-          : null;
-      // Re-stamp order to match current list position; preserve catalog/custom identity (T025).
-      final plannedExercises = _plan.asMap().entries.map((entry) {
-        final item = entry.value;
-        if (item.source == PlannedExerciseSource.catalog) {
-          return PlannedExercise.catalog(
-            id: item.id,
-            exerciseId: item.exerciseId!,
-            name: item.name,
-            plannedSets: item.plannedSets,
-            order: entry.key,
-            muscleGroup: item.muscleGroup,
-            equipment: item.equipment,
-          );
-        }
-        return PlannedExercise.custom(
-          id: item.id,
-          name: item.name,
-          plannedSets: item.plannedSets,
-          order: entry.key,
-          personalExerciseId: item.personalExerciseId,
-          muscleGroup: item.muscleGroup,
-          equipment: item.equipment,
-        );
-      }).toList();
-      final gymPlan = GymSessionPlan(
-        userId: uid,
-        workoutType: type,
-        source: GymSessionPlanSource.hostTemplate,
-        isReady: true,
-        exercises: plannedExercises,
-        updatedAt: DateTime.now(),
+      final plannedExercises = _currentPlannedExercises();
+      final gymPlan = _buildHostGymPlan(
+        uid: uid,
+        type: type,
+        plannedExercises: plannedExercises,
+      );
+      final sessionId = await _createSelectedSession(
+        sessionService: sessionService,
+        uid: uid,
+        type: type,
+        gymPlan: gymPlan,
+      );
+      await _saveGymPlanBestEffort(
+        sessionService: sessionService,
+        sessionId: sessionId,
+        gymPlan: gymPlan,
+        plannedExercises: plannedExercises,
       );
 
-      final sessionId = _partnerMode == 'bot'
-          ? await sessionService.createBotPairedSession(
-              hostId: uid,
-              type: type.value,
-              title: '${type.displayName} Session',
-              plan: gymPlan,
-            )
-          : await sessionService.createSession(
-              hostId: uid,
-              type: type.value,
-              title: '${type.displayName} Session',
-              invitedUserIds: invitedIds,
-              phase: SessionPhase.live,
-            );
-
-      // For non-bot sessions, persist the host's plan so the friend's
-      // SessionRoomPage can fetch it via gymSessionPlanProvider.
-      if (_partnerMode != 'bot' && plannedExercises.isNotEmpty) {
-        try {
-          await sessionService.saveGymPlan(sessionId: sessionId, plan: gymPlan);
-        } catch (e) {
-          debugPrint('[StartSessionPage] saveGymPlan failed (non-fatal): $e');
-        }
-      }
-
       await HapticFeedback.mediumImpact();
-
-      if (mounted) {
-        context.push(
-          AppRouteLocations.sessionRoom(sessionId, type: type.value),
-          extra: plannedExercises.isNotEmpty
-              ? {'plannedExercises': plannedExercises}
-              : null,
-        );
-      }
+      _openCreatedSession(
+        sessionId: sessionId,
+        type: type,
+        plannedExercises: plannedExercises,
+        includeEmptyPlanExtra: includeEmptyPlanExtra,
+      );
     } catch (e) {
       debugPrint('[StartSessionPage] Failed to start session: $e');
       if (mounted) {
@@ -371,6 +269,165 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  Future<bool> _resolveActiveSessionConflict({
+    required SessionService sessionService,
+    required String uid,
+    required WorkoutType type,
+    required String existingSessionId,
+  }) async {
+    if (!mounted) return false;
+    setState(() => _isLoading = false);
+
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        margin: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceV2Elevated,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Active Session Found',
+              style: AppTextStyles.h4.copyWith(color: AppColors.textV2Primary),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'You already have a workout in progress. Resume it or end it to start a new one.',
+              style: AppTextStyles.body.copyWith(
+                color: AppColors.textV2Secondary,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 24),
+            ZyntroButton(
+              title: 'Resume Active Session',
+              variant: ZyntroButtonVariant.primary,
+              fullWidth: true,
+              onPressed: () => Navigator.pop(ctx, 'resume'),
+            ),
+            const SizedBox(height: 8),
+            ZyntroButton(
+              title: 'End Old & Start New',
+              variant: ZyntroButtonVariant.destructive,
+              fullWidth: true,
+              onPressed: () => Navigator.pop(ctx, 'end'),
+            ),
+            const SizedBox(height: 8),
+            ZyntroButton(
+              title: 'Cancel',
+              variant: ZyntroButtonVariant.ghost,
+              fullWidth: true,
+              onPressed: () => Navigator.pop(ctx, 'cancel'),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+
+    if (!mounted) return false;
+
+    if (action == 'resume') {
+      context.push(
+        AppRouteLocations.sessionRoom(existingSessionId, type: type.value),
+      );
+      return false;
+    }
+    if (action == 'end') {
+      setState(() => _isLoading = true);
+      await sessionService.endSession(existingSessionId, uid, null);
+      return true;
+    }
+    return false;
+  }
+
+  List<PlannedExercise> _currentPlannedExercises() {
+    // Re-stamp order to match current list position; preserve catalog/custom identity (T025).
+    return _plan
+        .asMap()
+        .entries
+        .map((entry) => entry.value.copyWithPlanFields(order: entry.key))
+        .toList();
+  }
+
+  GymSessionPlan _buildHostGymPlan({
+    required String uid,
+    required WorkoutType type,
+    required List<PlannedExercise> plannedExercises,
+  }) {
+    return GymSessionPlan(
+      userId: uid,
+      workoutType: type,
+      source: GymSessionPlanSource.hostTemplate,
+      isReady: true,
+      exercises: plannedExercises,
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  Future<String> _createSelectedSession({
+    required SessionService sessionService,
+    required String uid,
+    required WorkoutType type,
+    required GymSessionPlan gymPlan,
+  }) {
+    if (_partnerMode == 'bot') {
+      return sessionService.createBotPairedSession(
+        hostId: uid,
+        type: type.value,
+        title: '${type.displayName} Session',
+        plan: gymPlan,
+      );
+    }
+
+    final invitedIds = _partnerMode == 'friends' && _selectedFriends.isNotEmpty
+        ? _selectedFriends.toList()
+        : null;
+    return sessionService.createSession(
+      hostId: uid,
+      type: type.value,
+      title: '${type.displayName} Session',
+      invitedUserIds: invitedIds,
+      phase: SessionPhase.live,
+    );
+  }
+
+  Future<void> _saveGymPlanBestEffort({
+    required SessionService sessionService,
+    required String sessionId,
+    required GymSessionPlan gymPlan,
+    required List<PlannedExercise> plannedExercises,
+  }) async {
+    if (_partnerMode == 'bot' || plannedExercises.isEmpty) return;
+
+    try {
+      await sessionService.saveGymPlan(sessionId: sessionId, plan: gymPlan);
+    } catch (e) {
+      debugPrint('[StartSessionPage] saveGymPlan failed (non-fatal): $e');
+    }
+  }
+
+  void _openCreatedSession({
+    required String sessionId,
+    required WorkoutType type,
+    required List<PlannedExercise> plannedExercises,
+    required bool includeEmptyPlanExtra,
+  }) {
+    if (!mounted) return;
+    context.push(
+      AppRouteLocations.sessionRoom(sessionId, type: type.value),
+      extra: includeEmptyPlanExtra || plannedExercises.isNotEmpty
+          ? {'plannedExercises': plannedExercises}
+          : null,
+    );
   }
 
   void _showError(String message) {
@@ -484,7 +541,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
     });
     // Force solo mode when connectivity drops.
     ref.listen<AsyncValue<bool>>(connectivityProvider, (_, next) {
-      final isOnline = next.valueOrNull ?? true;
+      final isOnline = next.value ?? true;
       if (!isOnline && _partnerMode != 'solo') {
         setState(() {
           _partnerMode = 'solo';
@@ -505,7 +562,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
   }
 
   Future<void> _handleStartFriendInvite(WorkoutType type) async {
-    final uid = ref.read(authSessionProvider).valueOrNull?.id;
+    final uid = await _readCurrentUserId();
     if (uid == null || _selectedFriends.isEmpty) return;
     setState(() => _isLoading = true);
     try {
@@ -711,9 +768,10 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                     const SizedBox(height: 12),
                     _buildTypeSelectionGrid(),
                     const SizedBox(height: 28),
-                    // _buildSectionLabel('TRAIN WITH'),
-                    // const SizedBox(height: 12),
-                    if (!(ref.watch(connectivityProvider).valueOrNull ?? true))
+                    _buildSectionLabel('TRAIN WITH'),
+                    const SizedBox(height: 12),
+                    _buildPartnerModeRow(),
+                    if (!(ref.watch(connectivityProvider).value ?? true))
                       Padding(
                         padding: const EdgeInsets.only(bottom: 10),
                         child: Container(
@@ -747,19 +805,10 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                           ),
                         ),
                       ),
-                    // _buildPartnerModeRow(),
                     _buildBuddiesStrip(
                       isOffline:
-                          !(ref.watch(connectivityProvider).valueOrNull ??
-                              true),
+                          !(ref.watch(connectivityProvider).value ?? true),
                     ),
-                    // if (_recentSessions.isNotEmpty || _isLoadingStats) ...[
-                    //   const SizedBox(height: 28),
-                    //   _buildSectionLabel('RECENT'),
-                    //   const SizedBox(height: 12),
-                    //   _buildRecentList(),
-                    // ],
-                    // const SizedBox(height: 16),
                   ],
                 ),
               ),
@@ -900,14 +949,13 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
     final pairedSessionsEnabled = ref.watch(
       pairedFriendSessionsEnabledProvider,
     );
-    final isOffline = !(ref.watch(connectivityProvider).valueOrNull ?? true);
+    final isOffline = !(ref.watch(connectivityProvider).value ?? true);
     final modes = [
       (id: 'solo', label: 'Solo', icon: Icons.person_outline_rounded),
       if (pairedSessionsEnabled) ...[
         (id: 'bot', label: 'Bot', icon: Icons.smart_toy_outlined),
         (id: 'friends', label: 'Friend', icon: Icons.person_add_alt_1),
       ],
-      (id: 'random', label: 'Random', icon: Icons.shuffle_rounded),
     ];
     return Row(
       children: modes.map((m) {
@@ -926,15 +974,10 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                     if (m.id == 'friends') {
                       _loadMutualFollows();
                     }
-                    if (m.id == 'random' && _selectedType != null) {
-                      context.push(
-                        AppRouteLocations.matchmaking(_selectedType!),
-                      );
-                    }
                   },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 160),
-              margin: EdgeInsets.only(right: m.id == 'random' ? 0 : 8),
+              margin: EdgeInsets.only(right: m.id == modes.last.id ? 0 : 8),
               padding: const EdgeInsets.symmetric(vertical: 12),
               decoration: BoxDecoration(
                 color: isDisabled
@@ -1075,6 +1118,16 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
             },
           ),
         ),
+        if (_selectedFriends.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text(
+            '${_selectedFriends.length} friend selected',
+            style: AppTextStyles.caption.copyWith(
+              color: AppColors.userAccent,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -1155,13 +1208,6 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                       ),
                     ),
                     const SizedBox(width: 16),
-                    // Text(
-                    //   '$_totalSessions',
-                    //   style: AppTextStyles.label.copyWith(
-                    //     fontSize: 15,
-                    //     color: AppColors.textV2Primary,
-                    //   ),
-                    // ),
                   ],
                 ),
                 Row(
@@ -1211,127 +1257,6 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
     (type: WorkoutType.yoga, label: 'Yoga'),
     (type: WorkoutType.swimming, label: 'Swim'),
   ];
-
-  Widget _buildRecentList() {
-    if (_isLoadingStats) {
-      return Column(
-        children: List.generate(
-          2,
-          (_) => Container(
-            height: 64,
-            margin: const EdgeInsets.only(bottom: 8),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceV2,
-              borderRadius: BorderRadius.circular(14),
-            ),
-          ),
-        ),
-      );
-    }
-    return Column(
-      children: _recentSessions.map((session) {
-        final color = _getTypeColorByString(session.type);
-        final icon = _getIconData(_workoutIconForType(session.type));
-        final ago = _formatAgo(session.createdAt);
-        final duration = session.endedAt != null
-            ? _formatDuration(session.endedAt!.difference(session.startedAt))
-            : '';
-        return Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceV2,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(11),
-                ),
-                child: Icon(icon, color: color, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      session.title.isNotEmpty ? session.title : session.type,
-                      style: TextStyle(
-                        color: AppColors.textV2Primary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    Text(
-                      duration.isNotEmpty ? '$ago · $duration' : ago,
-                      style: TextStyle(
-                        color: AppColors.textV2Tertiary,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Color _getTypeColorByString(String type) {
-    switch (type) {
-      case 'gym':
-        return const Color(0xFFC8FF00);
-      case 'running':
-        return const Color(0xFF38BDF8);
-      case 'cycling':
-        return const Color(0xFFA78BFA);
-      case 'swimming':
-        return const Color(0xFF22D3EE);
-      case 'yoga':
-        return const Color(0xFF34D399);
-      case 'hiit':
-        return const Color(0xFFFF8C00);
-      default:
-        return const Color(0xFF888888);
-    }
-  }
-
-  String _workoutIconForType(String type) {
-    switch (type) {
-      case 'running':
-        return 'directions_run';
-      case 'cycling':
-        return 'directions_bike';
-      case 'swimming':
-        return 'pool';
-      case 'yoga':
-        return 'self_improvement';
-      case 'hiit':
-        return 'timer';
-      default:
-        return 'fitness_center';
-    }
-  }
-
-  String _formatAgo(DateTime dt) {
-    final diff = DateTime.now().difference(dt);
-    if (diff.inDays >= 2) return '${diff.inDays} days ago';
-    if (diff.inDays == 1) return 'Yesterday';
-    if (diff.inHours >= 1) return '${diff.inHours}h ago';
-    return 'Just now';
-  }
-
-  String _formatDuration(Duration d) {
-    final m = d.inMinutes;
-    return '${m}m';
-  }
 
   Future<void> _showPastWorkoutsPopup() async {
     // Gather gym sessions that have at least one exercise in the summary.
@@ -1430,9 +1355,8 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
               child: ReorderableListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 itemCount: _plan.length,
-                onReorder: (oldIndex, newIndex) {
+                onReorderItem: (oldIndex, newIndex) {
                   setState(() {
-                    if (newIndex > oldIndex) newIndex -= 1;
                     final item = _plan.removeAt(oldIndex);
                     _plan.insert(newIndex, item);
                   });
@@ -1446,28 +1370,8 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                     onDelete: () => setState(() => _plan.removeAt(index)),
                     onSetsChanged: (sets) => setState(() {
                       // PlannedExercise is immutable — replace entry (T024).
-                      final current = _plan[index];
-                      if (current.source == PlannedExerciseSource.catalog) {
-                        _plan[index] = PlannedExercise.catalog(
-                          id: current.id,
-                          exerciseId: current.exerciseId!,
-                          name: current.name,
-                          plannedSets: sets,
-                          order: current.order,
-                          muscleGroup: current.muscleGroup,
-                          equipment: current.equipment,
-                        );
-                      } else {
-                        _plan[index] = PlannedExercise.custom(
-                          id: current.id,
-                          name: current.name,
-                          plannedSets: sets,
-                          order: current.order,
-                          personalExerciseId: current.personalExerciseId,
-                          muscleGroup: current.muscleGroup,
-                          equipment: current.equipment,
-                        );
-                      }
+                      _plan[index] =
+                          _plan[index].copyWithPlanFields(plannedSets: sets);
                     }),
                   );
                 },
@@ -1503,36 +1407,39 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
             const SizedBox(height: 12),
             // Begin session button
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: Column(
-                children: [
-                  if (_plan.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Text(
-                        'Add at least one exercise to start',
-                        style: AppTextStyles.caption.copyWith(
-                          color: AppColors.textV2Tertiary,
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  children: [
+                    if (_plan.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(
+                          'Add at least one exercise to start',
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.textV2Tertiary,
+                          ),
+                          textAlign: TextAlign.center,
                         ),
-                        textAlign: TextAlign.center,
                       ),
+                    ZyntroButton(
+                      title: _plan.isEmpty
+                          ? 'Begin Session ⚡  ($totalSets sets)'
+                          : 'Begin Session ⚡  ($totalSets sets)',
+                      fullWidth: true,
+                      size: ZyntroButtonSize.lg,
+                      variant: ZyntroButtonVariant.primary,
+                      loading: _isLoading,
+                      onPressed: _isLoading
+                          ? null
+                          : () {
+                              HapticManager.heavy();
+                              _handleStartSessionWithPlan();
+                            },
                     ),
-                  ZyntroButton(
-                    title: _plan.isEmpty
-                        ? 'Begin Session ⚡  ($totalSets sets)'
-                        : 'Begin Session ⚡  ($totalSets sets)',
-                    fullWidth: true,
-                    size: ZyntroButtonSize.lg,
-                    variant: ZyntroButtonVariant.primary,
-                    loading: _isLoading,
-                    onPressed: _isLoading
-                        ? null
-                        : () {
-                            HapticManager.heavy();
-                            _handleStartSessionWithPlan();
-                          },
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ],
@@ -1542,8 +1449,8 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
   }
 
   Future<void> _openExercisePicker() async {
-    final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = await _readCurrentUserId();
+    if (!mounted) return;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -1559,25 +1466,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
             Navigator.of(ctx).pop();
             // Rebuild with correct order index; preserve catalog/custom source (T025).
             final next = _plan.length;
-            final withOrder = exercise.source == PlannedExerciseSource.catalog
-                ? PlannedExercise.catalog(
-                    id: exercise.id,
-                    exerciseId: exercise.exerciseId!,
-                    name: exercise.name,
-                    plannedSets: exercise.plannedSets,
-                    order: next,
-                    muscleGroup: exercise.muscleGroup,
-                    equipment: exercise.equipment,
-                  )
-                : PlannedExercise.custom(
-                    id: exercise.id,
-                    name: exercise.name,
-                    plannedSets: exercise.plannedSets,
-                    order: next,
-                    personalExerciseId: exercise.personalExerciseId,
-                    muscleGroup: exercise.muscleGroup,
-                    equipment: exercise.equipment,
-                  );
+            final withOrder = exercise.copyWithPlanFields(order: next);
             setState(() => _plan.add(withOrder));
             HapticManager.light();
           },
@@ -1587,171 +1476,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
   }
 
   Future<void> _handleStartSessionWithPlan() async {
-    final type = _selectedType;
-    if (type == null) return;
-    setState(() => _isLoading = true);
-
-    try {
-      final authState = ref.read(authSessionProvider);
-      final uid = authState.valueOrNull?.id;
-      if (uid == null) throw Exception('Not authenticated');
-
-      final sessionService = ref.read(sessionServiceProvider);
-      final existingSessionId = await sessionService.checkActiveSession(uid);
-
-      if (existingSessionId != null && mounted) {
-        setState(() => _isLoading = false);
-        final action = await showModalBottomSheet<String>(
-          context: context,
-          backgroundColor: Colors.transparent,
-          builder: (ctx) => Container(
-            margin: const EdgeInsets.all(16),
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceV2Elevated,
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Active Session Found',
-                  style: AppTextStyles.h4.copyWith(
-                    color: AppColors.textV2Primary,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'You already have a workout in progress. Resume it or end it to start a new one.',
-                  style: AppTextStyles.body.copyWith(
-                    color: AppColors.textV2Secondary,
-                    height: 1.5,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                ZyntroButton(
-                  title: 'Resume Active Session',
-                  variant: ZyntroButtonVariant.primary,
-                  fullWidth: true,
-                  onPressed: () => Navigator.pop(ctx, 'resume'),
-                ),
-                const SizedBox(height: 8),
-                ZyntroButton(
-                  title: 'End Old & Start New',
-                  variant: ZyntroButtonVariant.destructive,
-                  fullWidth: true,
-                  onPressed: () => Navigator.pop(ctx, 'end'),
-                ),
-                const SizedBox(height: 8),
-                ZyntroButton(
-                  title: 'Cancel',
-                  variant: ZyntroButtonVariant.ghost,
-                  fullWidth: true,
-                  onPressed: () => Navigator.pop(ctx, 'cancel'),
-                ),
-                const SizedBox(height: 8),
-              ],
-            ),
-          ),
-        );
-
-        if (!mounted) return;
-
-        if (action == 'resume') {
-          context.push(
-            AppRouteLocations.sessionRoom(existingSessionId, type: type.value),
-          );
-          return;
-        } else if (action == 'end') {
-          setState(() => _isLoading = true);
-          await sessionService.endSession(existingSessionId, uid, null);
-        } else {
-          return;
-        }
-      }
-
-      final invitedIds =
-          _partnerMode == 'friends' && _selectedFriends.isNotEmpty
-          ? _selectedFriends.toList()
-          : null;
-      // Re-stamp order; preserve catalog/custom identity (T025).
-      final plannedExercises = _plan.asMap().entries.map((entry) {
-        final item = entry.value;
-        if (item.source == PlannedExerciseSource.catalog) {
-          return PlannedExercise.catalog(
-            id: item.id,
-            exerciseId: item.exerciseId!,
-            name: item.name,
-            plannedSets: item.plannedSets,
-            order: entry.key,
-            muscleGroup: item.muscleGroup,
-            equipment: item.equipment,
-          );
-        }
-        return PlannedExercise.custom(
-          id: item.id,
-          name: item.name,
-          plannedSets: item.plannedSets,
-          order: entry.key,
-          personalExerciseId: item.personalExerciseId,
-          muscleGroup: item.muscleGroup,
-          equipment: item.equipment,
-        );
-      }).toList();
-      final gymPlan = GymSessionPlan(
-        userId: uid,
-        workoutType: type,
-        source: GymSessionPlanSource.hostTemplate,
-        isReady: true,
-        exercises: plannedExercises,
-        updatedAt: DateTime.now(),
-      );
-
-      final sessionId = _partnerMode == 'bot'
-          ? await sessionService.createBotPairedSession(
-              hostId: uid,
-              type: type.value,
-              title: '${type.displayName} Session',
-              plan: gymPlan,
-            )
-          : await sessionService.createSession(
-              hostId: uid,
-              type: type.value,
-              title: '${type.displayName} Session',
-              invitedUserIds: invitedIds,
-              phase: SessionPhase.live,
-            );
-
-      // For non-bot sessions, persist the host's plan so the friend's
-      // SessionRoomPage can fetch it via gymSessionPlanProvider.
-      if (_partnerMode != 'bot' && plannedExercises.isNotEmpty) {
-        try {
-          await sessionService.saveGymPlan(sessionId: sessionId, plan: gymPlan);
-        } catch (e) {
-          debugPrint(
-            '[StartSessionPage] saveGymPlan (WithPlan) failed (non-fatal): $e',
-          );
-        }
-      }
-
-      await HapticFeedback.mediumImpact();
-
-      if (mounted) {
-        context.push(
-          AppRouteLocations.sessionRoom(sessionId, type: type.value),
-          extra: {'plannedExercises': plannedExercises},
-        );
-      }
-    } catch (e) {
-      debugPrint('[StartSessionPage] Failed to start session with plan: $e');
-      if (mounted) {
-        _showError(_mapStartSessionError(e));
-        await HapticFeedback.vibrate();
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
+    await _startSelectedSession(includeEmptyPlanExtra: true);
   }
 }
 

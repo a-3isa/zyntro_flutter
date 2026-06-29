@@ -28,9 +28,15 @@ service firebase.storage {
           firestore.get(/databases/(default)/documents/sessions/$(sessionId)).data.participants;
     }
 
+    function isPostOwner(postId) {
+      return isAuthenticated() &&
+        firestore.exists(/databases/(default)/documents/posts/$(postId)) &&
+        firestore.get(/databases/(default)/documents/posts/$(postId)).data.authorId == request.auth.uid;
+    }
+
     match /posts/{postId}/{fileName} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && isImageContent() && isUnder5Mb();
+      allow write: if isPostOwner(postId) && isImageContent() && isUnder5Mb();
     }
 
     match /profilePhotos/{userId}/{fileName} {

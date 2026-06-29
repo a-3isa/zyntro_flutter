@@ -33,7 +33,7 @@ class _NotificationPreferencesPageState
 
   Future<void> _loadPreferences() async {
     final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
     if (uid == null) return;
 
     final prefs = await ref
@@ -50,7 +50,7 @@ class _NotificationPreferencesPageState
 
   Future<void> _updatePreference(NotificationPreferences newPrefs) async {
     final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
     if (uid == null) return;
 
     // Optimistic update

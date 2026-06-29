@@ -50,7 +50,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
 
     if (uid == null) {
       return const Scaffold(
@@ -66,7 +66,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
 
     final notificationsAsync = ref.watch(userNotificationsProvider(uid));
     final unreadCount =
-        notificationsAsync.valueOrNull?.where((n) => !n.read).length ?? 0;
+        notificationsAsync.value?.where((n) => !n.read).length ?? 0;
 
     return Scaffold(
       backgroundColor: AppColors.backgroundV2,
@@ -430,7 +430,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                       builder: (_) {
                         final uid = ref
                             .read(authSessionProvider)
-                            .valueOrNull
+                            .value
                             ?.id;
                         if (uid == null) return const SizedBox.shrink();
                         return _buildFollowRequestActions(notification, uid);
@@ -481,7 +481,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       _notifFollowStatusProvider((currentUserId, fromUserId)),
     );
     final isAlreadyFollowing =
-        followStatusAsync.valueOrNull == FollowStatus.approved;
+        followStatusAsync.value == FollowStatus.approved;
 
     final isPrivate = ref
         .watch(authUserProfileProvider)

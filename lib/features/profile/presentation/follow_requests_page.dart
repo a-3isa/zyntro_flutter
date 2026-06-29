@@ -29,7 +29,7 @@ class _FollowRequestsPageState extends ConsumerState<FollowRequestsPage> {
     setState(() => _processingIds.add(requester.id));
 
     try {
-      final currentUser = ref.read(authSessionProvider).valueOrNull;
+      final currentUser = ref.read(authSessionProvider).value;
       await ref
           .read(followServiceProvider)
           .acceptFollowRequest(
@@ -101,7 +101,7 @@ class _FollowRequestsPageState extends ConsumerState<FollowRequestsPage> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
     final requestsAsync = ref.watch(pendingFollowRequestsProvider);
 
     return Scaffold(
@@ -296,7 +296,7 @@ class _FollowRequestsPageState extends ConsumerState<FollowRequestsPage> {
 /// Provider for pending follow requests list.
 final pendingFollowRequestsProvider = FutureProvider<List<User>>((ref) async {
   final authState = ref.watch(authSessionProvider);
-  final uid = authState.valueOrNull?.id;
+  final uid = authState.value?.id;
   if (uid == null) return [];
 
   return ref.watch(followServiceProvider).getPendingFollowRequests(uid);

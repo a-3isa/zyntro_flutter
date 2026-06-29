@@ -83,7 +83,7 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
   // T037: seed from cache immediately so offline users see data while network loads.
   void _seedFromCache() {
     final authState = ref.read(authSessionProvider);
-    final userId = widget.userId ?? authState.valueOrNull?.id;
+    final userId = widget.userId ?? authState.value?.id;
     if (userId == null) return;
     final cached = ref.read(profileCacheServiceProvider).readWorkoutHistory(userId);
     if (cached.isNotEmpty && _workouts.isEmpty) {
@@ -101,7 +101,7 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
 
   Future<void> _loadWorkouts() async {
     final authState = ref.read(authSessionProvider);
-    final userId = widget.userId ?? authState.valueOrNull?.id;
+    final userId = widget.userId ?? authState.value?.id;
     if (userId == null) return;
 
     // Only show spinner if no cached data is already showing.

@@ -1,17 +1,41 @@
-const admin = require("firebase-admin");
+const { initializeApp } = require("firebase-admin/app");
+const { getAppCheck } = require("firebase-admin/app-check");
+const { getAuth } = require("firebase-admin/auth");
+const { FieldValue, getFirestore, Timestamp } = require("firebase-admin/firestore");
+const { getMessaging } = require("firebase-admin/messaging");
 const logger = require("firebase-functions/logger");
 const { onRequest, HttpsError } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 
-admin.initializeApp();
+initializeApp();
 
-const db = admin.firestore();
-const messaging = admin.messaging();
+const appCheck = getAppCheck();
+const auth = getAuth();
+const db = getFirestore();
+const messaging = getMessaging();
 
 const INVALID_TOKEN_ERRORS = new Set([
   "messaging/invalid-registration-token",
   "messaging/registration-token-not-registered",
 ]);
+
+function allowedCorsOrigins() {
+  return (process.env.ALLOWED_CORS_ORIGINS || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0);
+}
+
+function setCorsHeaders(req, res) {
+  const origin = req.get("Origin");
+  res.set("Vary", "Origin");
+  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Firebase-AppCheck");
+  res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+
+  if (origin && allowedCorsOrigins().includes(origin)) {
+    res.set("Access-Control-Allow-Origin", origin);
+  }
+}
 
 function requireString(value, fieldName) {
   if (typeof value !== "string" || value.trim().length === 0) {
@@ -141,13 +165,13 @@ async function persistRecipientNotification(recipientId, type, payload) {
     // Deterministic id keyed on the session so a retried/re-sent invite can't
     // create duplicate invite docs — it refreshes the existing one in place.
     await notificationRef.set(
-      { ...base, createdAt: admin.firestore.FieldValue.serverTimestamp() },
+      { ...base, createdAt: FieldValue.serverTimestamp() },
       { merge: true },
     );
   } else {
     await notificationRef.set({
       ...base,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
     });
   }
 
@@ -444,7 +468,7 @@ async function requireHttpAuth(req) {
   }
 
   try {
-    const decodedToken = await admin.auth().verifyIdToken(header.slice("Bearer ".length));
+    const decodedToken = await auth.verifyIdToken(header.slice("Bearer ".length));
     return decodedToken.uid;
   } catch (error) {
     logger.warn("Invalid bearer token for deliverNotificationPush.", error);
@@ -459,7 +483,7 @@ async function requireHttpAppCheck(req) {
   }
 
   try {
-    await admin.appCheck().verifyToken(token);
+    await appCheck.verifyToken(token);
   } catch (error) {
     logger.warn("Invalid App Check token for deliverNotificationPush.", error);
     throw new HttpsError("unauthenticated", "Invalid App Check token.");
@@ -474,12 +498,19 @@ function getPayloadData(body) {
 }
 
 exports.deliverNotificationPush = onRequest({ invoker: "public" }, async (req, res) => {
-  res.set("Access-Control-Allow-Origin", "*");
-  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Firebase-AppCheck");
-  res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+  setCorsHeaders(req, res);
 
   if (req.method === "OPTIONS") {
-    res.status(204).send("");
+    if (req.get("Origin") && !res.get("Access-Control-Allow-Origin")) {
+      res.status(403).send("");
+    } else {
+      res.status(204).send("");
+    }
+    return;
+  }
+
+  if (req.get("Origin") && !res.get("Access-Control-Allow-Origin")) {
+    res.status(403).json({ error: "Origin not allowed." });
     return;
   }
 
@@ -576,7 +607,7 @@ exports.deliverNotificationPush = onRequest({ invoker: "public" }, async (req, r
 // NOTE: requires a composite index on sessions(invitationStatus ASC,
 // inviteExpiresAt ASC).
 exports.expireStalePairedInvites = onSchedule("every 15 minutes", async () => {
-  const now = admin.firestore.Timestamp.now();
+  const now = Timestamp.now();
   const snapshot = await db
     .collection("sessions")
     .where("invitationStatus", "==", "pending")

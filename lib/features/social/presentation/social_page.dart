@@ -458,7 +458,7 @@ class _SocialPageState extends ConsumerState<SocialPage>
   // ── Find tab ───────────────────────────────────────────────────────────────
 
   Widget _buildFindTab() {
-    final profile = ref.watch(authUserProfileProvider).valueOrNull;
+    final profile = ref.watch(authUserProfileProvider).value;
     final isFbConnected = profile?.isFacebookConnected ?? false;
 
     return Column(
@@ -694,10 +694,10 @@ class _SocialPageState extends ConsumerState<SocialPage>
   }
 
   Future<void> _followFacebookFriend(String targetUserId) async {
-    final currentUserId = ref.read(authSessionProvider).valueOrNull?.id;
+    final currentUserId = ref.read(authSessionProvider).value?.id;
     if (currentUserId == null) return;
 
-    final targetProfile = ref.read(facebookFriendsProvider).valueOrNull
+    final targetProfile = ref.read(facebookFriendsProvider).value
         ?.firstWhere((u) => u.id == targetUserId);
     if (targetProfile == null) return;
 
@@ -711,7 +711,7 @@ class _SocialPageState extends ConsumerState<SocialPage>
   }
 
   Future<void> _connectFacebookFromFind() async {
-    final uid = ref.read(authSessionProvider).valueOrNull?.id;
+    final uid = ref.read(authSessionProvider).value?.id;
     if (uid == null) return;
 
     final messenger = ScaffoldMessenger.of(context);

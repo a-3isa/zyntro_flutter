@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,12 +24,9 @@ class FakeGymSessionPlan extends Fake implements GymSessionPlan {}
 
 const kSessionTestUserId = 'user-1';
 
-Widget _buildApp({
-  required GoRouter router,
-  required List<Override> overrides,
-}) {
+Widget _buildApp({required GoRouter router, required dynamic overrides}) {
   return ProviderScope(
-    overrides: overrides,
+    overrides: [...overrides],
     child: MaterialApp.router(routerConfig: router),
   );
 }
@@ -48,9 +43,9 @@ void _stubEmptyUserSessions(MockSessionService sessionService) {
   ).thenAnswer((_) async => []);
 }
 
-Override buildSessionAuthOverride({String userId = kSessionTestUserId}) {
-  return authSessionProvider.overrideWith(
-    (ref) => Stream.value(
+dynamic buildSessionAuthOverride({String userId = kSessionTestUserId}) {
+  return authSessionProvider.overrideWithValue(
+    AsyncValue.data(
       AuthUserEntity(
         id: userId,
         email: '$userId@example.com',
@@ -63,7 +58,7 @@ Override buildSessionAuthOverride({String userId = kSessionTestUserId}) {
   );
 }
 
-List<Override> buildStartSessionOverrides({
+dynamic buildStartSessionOverrides({
   required MockSessionService sessionService,
   required MockFollowService followService,
   String userId = kSessionTestUserId,
@@ -96,13 +91,19 @@ GoRouter _buildRouter({bool includeSetup = false}) {
           path: AppRoutes.gymSessionSetup,
           builder: (context, state) {
             final sessionId = state.pathParameters['sessionId']!;
-            return Scaffold(
-              body: Center(child: Text('SETUP:$sessionId')),
-            );
+            return Scaffold(body: Center(child: Text('SETUP:$sessionId')));
           },
         ),
     ],
   );
+}
+
+Future<void> _fireSessionStart(WidgetTester tester) async {
+  final container = ProviderScope.containerOf(
+    tester.element(find.byType(StartSessionPage)),
+  );
+  container.read(sessionStartTriggerProvider.notifier).state++;
+  await tester.pump();
 }
 
 void main() {
@@ -155,18 +156,7 @@ void main() {
           overrides: [
             sessionServiceProvider.overrideWithValue(sessionService),
             followServiceProvider.overrideWithValue(followService),
-            authSessionProvider.overrideWith(
-              (ref) => Stream.value(
-                const AuthUserEntity(
-                  id: 'user-1',
-                  email: 'user@example.com',
-                  displayName: 'Athlete',
-                  photoUrl: null,
-                  emailVerified: true,
-                  providerIds: ['password'],
-                ),
-              ),
-            ),
+            buildSessionAuthOverride(),
           ],
         ),
       );
@@ -178,14 +168,13 @@ void main() {
       await tester.tap(find.text('Strength'));
       await tester.pump();
 
-      // Tap 'Start Strength Session' CTA → navigates to plan view
-      await tester.ensureVisible(find.text('Start Strength Session'));
-      await tester.tap(find.text('Start Strength Session'));
-      await tester.pump();
+      // Fire the shell Start FAB trigger to navigate to plan view.
+      await _fireSessionStart(tester);
 
       // In plan view, tap 'Begin Session' (plan starts empty = 0 sets)
-      await tester.ensureVisible(find.text('Begin Session ⚡  (0 sets)'));
-      await tester.tap(find.text('Begin Session ⚡  (0 sets)'));
+      final beginSession = find.textContaining('Begin Session');
+      await tester.ensureVisible(beginSession);
+      await tester.tap(beginSession);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
@@ -230,18 +219,7 @@ void main() {
         overrides: [
           sessionServiceProvider.overrideWithValue(sessionService),
           followServiceProvider.overrideWithValue(followService),
-          authSessionProvider.overrideWith(
-            (ref) => Stream.value(
-              const AuthUserEntity(
-                id: 'user-1',
-                email: 'user@example.com',
-                displayName: 'Athlete',
-                photoUrl: null,
-                emailVerified: true,
-                providerIds: ['password'],
-              ),
-            ),
-          ),
+          buildSessionAuthOverride(),
         ],
       ),
     );
@@ -250,9 +228,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
     await tester.tap(find.text('Cardio'));
     await tester.pump();
-    await tester.ensureVisible(find.text('Start Cardio Session'));
-    await tester.tap(find.text('Start Cardio Session'));
-    await tester.pump();
+    await _fireSessionStart(tester);
     await tester.pump(const Duration(milliseconds: 300));
 
     verify(
@@ -301,18 +277,7 @@ void main() {
           overrides: [
             sessionServiceProvider.overrideWithValue(sessionService),
             followServiceProvider.overrideWithValue(followService),
-            authSessionProvider.overrideWith(
-              (ref) => Stream.value(
-                const AuthUserEntity(
-                  id: 'user-1',
-                  email: 'user@example.com',
-                  displayName: 'Athlete',
-                  photoUrl: null,
-                  emailVerified: true,
-                  providerIds: ['password'],
-                ),
-              ),
-            ),
+            buildSessionAuthOverride(),
           ],
         ),
       );
@@ -321,9 +286,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
       await tester.tap(find.text('Cardio'));
       await tester.pump();
-      await tester.ensureVisible(find.text('Start Cardio Session'));
-      await tester.tap(find.text('Start Cardio Session'));
-      await tester.pump();
+      await _fireSessionStart(tester);
       await tester.pump(const Duration(milliseconds: 300));
 
       expect(
@@ -353,18 +316,7 @@ void main() {
           overrides: [
             sessionServiceProvider.overrideWithValue(sessionService),
             followServiceProvider.overrideWithValue(followService),
-            authSessionProvider.overrideWith(
-              (ref) => Stream.value(
-                const AuthUserEntity(
-                  id: 'user-1',
-                  email: 'user@example.com',
-                  displayName: 'Athlete',
-                  photoUrl: null,
-                  emailVerified: true,
-                  providerIds: ['password'],
-                ),
-              ),
-            ),
+            buildSessionAuthOverride(),
           ],
           child: const MaterialApp(home: StartSessionPage()),
         ),
@@ -373,9 +325,12 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
 
-      // Saved 'running' type maps to 'Cardio' label; CTA should read 'Start Cardio Session'
+      // Saved 'running' type maps to 'Cardio' label and enables the shell Start FAB.
       expect(find.text('Cardio'), findsOneWidget);
-      expect(find.text('Start Cardio Session'), findsOneWidget);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(StartSessionPage)),
+      );
+      expect(container.read(sessionFabActiveProvider), isTrue);
     },
   );
 
@@ -417,9 +372,7 @@ void main() {
     await tester.ensureVisible(find.text('Bot'));
     await tester.tap(find.text('Bot'));
     await tester.pump();
-    await tester.ensureVisible(find.text('Start Cardio Session'));
-    await tester.tap(find.text('Start Cardio Session'));
-    await tester.pump();
+    await _fireSessionStart(tester);
     await tester.pump(const Duration(milliseconds: 300));
 
     verify(
@@ -442,7 +395,7 @@ void main() {
       (_) async => [
         User(
           id: 'friend_1000',
-          displayName: 'Friend One',
+          displayName: 'Alice One',
           isPrivate: false,
           workoutPreference: WorkoutType.gym,
           beginnerFlag: false,
@@ -451,7 +404,7 @@ void main() {
         ),
         User(
           id: 'friend_2000',
-          displayName: 'Friend Two',
+          displayName: 'Bob Two',
           isPrivate: false,
           workoutPreference: WorkoutType.gym,
           beginnerFlag: false,
@@ -461,26 +414,42 @@ void main() {
       ],
     );
 
+    final overrides = buildStartSessionOverrides(
+      sessionService: sessionService,
+      followService: followService,
+    );
+
     await tester.pumpWidget(
       ProviderScope(
-        overrides: buildStartSessionOverrides(
-          sessionService: sessionService,
-          followService: followService,
+        overrides: [...overrides],
+        child: Consumer(
+          builder: (context, ref, _) {
+            ref.watch(authSessionProvider);
+            return const SizedBox.shrink();
+          },
         ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [...overrides],
         child: const MaterialApp(home: StartSessionPage()),
       ),
     );
 
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
-    await tester.ensureVisible(find.byIcon(Icons.person_add_alt_1));
-    await tester.tap(find.byIcon(Icons.person_add_alt_1));
+    final friendMode = find.text('Friend').last;
+    await tester.ensureVisible(friendMode);
+    await tester.tap(friendMode);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Alice'));
+    await tester.tap(find.text('Alice'));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-    await tester.ensureVisible(find.text('Friend One'));
-    await tester.tap(find.text('Friend One'));
-    await tester.pump();
-    await tester.tap(find.text('Friend Two'));
+    await tester.tap(find.text('Bob'));
     await tester.pump();
 
     expect(find.text('1 friend selected'), findsOneWidget);
@@ -497,15 +466,18 @@ void main() {
 
       _stubNoActiveSession(sessionService);
       _stubEmptyUserSessions(sessionService);
-      when(() => followService.getMutualFollows(any()))
-          .thenAnswer((_) async => const []);
+      when(
+        () => followService.getMutualFollows(any()),
+      ).thenAnswer((_) async => const []);
 
       await tester.pumpWidget(
         ProviderScope(
-          overrides: buildStartSessionOverrides(
-            sessionService: sessionService,
-            followService: followService,
-          ),
+          overrides: [
+            ...buildStartSessionOverrides(
+              sessionService: sessionService,
+              followService: followService,
+            ),
+          ],
           child: const MaterialApp(home: StartSessionPage()),
         ),
       );
@@ -516,9 +488,7 @@ void main() {
       // Navigate to plan view
       await tester.tap(find.text('Strength'));
       await tester.pump();
-      await tester.ensureVisible(find.text('Start Strength Session'));
-      await tester.tap(find.text('Start Strength Session'));
-      await tester.pump();
+      await _fireSessionStart(tester);
 
       // Free-text "Add exercise..." input must not exist in plan view (FR-001)
       expect(find.widgetWithText(TextField, 'Add exercise...'), findsNothing);
@@ -537,71 +507,71 @@ void main() {
   // ---------------------------------------------------------------------------
   // T018: picker selection stores catalog identity in start-session plan
   // ---------------------------------------------------------------------------
-  testWidgets(
-    'T018: selecting a catalog exercise stores exerciseId in plan',
-    (tester) async {
-      final sessionService = MockSessionService();
-      final followService = MockFollowService();
+  testWidgets('T018: selecting a catalog exercise stores exerciseId in plan', (
+    tester,
+  ) async {
+    final sessionService = MockSessionService();
+    final followService = MockFollowService();
 
-      _stubNoActiveSession(sessionService);
-      _stubEmptyUserSessions(sessionService);
-      when(() => followService.getMutualFollows(any()))
-          .thenAnswer((_) async => const []);
-      when(
-        () => sessionService.createSession(
-          hostId: any(named: 'hostId'),
-          type: any(named: 'type'),
-          title: any(named: 'title'),
-          buddyPairId: any(named: 'buddyPairId'),
-          invitedUserIds: any(named: 'invitedUserIds'),
-          phase: any(named: 'phase'),
-        ),
-      ).thenAnswer((_) async => 'test-session');
-      when(
-        () => sessionService.saveGymPlan(
-          sessionId: any(named: 'sessionId'),
-          plan: any(named: 'plan'),
-        ),
-      ).thenAnswer((_) async {});
+    _stubNoActiveSession(sessionService);
+    _stubEmptyUserSessions(sessionService);
+    when(
+      () => followService.getMutualFollows(any()),
+    ).thenAnswer((_) async => const []);
+    when(
+      () => sessionService.createSession(
+        hostId: any(named: 'hostId'),
+        type: any(named: 'type'),
+        title: any(named: 'title'),
+        buddyPairId: any(named: 'buddyPairId'),
+        invitedUserIds: any(named: 'invitedUserIds'),
+        phase: any(named: 'phase'),
+      ),
+    ).thenAnswer((_) async => 'test-session');
+    when(
+      () => sessionService.saveGymPlan(
+        sessionId: any(named: 'sessionId'),
+        plan: any(named: 'plan'),
+      ),
+    ).thenAnswer((_) async {});
 
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: buildStartSessionOverrides(
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ...buildStartSessionOverrides(
             sessionService: sessionService,
             followService: followService,
           ),
-          child: const MaterialApp(home: StartSessionPage()),
-        ),
-      );
+        ],
+        child: const MaterialApp(home: StartSessionPage()),
+      ),
+    );
 
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
 
-      await tester.tap(find.text('Strength'));
-      await tester.pump();
-      await tester.ensureVisible(find.text('Start Strength Session'));
-      await tester.tap(find.text('Start Strength Session'));
-      await tester.pump();
+    await tester.tap(find.text('Strength'));
+    await tester.pump();
+    await _fireSessionStart(tester);
 
-      // Open picker
-      await tester.tap(find.text('Add exercise'));
-      await tester.pumpAndSettle();
+    // Open picker
+    await tester.tap(find.text('Add exercise'));
+    await tester.pumpAndSettle();
 
-      // Search and select deadlift (not in default plan to avoid ambiguity)
-      await tester.enterText(find.byType(TextField), 'deadlift');
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Deadlift'));
-      await tester.pumpAndSettle();
+    // Search and select deadlift (not in default plan to avoid ambiguity)
+    await tester.enterText(find.byType(TextField), 'deadlift');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Deadlift'));
+    await tester.pumpAndSettle();
 
-      // Confirm with default set count
-      await tester.tap(find.text('Confirm'));
-      await tester.pumpAndSettle();
+    // Confirm with default set count
+    await tester.tap(find.text('Confirm'));
+    await tester.pumpAndSettle();
 
-      // Deadlift should now appear in the plan — catalog identity confirmed
-      // via plan view showing the exercise (T018 acceptance criterion)
-      expect(find.text('Deadlift'), findsWidgets);
-    },
-  );
+    // Deadlift should now appear in the plan — catalog identity confirmed
+    // via plan view showing the exercise (T018 acceptance criterion)
+    expect(find.text('Deadlift'), findsWidgets);
+  });
 
   testWidgets(
     'rollback flag hides bot and friend entry points while preserving solo start',
@@ -648,9 +618,7 @@ void main() {
 
       await tester.tap(find.text('Cardio'));
       await tester.pump();
-      await tester.ensureVisible(find.text('Start Cardio Session'));
-      await tester.tap(find.text('Start Cardio Session'));
-      await tester.pump();
+      await _fireSessionStart(tester);
       await tester.pump(const Duration(milliseconds: 300));
 
       verify(
@@ -667,136 +635,124 @@ void main() {
     },
   );
 
-  testWidgets(
-    'routes the host to the setup lobby',
-    (tester) async {
-      final sessionService = MockSessionService();
-      final followService = MockFollowService();
-      final router = _buildRouter(includeSetup: true);
+  testWidgets('routes the host to the setup lobby', (tester) async {
+    final sessionService = MockSessionService();
+    final followService = MockFollowService();
+    final router = _buildRouter(includeSetup: true);
 
-      final friend = User(
-        id: 'friend-abc',
-        displayName: 'Alice',
-        isPrivate: false,
-        workoutPreference: WorkoutType.gym,
-        beginnerFlag: false,
-        createdAt: DateTime(2026),
-        updatedAt: DateTime(2026),
-      );
+    final friend = User(
+      id: 'friend-abc',
+      displayName: 'Alice',
+      isPrivate: false,
+      workoutPreference: WorkoutType.gym,
+      beginnerFlag: false,
+      createdAt: DateTime(2026),
+      updatedAt: DateTime(2026),
+    );
 
-      _stubNoActiveSession(sessionService);
-      _stubEmptyUserSessions(sessionService);
-      when(
-        () => sessionService.createSession(
-          hostId: any(named: 'hostId'),
-          type: any(named: 'type'),
-          title: any(named: 'title'),
-          buddyPairId: any(named: 'buddyPairId'),
-          invitedUserIds: any(named: 'invitedUserIds'),
-          phase: any(named: 'phase'),
+    _stubNoActiveSession(sessionService);
+    _stubEmptyUserSessions(sessionService);
+    when(
+      () => sessionService.createSession(
+        hostId: any(named: 'hostId'),
+        type: any(named: 'type'),
+        title: any(named: 'title'),
+        buddyPairId: any(named: 'buddyPairId'),
+        invitedUserIds: any(named: 'invitedUserIds'),
+        phase: any(named: 'phase'),
+      ),
+    ).thenAnswer((_) async => 'setup-session-1');
+    when(
+      () => followService.getMutualFollows(any()),
+    ).thenAnswer((_) async => [friend]);
+
+    // We need authSessionProvider to already be in AsyncData state when the
+    // page's initState postFrameCallback fires _loadMutualFollows. Since
+    // StreamProvider emits asynchronously (microtask), we pre-warm it by
+    // building the ProviderScope, reading the provider to subscribe the
+    // stream, pumping once so the emission microtask runs, then mounting
+    // the full widget tree — by which time the provider is AsyncData.
+    //
+    // We do this via a ProviderScope that is pumped BEFORE the real widget,
+    // using a dummy Consumer to force the provider to initialize.
+    final overrides = [
+      sessionServiceProvider.overrideWithValue(sessionService),
+      followServiceProvider.overrideWithValue(followService),
+      buildSessionAuthOverride(),
+    ];
+
+    // Phase 1: pump a lightweight widget that watches auth, giving the
+    // stream one microtask cycle to emit before the real page mounts.
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [...overrides],
+        child: Consumer(
+          builder: (context, ref, _) {
+            ref.watch(authSessionProvider);
+            return const SizedBox.shrink();
+          },
         ),
-      ).thenAnswer((_) async => 'setup-session-1');
-      when(
-        () => followService.getMutualFollows(any()),
-      ).thenAnswer((_) async => [friend]);
+      ),
+    );
+    await tester.pump(); // stream subscribes → emission microtask queued
+    await tester
+        .pump(); // emission microtask runs → authSessionProvider=AsyncData
 
-      // We need authSessionProvider to already be in AsyncData state when the
-      // page's initState postFrameCallback fires _loadMutualFollows. Since
-      // StreamProvider emits asynchronously (microtask), we pre-warm it by
-      // building the ProviderScope, reading the provider to subscribe the
-      // stream, pumping once so the emission microtask runs, then mounting
-      // the full widget tree — by which time the provider is AsyncData.
-      //
-      // We do this via a ProviderScope that is pumped BEFORE the real widget,
-      // using a dummy Consumer to force the provider to initialize.
-      final overrides = [
-        sessionServiceProvider.overrideWithValue(sessionService),
-        followServiceProvider.overrideWithValue(followService),
-        authSessionProvider.overrideWith(
-          (ref) => Stream.value(
-            const AuthUserEntity(
-              id: kSessionTestUserId,
-              email: '$kSessionTestUserId@example.com',
-              displayName: 'Athlete',
-              photoUrl: null,
-              emailVerified: true,
-              providerIds: ['password'],
-            ),
-          ),
-        ),
-      ];
+    // Phase 2: now pump the real app — auth is already resolved, so
+    // _loadMutualFollows will get a non-null uid on its first read.
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [...overrides],
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester
+        .pump(); // first frame + postFrameCallbacks → _loadMutualFollows
+    await tester.pump(); // getMutualFollows resolves → setState(_mutualFollows)
+    await tester.pump(); // rebuild → buddy strip visible
 
-      // Phase 1: pump a lightweight widget that watches auth, giving the
-      // stream one microtask cycle to emit before the real page mounts.
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: overrides,
-          child: Consumer(
-            builder: (context, ref, _) {
-              ref.watch(authSessionProvider);
-              return const SizedBox.shrink();
-            },
-          ),
-        ),
-      );
-      await tester.pump(); // stream subscribes → emission microtask queued
-      await tester.pump(); // emission microtask runs → authSessionProvider=AsyncData
+    // Select the gym (Strength) workout type.
+    await tester.tap(find.text('Strength'));
+    await tester.pump();
 
-      // Phase 2: now pump the real app — auth is already resolved, so
-      // _loadMutualFollows will get a non-null uid on its first read.
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: overrides,
-          child: MaterialApp.router(routerConfig: router),
-        ),
-      );
-      await tester.pump(); // first frame + postFrameCallbacks → _loadMutualFollows
-      await tester.pump(); // getMutualFollows resolves → setState(_mutualFollows)
-      await tester.pump(); // rebuild → buddy strip visible
+    // Obtain the provider container from the widget tree so we can
+    // directly fire the FAB trigger and inspect state.
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(StartSessionPage)),
+    );
 
-      // Select the gym (Strength) workout type.
-      await tester.tap(find.text('Strength'));
-      await tester.pump();
+    // Alice's avatar name is in the buddies strip, which is below the fold
+    // in a SingleChildScrollView. Scroll until Alice is on-screen, then tap.
+    final aliceFinder = find.text('Alice', skipOffstage: false);
+    expect(aliceFinder, findsOneWidget);
 
-      // Obtain the provider container from the widget tree so we can
-      // directly fire the FAB trigger and inspect state.
-      final container = ProviderScope.containerOf(
-        tester.element(find.byType(StartSessionPage)),
-      );
+    // Scroll the outer SingleChildScrollView down to bring Alice into view.
+    await tester.scrollUntilVisible(
+      find.text('Alice'),
+      150,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('Alice'));
+    await tester.pump();
 
-      // Alice's avatar name is in the buddies strip, which is below the fold
-      // in a SingleChildScrollView. Scroll until Alice is on-screen, then tap.
-      final aliceFinder = find.text('Alice', skipOffstage: false);
-      expect(aliceFinder, findsOneWidget);
+    // Fire the FAB trigger exactly as the shell does.
+    container.read(sessionStartTriggerProvider.notifier).state++;
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
 
-      // Scroll the outer SingleChildScrollView down to bring Alice into view.
-      await tester.scrollUntilVisible(
-        find.text('Alice'),
-        150,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await tester.tap(find.text('Alice'));
-      await tester.pump();
-
-      // Fire the FAB trigger exactly as the shell does.
-      container.read(sessionStartTriggerProvider.notifier).state++;
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
-
-      // Must have created a setup-phase session with Alice invited.
-      verify(
-        () => sessionService.createSession(
-          hostId: kSessionTestUserId,
-          type: 'gym',
-          title: 'Gym Session',
-          invitedUserIds: ['friend-abc'],
-          phase: SessionPhase.setup,
-          buddyPairId: any(named: 'buddyPairId', that: isNull),
-        ),
-      ).called(1);
-      // Navigated to the setup lobby, NOT the plan builder.
-      expect(find.text('SETUP:setup-session-1'), findsOneWidget);
-      expect(find.text('Begin Session ⚡  (0 sets)'), findsNothing);
-    },
-  );
+    // Must have created a setup-phase session with Alice invited.
+    verify(
+      () => sessionService.createSession(
+        hostId: kSessionTestUserId,
+        type: 'gym',
+        title: 'Gym Session',
+        invitedUserIds: ['friend-abc'],
+        phase: SessionPhase.setup,
+        buddyPairId: any(named: 'buddyPairId', that: isNull),
+      ),
+    ).called(1);
+    // Navigated to the setup lobby, NOT the plan builder.
+    expect(find.text('SETUP:setup-session-1'), findsOneWidget);
+    expect(find.text('Begin Session ⚡  (0 sets)'), findsNothing);
+  });
 }

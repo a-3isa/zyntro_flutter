@@ -22,7 +22,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 
 final editProfileUserProvider = FutureProvider<User?>((ref) async {
   final authState = ref.watch(authSessionProvider);
-  final uid = authState.valueOrNull?.id;
+  final uid = authState.value?.id;
   if (uid == null) return null;
 
   final profile = await ref.read(authControllerProvider).getUserProfile(uid);
@@ -155,7 +155,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
     if (!_formKey.currentState!.validate()) return;
 
     final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
     if (uid == null) return;
 
     HapticFeedback.mediumImpact();
@@ -175,7 +175,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
       final Map<String, dynamic> updates = {
         'displayName': _displayNameController.text.trim(),
         'workoutPreference': _workoutPreference.value,
-        if (photoUrl != null) 'photoURL': photoUrl,
+        'photoURL': ?photoUrl,
         if (_selectedAccentColor != null &&
             _selectedAccentColor != _originalAccentColor)
           'avatarConfig': _colorToHex(_selectedAccentColor!),
