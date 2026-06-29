@@ -350,17 +350,26 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
       );
       // The pending invitee did NOT run _loadInitialPlan (it early-returns for
       // non-participants), and it won't re-run on this pending→joined rebuild.
-      // Load the freshly-seeded plan now so the Edit path / readiness reflect
-      // the stub instead of opening an empty editor.
-      final plan = await svc.ensureGymPlan(
-        sessionId: session.id,
-        hostId: session.hostId,
-        userId: uid,
-      );
-      if (mounted) {
+      // For GYM, load the freshly-seeded plan so the Edit path / readiness
+      // reflect the stub instead of opening an empty editor. For non-gym there
+      // is no plan to edit (joinSetup already wrote a not-ready stub), so skip
+      // ensureGymPlan to avoid a redundant gym-plan write on a non-gym session.
+      if (type == WorkoutType.gym) {
+        final plan = await svc.ensureGymPlan(
+          sessionId: session.id,
+          hostId: session.hostId,
+          userId: uid,
+        );
+        if (mounted) {
+          setState(() {
+            _draftExercises = _reindexExercises(plan.exercises);
+            _isReady = plan.isReady; // false — joinSetup wrote a not-ready stub
+            _isLoadingPlan = false;
+          });
+        }
+      } else if (mounted) {
         setState(() {
-          _draftExercises = _reindexExercises(plan.exercises);
-          _isReady = plan.isReady; // false — joinSetup wrote a not-ready stub
+          _isReady = false;
           _isLoadingPlan = false;
         });
       }

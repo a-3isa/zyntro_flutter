@@ -599,6 +599,29 @@ class SessionService {
     );
 
     _ref.read(userCacheServiceProvider).warmSessionParticipants(sessionId);
+
+    // Re-fire the invite-accepted event the retired acceptInvite used to track.
+    final hostId = (sessionData?['hostId'] ?? '').toString();
+    final hostType = (sessionData?['participantTypes']
+            as Map<String, dynamic>?)?[hostId]
+            ?.toString() ??
+        (sessionData?['type'] ?? '').toString();
+    await _ref
+        .read(sessionAnalyticsServiceProvider)
+        .trackPairedSessionEvent(
+          SessionAnalyticsService.pairedSessionEventPayload(
+            eventName: PairedSessionAnalyticsEvent.inviteAccepted,
+            sessionId: sessionId,
+            hostId: hostId,
+            partnerId: userId,
+            partnerKind: PairedPartnerKind.realFriend.value,
+            mode: derivePairedSessionMode({
+              hostId: hostType,
+              userId: chosenWorkoutType,
+            }).value,
+            extra: {'workoutType': chosenWorkoutType},
+          ),
+        );
   }
 
   Future<void> declineInvite({
@@ -927,6 +950,7 @@ class SessionService {
     final userPlanRef = plansCollection.doc(userId);
 
     bool allParticipantsReady = false;
+    bool wentLive = false;
     String hostId = '';
     String partnerId = '';
     String mode = SessionMode.turnBased.value;
@@ -1005,6 +1029,7 @@ class SessionService {
           liveUpdate['sharedClockStartedAt'] = FieldValue.serverTimestamp();
         }
         transaction.update(sessionRef, liveUpdate);
+        wentLive = true;
       }
     });
 
@@ -1021,6 +1046,21 @@ class SessionService {
             extra: {'planUserId': userId, 'isReady': isReady},
           ),
         );
+
+    if (wentLive && mode == SessionMode.parallel.value) {
+      await _ref
+          .read(sessionAnalyticsServiceProvider)
+          .trackPairedSessionEvent(
+            SessionAnalyticsService.pairedSessionEventPayload(
+              eventName: PairedSessionAnalyticsEvent.mixedSessionStarted,
+              sessionId: sessionId,
+              hostId: hostId,
+              partnerId: partnerId,
+              partnerKind: PairedPartnerKind.realFriend.value,
+              mode: mode,
+            ),
+          );
+    }
 
     if (isReady && !allParticipantsReady) {
       await _ref
