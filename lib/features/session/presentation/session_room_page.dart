@@ -212,6 +212,9 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
 
   final int _eventLimit = 50;
   final List<TimelineEvent> _localPendingEvents = [];
+  // Participant ids already requested for the activity strip; prevents a
+  // refetch loop when a user doc is missing and the cache stays empty.
+  final Set<String> _requestedParticipantNames = {};
 
   // Cached for use in dispose() — ref is invalid by the time dispose() is called
   String? _presenceUserId;
@@ -3322,10 +3325,25 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     final progress = _participantProgress[userId];
     final currentUid = ref.read(authSessionProvider).value?.id;
     final isSelf = userId == currentUid;
-    final cachedUser = isSelf
+    final isBot = userId == pairedBotFriendId;
+    final cachedUser = isSelf || isBot
         ? null
         : ref.read(userCacheServiceProvider).getUserSync(userId);
-    final name = isSelf ? 'You' : (cachedUser?.displayName ?? 'Buddy');
+    if (!isSelf &&
+        !isBot &&
+        cachedUser == null &&
+        _requestedParticipantNames.add(userId)) {
+      // Cache miss: fetch once and rebuild so the name replaces the fallback.
+      // The guard set stops a refetch loop when the user doc doesn't exist.
+      ref.read(userCacheServiceProvider).getUser(userId).then((_) {
+        if (mounted) setState(() {});
+      });
+    }
+    final name = isSelf
+        ? 'You'
+        : isBot
+        ? 'Bot'
+        : (cachedUser?.displayName ?? 'Buddy');
     final firstName = name.split(' ').first;
     final isActive = progress?.isActive ?? false;
 
