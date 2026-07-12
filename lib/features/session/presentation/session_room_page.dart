@@ -744,7 +744,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         !_isSoloSession &&
         session.activeUserId != uid) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("It's not your turn yet! â³")),
+        const SnackBar(content: Text("It's not your turn yet")),
       );
       return false;
     }
@@ -1107,7 +1107,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         !_isSoloSession &&
         session.activeUserId != uid) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("It's not your turn yet! â³")),
+        const SnackBar(content: Text("It's not your turn yet")),
       );
       return;
     }
@@ -2856,7 +2856,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
             ScaffoldMessenger.of(this.context).showSnackBar(
               SnackBar(
                 content: const Text(
-                  "It's your turn! ðŸ’ª",
+                  "It's your turn",
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
                 backgroundColor: AppColors.userAccent,

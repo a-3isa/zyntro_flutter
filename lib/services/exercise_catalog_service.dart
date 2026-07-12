@@ -303,18 +303,26 @@ class ExerciseCatalogService {
         }
       }
 
-      final personalSnap = await db
-          .collection('users')
-          .doc(userId)
-          .collection('personalExercises')
-          .get();
+      // Callers may open the picker without a user (e.g. the setup lobby). Guard
+      // the read: doc('') throws "A document path must be a non-empty string",
+      // which would drop the whole search into the local-catalog fallback.
+      final personalEntries = <PersonalExerciseEntry>[];
+      if (userId.isNotEmpty) {
+        final personalSnap = await db
+            .collection('users')
+            .doc(userId)
+            .collection('personalExercises')
+            .get();
 
-      final personalEntries = personalSnap.docs
-          .map((doc) => PersonalExerciseEntry.fromMap(doc.id, doc.data()))
-          .toList();
+        personalEntries.addAll(
+          personalSnap.docs.map(
+            (doc) => PersonalExerciseEntry.fromMap(doc.id, doc.data()),
+          ),
+        );
 
-      // T038: persist personal exercises to cache for offline fallback.
-      await _cachePersonalExercises(userId, personalEntries);
+        // T038: persist personal exercises to cache for offline fallback.
+        await _cachePersonalExercises(userId, personalEntries);
+      }
 
       for (final entry in personalEntries) {
         if (_entryMatchesQuery(
