@@ -569,9 +569,15 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
       final sessionService = ref.read(sessionServiceProvider);
       final existing = await sessionService.checkActiveSession(uid);
       if (existing != null) {
-        // reuse the existing active-session sheet path (resume/end) here
-        setState(() => _isLoading = false);
-        return;
+        // Offer resume / end-and-start-new, same as the solo path. Without this
+        // the tap silently did nothing when a stale active session existed.
+        final proceed = await _resolveActiveSessionConflict(
+          sessionService: sessionService,
+          uid: uid,
+          type: type,
+          existingSessionId: existing,
+        );
+        if (!proceed) return;
       }
       final sessionId = await sessionService.createSession(
         hostId: uid,
