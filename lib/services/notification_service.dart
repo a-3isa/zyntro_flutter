@@ -758,7 +758,20 @@ class NotificationService {
     String userId,
     NotificationType type,
   ) async {
-    final preferences = await getNotificationPreferences(userId);
+    final NotificationPreferences preferences;
+    try {
+      preferences = await getNotificationPreferences(userId);
+    } catch (error) {
+      // users/{id}/settings is owner-only, so a cross-user read (e.g. the host
+      // checking the recipient before a turn_change) is denied by rules. The
+      // Cloud Function re-checks the recipient's preferences server-side
+      // (recipientAllowsPush) before sending, so fail open here.
+      debugPrint(
+        '[NotificationService] Preference read denied for $userId '
+        '(server-side check still applies): $error',
+      );
+      return true;
+    }
 
     if (!preferences.pushEnabled) return false;
 
