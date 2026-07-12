@@ -1207,7 +1207,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                 Row(
                   children: [
                     Text(
-                      '$_streakDays 🔥',
+                      '$_streakDays',
                       style: AppTextStyles.label.copyWith(
                         fontSize: 15,
                         color: AppColors.textV2Primary,
@@ -1431,8 +1431,8 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                       ),
                     ZyntroButton(
                       title: _plan.isEmpty
-                          ? 'Begin Session ⚡  ($totalSets sets)'
-                          : 'Begin Session ⚡  ($totalSets sets)',
+                          ? 'Begin Session ($totalSets sets)'
+                          : 'Begin Session ($totalSets sets)',
                       fullWidth: true,
                       size: ZyntroButtonSize.lg,
                       variant: ZyntroButtonVariant.primary,

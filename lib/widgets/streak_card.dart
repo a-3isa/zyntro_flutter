@@ -360,7 +360,7 @@ class _StreakCardState extends State<StreakCard>
         ),
         const SizedBox(height: 4),
         Text(
-          '${item.currentStreak} 🔥',
+          '${item.currentStreak}',
           style: TextStyle(
             fontSize: isSmallScreen ? 9 : 10,
             fontWeight: FontWeight.bold,

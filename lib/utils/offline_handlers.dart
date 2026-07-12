@@ -358,7 +358,7 @@ Future<void> registerOfflineHandlers(ProviderContainer container) async {
             sessionId: sessionId,
             type: SessionEventType.voiceNote,
             userId: userId,
-            text: '🎤 Sent a voice note',
+            text: 'Sent a voice note',
             data: {'audioUrl': audioUrl},
           );
     } catch (e, stack) {

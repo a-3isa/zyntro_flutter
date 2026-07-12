@@ -1523,7 +1523,7 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
               ),
               child: Text(
                 rankInfo.isGlobal
-                    ? '🌐 #${rankInfo.rank}'
+                    ? '#${rankInfo.rank}'
                     : '#${rankInfo.rank}',
                 style: AppTextStyles.caption.copyWith(
                   fontSize: 10,

@@ -402,7 +402,7 @@ class _WeeklyRingCard extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '$streak🔥',
+                        '$streak',
                         style: AppTextStyles.bodyLarge.copyWith(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,

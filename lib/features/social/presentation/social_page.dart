@@ -985,7 +985,7 @@ class _FriendsLeaderboard extends ConsumerWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '${me.score} pts · 🔥${me.streak}',
+                          '${me.score} pts · ${me.streak}',
                           style: AppTextStyles.caption.copyWith(
                             color: AppColors.textV2Secondary,
                           ),
@@ -1232,7 +1232,7 @@ class _LeaderboardRow extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  '🔥${entry.streak} streak',
+                  '${entry.streak} streak',
                   style: AppTextStyles.caption.copyWith(
                     fontSize: 11,
                     color: AppColors.textV2Secondary,

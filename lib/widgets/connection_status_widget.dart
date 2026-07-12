@@ -190,7 +190,7 @@ class _ConnectionStatusWidgetState extends State<ConnectionStatusWidget>
       ConnectionStatusState.online => (
         Icons.check_circle,
         Colors.green,
-        'All changes synced ✓',
+        'All changes synced',
         false,
       ),
     };

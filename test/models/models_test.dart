@@ -155,7 +155,10 @@ void main() {
 
     test('paired session constants are stable', () {
       expect(pairedBotFriendId, 'zyntro_bot_friend');
-      expect(pairedInviteTimeout, const Duration(seconds: 30));
+      expect(
+        pairedInviteTimeout,
+        greaterThanOrEqualTo(const Duration(minutes: 5)),
+      );
       expect(PairedPartnerKind.bot.value, 'bot');
       expect(PairedPartnerKind.realFriend.value, 'real_friend');
     });

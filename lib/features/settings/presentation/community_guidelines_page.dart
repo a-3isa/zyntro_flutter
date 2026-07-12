@@ -83,31 +83,31 @@ class CommunityGuidelinesPage extends StatelessWidget {
                   const SizedBox(height: AppSpacing.xxl),
 
                   _buildSection(
-                    '🤝 Be Respectful',
+                    'Be Respectful',
                     'Treat everyone with kindness and respect. We\'re all on our own fitness journeys, and constructive support goes a long way.',
                   ),
                   _buildSection(
-                    '💪 Encourage Others',
+                    'Encourage Others',
                     'Celebrate wins, big and small. A simple "great job" can make someone\'s day. We\'re here to lift each other up.',
                   ),
                   _buildSection(
-                    '🚫 No Harassment',
+                    'No Harassment',
                     'Harassment, bullying, hate speech, or discrimination of any kind will not be tolerated. This includes comments about body type, fitness level, or personal characteristics.',
                   ),
                   _buildSection(
-                    '📵 No Spam',
+                    'No Spam',
                     'Avoid excessive self-promotion, spam, or repetitive content. Keep the focus on genuine fitness engagement.',
                   ),
                   _buildSection(
-                    '🖼️ Appropriate Content',
+                    'Appropriate Content',
                     'Only share content that is appropriate for all audiences. Explicit, violent, or illegal content is strictly prohibited.',
                   ),
                   _buildSection(
-                    '🔒 Respect Privacy',
+                    'Respect Privacy',
                     'Don\'t share personal information about others without their consent. Respect everyone\'s privacy and boundaries.',
                   ),
                   _buildSection(
-                    '⚠️ Report Violations',
+                    'Report Violations',
                     'If you see something that violates these guidelines, please report it. We rely on our community to help keep Zyntro safe.',
                   ),
 

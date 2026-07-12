@@ -1170,7 +1170,7 @@ class NotificationService {
     );
     if (!shouldSend) return;
 
-    final title = 'Streak Milestone! 🔥';
+    final title = 'Streak Milestone!';
     final message = "You've reached a $streakDays-day streak! Keep it up!";
 
     await Future.wait([
@@ -1202,7 +1202,7 @@ class NotificationService {
     );
     if (!shouldSend) return;
 
-    final title = 'Oh no! Streak Broken 😢';
+    final title = 'Oh no! Streak Broken';
     final message =
         "$friendName lost their $previousStreak-day streak. Cheer them up!";
 
@@ -1241,7 +1241,7 @@ class NotificationService {
     );
     if (!shouldSend) return;
 
-    final title = 'Streak Extended! 🔥';
+    final title = 'Streak Extended!';
     final message = "$friendName just hit a $newStreak-day streak!";
 
     final data = {
