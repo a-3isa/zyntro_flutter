@@ -66,8 +66,6 @@ void main() {
       'lib/features/session/presentation/session_room_page.dart',
     ).readAsStringSync();
 
-    expect(source, contains('Plan pending'));
-    expect(source, contains('Plan submitted'));
     expect(source, contains('Waiting for workout plans'));
     expect(source, contains('SessionPhase.setup'));
   });

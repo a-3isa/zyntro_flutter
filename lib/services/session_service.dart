@@ -1272,6 +1272,8 @@ class SessionService {
       final exerciseCounts = <String, Set<String>>{};
       final volumes = <String, double>{};
       final currentExercise = <String, String>{};
+      final lastWeight = <String, double>{};
+      final lastReps = <String, int>{};
       // Cardio tracking
       final distances = <String, double>{};
       final durations = <String, int>{};
@@ -1298,6 +1300,10 @@ class SessionService {
           final weight = (data?['weight'] as num?)?.toDouble() ?? 0;
           final reps = (data?['reps'] as num?)?.toInt() ?? 0;
           volumes[userId] = (volumes[userId] ?? 0) + (weight * reps);
+          // Events are iterated oldest-first, so the last write here per user
+          // ends up being their most recent logged set.
+          lastWeight[userId] = weight;
+          lastReps[userId] = reps;
 
           // Track last activity
           if (lastActivity[userId] == null ||
@@ -1351,6 +1357,8 @@ class SessionService {
           'exerciseCount': exerciseCounts[userId]?.length ?? 0,
           'totalVolume': volumes[userId] ?? 0.0,
           'currentExercise': currentExercise[userId],
+          'lastWeight': lastWeight[userId],
+          'lastReps': lastReps[userId],
           // Cardio metrics
           'totalDistance': distances[userId] ?? 0.0,
           'totalDuration': durations[userId] ?? 0,

@@ -38,6 +38,9 @@ class ParticipantProgress {
   final int totalSets;
   final double totalVolume;
   final DateTime? lastActivity;
+  // Weight/reps of the most recently logged set (gym only).
+  final double? lastWeight;
+  final int? lastReps;
   // Cardio-specific metrics
   final double totalDistance; // in km
   final int totalDuration; // in minutes
@@ -49,6 +52,8 @@ class ParticipantProgress {
     this.totalSets = 0,
     this.totalVolume = 0,
     this.lastActivity,
+    this.lastWeight,
+    this.lastReps,
     this.totalDistance = 0,
     this.totalDuration = 0,
     this.averagePace,
@@ -66,6 +71,8 @@ class ParticipantProgress {
     int? totalSets,
     double? totalVolume,
     DateTime? lastActivity,
+    double? lastWeight,
+    int? lastReps,
     double? totalDistance,
     int? totalDuration,
     String? averagePace,
@@ -76,6 +83,8 @@ class ParticipantProgress {
       totalSets: totalSets ?? this.totalSets,
       totalVolume: totalVolume ?? this.totalVolume,
       lastActivity: lastActivity ?? this.lastActivity,
+      lastWeight: lastWeight ?? this.lastWeight,
+      lastReps: lastReps ?? this.lastReps,
       totalDistance: totalDistance ?? this.totalDistance,
       totalDuration: totalDuration ?? this.totalDuration,
       averagePace: averagePace ?? this.averagePace,
@@ -662,6 +671,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           currentExercise: stats['currentExercise'] as String? ?? '',
           totalSets: stats['totalSets'] as int? ?? 0,
           totalVolume: (stats['totalVolume'] as num?)?.toDouble() ?? 0.0,
+          lastWeight: (stats['lastWeight'] as num?)?.toDouble(),
+          lastReps: stats['lastReps'] as int?,
           // Cardio metrics
           totalDistance: (stats['totalDistance'] as num?)?.toDouble() ?? 0.0,
           totalDuration: stats['totalDuration'] as int? ?? 0,
@@ -806,6 +817,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           totalSets: newTotalSets,
           totalVolume: newVolume,
           lastActivity: DateTime.now(),
+          lastWeight: weight,
+          lastReps: reps,
         );
         _localPendingEvents.insert(0, localEvent);
       });
@@ -3229,24 +3242,17 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     final session = ref
         .watch(currentSessionProvider(widget.sessionId))
         .value;
-    final planStatusLabel = session?.phase == SessionPhase.setup
-        ? 'Plan pending'
-        : 'Plan submitted';
-    final totalSets = _participantProgress.values.fold<int>(
-      0,
-      (sum, p) => sum + p.totalSets,
-    );
-    final exerciseName =
-        _currentTurnExercise ??
-        _currentExercise ??
-        (_participantProgress.values.isNotEmpty
-            ? _participantProgress.values.first.currentExercise
-            : '');
-    final label = exerciseName.isNotEmpty
-        ? '${exerciseName.toUpperCase()} · SET $_currentSetNumber'
-        : 'GET STARTED';
+    if (session == null || session.participants.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final participants = session.participants;
+    final activeCount = participants
+        .where((id) => _participantProgress[id]?.isActive ?? false)
+        .length;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
         color: AppColors.surfaceV2,
         border: Border(
@@ -3258,25 +3264,158 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       ),
       child: Row(
         children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1,
+          _buildActiveCountBadge(activeCount, participants.length),
+          const SizedBox(width: 10),
+          Expanded(
+            child: SizedBox(
+              height: 38,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                itemCount: participants.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
+                itemBuilder: (context, index) =>
+                    _buildParticipantActivityChip(participants[index]),
+              ),
             ),
           ),
-          const Spacer(),
-          Text(
-            session?.partnerKind == PairedPartnerKind.realFriend
-                ? planStatusLabel
-                : '$totalSets sets',
-            style: const TextStyle(
-              color: Colors.white38,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActiveCountBadge(int active, int total) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.userAccent.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: AppColors.userAccent,
+              shape: BoxShape.circle,
             ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            '$active/$total active',
+            style: TextStyle(
+              color: AppColors.userAccent,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Compact live card for one participant: avatar (+ pulse dot when active),
+  /// name, and current exercise with the weight/reps of their latest set.
+  Widget _buildParticipantActivityChip(String userId) {
+    final progress = _participantProgress[userId];
+    final currentUid = ref.read(authSessionProvider).value?.id;
+    final isSelf = userId == currentUid;
+    final cachedUser = isSelf
+        ? null
+        : ref.read(userCacheServiceProvider).getUserSync(userId);
+    final name = isSelf ? 'You' : (cachedUser?.displayName ?? 'Buddy');
+    final firstName = name.split(' ').first;
+    final isActive = progress?.isActive ?? false;
+
+    final String detail;
+    if (progress == null) {
+      detail = 'Not started';
+    } else if (progress.currentExercise.isNotEmpty) {
+      detail = progress.lastWeight != null && progress.lastReps != null
+          ? '${progress.currentExercise} · '
+                '${progress.lastWeight!.toStringAsFixed(0)}kg×${progress.lastReps}'
+          : progress.currentExercise;
+    } else if (progress.totalDistance > 0) {
+      detail = '${progress.totalDistance.toStringAsFixed(2)}km';
+    } else {
+      detail = 'Not started';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: isActive
+            ? AppColors.userAccent.withValues(alpha: 0.1)
+            : AppColors.surfaceV2Elevated,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isActive
+              ? AppColors.userAccent.withValues(alpha: 0.4)
+              : AppColors.borderDarkSecondary,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              CircleAvatar(
+                radius: 11,
+                backgroundColor: AppColors.surfaceV2Active,
+                child: Text(
+                  firstName.isNotEmpty ? firstName[0].toUpperCase() : '?',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textV2Primary,
+                  ),
+                ),
+              ),
+              if (isActive)
+                Positioned(
+                  right: -1,
+                  bottom: -1,
+                  child: Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF34D399),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: AppColors.surfaceV2,
+                        width: 1.5,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                firstName,
+                style: const TextStyle(
+                  color: AppColors.textV2Primary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              Text(
+                detail,
+                style: const TextStyle(
+                  color: AppColors.textV2Tertiary,
+                  fontSize: 10,
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+            ],
           ),
         ],
       ),
