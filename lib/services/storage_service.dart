@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -73,12 +74,25 @@ class StorageService {
       SettableMetadata(contentType: 'audio/mp4'),
     );
 
-    uploadTask.snapshotEvents.listen((event) {
-      final progress = event.bytesTransferred / event.totalBytes;
-      onProgress?.call(0.1 + progress * 0.8);
-    });
+    // The failure is surfaced by `await uploadTask` below. Without an onError
+    // here the progress stream also emits it, and an unhandled stream error
+    // crashes the isolate (e.g. a storage-rules 403 on the voice note).
+    final progressSub = uploadTask.snapshotEvents.listen(
+      (event) {
+        final progress = event.bytesTransferred / event.totalBytes;
+        onProgress?.call(0.1 + progress * 0.8);
+      },
+      onError: (Object error) {
+        debugPrint('[StorageService] Voice note upload failed: $error');
+      },
+      cancelOnError: true,
+    );
 
-    await uploadTask;
+    try {
+      await uploadTask;
+    } finally {
+      await progressSub.cancel();
+    }
     onProgress?.call(1.0);
 
     return await storageRef.getDownloadURL();
