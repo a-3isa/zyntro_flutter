@@ -987,8 +987,9 @@ class SessionService {
           'Gym plan must exist before readiness can be updated.',
         );
       }
-      transaction.update(userPlanRef, {'isReady': isReady});
-
+      // Firestore transactions require ALL reads before ANY write, so read the
+      // other participants' plans first and defer every update to the end.
+      //
       // Readiness must be read for EVERY current participant (not just the
       // invited roster) so a matchmaking partner — added via joinSession and
       // absent from invitedUserIds — is not ignored by the gate.
@@ -1004,6 +1005,9 @@ class SessionService {
             ? GymSessionPlan.fromMap(memberPlanData).isReady
             : false;
       }
+
+      // --- reads done; writes start here ---
+      transaction.update(userPlanRef, {'isReady': isReady});
 
       final invitedUserIds =
           (sessionData['invitedUserIds'] as List<dynamic>?)?.cast<String>() ??
