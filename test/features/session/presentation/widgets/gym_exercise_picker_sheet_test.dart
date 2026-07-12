@@ -17,17 +17,37 @@ Widget _wrap(Widget child) {
   );
 }
 
+/// Pushes [GymExercisePickerSheet] as a real modal route (matching production
+/// usage) so `Navigator.pop` on Save can be captured via [onResult].
+Widget _harness(ValueSetter<List<PlannedExercise>?> onResult) {
+  return ProviderScope(
+    child: MaterialApp(
+      home: Builder(
+        builder: (context) => Scaffold(
+          body: Center(
+            child: ElevatedButton(
+              onPressed: () async {
+                final result = await showModalBottomSheet<List<PlannedExercise>>(
+                  context: context,
+                  isScrollControlled: true,
+                  builder: (_) => const GymExercisePickerSheet(),
+                );
+                onResult(result);
+              },
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 void main() {
   testWidgets('filters the exercise catalog as the user searches', (
     tester,
   ) async {
-    await tester.pumpWidget(
-      _wrap(
-        GymExercisePickerSheet(
-          onExerciseSelected: (_) {},
-        ),
-      ),
-    );
+    await tester.pumpWidget(_wrap(const GymExercisePickerSheet()));
 
     await tester.enterText(find.byType(TextField), 'bench');
     await tester.pumpAndSettle();
@@ -36,18 +56,12 @@ void main() {
     expect(find.text('Lat Pulldown'), findsNothing);
   });
 
-  testWidgets('returns a catalog exercise when one is tapped', (tester) async {
-    PlannedExercise? selected;
+  testWidgets('selecting and saving one exercise returns it', (tester) async {
+    List<PlannedExercise>? captured;
 
-    await tester.pumpWidget(
-      _wrap(
-        GymExercisePickerSheet(
-          onExerciseSelected: (exercise) {
-            selected = exercise;
-          },
-        ),
-      ),
-    );
+    await tester.pumpWidget(_harness((r) => captured = r));
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(TextField), 'bench');
     await tester.pumpAndSettle();
@@ -55,30 +69,101 @@ void main() {
     await tester.tap(find.text('Bench Press'));
     await tester.pumpAndSettle();
 
-    // Set-count selector appears; confirm with default count
-    expect(find.text('Confirm'), findsOneWidget);
-    await tester.tap(find.text('Confirm'));
+    // Row is now selected — inline sets stepper appears, Save button enables.
+    expect(find.text('3 sets'), findsOneWidget);
+    await tester.tap(find.text('Save 1 exercise'));
     await tester.pumpAndSettle();
 
-    expect(selected, isNotNull);
-    expect(selected!.name, 'Bench Press');
-    expect(selected!.source, PlannedExerciseSource.catalog);
+    expect(captured, isNotNull);
+    expect(captured, hasLength(1));
+    expect(captured!.first.name, 'Bench Press');
+    expect(captured!.first.source, PlannedExerciseSource.catalog);
+    expect(captured!.first.plannedSets, 3);
   });
+
+  testWidgets('tapping a selected exercise again deselects it', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_wrap(const GymExercisePickerSheet()));
+
+    await tester.enterText(find.byType(TextField), 'bench');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Bench Press'));
+    await tester.pumpAndSettle();
+    expect(find.text('3 sets'), findsOneWidget);
+    expect(find.text('Save 1 exercise'), findsOneWidget);
+
+    await tester.tap(find.text('Bench Press'));
+    await tester.pumpAndSettle();
+    expect(find.text('3 sets'), findsNothing);
+    expect(find.text('Select exercises to continue'), findsOneWidget);
+  });
+
+  testWidgets('the inline stepper adjusts the selected set count', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_wrap(const GymExercisePickerSheet()));
+
+    await tester.enterText(find.byType(TextField), 'bench');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Bench Press'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('3 sets'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.add_rounded));
+    await tester.pumpAndSettle();
+    expect(find.text('4 sets'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.remove_rounded));
+    await tester.tap(find.byIcon(Icons.remove_rounded));
+    await tester.pumpAndSettle();
+    expect(find.text('2 sets'), findsOneWidget);
+  });
+
+  testWidgets(
+    'selecting two exercises and saving returns both in tap order with their set counts',
+    (tester) async {
+      List<PlannedExercise>? captured;
+
+      await tester.pumpWidget(_harness((r) => captured = r));
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'bench');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Bench Press'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.add_rounded)); // Bench Press -> 4 sets
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'deadlift');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Deadlift'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Save 2 exercises'), findsOneWidget);
+      await tester.tap(find.text('Save 2 exercises'));
+      await tester.pumpAndSettle();
+
+      expect(captured, hasLength(2));
+      expect(captured![0].name, 'Bench Press');
+      expect(captured![0].plannedSets, 4);
+      expect(captured![0].order, 0);
+      expect(captured![1].name, 'Deadlift');
+      expect(captured![1].plannedSets, 3);
+      expect(captured![1].order, 1);
+    },
+  );
 
   testWidgets('lets the user create a custom exercise when search has no match', (
     tester,
   ) async {
-    PlannedExercise? selected;
+    List<PlannedExercise>? captured;
 
-    await tester.pumpWidget(
-      _wrap(
-        GymExercisePickerSheet(
-          onExerciseSelected: (exercise) {
-            selected = exercise;
-          },
-        ),
-      ),
-    );
+    await tester.pumpWidget(_harness((r) => captured = r));
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(TextField), 'mystery move');
     await tester.pumpAndSettle();
@@ -95,14 +180,15 @@ void main() {
     await tester.tap(find.text('Save custom exercise'));
     await tester.pumpAndSettle();
 
-    // Set-count selector appears; confirm with default count
-    expect(find.text('Confirm'), findsOneWidget);
-    await tester.tap(find.text('Confirm'));
+    // Custom exercise is auto-selected on creation.
+    expect(find.text('3 sets'), findsOneWidget);
+    await tester.tap(find.text('Save 1 exercise'));
     await tester.pumpAndSettle();
 
-    expect(selected, isNotNull);
-    expect(selected!.name, 'Mystery Move');
-    expect(selected!.source, PlannedExerciseSource.custom);
+    expect(captured, isNotNull);
+    expect(captured, hasLength(1));
+    expect(captured!.first.name, 'Mystery Move');
+    expect(captured!.first.source, PlannedExerciseSource.custom);
   });
 
   // ---------------------------------------------------------------------------
@@ -127,27 +213,15 @@ void main() {
   // ---------------------------------------------------------------------------
 
   testWidgets(
-      'placeholder: selecting exercise shows set-count selector before confirm',
-      (tester) async {
-    // TODO(T017): tap an exercise result, verify set selector appears
-  });
-
-  testWidgets(
-      'placeholder: picker returns selected exercise with non-default set count',
-      (tester) async {
-    // TODO(T017): choose set count != 3, confirm, verify returned plannedSets matches
-  });
-
-  testWidgets(
       'placeholder: set count < 1 is rejected before confirm (FR-005a)',
       (tester) async {
-    // TODO(T023): attempt count=0, verify confirmation is blocked
+    // TODO(T023): attempt count=0, verify the stepper's decrement is disabled
   });
 
   testWidgets(
       'placeholder: set count > 20 is rejected before confirm (FR-005a)',
       (tester) async {
-    // TODO(T023): attempt count=21, verify confirmation is blocked
+    // TODO(T023): attempt count=21, verify the stepper's increment is disabled
   });
 
   // ---------------------------------------------------------------------------
@@ -159,13 +233,9 @@ void main() {
       (tester) async {
     // Two picker instances (simulating start-session and late-session consumers)
     // with the same query should show the same exercise names.
-    PlannedExercise? selected1;
-    PlannedExercise? selected2;
 
     // Instance 1 — start-session consumer
-    await tester.pumpWidget(
-      _wrap(GymExercisePickerSheet(onExerciseSelected: (e) => selected1 = e)),
-    );
+    await tester.pumpWidget(_wrap(const GymExercisePickerSheet()));
     await tester.enterText(find.byType(TextField), 'squat');
     await tester.pumpAndSettle();
     final names1 = tester
@@ -178,9 +248,7 @@ void main() {
         .toList();
 
     // Instance 2 — late-session consumer (same widget, different instance)
-    await tester.pumpWidget(
-      _wrap(GymExercisePickerSheet(onExerciseSelected: (e) => selected2 = e)),
-    );
+    await tester.pumpWidget(_wrap(const GymExercisePickerSheet()));
     await tester.enterText(find.byType(TextField), 'squat');
     await tester.pumpAndSettle();
     final names2 = tester
@@ -193,17 +261,12 @@ void main() {
         .toList();
 
     expect(names1, equals(names2));
-    // Suppress unused variable warnings
-    expect(selected1, isNull);
-    expect(selected2, isNull);
   });
 
   testWidgets(
       'T039: empty state shows explicit custom creation action (FR-010)',
       (tester) async {
-    await tester.pumpWidget(
-      _wrap(GymExercisePickerSheet(onExerciseSelected: (_) {})),
-    );
+    await tester.pumpWidget(_wrap(const GymExercisePickerSheet()));
 
     await tester.enterText(find.byType(TextField), 'zzzzznotanexercise');
     await tester.pumpAndSettle();

@@ -1790,10 +1790,9 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     required String currentUserId,
     required Map<String, GymSessionPlan> plans,
   }) async {
-    PlannedExercise? pickedExercise;
     final uid = ref.read(authSessionProvider).value?.id;
 
-    await showModalBottomSheet<void>(
+    final pickedExercises = await showModalBottomSheet<List<PlannedExercise>>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -1801,37 +1800,37 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         initialChildSize: 0.85,
         minChildSize: 0.5,
         maxChildSize: 0.95,
-        builder: (context2, scrollController) => GymExercisePickerSheet(
-          userId: uid,
-          onExerciseSelected: (exercise) {
-            pickedExercise = exercise;
-            Navigator.of(ctx).pop();
-          },
-        ),
+        builder: (context2, scrollController) =>
+            GymExercisePickerSheet(userId: uid),
       ),
     );
-    if (pickedExercise == null) return;
+    if (pickedExercises == null || pickedExercises.isEmpty) return;
 
     final currentPlan =
         plans[currentUserId] ??
         _localPlanFor(currentUserId, GymSessionPlanSource.personal);
-    final nextOrder = currentPlan.exercises.isEmpty
+    var nextOrder = currentPlan.exercises.isEmpty
         ? 0
         : currentPlan.exercises
                   .map((exercise) => exercise.order)
                   .reduce((a, b) => a > b ? a : b) +
               1;
-    final picked = pickedExercise!;
-    final exercise = picked.copyWithPlanFields(
-      id: 'extra_${DateTime.now().microsecondsSinceEpoch}',
-      order: nextOrder,
-    );
+    final extraExercises = <PlannedExercise>[];
+    for (final picked in pickedExercises) {
+      extraExercises.add(
+        picked.copyWithPlanFields(
+          id: 'extra_${DateTime.now().microsecondsSinceEpoch}_$nextOrder',
+          order: nextOrder,
+        ),
+      );
+      nextOrder += 1;
+    }
     final updatedPlan = GymSessionPlan(
       userId: currentPlan.userId,
       workoutType: currentPlan.workoutType,
       source: currentPlan.source,
       isReady: true,
-      exercises: [...currentPlan.exercises, exercise],
+      exercises: [...currentPlan.exercises, ...extraExercises],
       stages: currentPlan.stages,
       targets: currentPlan.targets,
       updatedAt: DateTime.now(),
@@ -1857,10 +1856,11 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           .switchTurn(widget.sessionId, session.activeUserId!);
     }
     if (mounted) {
+      final lastAdded = extraExercises.last;
       setState(() {
         _plannedExercises = updatedPlan.exercises;
-        _currentTurnExercise = exercise.name;
-        _currentExerciseId = exercise.id;
+        _currentTurnExercise = lastAdded.name;
+        _currentExerciseId = lastAdded.id;
       });
     }
   }

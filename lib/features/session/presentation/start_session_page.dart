@@ -1458,7 +1458,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
     final uid = await _readCurrentUserId();
     if (!mounted) return;
 
-    await showModalBottomSheet<void>(
+    final selected = await showModalBottomSheet<List<PlannedExercise>>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -1466,19 +1466,20 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
         initialChildSize: 0.85,
         minChildSize: 0.5,
         maxChildSize: 0.95,
-        builder: (_, scrollController) => GymExercisePickerSheet(
-          userId: uid,
-          onExerciseSelected: (exercise) {
-            Navigator.of(ctx).pop();
-            // Rebuild with correct order index; preserve catalog/custom source (T025).
-            final next = _plan.length;
-            final withOrder = exercise.copyWithPlanFields(order: next);
-            setState(() => _plan.add(withOrder));
-            HapticManager.light();
-          },
-        ),
+        builder: (_, scrollController) =>
+            GymExercisePickerSheet(userId: uid),
       ),
     );
+
+    if (!mounted || selected == null || selected.isEmpty) return;
+    setState(() {
+      final baseOrder = _plan.length;
+      for (var i = 0; i < selected.length; i++) {
+        // Rebuild with correct order index; preserve catalog/custom source (T025).
+        _plan.add(selected[i].copyWithPlanFields(order: baseOrder + i));
+      }
+    });
+    HapticManager.light();
   }
 
   Future<void> _handleStartSessionWithPlan() async {

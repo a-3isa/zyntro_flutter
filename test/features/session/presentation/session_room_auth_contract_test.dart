@@ -136,8 +136,13 @@ void main() {
 
       // Late-add relies on the domain helper so catalog/custom identity is
       // preserved without duplicating source-specific copy logic in the page.
+      // The id includes the running order so multiple exercises added in one
+      // picker batch (same millisecond timestamp) still get unique ids.
       expect(source, contains('picked.copyWithPlanFields('));
-      expect(source, contains("id: 'extra_\${DateTime.now().microsecondsSinceEpoch}'"));
+      expect(
+        source,
+        contains("id: 'extra_\${DateTime.now().microsecondsSinceEpoch}_\$nextOrder'"),
+      );
     },
   );
 

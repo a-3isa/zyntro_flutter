@@ -181,24 +181,23 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
 
   Future<void> _openExercisePicker() async {
     if (_isReady) return;
-    final selected = await showModalBottomSheet<PlannedExercise>(
+    final selected = await showModalBottomSheet<List<PlannedExercise>>(
       context: context,
       isScrollControlled: true,
-      builder: (context) {
-        return GymExercisePickerSheet(
-          onExerciseSelected: (exercise) => Navigator.of(context).pop(exercise),
-        );
-      },
+      builder: (context) => const GymExercisePickerSheet(),
     );
 
-    if (!mounted || selected == null) return;
+    if (!mounted || selected == null || selected.isEmpty) return;
     setState(() {
+      final baseOrder = _draftExercises.length;
       _draftExercises = [
         ..._draftExercises,
-        _withOrderAndSets(
-          exercise: selected,
-          order: _draftExercises.length,
-          plannedSets: selected.plannedSets,
+        ...selected.asMap().entries.map(
+          (entry) => _withOrderAndSets(
+            exercise: entry.value,
+            order: baseOrder + entry.key,
+            plannedSets: entry.value.plannedSets,
+          ),
         ),
       ];
     });

@@ -564,8 +564,8 @@ void main() {
     await tester.tap(find.text('Deadlift'));
     await tester.pumpAndSettle();
 
-    // Confirm with default set count
-    await tester.tap(find.text('Confirm'));
+    // Save with default set count
+    await tester.tap(find.text('Save 1 exercise'));
     await tester.pumpAndSettle();
 
     // Deadlift should now appear in the plan — catalog identity confirmed

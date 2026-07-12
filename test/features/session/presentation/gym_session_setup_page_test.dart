@@ -328,8 +328,8 @@ void main() {
     await tester.tap(find.text('Bench Press'));
     await tester.pumpAndSettle();
 
-    // 2-step picker: confirm set count to complete selection
-    await tester.tap(find.text('Confirm'));
+    // Multi-select picker: Save the selection to complete it.
+    await tester.tap(find.text('Save 1 exercise'));
     await tester.pumpAndSettle();
 
     expect(find.text('Bench Press'), findsOneWidget);

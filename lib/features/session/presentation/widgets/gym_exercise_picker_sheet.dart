@@ -1,18 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../domain/gym_session_plan.dart';
 import '../../../../services/exercise_catalog_service.dart';
 
+/// Multi-select exercise picker. Tap a row to toggle it in/out of the
+/// selection; selected rows get an inline sets stepper. Returns the final
+/// list of [PlannedExercise] via `Navigator.pop` when Save is tapped
+/// (or `null`/an empty pop when dismissed without saving).
 class GymExercisePickerSheet extends ConsumerStatefulWidget {
-  const GymExercisePickerSheet({
-    super.key,
-    required this.onExerciseSelected,
-    this.userId,
-  });
-
-  final ValueChanged<PlannedExercise> onExerciseSelected;
+  const GymExercisePickerSheet({super.key, this.userId});
 
   /// When provided, personal exercises for this user are included in results.
   final String? userId;
@@ -29,9 +28,15 @@ class _GymExercisePickerSheetState
   bool _loading = false;
   bool _error = false;
 
-  // Set-count selection state
-  ExercisePickerResult? _pendingResult;
-  int _pendingSetCount = 3;
+  // Selection state, keyed by ExercisePickerResult.id. _selectionOrder tracks
+  // the order exercises were tapped so Save preserves that order.
+  final Map<String, ExercisePickerResult> _selectedResults = {};
+  final Map<String, int> _selectedSetCounts = {};
+  final List<String> _selectionOrder = [];
+
+  static const int _minSets = 1;
+  static const int _maxSets = 20;
+  static const int _defaultSets = 3;
 
   @override
   void initState() {
@@ -62,43 +67,74 @@ class _GymExercisePickerSheetState
     }
   }
 
-  void _selectExercise(ExercisePickerResult result) {
+  void _toggleExercise(ExercisePickerResult result) {
+    HapticFeedback.selectionClick();
     setState(() {
-      _pendingResult = result;
-      _pendingSetCount = 3;
+      if (_selectedResults.containsKey(result.id)) {
+        _selectedResults.remove(result.id);
+        _selectedSetCounts.remove(result.id);
+        _selectionOrder.remove(result.id);
+      } else {
+        _selectedResults[result.id] = result;
+        _selectedSetCounts[result.id] = _defaultSets;
+        _selectionOrder.add(result.id);
+      }
     });
   }
 
-  void _confirmSelection() {
-    final result = _pendingResult;
-    if (result == null) return;
+  void _addAndSelect(ExercisePickerResult result) {
+    setState(() {
+      if (!_results.any((r) => r.id == result.id)) {
+        _results = [result, ..._results];
+      }
+      _selectedResults[result.id] = result;
+      _selectedSetCounts[result.id] = _defaultSets;
+      if (!_selectionOrder.contains(result.id)) {
+        _selectionOrder.add(result.id);
+      }
+    });
+  }
 
-    final id = '${result.id}_${DateTime.now().microsecondsSinceEpoch}';
-    final PlannedExercise exercise;
+  void _changeSetCount(String id, int delta) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      final current = _selectedSetCounts[id] ?? _defaultSets;
+      _selectedSetCounts[id] = (current + delta).clamp(_minSets, _maxSets);
+    });
+  }
 
-    if (result.source == ExerciseResultSource.catalog) {
-      exercise = PlannedExercise.catalog(
-        id: id,
-        exerciseId: result.id,
-        name: result.name,
-        plannedSets: _pendingSetCount,
-        order: 0,
-        muscleGroup: result.muscleGroup,
-        equipment: result.equipment,
-      );
-    } else {
-      exercise = PlannedExercise.custom(
-        id: id,
-        name: result.name,
-        plannedSets: _pendingSetCount,
-        order: 0,
-        personalExerciseId: result.id,
-        muscleGroup: result.muscleGroup,
-        equipment: result.equipment,
+  void _save() {
+    final exercises = <PlannedExercise>[];
+    for (var i = 0; i < _selectionOrder.length; i++) {
+      final id = _selectionOrder[i];
+      final result = _selectedResults[id];
+      if (result == null) continue;
+      final setCount = _selectedSetCounts[id] ?? _defaultSets;
+      final plannedId = '${result.id}_${DateTime.now().microsecondsSinceEpoch}_$i';
+
+      exercises.add(
+        result.source == ExerciseResultSource.catalog
+            ? PlannedExercise.catalog(
+                id: plannedId,
+                exerciseId: result.id,
+                name: result.name,
+                plannedSets: setCount,
+                order: i,
+                muscleGroup: result.muscleGroup,
+                equipment: result.equipment,
+              )
+            : PlannedExercise.custom(
+                id: plannedId,
+                name: result.name,
+                plannedSets: setCount,
+                order: i,
+                personalExerciseId: result.id,
+                muscleGroup: result.muscleGroup,
+                equipment: result.equipment,
+              ),
       );
     }
-
-    widget.onExerciseSelected(exercise);
+    Navigator.of(context).pop(exercises);
   }
 
   Future<void> _showCustomExerciseDialog() async {
@@ -111,6 +147,9 @@ class _GymExercisePickerSheetState
       builder: (context) {
         return AlertDialog(
           backgroundColor: AppColors.surfaceV2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
           title: const Text(
             'Add custom exercise',
             style: TextStyle(color: AppColors.textV2Primary),
@@ -153,14 +192,14 @@ class _GymExercisePickerSheetState
           userId: userId,
           name: result,
         );
-        _selectExercise(pickerResult);
+        _addAndSelect(pickerResult);
         return;
       } catch (_) {
         // Fall through to local custom on service error
       }
     }
     // Local custom fallback (no userId or service error)
-    _selectExercise(
+    _addAndSelect(
       ExercisePickerResult(
         id: 'custom_${DateTime.now().microsecondsSinceEpoch}',
         source: ExerciseResultSource.custom,
@@ -171,43 +210,45 @@ class _GymExercisePickerSheetState
 
   @override
   Widget build(BuildContext context) {
-    // If an exercise is pending set-count confirmation, show the set selector.
-    final pending = _pendingResult;
-    if (pending != null) {
-      return _SetCountSelector(
-        exercise: pending,
-        setCount: _pendingSetCount,
-        onSetCountChanged: (v) => setState(() => _pendingSetCount = v),
-        onConfirm: _confirmSelection,
-        onBack: () => setState(() => _pendingResult = null),
-      );
-    }
-
     final query = _searchController.text.trim();
     // Show empty state whenever there are no results (including initial empty load),
     // not only when the user has typed a query.
     final showNoResults = !_loading && !_error && _results.isEmpty;
+    final selectedCount = _selectionOrder.length;
 
     return SafeArea(
       child: DecoratedBox(
         decoration: const BoxDecoration(color: AppColors.backgroundV2),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Add exercise',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textV2Primary,
-                ),
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Add exercises',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textV2Primary,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Close',
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      color: AppColors.textV2Secondary,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 8),
               const Text(
-                'Search the exercise database first, then add a custom move only if you need one.',
+                'Tap to select. Search the database first, then add a custom move only if you need one.',
                 style: TextStyle(color: AppColors.textV2Secondary),
               ),
               const SizedBox(height: 16),
@@ -221,8 +262,38 @@ class _GymExercisePickerSheetState
               ),
               const SizedBox(height: 16),
               Flexible(child: _buildResultsArea(query, showNoResults)),
+              const SizedBox(height: 12),
+              _buildSaveBar(selectedCount),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSaveBar(int selectedCount) {
+    final hasSelection = selectedCount > 0;
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: FilledButton(
+        style: FilledButton.styleFrom(
+          backgroundColor: hasSelection
+              ? AppColors.userAccent
+              : AppColors.surfaceV2Elevated,
+          foregroundColor: hasSelection
+              ? AppColors.textInverseDark
+              : AppColors.textV2Tertiary,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        onPressed: hasSelection ? _save : null,
+        child: Text(
+          hasSelection
+              ? 'Save $selectedCount exercise${selectedCount == 1 ? '' : 's'}'
+              : 'Select exercises to continue',
+          style: const TextStyle(fontWeight: FontWeight.w700),
         ),
       ),
     );
@@ -260,30 +331,89 @@ class _GymExercisePickerSheetState
         onAddCustom: _showCustomExerciseDialog,
       );
     }
-    return ListView.separated(
+    return ListView.builder(
       shrinkWrap: true,
       itemCount: _results.length,
-      separatorBuilder: (context, idx) => const Divider(height: 1),
       itemBuilder: (context, index) {
         final result = _results[index];
+        final isSelected = _selectedResults.containsKey(result.id);
+        final setCount = _selectedSetCounts[result.id] ?? _defaultSets;
         final detail = [
           result.muscleGroup,
           result.equipment,
-        ].where((v) => v != null && v.isNotEmpty).join(' • ');
-        return Material(
-          type: MaterialType.transparency,
-          child: ListTile(
-            title: Text(
-              result.name,
-              style: const TextStyle(color: AppColors.textV2Primary),
+        ].where((v) => v != null && v.isNotEmpty).join(' · ');
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? AppColors.userAccent.withValues(alpha: 0.12)
+                  : AppColors.surfaceV2Elevated,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: isSelected
+                    ? AppColors.userAccent
+                    : AppColors.borderDarkSecondary,
+                width: isSelected ? 1.5 : 1,
+              ),
             ),
-            subtitle: detail.isNotEmpty
-                ? Text(
-                    detail,
-                    style: const TextStyle(color: AppColors.textV2Secondary),
-                  )
-                : null,
-            onTap: () => _selectExercise(result),
+            child: Material(
+              type: MaterialType.transparency,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: () => _toggleExercise(result),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _SelectionIndicator(isSelected: isSelected),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              result.name,
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: isSelected
+                                    ? AppColors.userAccent
+                                    : AppColors.textV2Primary,
+                              ),
+                            ),
+                            if (detail.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 2),
+                                child: Text(
+                                  detail,
+                                  style: const TextStyle(
+                                    color: AppColors.textV2Secondary,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            if (isSelected) ...[
+                              const SizedBox(height: 8),
+                              _SetCountStepper(
+                                setCount: setCount,
+                                minSets: _minSets,
+                                maxSets: _maxSets,
+                                onDecrement: () =>
+                                    _changeSetCount(result.id, -1),
+                                onIncrement: () =>
+                                    _changeSetCount(result.id, 1),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
         );
       },
@@ -292,140 +422,110 @@ class _GymExercisePickerSheetState
 }
 
 // ---------------------------------------------------------------------------
-// Set count selector (T023)
+// Row sub-widgets
 // ---------------------------------------------------------------------------
 
-class _SetCountSelector extends StatelessWidget {
-  const _SetCountSelector({
-    required this.exercise,
-    required this.setCount,
-    required this.onSetCountChanged,
-    required this.onConfirm,
-    required this.onBack,
-  });
+class _SelectionIndicator extends StatelessWidget {
+  const _SelectionIndicator({required this.isSelected});
 
-  final ExercisePickerResult exercise;
-  final int setCount;
-  final ValueChanged<int> onSetCountChanged;
-  final VoidCallback onConfirm;
-  final VoidCallback onBack;
-
-  static const int _minSets = 1;
-  static const int _maxSets = 20;
+  final bool isSelected;
 
   @override
   Widget build(BuildContext context) {
-    final isValid = setCount >= _minSets && setCount <= _maxSets;
-    return SafeArea(
-      child: DecoratedBox(
-        decoration: const BoxDecoration(color: AppColors.backgroundV2),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              GestureDetector(
-                onTap: onBack,
-                child: const Row(
-                  children: [
-                    Icon(
-                      Icons.arrow_back_ios_new_rounded,
-                      size: 16,
-                      color: AppColors.textV2Secondary,
-                    ),
-                    SizedBox(width: 4),
-                    Text(
-                      'Back',
-                      style: TextStyle(color: AppColors.textV2Secondary),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                exercise.name,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textV2Primary,
-                ),
-              ),
-              if (exercise.muscleGroup != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  exercise.muscleGroup!,
-                  style: const TextStyle(color: AppColors.textV2Secondary),
-                ),
-              ],
-              const SizedBox(height: 24),
-              const Text(
-                'Sets',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textV2Primary,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(
-                      Icons.remove_circle_outline,
-                      color: AppColors.textV2Secondary,
-                    ),
-                    onPressed: setCount > _minSets
-                        ? () => onSetCountChanged(setCount - 1)
-                        : null,
-                  ),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    width: 48,
-                    child: Text(
-                      '$setCount',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textV2Primary,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    icon: const Icon(
-                      Icons.add_circle_outline,
-                      color: AppColors.textV2Secondary,
-                    ),
-                    onPressed: setCount < _maxSets
-                        ? () => onSetCountChanged(setCount + 1)
-                        : null,
-                  ),
-                ],
-              ),
-              if (!isValid)
-                const Padding(
-                  padding: EdgeInsets.only(top: 8),
-                  child: Text(
-                    'Please choose between 1 and 20 sets',
-                    style: TextStyle(color: AppColors.errorV2, fontSize: 12),
-                  ),
-                ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: isValid
-                        ? AppColors.userAccent
-                        : AppColors.textV2Tertiary,
-                    foregroundColor: AppColors.textInverseDark,
-                  ),
-                  onPressed: isValid ? onConfirm : null,
-                  child: const Text('Confirm'),
-                ),
-              ),
-            ],
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      width: 26,
+      height: 26,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: isSelected ? AppColors.userAccent : Colors.transparent,
+        border: isSelected
+            ? null
+            : Border.all(color: AppColors.textV2Tertiary, width: 1.5),
+      ),
+      child: isSelected
+          ? const Icon(
+              Icons.check_rounded,
+              size: 16,
+              color: AppColors.textInverseDark,
+            )
+          : null,
+    );
+  }
+}
+
+class _SetCountStepper extends StatelessWidget {
+  const _SetCountStepper({
+    required this.setCount,
+    required this.minSets,
+    required this.maxSets,
+    required this.onDecrement,
+    required this.onIncrement,
+  });
+
+  final int setCount;
+  final int minSets;
+  final int maxSets;
+  final VoidCallback onDecrement;
+  final VoidCallback onIncrement;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        _StepperButton(
+          icon: Icons.remove_rounded,
+          onPressed: setCount > minSets ? onDecrement : null,
+        ),
+        SizedBox(
+          width: 56,
+          child: Text(
+            '$setCount sets',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              color: AppColors.textV2Primary,
+              fontSize: 13,
+            ),
+          ),
+        ),
+        _StepperButton(
+          icon: Icons.add_rounded,
+          onPressed: setCount < maxSets ? onIncrement : null,
+        ),
+      ],
+    );
+  }
+}
+
+class _StepperButton extends StatelessWidget {
+  const _StepperButton({required this.icon, required this.onPressed});
+
+  final IconData icon;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onPressed != null;
+    return Material(
+      type: MaterialType.transparency,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          width: 28,
+          height: 28,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: AppColors.surfaceV2,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            icon,
+            size: 16,
+            color: enabled
+                ? AppColors.textV2Primary
+                : AppColors.textV2Tertiary.withValues(alpha: 0.5),
           ),
         ),
       ),
@@ -434,7 +534,7 @@ class _SetCountSelector extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// No matches empty state (unchanged)
+// No matches empty state
 // ---------------------------------------------------------------------------
 
 class _NoMatchesState extends StatelessWidget {
