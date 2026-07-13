@@ -83,12 +83,13 @@ class AuthRemoteDataSource {
         throw AuthDataException.unknown('No created user returned.');
       }
 
-      // Email verification disabled for now.
-      // try {
-      //   await user.sendEmailVerification();
-      // } catch (e) {
-      //   debugPrint('[AuthRemoteDataSource] sendEmailVerification failed: $e');
-      // }
+      // Best-effort: a mail-quota/network failure must not fail an otherwise
+      // successful sign-up. The user can resend from the verification banner.
+      try {
+        await user.sendEmailVerification();
+      } catch (e) {
+        debugPrint('[AuthRemoteDataSource] sendEmailVerification failed: $e');
+      }
 
       await _registerPushNotifications(user.uid);
       return AuthUserModel.fromFirebaseUser(user);
@@ -607,6 +608,17 @@ class AuthRemoteDataSource {
         return AuthDataException.auth(
           code: error.code,
           message: 'No account found with this email. Please sign up first.',
+        );
+      case 'operation-not-allowed':
+        // Email/password provider is disabled in the Firebase console.
+        return AuthDataException.auth(
+          code: error.code,
+          message: 'Email sign-in is not available right now.',
+        );
+      case 'requires-recent-login':
+        return AuthDataException.auth(
+          code: error.code,
+          message: 'Please sign in again to complete this change.',
         );
       default:
         return AuthDataException.auth(
