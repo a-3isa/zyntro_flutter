@@ -1274,6 +1274,7 @@ class SessionService {
       final currentExercise = <String, String>{};
       final lastWeight = <String, double>{};
       final lastReps = <String, int>{};
+      final lastSetSeconds = <String, int>{};
       // Cardio tracking
       final distances = <String, double>{};
       final durations = <String, int>{};
@@ -1304,6 +1305,8 @@ class SessionService {
           // ends up being their most recent logged set.
           lastWeight[userId] = weight;
           lastReps[userId] = reps;
+          final setSeconds = (data?['durationSeconds'] as num?)?.toInt();
+          if (setSeconds != null) lastSetSeconds[userId] = setSeconds;
 
           // Track last activity
           if (lastActivity[userId] == null ||
@@ -1359,6 +1362,7 @@ class SessionService {
           'currentExercise': currentExercise[userId],
           'lastWeight': lastWeight[userId],
           'lastReps': lastReps[userId],
+          'lastSetSeconds': lastSetSeconds[userId],
           // Cardio metrics
           'totalDistance': distances[userId] ?? 0.0,
           'totalDuration': durations[userId] ?? 0,

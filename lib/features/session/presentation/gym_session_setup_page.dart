@@ -70,7 +70,11 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
     return session.participants.contains(friend);
   }
 
-  _LobbyState _resolveState(Session session, String uid) {
+  _LobbyState _resolveState(
+    Session session,
+    String uid,
+    GymSessionPlan? hostPlan,
+  ) {
     final isHost = session.hostId == uid;
     final hostType = WorkoutType.fromString(session.type);
 
@@ -118,14 +122,6 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
     if (_isReady) return _LobbyState.selfWaitingForPartner;
     final sameAsHost = myType == hostType;
     if (sameAsHost && myType == WorkoutType.gym) {
-      final hostPlan = ref
-          .watch(
-            gymSessionPlanProvider((
-              sessionId: session.id,
-              userId: session.hostId,
-            )),
-          )
-          .value;
       if (hostPlan == null || !hostPlan.isReady) {
         return _LobbyState.friendWaitingForHostPlan;
       }
@@ -436,8 +432,21 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
     final session = sessionAsync.value;
     final authUser = ref.watch(authSessionProvider).value;
     if (session != null) _queueLiveRedirect(session);
+    // Watched here (not inside _resolveState) so the friend's
+    // waiting-for-host-plan state reacts to host plan updates from the first
+    // frame, and the provider is subscribed exactly once per build.
+    final hostPlan = session != null
+        ? ref
+              .watch(
+                gymSessionPlanProvider((
+                  sessionId: session.id,
+                  userId: session.hostId,
+                )),
+              )
+              .value
+        : null;
     final lobbyState = session != null && authUser != null
-        ? _resolveState(session, authUser.id)
+        ? _resolveState(session, authUser.id, hostPlan)
         : null;
     final showCancel =
         session != null &&
@@ -488,7 +497,11 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
                 final authUser = ref.watch(authSessionProvider).value;
                 if (authUser == null) return _buildLoadingShell();
 
-                final lobbyState = _resolveState(session, authUser.id);
+                final lobbyState = _resolveState(
+                  session,
+                  authUser.id,
+                  hostPlan,
+                );
                 return _buildLobbyShell(session, authUser.id, lobbyState);
               },
             ),

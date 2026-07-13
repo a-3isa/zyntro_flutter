@@ -38,9 +38,10 @@ class ParticipantProgress {
   final int totalSets;
   final double totalVolume;
   final DateTime? lastActivity;
-  // Weight/reps of the most recently logged set (gym only).
+  // Weight/reps/duration of the most recently logged set (gym only).
   final double? lastWeight;
   final int? lastReps;
+  final int? lastSetSeconds;
   // Cardio-specific metrics
   final double totalDistance; // in km
   final int totalDuration; // in minutes
@@ -54,6 +55,7 @@ class ParticipantProgress {
     this.lastActivity,
     this.lastWeight,
     this.lastReps,
+    this.lastSetSeconds,
     this.totalDistance = 0,
     this.totalDuration = 0,
     this.averagePace,
@@ -73,6 +75,7 @@ class ParticipantProgress {
     DateTime? lastActivity,
     double? lastWeight,
     int? lastReps,
+    int? lastSetSeconds,
     double? totalDistance,
     int? totalDuration,
     String? averagePace,
@@ -85,6 +88,7 @@ class ParticipantProgress {
       lastActivity: lastActivity ?? this.lastActivity,
       lastWeight: lastWeight ?? this.lastWeight,
       lastReps: lastReps ?? this.lastReps,
+      lastSetSeconds: lastSetSeconds ?? this.lastSetSeconds,
       totalDistance: totalDistance ?? this.totalDistance,
       totalDuration: totalDuration ?? this.totalDuration,
       averagePace: averagePace ?? this.averagePace,
@@ -676,6 +680,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           totalVolume: (stats['totalVolume'] as num?)?.toDouble() ?? 0.0,
           lastWeight: (stats['lastWeight'] as num?)?.toDouble(),
           lastReps: stats['lastReps'] as int?,
+          lastSetSeconds: stats['lastSetSeconds'] as int?,
           // Cardio metrics
           totalDistance: (stats['totalDistance'] as num?)?.toDouble() ?? 0.0,
           totalDuration: stats['totalDuration'] as int? ?? 0,
@@ -812,6 +817,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           if (_currentExerciseId != null) 'exerciseId': _currentExerciseId,
           'weight': weight,
           'reps': reps,
+          'durationSeconds': _currentSetDuration,
         },
       );
       setState(() {
@@ -822,6 +828,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           lastActivity: DateTime.now(),
           lastWeight: weight,
           lastReps: reps,
+          lastSetSeconds: _currentSetDuration,
         );
         _localPendingEvents.insert(0, localEvent);
       });
@@ -838,6 +845,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
             if (_currentExerciseId != null) 'exerciseId': _currentExerciseId,
             'weight': weight,
             'reps': reps,
+            'durationSeconds': _currentSetDuration,
           },
         });
       } else {
@@ -852,6 +860,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
               if (_currentExerciseId != null) 'exerciseId': _currentExerciseId,
               'weight': weight,
               'reps': reps,
+              'durationSeconds': _currentSetDuration,
             },
           );
           // Server event is arriving via stream — drop the local placeholder so
@@ -872,6 +881,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                 if (_currentExerciseId != null) 'exerciseId': _currentExerciseId,
                 'weight': weight,
                 'reps': reps,
+                'durationSeconds': _currentSetDuration,
               },
             },
           );
@@ -3351,10 +3361,21 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     if (progress == null) {
       detail = 'Not started';
     } else if (progress.currentExercise.isNotEmpty) {
-      detail = progress.lastWeight != null && progress.lastReps != null
-          ? '${progress.currentExercise} · '
-                '${progress.lastWeight!.toStringAsFixed(0)}kg×${progress.lastReps}'
-          : progress.currentExercise;
+      final parts = <String>[progress.currentExercise];
+      final seconds = progress.lastSetSeconds;
+      if (seconds != null && seconds > 0) {
+        parts.add(
+          seconds >= 60
+              ? '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}'
+              : '${seconds}s',
+        );
+      }
+      if (progress.lastWeight != null && progress.lastReps != null) {
+        parts.add(
+          '${progress.lastWeight!.toStringAsFixed(0)}kg×${progress.lastReps}',
+        );
+      }
+      detail = parts.join(' · ');
     } else if (progress.totalDistance > 0) {
       detail = '${progress.totalDistance.toStringAsFixed(2)}km';
     } else {

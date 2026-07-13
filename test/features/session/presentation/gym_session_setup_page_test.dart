@@ -647,4 +647,141 @@ void main() {
 
     await sessionController.close();
   });
+
+  testWidgets('cancelled setup shows terminal panel with Back to Train', (
+    tester,
+  ) async {
+    final sessionService = MockSessionService();
+    final userCacheService = MockUserCacheService();
+    final controller = StreamController<Session?>();
+
+    when(
+      () => sessionService.listenToSession('session-1'),
+    ).thenAnswer((_) => controller.stream);
+    when(
+      () => sessionService.ensureGymPlan(
+        sessionId: 'session-1',
+        hostId: 'user-1',
+        userId: 'user-1',
+      ),
+    ).thenAnswer(
+      (_) async => const GymSessionPlan(
+        userId: 'user-1',
+        source: GymSessionPlanSource.hostTemplate,
+        isReady: false,
+        exercises: [],
+      ),
+    );
+    when(
+      () => userCacheService.warmSessionParticipants(any()),
+    ).thenAnswer((_) async {});
+
+    await tester.pumpWidget(
+      _buildApp(
+        overrides: [
+          sessionServiceProvider.overrideWithValue(sessionService),
+          userCacheServiceProvider.overrideWithValue(userCacheService),
+          buildSessionAuthOverride(
+            userId: 'user-1',
+            email: 'user@example.com',
+            displayName: 'Athlete',
+          ),
+        ],
+      ),
+    );
+
+    controller.add(
+      Session(
+        id: 'session-1',
+        type: 'gym',
+        title: 'Gym Setup',
+        hostId: 'user-1',
+        participants: const ['user-1'],
+        status: SessionStatus.cancelled,
+        phase: SessionPhase.setup,
+        partnerKind: PairedPartnerKind.realFriend,
+        partnerId: 'friend-1',
+        invitationStatus: WorkoutInvitationStatus.accepted,
+        participantTypes: const {'user-1': 'gym'},
+        createdAt: DateTime(2026),
+        startedAt: DateTime(2026),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('This setup was cancelled'), findsOneWidget);
+    expect(find.text('Back to Train'), findsOneWidget);
+    // No plan editor / ready action in a terminal state.
+    expect(find.byType(GymPlanEditor), findsNothing);
+
+    await controller.close();
+  });
+
+  testWidgets('declined invite shows terminal panel for the host', (
+    tester,
+  ) async {
+    final sessionService = MockSessionService();
+    final userCacheService = MockUserCacheService();
+    final controller = StreamController<Session?>();
+
+    when(
+      () => sessionService.listenToSession('session-1'),
+    ).thenAnswer((_) => controller.stream);
+    when(
+      () => sessionService.ensureGymPlan(
+        sessionId: 'session-1',
+        hostId: 'user-1',
+        userId: 'user-1',
+      ),
+    ).thenAnswer(
+      (_) async => const GymSessionPlan(
+        userId: 'user-1',
+        source: GymSessionPlanSource.hostTemplate,
+        isReady: false,
+        exercises: [],
+      ),
+    );
+    when(
+      () => userCacheService.warmSessionParticipants(any()),
+    ).thenAnswer((_) async {});
+
+    await tester.pumpWidget(
+      _buildApp(
+        overrides: [
+          sessionServiceProvider.overrideWithValue(sessionService),
+          userCacheServiceProvider.overrideWithValue(userCacheService),
+          buildSessionAuthOverride(
+            userId: 'user-1',
+            email: 'user@example.com',
+            displayName: 'Athlete',
+          ),
+        ],
+      ),
+    );
+
+    controller.add(
+      Session(
+        id: 'session-1',
+        type: 'gym',
+        title: 'Gym Setup',
+        hostId: 'user-1',
+        participants: const ['user-1'],
+        status: SessionStatus.active,
+        phase: SessionPhase.setup,
+        partnerKind: PairedPartnerKind.realFriend,
+        partnerId: 'friend-1',
+        invitationStatus: WorkoutInvitationStatus.declined,
+        participantTypes: const {'user-1': 'gym'},
+        createdAt: DateTime(2026),
+        startedAt: DateTime(2026),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Your buddy declined'), findsOneWidget);
+    expect(find.text('Back to Train'), findsOneWidget);
+    expect(find.byType(GymPlanEditor), findsNothing);
+
+    await controller.close();
+  });
 }
