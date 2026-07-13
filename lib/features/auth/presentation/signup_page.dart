@@ -10,6 +10,7 @@ import '../../../widgets/zyntro_button.dart';
 import 'providers/auth_controller.dart';
 import 'widgets/auth_error_surface.dart';
 import 'widgets/auth_text_field.dart';
+import 'widgets/social_auth_row.dart';
 
 class SignUpPage extends ConsumerStatefulWidget {
   const SignUpPage({super.key});
@@ -214,48 +215,32 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
                     ),
                   ),
 
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
 
-                  // Header
-                  Center(
-                    child: Column(
-                      children: [
-                        Container(
-                          width: 56,
-                          height: 56,
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceV2Elevated,
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: Center(
-                            child: Icon(
-                              Icons.fitness_center,
-                              size: 26,
-                              color: AppColors.userAccent,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Create Account',
-                          style: AppTextStyles.h2.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textV2Primary,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Join Zyntro and start your fitness journey',
-                          style: AppTextStyles.bodyLarge.copyWith(
-                            color: AppColors.textV2Secondary,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
+                  // Header — left-aligned and icon-free, matching LoginPage and
+                  // leaving room for three fields plus the requirements list.
+                  Text(
+                    'Create account',
+                    style: AppTextStyles.h2.copyWith(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textV2Primary,
+                      letterSpacing: -1,
+                      height: 1.1,
                     ),
                   ),
 
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 4),
+
+                  Text(
+                    'Join Zyntro and start your fitness journey',
+                    style: AppTextStyles.body.copyWith(
+                      color: AppColors.textV2Secondary,
+                      height: 1.4,
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
 
                   if (_errorMessage != null) ...[
                     AuthErrorSurface(
@@ -360,138 +345,44 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
                     ],
                   ),
 
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
 
-                  // Google Sign Up
-                  GestureDetector(
-                    onTap: _isLoading ? null : _handleGoogleSignIn,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: AppSpacing.md,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceV2Elevated,
-                        borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-                        border: Border.all(color: AppColors.surfaceV2Active),
-                      ),
-                      child: _socialLoading == 'google'
-                          ? const Center(
-                              child: SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.5,
-                                  color: AppColors.textV2Primary,
-                                ),
-                              ),
-                            )
-                          : Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(6),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: const Icon(
-                                    Icons.g_mobiledata,
-                                    size: 24,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                                const SizedBox(width: AppSpacing.md),
-                                Text(
-                                  'Sign up with Google',
-                                  style: AppTextStyles.bodyLarge.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.textV2Primary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                    ),
+                  SocialAuthRow(
+                    onGoogle: _handleGoogleSignIn,
+                    onFacebook: _handleFacebookSignUp,
+                    loadingProvider: _socialLoading,
+                    enabled: !_isLoading,
                   ),
 
-                  const SizedBox(height: AppSpacing.md),
-
-                  // Facebook Sign Up
-                  GestureDetector(
-                    onTap: _isLoading ? null : _handleFacebookSignUp,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: AppSpacing.md,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceV2Elevated,
-                        borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-                        border: Border.all(color: AppColors.surfaceV2Active),
-                      ),
-                      child: _socialLoading == 'facebook'
-                          ? const Center(
-                              child: SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.5,
-                                  color: AppColors.textV2Primary,
-                                ),
-                              ),
-                            )
-                          : Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(6),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF1877F2),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: const Icon(
-                                    Icons.facebook,
-                                    size: 24,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                const SizedBox(width: AppSpacing.md),
-                                Text(
-                                  'Sign up with Facebook',
-                                  style: AppTextStyles.bodyLarge.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.textV2Primary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 18),
 
                   // Login link
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Already have an account? ',
-                        style: AppTextStyles.bodyLarge.copyWith(
-                          color: AppColors.textV2Secondary,
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () {
-                          HapticFeedback.lightImpact();
-                          context.go(AppRoutes.login);
-                        },
-                        child: Text(
-                          'Sign In',
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'Already have an account? ',
                           style: AppTextStyles.bodyLarge.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.userAccent,
+                            color: AppColors.textV2Secondary,
                           ),
                         ),
-                      ),
-                    ],
+                        GestureDetector(
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            context.go(AppRoutes.login);
+                          },
+                          child: Text(
+                            'Sign In',
+                            style: AppTextStyles.bodyLarge.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.userAccent,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
 
                   const SizedBox(height: 16),

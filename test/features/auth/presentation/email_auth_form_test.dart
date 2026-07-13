@@ -7,6 +7,7 @@ import 'package:zyntro_flutter/features/auth/domain/entities/auth_user_entity.da
 import 'package:zyntro_flutter/features/auth/presentation/login_page.dart';
 import 'package:zyntro_flutter/features/auth/presentation/providers/auth_controller.dart';
 import 'package:zyntro_flutter/features/auth/presentation/signup_page.dart';
+import 'package:zyntro_flutter/features/auth/presentation/widgets/social_auth_row.dart';
 
 class MockAuthController extends Mock implements AuthController {}
 
@@ -115,6 +116,34 @@ void main() {
         find.text('Invalid email or password. Please try again.'),
         findsOneWidget,
       );
+    });
+  });
+
+  group('layout fits small phones', () {
+    // 360x640 dp — the smallest viewport we support. A RenderFlex overflow
+    // would fail the test via the exception reported by the framework.
+    Future<void> pumpAt360x640(WidgetTester tester, Widget page) async {
+      tester.view.physicalSize = const Size(360, 640);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(_wrap(page, MockAuthController()));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('LoginPage renders without overflow', (tester) async {
+      await pumpAt360x640(tester, const LoginPage());
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Sign In'), findsOneWidget);
+      expect(find.byType(SocialAuthRow), findsOneWidget);
+    });
+
+    testWidgets('SignUpPage renders without overflow', (tester) async {
+      await pumpAt360x640(tester, const SignUpPage());
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Create Account'), findsOneWidget);
+      expect(find.byType(SocialAuthRow), findsOneWidget);
     });
   });
 

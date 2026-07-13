@@ -98,10 +98,14 @@ class _AuthTextFieldState extends State<AuthTextField> {
           borderRadius: BorderRadius.circular(AppBorderRadius.lg),
           borderSide: const BorderSide(color: AppColors.error, width: 2),
         ),
+        // Tighter than AppSpacing.lg: the login/sign-up forms stack up to three
+        // fields plus social buttons and must fit a small phone viewport.
         contentPadding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.lg,
-          vertical: AppSpacing.lg,
+          vertical: 15,
         ),
+        isDense: true,
+        errorStyle: const TextStyle(fontSize: 11, height: 1.1),
       ),
     );
   }

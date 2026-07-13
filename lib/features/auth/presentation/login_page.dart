@@ -11,6 +11,7 @@ import '../../../widgets/zyntro_button.dart';
 import 'providers/auth_controller.dart';
 import 'widgets/auth_error_surface.dart';
 import 'widgets/auth_text_field.dart';
+import 'widgets/social_auth_row.dart';
 
 /// Login screen — v2 design (true-black, no glassmorphism).
 class LoginPage extends ConsumerStatefulWidget {
@@ -200,32 +201,32 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     ),
                   ),
 
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
 
                   // Heading
                   Text(
                     'Welcome back',
                     style: AppTextStyles.h2.copyWith(
-                      fontSize: 34,
+                      fontSize: 28,
                       fontWeight: FontWeight.w700,
                       color: AppColors.textV2Primary,
-                      letterSpacing: -1.2,
+                      letterSpacing: -1,
                       height: 1.1,
                     ),
                   ),
 
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
 
                   // Subtitle
                   Text(
                     'Sign in to continue your fitness journey',
                     style: AppTextStyles.body.copyWith(
                       color: AppColors.textV2Secondary,
-                      height: 1.5,
+                      height: 1.4,
                     ),
                   ),
 
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 20),
 
                   // Error message
                   if (_errorMessage != null) ...[
@@ -327,139 +328,43 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     ],
                   ),
 
+                  const SizedBox(height: 16),
+
+                  SocialAuthRow(
+                    onGoogle: _handleGoogleSignIn,
+                    onFacebook: _handleFacebookSignIn,
+                    loadingProvider: _socialLoading,
+                    enabled: !_isLoading,
+                  ),
+
                   const SizedBox(height: 20),
 
-                  // Google Sign In
-                  GestureDetector(
-                    onTap: _isLoading ? null : _handleGoogleSignIn,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceV2,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: AppColors.surfaceV2Elevated,
-                          width: 1,
-                        ),
-                      ),
-                      child: _socialLoading == 'google'
-                          ? const Center(
-                              child: SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.5,
-                                  color: AppColors.textV2Primary,
-                                ),
-                              ),
-                            )
-                          : Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(6),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: const Icon(
-                                    Icons.g_mobiledata,
-                                    size: 24,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Text(
-                                  'Continue with Google',
-                                  style: AppTextStyles.bodyLarge.copyWith(
-                                    fontSize: 15,
-                                    color: AppColors.textV2Primary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  // Facebook Sign In
-                  GestureDetector(
-                    onTap: _isLoading ? null : _handleFacebookSignIn,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceV2,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: AppColors.surfaceV2Elevated,
-                          width: 1,
-                        ),
-                      ),
-                      child: _socialLoading == 'facebook'
-                          ? const Center(
-                              child: SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.5,
-                                  color: AppColors.textV2Primary,
-                                ),
-                              ),
-                            )
-                          : Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(6),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF1877F2),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: const Icon(
-                                    Icons.facebook,
-                                    size: 24,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Text(
-                                  'Continue with Facebook',
-                                  style: AppTextStyles.bodyLarge.copyWith(
-                                    fontSize: 15,
-                                    color: AppColors.textV2Primary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 28),
-
                   // Sign up link
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        "Don't have an account? ",
-                        style: AppTextStyles.body.copyWith(
-                          color: AppColors.textV2Secondary,
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () {
-                          HapticFeedback.lightImpact();
-                          context.go(AppRoutes.signUp);
-                        },
-                        child: Text(
-                          'Sign Up',
-                          style: AppTextStyles.label.copyWith(
-                            color: AppColors.userAccent,
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          "Don't have an account? ",
+                          style: AppTextStyles.body.copyWith(
+                            color: AppColors.textV2Secondary,
                           ),
                         ),
-                      ),
-                    ],
+                        GestureDetector(
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            context.go(AppRoutes.signUp);
+                          },
+                          child: Text(
+                            'Sign Up',
+                            style: AppTextStyles.label.copyWith(
+                              color: AppColors.userAccent,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
 
                   const SizedBox(height: 20),
