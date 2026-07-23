@@ -7,11 +7,9 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_stripe/flutter_stripe.dart';
 
 import 'app/app.dart';
 import 'app/app_runtime_config.dart';
-import 'app/runtime_environment_values.dart';
 import 'utils/offline_handlers.dart';
 import 'services/notification_service.dart';
 import 'services/storage_service.dart';
@@ -51,9 +49,6 @@ void main() async {
 
   // Initialize Global Error Handler
   GlobalErrorHandler().init();
-
-  // Initialize Stripe
-  Stripe.publishableKey = RuntimeEnvironmentValues.stripePublishableKey;
 
   // Initialize App Check — wrapped so a Play Integrity failure in release
   // doesn't prevent runApp() from being called.
