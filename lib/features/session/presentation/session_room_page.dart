@@ -1665,7 +1665,14 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       setNumber: setNumber,
       lastReps: lastSet?.reps ?? 0,
       lastWeight: lastSet?.weight ?? 0.0,
-      onTimerStart: () => _ensureSharedClockStarted(session),
+      onTimerStart: () {
+        _ensureSharedClockStarted(session);
+        // Stamp the per-set start so the waiting partner's timer counts this
+        // set from now, not from the session start.
+        ref
+            .read(sessionServiceProvider)
+            .setActiveSetStarted(widget.sessionId, started: true);
+      },
       onSetSubmit:
           ({
             required int reps,
@@ -1680,6 +1687,13 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
               durationSeconds: durationSeconds,
             );
             if (!logged) return;
+            // Set finished — clear the per-set start so the partner's timer
+            // freezes on the completed set until the next START.
+            unawaited(
+              ref
+                  .read(sessionServiceProvider)
+                  .setActiveSetStarted(widget.sessionId, started: false),
+            );
             await _handleTurnAfterLoggedSet(
               session: session,
               currentUserId: currentUserId,
@@ -1718,6 +1732,18 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     final partnerSetNumber =
         partnerState?.currentSetNumber ?? (partnerProgress?.totalSets ?? 0) + 1;
 
+    // Per-set timer: while the partner is mid-set (activeSetStartedAt stamped)
+    // count up live from that instant; between sets freeze on their last
+    // completed set. The parent's 1s ticker rebuilds this view so it advances.
+    final Duration partnerSetElapsed;
+    final activeSetStart = session.activeSetStartedAt;
+    if (activeSetStart != null) {
+      final d = DateTime.now().difference(activeSetStart);
+      partnerSetElapsed = d.isNegative ? Duration.zero : d;
+    } else {
+      partnerSetElapsed = Duration(seconds: partnerProgress?.lastSetSeconds ?? 0);
+    }
+
     return FutureBuilder<User?>(
       future: partnerId != null
           ? ref.read(userCacheServiceProvider).getUser(partnerId)
@@ -1732,7 +1758,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           partnerPhotoUrl: partnerPhotoUrl,
           partnerCurrentExercise: partnerCurrentExercise,
           partnerSetNumber: partnerSetNumber,
-          partnerElapsedTime: _elapsedTime,
+          partnerElapsedTime: partnerSetElapsed,
           isPartnerVoicePlaying: _playingAudioUrl != null,
           onRecordVoice: _toggleRecording,
           isRecording: _isRecording,
@@ -2879,7 +2905,11 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           await HapticFeedback.heavyImpact();
 
           if (mounted) {
-            ScaffoldMessenger.of(this.context).showSnackBar(
+            final messenger = ScaffoldMessenger.of(this.context);
+            // Clear any queued/showing snackbar so successive turn changes
+            // never stack into a banner that appears to stay forever.
+            messenger.clearSnackBars();
+            messenger.showSnackBar(
               SnackBar(
                 content: const Text(
                   "It's your turn",
@@ -2887,16 +2917,9 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                 ),
                 backgroundColor: AppColors.userAccent,
                 behavior: SnackBarBehavior.floating,
-                action: SnackBarAction(
-                  label: 'Let\'s Go',
-                  textColor: Colors.white,
-                  onPressed: () {},
-                ),
+                duration: const Duration(seconds: 1),
               ),
             );
-
-            // Optional: Play a sound if audio player is free
-            // _audioPlayer.play(AssetSource('sounds/turn_start.mp3'));
           }
         }
       });
@@ -3016,16 +3039,6 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       );
     }
 
-    final homeButton = GestureDetector(
-      onTap: () {
-        HapticManager.light();
-        context.go(AppRouteLocations.mainTab(MainShellTab.feed));
-      },
-      child: const Padding(
-        padding: EdgeInsets.all(8),
-        child: Icon(Icons.home_outlined, color: Colors.white70, size: 22),
-      ),
-    );
     Widget buildCompactTimer() {
       final h = _elapsedTime.inHours;
       final m = _elapsedTime.inMinutes.remainder(60).toString().padLeft(2, '0');
@@ -3111,8 +3124,11 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         'Invite expired — train solo or invite someone else',
       _ => 'Invite: ${inviteStatus?.value ?? ''}',
     };
+    // Only surface invite state when it needs the user's attention (declined /
+    // expired). "Friend joined" and "pending" are redundant — the partner's
+    // presence is already shown by the participant row below.
     final inviteStatusChip =
-        inviteStatus != null &&
+        isInviteUnanswered &&
             session?.partnerKind == PairedPartnerKind.realFriend
         ? Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -3219,8 +3235,6 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                 const SizedBox(width: 8),
                 buildCompactTimer(),
                 const SizedBox(width: 8),
-                homeButton,
-                const SizedBox(width: 4),
                 endButton,
               ],
             );
@@ -3241,8 +3255,6 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
               const Spacer(),
               buildCompactTimer(),
               const SizedBox(width: 10),
-              homeButton,
-              const SizedBox(width: 4),
               endButton,
             ],
           );
@@ -3260,9 +3272,6 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     }
 
     final participants = session.participants;
-    final activeCount = participants
-        .where((id) => _participantProgress[id]?.isActive ?? false)
-        .length;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -3275,56 +3284,18 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           ),
         ),
       ),
-      child: Row(
-        children: [
-          _buildActiveCountBadge(activeCount, participants.length),
-          const SizedBox(width: 10),
-          Expanded(
-            child: SizedBox(
-              height: 38,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                physics: const BouncingScrollPhysics(),
-                itemCount: participants.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 8),
-                itemBuilder: (context, index) =>
-                    _buildParticipantActivityChip(participants[index]),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActiveCountBadge(int active, int total) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppColors.userAccent.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(
-              color: AppColors.userAccent,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            '$active/$total active',
-            style: TextStyle(
-              color: AppColors.userAccent,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
+      // Active state is conveyed by each chip's color (accent border + green
+      // dot), so the separate "N active" badge is redundant and removed.
+      child: SizedBox(
+        height: 38,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          itemCount: participants.length,
+          separatorBuilder: (_, _) => const SizedBox(width: 8),
+          itemBuilder: (context, index) =>
+              _buildParticipantActivityChip(participants[index]),
+        ),
       ),
     );
   }

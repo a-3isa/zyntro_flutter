@@ -429,10 +429,11 @@ void main() {
       findsOneWidget,
     );
 
-    // In friendReviewPlan state the button is "Edit & Ready" (not "I'm ready").
-    await tester.ensureVisible(find.text('Edit & Ready'));
+    // Friend reviewing the host's gym plan sees a single "Agree & Ready"
+    // action; the plan is already visible/editable above it (no blind Agree).
+    await tester.ensureVisible(find.text('Agree & Ready'));
     await tester.pump();
-    await tester.tap(find.text('Edit & Ready'));
+    await tester.tap(find.text('Agree & Ready'));
     await tester.pump();
 
     final savedPlan =

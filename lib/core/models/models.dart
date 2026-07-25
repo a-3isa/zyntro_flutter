@@ -120,6 +120,10 @@ class Session {
   final String? partnerId;
   final WorkoutInvitationStatus? invitationStatus;
   final DateTime? sharedClockStartedAt;
+  /// When the current active participant started their current set (tapped
+  /// START). Null between sets. Drives the partner's per-set timer so it counts
+  /// the set, not the whole session.
+  final DateTime? activeSetStartedAt;
   final SessionSummary? summary;
   final DateTime createdAt;
   final DateTime startedAt;
@@ -142,6 +146,7 @@ class Session {
     this.partnerId,
     this.invitationStatus,
     this.sharedClockStartedAt,
+    this.activeSetStartedAt,
     this.summary,
     required this.createdAt,
     required this.startedAt,
@@ -192,6 +197,7 @@ class Session {
             )
           : null,
       sharedClockStartedAt: _dateTimeFromValue(data['sharedClockStartedAt']),
+      activeSetStartedAt: _dateTimeFromValue(data['activeSetStartedAt']),
       summary: data['summary'] != null
           ? SessionSummary.fromMap(data['summary'] as Map<String, dynamic>)
           : null,

@@ -56,6 +56,9 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
   bool _isSavingReady = false;
   bool _isReady = false;
   WorkoutType? _friendChosenType;
+  // True once the host's plan has been copied into the friend's editable draft
+  // for review. Reset when the friend switches workout type.
+  bool _hostPlanSeeded = false;
 
   /// The "I'm ready" action is enabled only once the invited friend has joined
   /// (solo/matchmaking sessions have no invited friend → always enabled). The
@@ -331,6 +334,35 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
     setState(() => _friendChosenType = type);
   }
 
+  // Joined friend switching their own workout type in the lobby. Writes only
+  // their participantType; the session stream re-resolves the shell (gym →
+  // review host plan, non-gym → confirm). Resetting _hostPlanSeeded lets the
+  // host plan re-seed if they switch back to gym.
+  Future<void> _onFriendChangeType(Session session, WorkoutType type) async {
+    final uid = ref.read(authSessionProvider).value?.id;
+    if (uid == null || _isReady) return;
+    if (session.participantTypes[uid] == type.value) return;
+    setState(() {
+      _hostPlanSeeded = false;
+      _draftExercises = const [];
+    });
+    try {
+      await ref
+          .read(sessionServiceProvider)
+          .changeParticipantWorkoutType(
+            sessionId: session.id,
+            userId: uid,
+            workoutType: type.value,
+          );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not change type: $error')),
+        );
+      }
+    }
+  }
+
   // Join button (pending invitee only): joins setup with the chosen category.
   Future<void> _onJoinSetup(Session session) async {
     final uid = ref.read(authSessionProvider).value?.id;
@@ -379,20 +411,6 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
         ),
       );
     }
-  }
-
-  Future<void> _onAgreeHostPlan(Session session) async {
-    final hostPlan = ref
-        .read(
-          gymSessionPlanProvider((
-            sessionId: session.id,
-            userId: session.hostId,
-          )),
-        )
-        .value;
-    if (hostPlan == null) return;
-    setState(() => _draftExercises = _reindexExercises(hostPlan.exercises));
-    await _markReady(session); // writes own copy + setGymPlanReady
   }
 
   List<PlannedExercise> _reindexExercises(List<PlannedExercise> exercises) {
@@ -448,6 +466,24 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
     final lobbyState = session != null && authUser != null
         ? _resolveState(session, authUser.id, hostPlan)
         : null;
+
+    // Friend reviewing the host's gym plan: seed the editable editor with the
+    // host's exercises once, so they see (and can edit) exactly what they're
+    // agreeing to instead of committing to an unseen plan. Guarded so their
+    // own edits are never clobbered on later rebuilds.
+    if (lobbyState == _LobbyState.friendReviewPlan &&
+        !_hostPlanSeeded &&
+        !_isReady &&
+        _draftExercises.isEmpty &&
+        hostPlan != null &&
+        hostPlan.exercises.isNotEmpty) {
+      _hostPlanSeeded = true;
+      final seeded = _reindexExercises(hostPlan.exercises);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _draftExercises = seeded);
+      });
+    }
+
     final showCancel =
         session != null &&
         authUser != null &&
@@ -637,6 +673,10 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
             ),
             textAlign: TextAlign.center,
           ),
+          if (uid != session.hostId && !_isReady) ...[
+            const SizedBox(height: 20),
+            _buildFriendTypeSwitcher(session, uid),
+          ],
           const SizedBox(height: 24),
           if (_isLoadingPlan)
             const Center(
@@ -677,46 +717,31 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
                 textAlign: TextAlign.center,
               ),
             const SizedBox(height: 20),
-            if (lobbyState == _LobbyState.friendReviewPlan && !_isReady) ...[
-              FilledButton(
-                onPressed: _isSavingReady
-                    ? null
-                    : () => _onAgreeHostPlan(session),
-                child: _isSavingReady
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.backgroundV2,
-                        ),
-                      )
-                    : const Text('Agree'),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton(
-                onPressed: _isSavingReady || !_isPlanValid
-                    ? null
-                    : () => _markReady(session),
-                child: const Text('Edit & Ready'),
-              ),
-            ] else
-              FilledButton(
-                onPressed:
-                    _isReady || !_isPlanValid || _isSavingReady || !readyEnabled
-                    ? null
-                    : () => _markReady(session),
-                child: _isSavingReady
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.backgroundV2,
-                        ),
-                      )
-                    : Text(_isReady ? 'Ready — Locked in' : "I'm ready"),
-              ),
+            // Single action for host and friend alike. The friend's draft is
+            // pre-seeded with the host's plan, so tapping this agrees to it as
+            // shown (or commits their edits) — no blind "Agree".
+            FilledButton(
+              onPressed:
+                  _isReady || !_isPlanValid || _isSavingReady || !readyEnabled
+                  ? null
+                  : () => _markReady(session),
+              child: _isSavingReady
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.backgroundV2,
+                      ),
+                    )
+                  : Text(
+                      _isReady
+                          ? 'Ready — Locked in'
+                          : isInvitedSameGymCopy
+                          ? 'Agree & Ready'
+                          : "I'm ready",
+                    ),
+            ),
           ],
         ],
       ),
@@ -766,6 +791,10 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
             ),
             textAlign: TextAlign.center,
           ),
+        if (!isHost && !_isReady) ...[
+          const SizedBox(height: 20),
+          _buildFriendTypeSwitcher(session, uid),
+        ],
         const SizedBox(height: 24),
         FilledButton(
           onPressed: _isSavingReady || (isHost && !readyEnabled)
@@ -781,6 +810,34 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
                   ),
                 )
               : const Text("Ready to start?"),
+        ),
+      ],
+    );
+  }
+
+  /// Lets a joined friend switch their own workout type during setup.
+  Widget _buildFriendTypeSwitcher(Session session, String uid) {
+    final hostType = WorkoutType.fromString(session.type);
+    final myType = WorkoutType.fromString(
+      session.participantTypes[uid] ?? session.type,
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Your workout type',
+          style: AppTextStyles.caption.copyWith(
+            fontSize: 13,
+            color: AppColors.textV2Secondary,
+            fontWeight: FontWeight.w600,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 12),
+        LobbyCategoryGrid(
+          hostType: hostType,
+          selected: myType,
+          onSelect: (type) => _onFriendChangeType(session, type),
         ),
       ],
     );

@@ -493,6 +493,37 @@ class SessionService {
     );
   }
 
+  /// Change a joined participant's own workout type in the lobby (e.g. a friend
+  /// switching from the host's gym plan to their own cardio). Updates only their
+  /// own key in participantTypes — allowed by isParticipantSessionUpdate.
+  Future<void> changeParticipantWorkoutType({
+    required String sessionId,
+    required String userId,
+    required String workoutType,
+  }) async {
+    await _firestore.collection('sessions').doc(sessionId).update({
+      'participantTypes.$userId': workoutType,
+    });
+  }
+
+  /// Stamp (or clear) the moment the active participant started their current
+  /// set, so the waiting partner's timer counts the set — not the whole
+  /// session. Best-effort: a failure here must never block logging a set.
+  Future<void> setActiveSetStarted(
+    String sessionId, {
+    required bool started,
+  }) async {
+    try {
+      await _firestore.collection('sessions').doc(sessionId).update({
+        'activeSetStartedAt': started
+            ? FieldValue.serverTimestamp()
+            : FieldValue.delete(),
+      });
+    } catch (e) {
+      debugPrint('setActiveSetStarted($started) failed: $e');
+    }
+  }
+
   /// Join an existing session.
   /// Matches RN joinSession.
   Future<void> joinSession(String sessionId, String userId) async {
