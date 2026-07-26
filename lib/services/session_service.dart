@@ -494,16 +494,26 @@ class SessionService {
   }
 
   /// Change a joined participant's own workout type in the lobby (e.g. a friend
-  /// switching from the host's gym plan to their own cardio). Updates only their
-  /// own key in participantTypes — allowed by isParticipantSessionUpdate.
+  /// switching from the host's gym plan to their own cardio). Atomically updates
+  /// their key in participantTypes AND their own plan doc's workoutType, so the
+  /// stored plan never disagrees with the chosen type before they mark ready.
+  /// `userId` is written into the plan doc to satisfy the create rule when the
+  /// doc does not yet exist.
   Future<void> changeParticipantWorkoutType({
     required String sessionId,
     required String userId,
     required String workoutType,
   }) async {
-    await _firestore.collection('sessions').doc(sessionId).update({
-      'participantTypes.$userId': workoutType,
-    });
+    final sessionRef = _firestore.collection('sessions').doc(sessionId);
+    final planRef = sessionRef.collection('plans').doc(userId);
+    final batch = _firestore.batch();
+    batch.update(sessionRef, {'participantTypes.$userId': workoutType});
+    batch.set(planRef, {
+      'userId': userId,
+      'workoutType': workoutType,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+    await batch.commit();
   }
 
   /// Stamp (or clear) the moment the active participant started their current
