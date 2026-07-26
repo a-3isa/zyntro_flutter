@@ -148,10 +148,14 @@ async function persistRecipientNotification(recipientId, type, payload) {
     .collection("users")
     .doc(recipientId)
     .collection("notifications");
-  const isDeterministic = type === "session_invite" && payload.data.sessionId;
-  const notificationRef = isDeterministic
+  const isSessionInvite = type === "session_invite" && payload.data.sessionId;
+  const isJointPostInvite = type === "joint_post_invite" && payload.data.postId;
+  const isDeterministic = isSessionInvite || isJointPostInvite;
+  const notificationRef = isSessionInvite
     ? notifications.doc(`session_invite_${payload.data.sessionId}`)
-    : notifications.doc();
+    : isJointPostInvite
+      ? notifications.doc(`joint_post_invite_${payload.data.postId}`)
+      : notifications.doc();
 
   const base = {
     userId: recipientId,
@@ -163,8 +167,9 @@ async function persistRecipientNotification(recipientId, type, payload) {
   };
 
   if (isDeterministic) {
-    // Deterministic id keyed on the session so a retried/re-sent invite can't
-    // create duplicate invite docs — it refreshes the existing one in place.
+    // Deterministic id keyed on the session/post so a retried/re-sent invite
+    // can't create duplicate invite docs — it refreshes the existing one in
+    // place.
     await notificationRef.set(
       { ...base, createdAt: FieldValue.serverTimestamp() },
       { merge: true },
@@ -216,6 +221,45 @@ async function buildSessionInvitePayload(callerId, recipientId, data) {
           ? session.inviteExpiresAt.toDate().toISOString()
           : data.expiresAt,
       context: "one_to_one",
+    },
+  };
+}
+
+// Mirrors buildSessionInvitePayload's shape/validation for the joint-post
+// "post it together?" invite: the caller (sharer) triggers this via
+// NotificationService.sendJointPostInvite, and the CF re-validates the post
+// server-side rather than trusting the client's fromName/postId pairing.
+async function buildJointPostInvitePayload(callerId, recipientId, data) {
+  const postId = requireString(data.postId, "data.postId");
+  const sessionId = requireString(data.sessionId, "data.sessionId");
+  const postDoc = await db.collection("posts").doc(postId).get();
+
+  if (!postDoc.exists) {
+    throw new HttpsError("not-found", "Post not found.");
+  }
+
+  const post = postDoc.data() || {};
+  const authorIds = Object.values(post.authors || {}).map((author) => author.userId);
+  if (
+    post.coAuthored !== true ||
+    post.status !== "draft" ||
+    !authorIds.includes(callerId) ||
+    !authorIds.includes(recipientId)
+  ) {
+    throw new HttpsError("permission-denied", "Caller is not allowed to send this invite.");
+  }
+
+  const inviterName = await getUserDisplayName(callerId);
+
+  return {
+    title: "Post It Together?",
+    body: `${inviterName} wants to post your session together!`,
+    data: {
+      type: "joint_post_invite",
+      postId,
+      sessionId,
+      fromName: inviterName,
+      byUserName: inviterName,
     },
   };
 }
@@ -426,6 +470,8 @@ async function buildPushPayload(type, callerId, recipientId, data) {
   switch (type) {
     case "session_invite":
       return buildSessionInvitePayload(callerId, recipientId, data);
+    case "joint_post_invite":
+      return buildJointPostInvitePayload(callerId, recipientId, data);
     case "turn_change":
       return buildTurnChangePayload(callerId, recipientId, data);
     case "voice_note":
