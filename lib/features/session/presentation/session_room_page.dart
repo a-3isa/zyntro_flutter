@@ -174,6 +174,9 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   // Audio playback
   final AudioPlayer _audioPlayer = AudioPlayer();
   String? _playingAudioUrl;
+  // Dedicated one-shot player for the "your turn" cue so it never interrupts,
+  // or is interrupted by, a partner voice note on _audioPlayer.
+  final AudioPlayer _turnCuePlayer = AudioPlayer();
 
   // Auto-play queue
   final List<String> _audioQueue = [];
@@ -592,6 +595,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     _durationController.dispose();
     _paceController.dispose();
     _audioPlayer.dispose();
+    _turnCuePlayer.dispose();
     _timerUpdateTimer?.cancel();
     _durationSubscription?.cancel();
     _queueCountTimer?.cancel();
@@ -1470,6 +1474,23 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           _recordingDuration = Duration.zero;
         });
       }
+    }
+  }
+
+  /// "It's your turn" cue — physical, not a banner: a distinct double buzz plus
+  /// a short weight-plate clank. The sound is skipped while a partner voice note
+  /// is playing so it never cuts one off; the haptic always fires.
+  Future<void> _signalMyTurn() async {
+    await HapticFeedback.heavyImpact();
+    await Future<void>.delayed(const Duration(milliseconds: 130));
+    await HapticFeedback.heavyImpact();
+
+    if (_playingAudioUrl != null) return;
+    try {
+      await _turnCuePlayer.stop();
+      await _turnCuePlayer.play(AssetSource('sounds/turn_start.wav'));
+    } catch (e) {
+      debugPrint('[SessionRoom] turn cue sound failed: $e');
     }
   }
 
@@ -2901,26 +2922,9 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         if (session.derivedMode == SessionMode.turnBased &&
             session.activeUserId == currentUserId &&
             previousSession?.activeUserId != currentUserId) {
-          // It's my turn!
-          await HapticFeedback.heavyImpact();
-
-          if (mounted) {
-            final messenger = ScaffoldMessenger.of(this.context);
-            // Clear any queued/showing snackbar so successive turn changes
-            // never stack into a banner that appears to stay forever.
-            messenger.clearSnackBars();
-            messenger.showSnackBar(
-              SnackBar(
-                content: const Text(
-                  "It's your turn",
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                backgroundColor: AppColors.userAccent,
-                behavior: SnackBarBehavior.floating,
-                duration: const Duration(seconds: 1),
-              ),
-            );
-          }
+          // It's my turn — announce it physically, not with a banner: a distinct
+          // double buzz plus a weight-plate clank.
+          _signalMyTurn();
         }
       });
     });
