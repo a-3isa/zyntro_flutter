@@ -679,11 +679,11 @@ async function sendSoloRepostOffer(userId, postId, sessionId) {
   await notificationRef.set(
     {
       userId,
-      type: "jointPostExpired",
+      type: "joint_post_expired",
       title: "Joint Post Expired",
       message: "Your co-author didn't confirm in time. Want to post it solo instead?",
       data: {
-        type: "jointPostExpired",
+        type: "joint_post_expired",
         postId,
         sessionId,
       },
