@@ -645,10 +645,55 @@ class BuddyPair {
   }
 }
 
+/// PostAuthorSlot model for co-authored posts.
+class PostAuthorSlot {
+  final String userId;
+  final String? caption;
+  final String? photoUrl;
+  final bool confirmed;
+  final bool removed;
+  final String visibility; // this author's chosen 'public' | 'private'
+  final SessionSummary summary;
+
+  const PostAuthorSlot({
+    required this.userId,
+    this.caption,
+    this.photoUrl,
+    this.confirmed = false,
+    this.removed = false,
+    this.visibility = 'public',
+    required this.summary,
+  });
+
+  factory PostAuthorSlot.fromMap(Map<String, dynamic> d) => PostAuthorSlot(
+        userId: d['userId'] ?? '',
+        caption: d['caption'],
+        photoUrl: d['photoUrl'],
+        confirmed: d['confirmed'] ?? false,
+        removed: d['removed'] ?? false,
+        visibility: d['visibility'] ?? 'public',
+        summary: SessionSummary.fromMap(Map<String, dynamic>.from(d['summary'] as Map? ?? {})),
+      );
+
+  Map<String, dynamic> toMap() => {
+        'userId': userId,
+        'caption': caption,
+        'photoUrl': photoUrl,
+        'confirmed': confirmed,
+        'removed': removed,
+        'visibility': visibility,
+        'summary': summary.toMap(),
+      };
+}
+
 /// Post model matching Firestore posts collection.
 class Post {
   final String id;
   final String authorId;
+  final List<String> authorIds;
+  final String status;
+  final bool coAuthored;
+  final Map<String, PostAuthorSlot> authors;
   final String sessionId;
   final String visibility; // 'public' | 'private' | 'friends'
   final String title;
@@ -666,6 +711,10 @@ class Post {
   Post({
     required this.id,
     required this.authorId,
+    required this.authorIds,
+    required this.status,
+    required this.coAuthored,
+    required this.authors,
     required this.sessionId,
     required this.visibility,
     required this.title,
@@ -680,25 +729,40 @@ class Post {
     this.reactionCounts,
   });
 
-  factory Post.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+  factory Post.fromFirestore(DocumentSnapshot doc) =>
+      Post.fromMap(doc.id, doc.data() as Map<String, dynamic>);
+
+  factory Post.fromMap(String id, Map<String, dynamic> data) {
+    final authorId = data['authorId'] ?? '';
+    Map<String, PostAuthorSlot>? authorsMap;
+    if (data['authors'] != null) {
+      final authorsData = data['authors'] as Map<String, dynamic>;
+      authorsMap = authorsData.map(
+        (k, v) => MapEntry(k, PostAuthorSlot.fromMap(Map<String, dynamic>.from(v as Map))),
+      );
+    }
+
     return Post(
-      id: doc.id,
-      authorId: data['authorId'] ?? '',
+      id: id,
+      authorId: authorId,
+      authorIds: (data['authorIds'] as List<dynamic>?)?.cast<String>() ??
+          (authorId.isEmpty ? const [] : [authorId]),
+      status: data['status'] ?? 'published',
+      coAuthored: data['coAuthored'] ?? false,
+      authors: authorsMap ?? const {},
       sessionId: data['sessionId'] ?? '',
       visibility: data['visibility'] ?? 'public',
       title: data['title'] ?? '',
       type: data['type'] ?? 'strength',
-      summary: SessionSummary.fromMap(data['summary'] ?? {}),
+      summary: SessionSummary.fromMap(Map<String, dynamic>.from(data['summary'] as Map? ?? {})),
       mediaURLs: (data['mediaURLs'] as List<dynamic>?)?.cast<String>(),
       buddyId: data['buddyId'],
       buddyName: data['buddyName'],
       likesCount: data['likesCount'] ?? 0,
       commentsCount: data['commentsCount'] ?? 0,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      reactionCounts: (data['reactionCounts'] as Map<String, dynamic>?)?.map(
-        (key, value) => MapEntry(key, value as int),
-      ),
+      reactionCounts: (data['reactionCounts'] as Map<String, dynamic>?)
+          ?.map((k, v) => MapEntry(k, v as int)),
     );
   }
 }
