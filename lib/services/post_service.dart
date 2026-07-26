@@ -118,6 +118,9 @@ class PostService {
     // Build post data
     final postData = {
       'authorId': params.authorId,
+      'authorIds': [params.authorId],
+      'status': 'published',
+      'coAuthored': false,
       'sessionId': params.sessionId,
       'visibility': params.visibility,
       'title': params.title,
@@ -169,6 +172,97 @@ class PostService {
     return postId;
   }
 
+  // ==================== JOINT (CO-AUTHORED) POST DRAFTS ====================
+
+  /// Create a joint draft post for a two-author session.
+  /// Idempotent per session: if a draft already exists for [sessionId], its
+  /// id is returned instead of creating a duplicate. Publishing (draft ->
+  /// published) is handled by a Cloud Function, not the client.
+  Future<String> createJointDraft({
+    required String sessionId,
+    required String type,
+    required String title,
+    required List<String> authorIds,
+    required Map<String, SessionSummary> summaries,
+    Duration ttl = const Duration(hours: 24),
+  }) async {
+    // Idempotent: one draft per session.
+    final existing = await _firestore
+        .collection('posts')
+        .where('sessionId', isEqualTo: sessionId)
+        .where('coAuthored', isEqualTo: true)
+        .limit(1)
+        .get();
+    if (existing.docs.isNotEmpty) return existing.docs.first.id;
+
+    final ref = _firestore.collection('posts').doc();
+    final authors = <String, dynamic>{
+      for (final uid in authorIds)
+        uid: PostAuthorSlot(
+          userId: uid,
+          summary: summaries[uid] ?? SessionSummary(),
+        ).toMap(),
+    };
+    await ref.set({
+      'coAuthored': true,
+      'status': 'draft',
+      'authorIds': authorIds,
+      'authorId': authorIds.first, // legacy field, harmless
+      'sessionId': sessionId,
+      'type': type,
+      'title': title,
+      'visibility': 'public',
+      'summary': (summaries[authorIds.first] ?? SessionSummary()).toMap(),
+      'authors': authors,
+      'mediaURLs': <String>[],
+      'likesCount': 0,
+      'commentsCount': 0,
+      'createdAt': FieldValue.serverTimestamp(),
+      'expiresAt': Timestamp.fromDate(DateTime.now().add(ttl)),
+    });
+    return ref.id;
+  }
+
+  /// Update only the calling author's slot fields (caption/photoUrl/visibility).
+  Future<void> setAuthorSlot({
+    required String postId,
+    required String userId,
+    String? caption,
+    String? photoUrl,
+    String? visibility,
+  }) async {
+    final data = <String, dynamic>{};
+    if (caption != null) data['authors.$userId.caption'] = caption;
+    if (photoUrl != null) data['authors.$userId.photoUrl'] = photoUrl;
+    if (visibility != null) data['authors.$userId.visibility'] = visibility;
+    if (data.isEmpty) return;
+    await _firestore.collection('posts').doc(postId).update(data);
+  }
+
+  /// Flip the calling author's own confirmed flag. Does NOT change [status] —
+  /// the draft -> published transition is a Cloud Function's job.
+  Future<void> confirmJointPost({
+    required String postId,
+    required String userId,
+  }) => _firestore.collection('posts').doc(postId).update({
+    'authors.$userId.confirmed': true,
+  });
+
+  /// Mark the calling author's slot as removed (soft-leave a joint post).
+  Future<void> removeAuthorSlot({
+    required String postId,
+    required String userId,
+  }) => _firestore.collection('posts').doc(postId).update({
+    'authors.$userId.removed': true,
+  });
+
+  /// Real-time stream of a joint draft/post document.
+  Stream<Post> watchJointDraft(String postId) => _firestore
+      .collection('posts')
+      .doc(postId)
+      .snapshots()
+      .map((d) => Post.fromFirestore(d));
+
   /// Update post with a photo URL (for retry scenarios).
   Future<void> updatePostPhoto(String postId, String photoUrl) async {
     final postRef = _firestore.collection('posts').doc(postId);
@@ -192,6 +286,7 @@ class PostService {
     final snapshot = await _firestore
         .collection('posts')
         .where('visibility', isEqualTo: 'public')
+        .where('status', isEqualTo: 'published')
         .orderBy('createdAt', descending: true)
         .limit(limit)
         .get();
@@ -208,6 +303,7 @@ class PostService {
     Query<Map<String, dynamic>> query = _firestore
         .collection('posts')
         .where('visibility', isEqualTo: 'public')
+        .where('status', isEqualTo: 'published')
         .orderBy('createdAt', descending: true)
         .limit(limit);
 
@@ -233,24 +329,32 @@ class PostService {
   Future<List<Post>> getUserPosts(String userId, {int limit = 20}) async {
     final snapshot = await _firestore
         .collection('posts')
-        .where('authorId', isEqualTo: userId)
+        .where('authorIds', arrayContains: userId)
+        .where('status', isEqualTo: 'published')
         .orderBy('createdAt', descending: true)
         .limit(limit)
         .get();
 
-    return snapshot.docs.map((doc) => Post.fromFirestore(doc)).toList();
+    return snapshot.docs
+        .map((doc) => Post.fromFirestore(doc))
+        .where((post) => post.authors[userId]?.removed != true)
+        .toList();
   }
 
   /// Real-time stream of posts by a specific user.
   Stream<List<Post>> watchUserPosts(String userId, {int limit = 20}) {
     return _firestore
         .collection('posts')
-        .where('authorId', isEqualTo: userId)
+        .where('authorIds', arrayContains: userId)
+        .where('status', isEqualTo: 'published')
         .orderBy('createdAt', descending: true)
         .limit(limit)
         .snapshots()
         .map(
-          (snap) => snap.docs.map((doc) => Post.fromFirestore(doc)).toList(),
+          (snap) => snap.docs
+              .map((doc) => Post.fromFirestore(doc))
+              .where((post) => post.authors[userId]?.removed != true)
+              .toList(),
         );
   }
 
