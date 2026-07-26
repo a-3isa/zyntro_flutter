@@ -195,22 +195,31 @@ class _JointPostComposerState extends ConsumerState<JointPostComposer> {
 
       await postService.confirmJointPost(postId: widget.postId, userId: uid);
 
+      // The confirm already succeeded — lock the UI in now so a partner-invite
+      // failure below can never make the Post button re-enable and re-fire
+      // (which would re-upload the photo and re-send the invite).
+      if (mounted) setState(() => _hasConfirmedLocally = true);
+
       final partnerId = _partnerId;
       final partnerAlreadyConfirmed =
           partnerId != null && (post.authors[partnerId]?.confirmed ?? false);
       if (partnerId != null && !partnerAlreadyConfirmed) {
-        final fromName = _selfUser?.displayName ??
-            ref.read(authSessionProvider).value?.displayName ??
-            'Your buddy';
-        await ref.read(notificationServiceProvider).sendJointPostInvite(
-              recipientId: partnerId,
-              fromName: fromName,
-              postId: widget.postId,
-              sessionId: post.sessionId,
-            );
+        try {
+          final fromName = _selfUser?.displayName ??
+              ref.read(authSessionProvider).value?.displayName ??
+              'Your buddy';
+          await ref.read(notificationServiceProvider).sendJointPostInvite(
+                recipientId: partnerId,
+                fromName: fromName,
+                postId: widget.postId,
+                sessionId: post.sessionId,
+              );
+        } catch (_) {
+          // Best-effort nudge only — the post itself already confirmed
+          // successfully, so an invite failure must not surface as an error
+          // or roll back the confirmed state.
+        }
       }
-
-      if (mounted) setState(() => _hasConfirmedLocally = true);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

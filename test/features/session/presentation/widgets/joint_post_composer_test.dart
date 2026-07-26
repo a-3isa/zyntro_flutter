@@ -265,6 +265,80 @@ void main() {
     },
   );
 
+  testWidgets(
+    'sends the joint-post invite when the partner has not confirmed yet',
+    (tester) async {
+      await tester.pumpWidget(
+        _buildApp(router: _buildRouter(), overrides: overrides()),
+      );
+      // Partner slot defaults to unconfirmed.
+      draftController.add(_buildDraftPost());
+      await tester.pump();
+      await tester.pump();
+
+      await tester.enterText(
+        find.byKey(const ValueKey('joint_post_caption_field')),
+        'Great session together!',
+      );
+      await tester.pump();
+
+      await tester.tap(find.byKey(const ValueKey('joint_post_post_button')));
+      await tester.pump();
+      await tester.pump();
+
+      verify(
+        () => notificationService.sendJointPostInvite(
+          recipientId: kPartnerId,
+          fromName: any(named: 'fromName'),
+          postId: kPostId,
+          sessionId: 'session-1',
+        ),
+      ).called(1);
+    },
+  );
+
+  testWidgets(
+    'does not send the joint-post invite when the partner already confirmed',
+    (tester) async {
+      await tester.pumpWidget(
+        _buildApp(router: _buildRouter(), overrides: overrides()),
+      );
+      draftController.add(
+        _buildDraftPost(
+          partnerSlot: PostAuthorSlot(
+            userId: kPartnerId,
+            confirmed: true,
+            summary: SessionSummary(),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      await tester.enterText(
+        find.byKey(const ValueKey('joint_post_caption_field')),
+        'Great session together!',
+      );
+      await tester.pump();
+
+      await tester.tap(find.byKey(const ValueKey('joint_post_post_button')));
+      await tester.pump();
+      await tester.pump();
+
+      verify(
+        () => postService.confirmJointPost(postId: kPostId, userId: kSelfId),
+      ).called(1);
+      verifyNever(
+        () => notificationService.sendJointPostInvite(
+          recipientId: any(named: 'recipientId'),
+          fromName: any(named: 'fromName'),
+          postId: any(named: 'postId'),
+          sessionId: any(named: 'sessionId'),
+        ),
+      );
+    },
+  );
+
   testWidgets('partner slot with null photo shows a profile-pic fallback', (
     tester,
   ) async {
