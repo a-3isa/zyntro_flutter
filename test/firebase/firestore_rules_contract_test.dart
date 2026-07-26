@@ -156,6 +156,68 @@ void main() {
       expect(rules, contains('reactionId == request.auth.uid'));
     });
 
+    test('posts rules gate joint draft create + own-slot-only update + no client publish', () {
+      expect(rules, contains('isJointDraftCreate()'));
+      expect(rules, contains('isOwnAuthorSlotUpdate()'));
+      // client can never set status on a coAuthored post:
+      expect(
+        rules,
+        contains(
+          "!request.resource.data.diff(resource.data).affectedKeys().hasAny(['status'])",
+        ),
+      );
+    });
+
+    test('joint draft create requires size-2 authorIds and matching authors keys', () {
+      final idx = rules.indexOf('match /posts/{postId}');
+      expect(idx, isNonNegative);
+      final section = rules.substring(idx, rules.indexOf('match /follows/{followId}'));
+      expect(section, contains("request.resource.data.status == 'draft'"));
+      expect(section, contains('request.resource.data.authorIds.size() == 2'));
+      expect(
+        section,
+        contains(
+          'request.resource.data.authors.keys().hasAll(request.resource.data.authorIds)',
+        ),
+      );
+      expect(
+        section,
+        contains(
+          'request.resource.data.authorIds.hasAll(request.resource.data.authors.keys())',
+        ),
+      );
+    });
+
+    test('joint author slot update only touches caller own authors entry and freezes identity fields', () {
+      final idx = rules.indexOf('match /posts/{postId}');
+      expect(idx, isNonNegative);
+      final section = rules.substring(idx, rules.indexOf('match /follows/{followId}'));
+      expect(
+        section,
+        contains(
+          "return ['authorIds', 'coAuthored', 'sessionId', 'authorId'];",
+        ),
+      );
+      expect(
+        section,
+        contains(
+          'request.resource.data.authors.diff(resource.data.authors).affectedKeys().hasOnly([request.auth.uid])',
+        ),
+      );
+    });
+
+    test('solo post delete stays scoped to non-coAuthored owner posts', () {
+      final idx = rules.indexOf('match /posts/{postId}');
+      expect(idx, isNonNegative);
+      final section = rules.substring(idx, rules.indexOf('match /follows/{followId}'));
+      expect(
+        section,
+        contains(
+          'allow delete: if isAuthenticated() && resource.data.authorId == request.auth.uid\n        && resource.data.coAuthored != true;',
+        ),
+      );
+    });
+
     test('prevents followers from self-approving follow requests', () {
       expect(rules, contains('isFollowStatusChange()'));
       expect(
