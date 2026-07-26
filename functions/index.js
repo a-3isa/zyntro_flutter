@@ -4,6 +4,7 @@ const { getAuth } = require("firebase-admin/auth");
 const { FieldValue, getFirestore, Timestamp } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
 const logger = require("firebase-functions/logger");
+const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const { onRequest, HttpsError } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 
@@ -628,4 +629,118 @@ exports.expireStalePairedInvites = onSchedule("every 15 minutes", async () => {
   logger.info("Expired stale paired-session invites.", {
     count: snapshot.size,
   });
+});
+
+// ==================== JOINT (CO-AUTHORED) POST LIFECYCLE ====================
+// Security rules freeze `status`/`authors.*.confirmed` transitions for
+// clients on joint posts (see firestore.rules `isOwnAuthorSlotUpdate`) — the
+// Cloud Function is the only writer that can flip a joint draft to
+// published/expired or delete it, using admin privileges to bypass rules.
+
+// Publishes a joint post once every active (non-removed) author slot has
+// confirmed. Guarded on `status === 'draft'` so it only fires once per post —
+// subsequent author-slot edits after publish are no-ops here.
+exports.publishJointPostWhenBothConfirm = onDocumentUpdated("posts/{postId}", async (event) => {
+  const after = event.data.after.data();
+  if (!after || after.coAuthored !== true || after.status !== "draft") {
+    return;
+  }
+
+  const authors = Object.values(after.authors || {});
+  const active = authors.filter((author) => !author.removed);
+  if (active.length < 2 || !active.every((author) => author.confirmed === true)) {
+    return;
+  }
+
+  const anyPrivate = active.some((author) => author.visibility === "private");
+  await event.data.after.ref.update({
+    status: "published",
+    visibility: anyPrivate ? "private" : "public",
+    createdAt: FieldValue.serverTimestamp(),
+  });
+
+  logger.info("Published joint post on dual confirm.", { postId: event.params.postId });
+});
+
+// Writes the owner-scoped "post it solo?" notification for an author whose
+// joint post draft expired before their co-author confirmed. Shaped like
+// persistRecipientNotification's docs (title/message/data) so it renders via
+// the same client notification model; `data` carries the ids the recap/solo-
+// share screen needs to deep-link. The doc id is deterministic per
+// (recipient, post) so a re-run of the scheduler (e.g. after a partial
+// failure) can't create duplicate offers.
+async function sendSoloRepostOffer(userId, postId, sessionId) {
+  const notificationRef = db
+    .collection("users")
+    .doc(userId)
+    .collection("notifications")
+    .doc(`joint_post_expired_${postId}`);
+
+  await notificationRef.set(
+    {
+      userId,
+      type: "jointPostExpired",
+      title: "Joint Post Expired",
+      message: "Your co-author didn't confirm in time. Want to post it solo instead?",
+      data: {
+        type: "jointPostExpired",
+        postId,
+        sessionId,
+      },
+      read: false,
+      createdAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true },
+  );
+}
+
+// Sweeps joint post drafts whose confirmation window has passed. Flips them
+// to 'expired' and offers each author who had already confirmed a chance to
+// re-post solo (Task 7 delivery path handles the push side).
+// NOTE: requires a composite index on posts(coAuthored ASC, status ASC,
+// expiresAt ASC).
+exports.expireStaleJointPostDrafts = onSchedule("every 15 minutes", async () => {
+  const now = Timestamp.now();
+  const snapshot = await db
+    .collection("posts")
+    .where("coAuthored", "==", true)
+    .where("status", "==", "draft")
+    .where("expiresAt", "<", now)
+    .limit(400)
+    .get();
+
+  if (snapshot.empty) {
+    return;
+  }
+
+  for (const doc of snapshot.docs) {
+    const data = doc.data();
+    await doc.ref.update({ status: "expired" });
+
+    const authors = Object.values(data.authors || {});
+    const confirmedAuthors = authors.filter((author) => author.confirmed === true && !author.removed);
+    for (const author of confirmedAuthors) {
+      await sendSoloRepostOffer(author.userId, doc.id, data.sessionId);
+    }
+  }
+
+  logger.info("Expired stale joint post drafts.", { count: snapshot.size });
+});
+
+// Deletes a joint post once every author slot has soft-left (removed). A
+// joint post with no remaining authors has nothing left to show, so it's
+// cleaned up rather than left as an orphaned doc.
+exports.cleanupFullyRemovedJointPosts = onDocumentUpdated("posts/{postId}", async (event) => {
+  const after = event.data.after.data();
+  if (!after || after.coAuthored !== true) {
+    return;
+  }
+
+  const authors = Object.values(after.authors || {});
+  if (authors.length === 0 || !authors.every((author) => author.removed === true)) {
+    return;
+  }
+
+  await event.data.after.ref.delete();
+  logger.info("Deleted fully-removed joint post.", { postId: event.params.postId });
 });
