@@ -168,6 +168,35 @@ void main() {
       );
     });
 
+    test('solo update path forbids self-promotion to a coAuthored/joint post', () {
+      final idx = rules.indexOf('match /posts/{postId}');
+      expect(idx, isNonNegative);
+      final section = rules.substring(idx, rules.indexOf('match /follows/{followId}'));
+      // The new state must also stay solo, not just the old state:
+      expect(section, contains('request.resource.data.coAuthored != true'));
+      // authorIds/authors/authorId/coAuthored must be frozen on the solo-owner update branch:
+      expect(
+        section,
+        contains(
+          "!request.resource.data.diff(resource.data).affectedKeys()\n            .hasAny(['authorIds', 'authors', 'authorId', 'coAuthored'])",
+        ),
+      );
+    });
+
+    test('isSoloCreate forbids planting extra authorIds or an authors map at create time', () {
+      final idx = rules.indexOf('match /posts/{postId}');
+      expect(idx, isNonNegative);
+      final section = rules.substring(idx, rules.indexOf('match /follows/{followId}'));
+      expect(
+        section,
+        contains('request.resource.data.authorIds == [request.auth.uid]'),
+      );
+      expect(
+        section,
+        contains('request.resource.data.authors.size() == 0'),
+      );
+    });
+
     test('joint draft create requires size-2 authorIds and matching authors keys', () {
       final idx = rules.indexOf('match /posts/{postId}');
       expect(idx, isNonNegative);

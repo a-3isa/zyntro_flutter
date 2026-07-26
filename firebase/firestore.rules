@@ -315,7 +315,11 @@ service cloud.firestore {
 
       function isSoloCreate() {
         return request.resource.data.authorId == request.auth.uid &&
-          (request.resource.data.coAuthored != true);
+          request.resource.data.coAuthored != true &&
+          (!request.resource.data.keys().hasAny(['authorIds']) ||
+             request.resource.data.authorIds == [request.auth.uid]) &&
+          (!request.resource.data.keys().hasAny(['authors']) ||
+             request.resource.data.authors.size() == 0);
       }
       function isJointDraftCreate() {
         return request.resource.data.coAuthored == true &&
@@ -339,7 +343,11 @@ service cloud.firestore {
           request.resource.data.authors.diff(resource.data.authors).affectedKeys().hasOnly([request.auth.uid]);
       }
       allow update: if isAuthenticated() && (
-        (resource.data.authorId == request.auth.uid && resource.data.coAuthored != true) ||
+        (resource.data.authorId == request.auth.uid &&
+         resource.data.coAuthored != true &&
+         request.resource.data.coAuthored != true &&
+         !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['authorIds', 'authors', 'authorId', 'coAuthored'])) ||
         isOwnAuthorSlotUpdate()
       );
 
