@@ -15,6 +15,7 @@ import '../../../services/media_service.dart';
 import '../../auth/auth_providers.dart';
 import '../../../utils/haptic_manager.dart';
 import '../../../utils/offline_manager.dart';
+import 'widgets/joint_post_composer.dart';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Recap page – v2 design
@@ -42,6 +43,10 @@ class _RecapPageState extends ConsumerState<RecapPage> {
   final bool _postedToFeed = false;
   bool _privateSaveDone = false;
 
+  // Joint-post (two-human paired session) branch.
+  String? _jointDraftPostId;
+  bool _isCreatingJointDraft = false;
+
   @override
   void initState() {
     super.initState();
@@ -58,9 +63,65 @@ class _RecapPageState extends ConsumerState<RecapPage> {
           _session = session;
           _isLoading = false;
         });
+        if (_isTwoHumanPairedSession) {
+          // Joint sessions never fall back to a solo private post — the
+          // shared draft (created below) is the only post that can result.
+          _privateSaveDone = true;
+          unawaited(_ensureJointDraft());
+        }
       }
     } catch (_) {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  /// True when this was a paired session between two humans (excludes the
+  /// solo-with-bot-partner case and single-participant solo sessions). Such
+  /// sessions branch to the joint post composer instead of the solo share
+  /// flow below.
+  bool get _isTwoHumanPairedSession {
+    final session = _session;
+    if (session == null) return false;
+    return session.participants.length == 2 &&
+        !session.participants.contains(pairedBotFriendId);
+  }
+
+  /// Creates (or reuses, idempotently) the joint draft post for a two-human
+  /// paired session so [JointPostComposer] has something to stream. Both
+  /// authors are seeded with the recap's aggregate summary — the best
+  /// available approximation, since recap only has the combined session
+  /// summary rather than a truly per-author breakdown.
+  Future<void> _ensureJointDraft() async {
+    if (_jointDraftPostId != null ||
+        _isCreatingJointDraft ||
+        _session == null) {
+      return;
+    }
+    _isCreatingJointDraft = true;
+    final session = _session!;
+    final summary = session.summary ?? SessionSummary();
+    try {
+      final postService = ref.read(postServiceProvider);
+      final postId = await postService.createJointDraft(
+        sessionId: widget.sessionId,
+        type: session.type,
+        title: session.title,
+        authorIds: session.participants,
+        summaries: {
+          for (final uid in session.participants) uid: summary,
+        },
+      );
+      _isCreatingJointDraft = false;
+      if (mounted) {
+        setState(() => _jointDraftPostId = postId);
+      } else {
+        _jointDraftPostId = postId;
+      }
+    } catch (_) {
+      _isCreatingJointDraft = false;
+      // Best-effort; the loading state simply persists and a retry can be
+      // triggered again by a rebuild (e.g. re-entering recap).
+      if (mounted) setState(() {});
     }
   }
 
@@ -69,6 +130,11 @@ class _RecapPageState extends ConsumerState<RecapPage> {
   /// Best-effort, fire-and-forget; the session itself is already saved.
   void _savePrivatelyIfNeeded() {
     if (_createdPostId != null || _privateSaveDone || _session == null) return;
+    if (_isTwoHumanPairedSession) {
+      // A joint session must never also create a solo private post.
+      _privateSaveDone = true;
+      return;
+    }
     _privateSaveDone = true;
     final uid = ref.read(authSessionProvider).value?.id;
     if (uid == null) return;
@@ -232,7 +298,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
   // ── share / post ──────────────────────────────────────────────────────────
 
   Future<void> _handleShare() async {
-    if (_session == null) return;
+    if (_session == null || _isTwoHumanPairedSession) return;
 
     final uid = ref.read(authSessionProvider).value?.id;
     if (uid == null) return;
@@ -438,6 +504,20 @@ class _RecapPageState extends ConsumerState<RecapPage> {
           ),
         ),
       );
+    }
+
+    if (_isTwoHumanPairedSession) {
+      final draftId = _jointDraftPostId;
+      if (draftId == null) {
+        // Draft is being created (or retrying after a transient failure).
+        return Scaffold(
+          backgroundColor: AppColors.backgroundV2,
+          body: Center(
+            child: CircularProgressIndicator(color: AppColors.userAccent),
+          ),
+        );
+      }
+      return JointPostComposer(postId: draftId);
     }
 
     final session = _session!;
