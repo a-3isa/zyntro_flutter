@@ -20,6 +20,8 @@ void main() {
         NotificationType.friendStreakBroken: 'friend_streak_broken',
         NotificationType.friendStreakExtended: 'friend_streak_extended',
         NotificationType.turnChange: 'turn_change',
+        NotificationType.jointPostInvite: 'joint_post_invite',
+        NotificationType.jointPostExpired: 'joint_post_expired',
       };
 
       for (final entry in cases.entries) {
@@ -32,6 +34,23 @@ void main() {
       expect(
         NotificationTypeExtension.fromString('unsupported_event'),
         NotificationType.unknown,
+      );
+    });
+
+    test('joint-post invite and expiry types round-trip in snake_case', () {
+      // joint_post_expired is written server-side by
+      // expireStaleJointPostDrafts (functions/index.js) — the client must
+      // parse that exact snake_case string, not a camelCase variant.
+      expect(NotificationType.jointPostInvite.value, 'joint_post_invite');
+      expect(
+        NotificationTypeExtension.fromString('joint_post_invite'),
+        NotificationType.jointPostInvite,
+      );
+
+      expect(NotificationType.jointPostExpired.value, 'joint_post_expired');
+      expect(
+        NotificationTypeExtension.fromString('joint_post_expired'),
+        NotificationType.jointPostExpired,
       );
     });
   });

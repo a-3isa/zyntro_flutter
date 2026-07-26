@@ -687,6 +687,13 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
           await _openSessionNotification(sessionId, fallbackType: sessionType);
         }
         break;
+      case NotificationType.jointPostInvite:
+      case NotificationType.jointPostExpired:
+        final postId = data?['postId'] as String?;
+        if (postId != null) {
+          context.push('/post/$postId');
+        }
+        break;
     }
   }
 
@@ -721,6 +728,10 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         return Icons.heart_broken_rounded;
       case NotificationType.turnChange:
         return Icons.swap_horiz_rounded;
+      case NotificationType.jointPostInvite:
+        return Icons.group_add_rounded;
+      case NotificationType.jointPostExpired:
+        return Icons.hourglass_bottom_rounded;
     }
   }
 
@@ -753,6 +764,10 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         return Colors.grey;
       case NotificationType.turnChange:
         return AppColors.userAccent;
+      case NotificationType.jointPostInvite:
+        return AppColors.userAccent;
+      case NotificationType.jointPostExpired:
+        return Colors.orange;
     }
   }
 }

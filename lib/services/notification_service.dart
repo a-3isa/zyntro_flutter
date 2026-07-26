@@ -41,6 +41,8 @@ enum NotificationType {
   friendStreakBroken,
   friendStreakExtended,
   turnChange,
+  jointPostInvite,
+  jointPostExpired,
 }
 
 extension NotificationTypeExtension on NotificationType {
@@ -78,6 +80,10 @@ extension NotificationTypeExtension on NotificationType {
         return 'friend_streak_extended';
       case NotificationType.turnChange:
         return 'turn_change';
+      case NotificationType.jointPostInvite:
+        return 'joint_post_invite';
+      case NotificationType.jointPostExpired:
+        return 'joint_post_expired';
     }
   }
 
@@ -115,6 +121,10 @@ extension NotificationTypeExtension on NotificationType {
         return NotificationType.friendStreakExtended;
       case 'turn_change':
         return NotificationType.turnChange;
+      case 'joint_post_invite':
+        return NotificationType.jointPostInvite;
+      case 'joint_post_expired':
+        return NotificationType.jointPostExpired;
       default:
         return NotificationType.unknown;
     }
@@ -439,6 +449,18 @@ class NotificationService {
         }
         if (!navigatorContext.mounted) return;
         navigatorContext.push(AppRouteLocations.gymSessionSetup(sessionId));
+        return;
+      }
+
+      // Joint-post invite/expiry offers also carry sessionId (for context),
+      // but must never fall through to the generic live-session route below
+      // — the session itself may be long finished. Route to the post instead.
+      if (notificationType == 'joint_post_invite' ||
+          notificationType == 'joint_post_expired') {
+        final postId = data['postId'] as String?;
+        if (postId != null && navigatorContext.mounted) {
+          navigatorContext.push('/post/$postId');
+        }
         return;
       }
 
@@ -805,6 +827,12 @@ class NotificationService {
         // Turn alerts are core in-session gameplay, not a promotional bucket —
         // honour only the global pushEnabled switch (already checked above).
         return true;
+      case NotificationType.jointPostInvite:
+      case NotificationType.jointPostExpired:
+        // No dedicated preference bucket exists yet for joint-post
+        // notifications — mirrors the Cloud Function's recipientAllowsPush
+        // default (honour only the global pushEnabled switch checked above).
+        return true;
     }
   }
 
@@ -841,6 +869,36 @@ class NotificationService {
       recipientId: recipientId,
       data: data,
       rethrowOnFailure: true,
+    );
+  }
+
+  /// Notify a co-author's partner that a joint (two-author) session post is
+  /// ready for them to review and confirm.
+  /// CF-authoritative, same as [notifySessionInvite]: the Cloud Function is
+  /// the only writer of the in-app doc (clients cannot create cross-user
+  /// notifications directly — owner-only rule) and persists it under the
+  /// deterministic `joint_post_invite_<postId>` key, so a re-sent invite
+  /// refreshes the existing doc instead of duplicating it. `data` carries
+  /// `postId` + `sessionId` for the tap deep-link to the joint-post
+  /// confirmation screen.
+  Future<void> sendJointPostInvite({
+    required String recipientId,
+    required String fromName,
+    required String postId,
+    required String sessionId,
+  }) async {
+    final data = {
+      'type': NotificationType.jointPostInvite.value,
+      'postId': postId,
+      'sessionId': sessionId,
+      'fromName': fromName,
+      'byUserName': fromName,
+    };
+
+    await _deliverPushNotification(
+      type: NotificationType.jointPostInvite,
+      recipientId: recipientId,
+      data: data,
     );
   }
 

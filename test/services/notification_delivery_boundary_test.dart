@@ -20,4 +20,24 @@ void main() {
       expect(source, contains('NotificationType.newFollower'));
     },
   );
+
+  test(
+    'joint-post invite is sent through the same CF-authoritative push path',
+    () {
+      final source = File(
+        'lib/services/notification_service.dart',
+      ).readAsStringSync();
+
+      expect(source, contains('Future<void> sendJointPostInvite'));
+      expect(source, contains('required String recipientId'));
+      expect(source, contains('required String fromName'));
+      expect(source, contains('required String postId'));
+      expect(source, contains('required String sessionId'));
+      expect(source, contains('NotificationType.jointPostInvite'));
+      // No client-side doc write for the recipient — owner-only rule means
+      // only the Cloud Function (via _deliverPushNotification) can persist
+      // a cross-user notification.
+      expect(source, contains('_deliverPushNotification('));
+    },
+  );
 }
