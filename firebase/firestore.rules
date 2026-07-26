@@ -195,6 +195,16 @@ service cloud.firestore {
         getAfter(/databases/$(database)/documents/users/$(request.auth.uid)/joinedEvents/$(eventId)) != null;
     }
 
+    function isAnalyticsEventCreate() {
+      return isAuthenticated() &&
+        request.resource.data.diff({}).affectedKeys().hasOnly(['type', 'timestamp', 'userId', 'sessionId', 'hostId', 'partnerId', 'partnerKind', 'mode', 'workoutType', 'postId', 'originalSizeBytes', 'uploadDurationMs', 'finalSizeBytes', 'wasCompressed', 'compressionReductionPercent', 'errorType', 'errorMessage', 'attemptNumber', 'compressedSizeBytes', 'sizeReductionPercent', 'originalDimensions', 'planUserId', 'source', 'isReady', 'waitingOnPlan']) &&
+        request.resource.data.keys().hasAll(['type', 'timestamp']) &&
+        request.resource.data.type is string &&
+        request.resource.data.timestamp == request.time &&
+        (!request.resource.data.keys().hasAny(['userId']) || request.resource.data.userId == request.auth.uid) &&
+        (!request.resource.data.keys().hasAny(['hostId', 'partnerId']) || request.auth.uid in [request.resource.data.hostId, request.resource.data.partnerId]);
+    }
+
     match /users/{userId} {
       allow read: if isAuthenticated();
       allow create: if isOwner(userId) && !isPrivilegedUserCreate();
@@ -399,6 +409,13 @@ service cloud.firestore {
         request.resource.data.participants != null &&
         request.resource.data.participants.hasAny([request.auth.uid]);
       allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    match /analytics/{eventId} {
+      allow read: if isAuthenticated() &&
+        resource.data.userId == request.auth.uid;
+      allow create: if isAnalyticsEventCreate();
+      allow update, delete: if false;
     }
 
     match /pushQueue/{messageId} {

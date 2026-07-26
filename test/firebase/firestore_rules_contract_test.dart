@@ -125,6 +125,29 @@ void main() {
       );
     });
 
+    test('allow authenticated clients to create bounded analytics events', () {
+      expect(rules, contains('match /analytics/{eventId}'));
+      expect(rules, contains('function isAnalyticsEventCreate()'));
+      expect(
+        rules,
+        contains(
+          "request.resource.data.diff({}).affectedKeys().hasOnly(['type', 'timestamp', 'userId', 'sessionId', 'hostId', 'partnerId', 'partnerKind', 'mode', 'workoutType', 'postId', 'originalSizeBytes', 'uploadDurationMs', 'finalSizeBytes', 'wasCompressed', 'compressionReductionPercent', 'errorType', 'errorMessage', 'attemptNumber', 'compressedSizeBytes', 'sizeReductionPercent', 'originalDimensions', 'planUserId', 'source', 'isReady', 'waitingOnPlan'])",
+        ),
+      );
+      expect(
+        rules,
+        contains(
+          "(!request.resource.data.keys().hasAny(['userId']) || request.resource.data.userId == request.auth.uid)",
+        ),
+      );
+      expect(
+        rules,
+        contains(
+          "(!request.resource.data.keys().hasAny(['hostId', 'partnerId']) || request.auth.uid in [request.resource.data.hostId, request.resource.data.partnerId])",
+        ),
+      );
+    });
+
     test('post comments and reactions bind created identity to auth user', () {
       expect(
         rules,
