@@ -46,6 +46,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
   // Joint-post (two-human paired session) branch.
   String? _jointDraftPostId;
   bool _isCreatingJointDraft = false;
+  String? _jointDraftError;
 
   @override
   void initState() {
@@ -113,16 +114,30 @@ class _RecapPageState extends ConsumerState<RecapPage> {
       );
       _isCreatingJointDraft = false;
       if (mounted) {
-        setState(() => _jointDraftPostId = postId);
+        setState(() {
+          _jointDraftPostId = postId;
+          _jointDraftError = null;
+        });
       } else {
         _jointDraftPostId = postId;
+        _jointDraftError = null;
       }
-    } catch (_) {
+    } catch (e) {
       _isCreatingJointDraft = false;
-      // Best-effort; the loading state simply persists and a retry can be
-      // triggered again by a rebuild (e.g. re-entering recap).
-      if (mounted) setState(() {});
+      // Recoverable: surface an error with a retry action rather than
+      // stranding the user on an indefinite spinner.
+      if (mounted) {
+        setState(() => _jointDraftError = 'Could not start your joint post.');
+      } else {
+        _jointDraftError = 'Could not start your joint post.';
+      }
     }
+  }
+
+  /// Clears the last joint-draft error and retries creation.
+  void _retryJointDraft() {
+    setState(() => _jointDraftError = null);
+    unawaited(_ensureJointDraft());
   }
 
   /// Persist the workout as a private post (visible only to the owner, shown
@@ -508,16 +523,52 @@ class _RecapPageState extends ConsumerState<RecapPage> {
 
     if (_isTwoHumanPairedSession) {
       final draftId = _jointDraftPostId;
-      if (draftId == null) {
-        // Draft is being created (or retrying after a transient failure).
-        return Scaffold(
+      Widget jointBody;
+      if (draftId != null) {
+        jointBody = JointPostComposer(postId: draftId);
+      } else if (_jointDraftError != null) {
+        jointBody = Scaffold(
+          backgroundColor: AppColors.backgroundV2,
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    _jointDraftError!,
+                    textAlign: TextAlign.center,
+                    style: AppTextStyles.body.copyWith(
+                      color: AppColors.textV2Secondary,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  _GhostButton(
+                    label: 'Retry',
+                    onTap: _retryJointDraft,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      } else {
+        // Draft creation is in flight.
+        jointBody = Scaffold(
           backgroundColor: AppColors.backgroundV2,
           body: Center(
             child: CircularProgressIndicator(color: AppColors.userAccent),
           ),
         );
       }
-      return JointPostComposer(postId: draftId);
+      return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) {
+          if (didPop) return;
+          _goHome();
+        },
+        child: jointBody,
+      );
     }
 
     final session = _session!;

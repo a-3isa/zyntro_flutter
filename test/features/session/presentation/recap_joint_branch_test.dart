@@ -181,6 +181,64 @@ void main() {
   );
 
   testWidgets(
+    'a failed joint draft creation shows a retry button that recovers',
+    (tester) async {
+      final session = _buildSession(
+        participants: [kSelfId, kPartnerId],
+        partnerKind: PairedPartnerKind.realFriend,
+      );
+      when(() => sessionService.getSession(kSessionId))
+          .thenAnswer((_) async => session);
+
+      var callCount = 0;
+      when(
+        () => postService.createJointDraft(
+          sessionId: any(named: 'sessionId'),
+          type: any(named: 'type'),
+          title: any(named: 'title'),
+          authorIds: any(named: 'authorIds'),
+          summaries: any(named: 'summaries'),
+        ),
+      ).thenAnswer((_) async {
+        callCount += 1;
+        if (callCount == 1) {
+          throw Exception('network error');
+        }
+        return kDraftId;
+      });
+
+      await tester.pumpWidget(
+        _buildApp(router: _buildRouter(), overrides: overrides()),
+      );
+      // Flush: getSession -> setState -> createJointDraft (fails) -> setState.
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byType(JointPostComposer), findsNothing);
+      expect(find.text('Retry'), findsOneWidget);
+
+      await tester.tap(find.text('Retry'));
+      // Flush: retry clears error -> createJointDraft (succeeds) -> setState.
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byType(JointPostComposer), findsOneWidget);
+      expect(find.text('Retry'), findsNothing);
+      verify(
+        () => postService.createJointDraft(
+          sessionId: any(named: 'sessionId'),
+          type: any(named: 'type'),
+          title: any(named: 'title'),
+          authorIds: any(named: 'authorIds'),
+          summaries: any(named: 'summaries'),
+        ),
+      ).called(2);
+    },
+  );
+
+  testWidgets(
     'a bot-partner session renders the existing solo share UI',
     (tester) async {
       final session = _buildSession(
