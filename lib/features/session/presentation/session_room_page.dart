@@ -2985,7 +2985,6 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     final session = ref
         .watch(currentSessionProvider(widget.sessionId))
         .value;
-    final isBotPartner = session?.partnerKind == PairedPartnerKind.bot;
     final inviteStatus = session?.invitationStatus;
     final setupStatusChip = session?.phase == SessionPhase.setup
         ? Container(
@@ -3006,42 +3005,6 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
             ),
           )
         : null;
-
-    Widget buildWorkoutBadge({bool compact = false}) {
-      final label = Text(
-        _workoutType.displayName.toUpperCase(),
-        overflow: compact ? TextOverflow.ellipsis : TextOverflow.clip,
-        style: TextStyle(
-          color: AppColors.userAccent,
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 1.5,
-        ),
-      );
-
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: AppColors.userAccent.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: AppColors.userAccent.withValues(alpha: 0.3),
-            width: 1,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              _workoutTypeEmoji(_workoutType),
-              style: const TextStyle(fontSize: 13),
-            ),
-            const SizedBox(width: 6),
-            if (compact) Flexible(child: label) else label,
-          ],
-        ),
-      );
-    }
 
     Widget buildCompactTimer() {
       final h = _elapsedTime.inHours;
@@ -3081,35 +3044,6 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       );
     }
 
-    final botChip = isBotPartner
-        ? Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceV2,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: AppColors.surfaceV2Active),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.smart_toy_outlined,
-                  color: AppColors.userAccent,
-                  size: 15,
-                ),
-                SizedBox(width: 6),
-                Text(
-                  'Zyntro Bot',
-                  style: TextStyle(
-                    color: AppColors.textV2Primary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          )
-        : null;
     final isInviteUnanswered =
         inviteStatus == WorkoutInvitationStatus.declined ||
         inviteStatus == WorkoutInvitationStatus.expired;
@@ -3199,66 +3133,65 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       ),
     );
 
+    final participants = session?.participants ?? const <String>[];
+    final avatars = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final id in participants) ...[
+          _buildHeaderAvatar(id, session),
+          const SizedBox(width: 8),
+        ],
+        // Surface only states that need attention (declined / expired invite,
+        // or "waiting for plans") — everything else is minimal, C-style. Each
+        // avatar already emits a trailing gap, so no extra spacer is needed.
+        ?inviteStatusChip,
+        if (setupStatusChip != null) ...[
+          const SizedBox(width: 8),
+          setupStatusChip,
+        ],
+      ],
+    );
+
     return Container(
       padding: EdgeInsets.only(
         top: MediaQuery.paddingOf(context).top + 12,
         bottom: 12,
-        left: 20,
-        right: 20,
+        left: 16,
+        right: 16,
       ),
       color: AppColors.backgroundV2,
       child: LayoutBuilder(
         builder: (context, constraints) {
           final isCompactHeader = constraints.maxWidth < 420;
           if (isCompactHeader) {
+            // Narrow: let the avatar/status cluster scroll horizontally rather
+            // than squeeze, so the timer and End button stay put.
             return Row(
               children: [
-                Expanded(
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: constraints.maxWidth * 0.42,
+                  ),
                   child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        buildWorkoutBadge(),
-                        if (botChip != null) ...[
-                          const SizedBox(width: 8),
-                          botChip,
-                        ],
-                        if (inviteStatusChip != null) ...[
-                          const SizedBox(width: 8),
-                          inviteStatusChip,
-                        ],
-                        if (setupStatusChip != null) ...[
-                          const SizedBox(width: 8),
-                          setupStatusChip,
-                        ],
-                      ],
-                    ),
+                    child: avatars,
                   ),
                 ),
-                const SizedBox(width: 8),
+                const Spacer(),
                 buildCompactTimer(),
+                const Spacer(),
                 const SizedBox(width: 8),
                 endButton,
               ],
             );
           }
-
           return Row(
             children: [
-              buildWorkoutBadge(),
-              if (botChip != null) ...[const SizedBox(width: 8), botChip],
-              if (inviteStatusChip != null) ...[
-                const SizedBox(width: 8),
-                inviteStatusChip,
-              ],
-              if (setupStatusChip != null) ...[
-                const SizedBox(width: 8),
-                setupStatusChip,
-              ],
+              avatars,
               const Spacer(),
               buildCompactTimer(),
-              const SizedBox(width: 10),
+              const Spacer(),
+              const SizedBox(width: 8),
               endButton,
             ],
           );
@@ -3267,18 +3200,101 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     );
   }
 
+  /// Header avatar for C-style top bar. Active participant (whose turn it is,
+  /// or logging in the last 2 min) gets an accent ring + green live dot.
+  Widget _buildHeaderAvatar(String userId, Session? session) {
+    final currentUid = ref.read(authSessionProvider).value?.id;
+    final isSelf = userId == currentUid;
+    final isBot = userId == pairedBotFriendId;
+    final active =
+        session?.activeUserId == userId ||
+        (_participantProgress[userId]?.isActive ?? false);
+    final cachedUser = isSelf || isBot
+        ? null
+        : ref.read(userCacheServiceProvider).getUserSync(userId);
+    if (!isSelf &&
+        !isBot &&
+        cachedUser == null &&
+        _requestedParticipantNames.add(userId)) {
+      ref.read(userCacheServiceProvider).getUser(userId).then((_) {
+        if (mounted) setState(() {});
+      });
+    }
+    final label = isSelf
+        ? 'Y'
+        : isBot
+        ? 'B'
+        : ((cachedUser?.displayName ?? '?').trim().isNotEmpty
+              ? cachedUser!.displayName.trim()[0].toUpperCase()
+              : '?');
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: active
+            ? Border.all(color: AppColors.userAccent, width: 2)
+            : null,
+      ),
+      padding: const EdgeInsets.all(2),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          CircleAvatar(
+            radius: 15,
+            backgroundColor: AppColors.surfaceV2Active,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textV2Primary,
+              ),
+            ),
+          ),
+          if (active)
+            Positioned(
+              right: -1,
+              bottom: -1,
+              child: Container(
+                width: 9,
+                height: 9,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF34D399),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.backgroundV2, width: 2),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Small per-set panel shown directly under the C-style top bar: for the
+  /// current exercise, each participant's sets side by side as
+  /// weight × reps · time, with dim placeholders for planned-but-undone sets.
   Widget _buildV2ProgressRow(BuildContext context) {
     final session = ref
         .watch(currentSessionProvider(widget.sessionId))
         .value;
-    if (session == null || session.participants.isEmpty) {
+    if (session == null || session.participants.length < 2) {
       return const SizedBox.shrink();
     }
 
+    final exerciseName =
+        _currentTurnExercise ??
+        _currentExercise ??
+        (_plannedExercises.isNotEmpty ? _plannedExercises.first.name : '');
+    if (exerciseName.isEmpty) return const SizedBox.shrink();
+
+    final events =
+        ref.watch(sessionEventsProvider(widget.sessionId)).value ??
+        const <TimelineEvent>[];
+    final match = _plannedExercises.where((e) => e.name == exerciseName);
+    final plannedSets = match.isNotEmpty ? match.first.plannedSets : 3;
     final participants = session.participants;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
       decoration: BoxDecoration(
         color: AppColors.surfaceV2,
         border: Border(
@@ -3288,26 +3304,52 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           ),
         ),
       ),
-      // Active state is conveyed by each chip's color (accent border + green
-      // dot), so the separate "N active" badge is redundant and removed.
-      child: SizedBox(
-        height: 38,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          physics: const BouncingScrollPhysics(),
-          itemCount: participants.length,
-          separatorBuilder: (_, _) => const SizedBox(width: 8),
-          itemBuilder: (context, index) =>
-              _buildParticipantActivityChip(participants[index]),
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 2, bottom: 6),
+            child: Text(
+              exerciseName.toUpperCase(),
+              style: const TextStyle(
+                color: AppColors.textV2Secondary,
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.1,
+              ),
+            ),
+          ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var i = 0; i < participants.length; i++) ...[
+                if (i > 0) const SizedBox(width: 8),
+                Expanded(
+                  child: _buildSetColumn(
+                    participants[i],
+                    exerciseName,
+                    plannedSets,
+                    events,
+                    session,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  /// Compact live card for one participant: avatar (+ pulse dot when active),
-  /// name, and current exercise with the weight/reps of their latest set.
-  Widget _buildParticipantActivityChip(String userId) {
-    final progress = _participantProgress[userId];
+  /// One participant's set column for [exerciseName]: header (avatar + name)
+  /// then [plannedSets] compact rows, filled from their logged sets.
+  Widget _buildSetColumn(
+    String userId,
+    String exerciseName,
+    int plannedSets,
+    List<TimelineEvent> events,
+    Session session,
+  ) {
     final currentUid = ref.read(authSessionProvider).value?.id;
     final isSelf = userId == currentUid;
     final isBot = userId == pairedBotFriendId;
@@ -3318,8 +3360,6 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         !isBot &&
         cachedUser == null &&
         _requestedParticipantNames.add(userId)) {
-      // Cache miss: fetch once and rebuild so the name replaces the fallback.
-      // The guard set stops a refetch loop when the user doc doesn't exist.
       ref.read(userCacheServiceProvider).getUser(userId).then((_) {
         if (mounted) setState(() {});
       });
@@ -3328,125 +3368,123 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         ? 'You'
         : isBot
         ? 'Bot'
-        : (cachedUser?.displayName ?? 'Buddy');
-    final firstName = name.split(' ').first;
-    final isActive = progress?.isActive ?? false;
+        : (cachedUser?.displayName.split(' ').first ?? 'Buddy');
+    final active =
+        session.activeUserId == userId ||
+        (_participantProgress[userId]?.isActive ?? false);
 
-    final String detail;
-    if (progress == null) {
-      detail = 'Not started';
-    } else if (progress.currentExercise.isNotEmpty) {
-      final parts = <String>[progress.currentExercise];
-      final seconds = progress.lastSetSeconds;
-      if (seconds != null && seconds > 0) {
-        parts.add(
-          seconds >= 60
-              ? '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}'
-              : '${seconds}s',
-        );
-      }
-      if (progress.lastWeight != null && progress.lastReps != null) {
-        parts.add(
-          '${progress.lastWeight!.toStringAsFixed(0)}kg×${progress.lastReps}',
-        );
-      }
-      detail = parts.join(' · ');
-    } else if (progress.totalDistance > 0) {
-      detail = '${progress.totalDistance.toStringAsFixed(2)}km';
-    } else {
-      detail = 'Not started';
+    // Logged sets for this exercise, oldest first.
+    final sets = events
+        .where(
+          (e) =>
+              e.type == SessionEventType.setLogged &&
+              e.userId == userId &&
+              (e.data?['exercise'] as String?) == exerciseName,
+        )
+        .toList()
+      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+
+    String rowText(int i) {
+      if (i >= sets.length) return '—';
+      final d = sets[i].data ?? const {};
+      final w = (d['weight'] as num?)?.toStringAsFixed(0) ?? '0';
+      final r = (d['reps'] as num?)?.toInt() ?? 0;
+      final secs = (d['durationSeconds'] as num?)?.toInt() ?? 0;
+      final t = secs >= 60
+          ? '${secs ~/ 60}:${(secs % 60).toString().padLeft(2, '0')}'
+          : '${secs}s';
+      return '${w}kg × $r · $t';
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: isActive
-            ? AppColors.userAccent.withValues(alpha: 0.1)
+        color: active
+            ? AppColors.userAccent.withValues(alpha: 0.08)
             : AppColors.surfaceV2Elevated,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isActive
+          color: active
               ? AppColors.userAccent.withValues(alpha: 0.4)
               : AppColors.borderDarkSecondary,
         ),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Stack(
-            clipBehavior: Clip.none,
+          Row(
             children: [
-              CircleAvatar(
-                radius: 11,
-                backgroundColor: AppColors.surfaceV2Active,
+              Container(
+                width: 6,
+                height: 6,
+                margin: const EdgeInsets.only(right: 6),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: active
+                      ? const Color(0xFF34D399)
+                      : AppColors.textV2Tertiary,
+                ),
+              ),
+              Expanded(
                 child: Text(
-                  firstName.isNotEmpty ? firstName[0].toUpperCase() : '?',
-                  style: const TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textV2Primary,
+                  name,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: active
+                        ? AppColors.userAccent
+                        : AppColors.textV2Primary,
                   ),
                 ),
               ),
-              if (isActive)
-                Positioned(
-                  right: -1,
-                  bottom: -1,
-                  child: Container(
-                    width: 7,
-                    height: 7,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF34D399),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: AppColors.surfaceV2,
-                        width: 1.5,
+              Text(
+                '${sets.length.clamp(0, plannedSets)}/$plannedSets',
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: AppColors.textV2Secondary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          for (var i = 0; i < plannedSets; i++)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 3),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 26,
+                    child: Text(
+                      'S${i + 1}',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: AppColors.textV2Tertiary,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
-                ),
-            ],
-          ),
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                firstName,
-                style: const TextStyle(
-                  color: AppColors.textV2Primary,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                ),
+                  Expanded(
+                    child: Text(
+                      rowText(i),
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                        color: i < sets.length
+                            ? AppColors.textV2Primary
+                            : AppColors.textV2Tertiary,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              Text(
-                detail,
-                style: const TextStyle(
-                  color: AppColors.textV2Tertiary,
-                  fontSize: 10,
-                ),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-              ),
-            ],
-          ),
+            ),
         ],
       ),
     );
   }
 
-  String _workoutTypeEmoji(WorkoutType type) {
-    if (type == WorkoutType.running || type == WorkoutType.walking) {
-      return '\u{1F3C3}';
-    }
-    if (type == WorkoutType.cycling) return '\u{1F6B4}';
-    if (type == WorkoutType.swimming) return '\u{1F3CA}';
-    if (type == WorkoutType.yoga) return '\u{1F9D8}';
-    if (type == WorkoutType.hiit) return '⚡';
-    if (type == WorkoutType.sports) return '⚽';
-    return '\u{1F4AA}';
-  }
 
   /// Format elapsed duration as HH:MM:SS
   String _formatElapsedTime(Duration duration) {
