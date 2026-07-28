@@ -108,6 +108,10 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
   }
 
   Widget _buildFullCard(BuildContext context) {
+    if (widget.post.coAuthored) {
+      return _buildJointFullCard(context);
+    }
+
     final authState = ref.read(authSessionProvider);
     final currentUserId = authState.value?.id;
     final isOwnPost = currentUserId == widget.post.authorId;
@@ -519,6 +523,287 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
         ),
       ),
     );
+  }
+
+  /// Renders a co-authored ("joint") post: a "{A} with {B}" header with
+  /// stacked avatars, both authors' photos side by side, both captions
+  /// attributed to their author, and an expandable "Session activity"
+  /// section with both authors' summaries. Authors marked `removed` on
+  /// their slot are skipped entirely.
+  Widget _buildJointFullCard(BuildContext context) {
+    final userCache = ref.watch(userCacheServiceProvider);
+
+    final allAuthorIds = widget.post.authorIds.isNotEmpty
+        ? widget.post.authorIds
+        : widget.post.authors.keys.toList();
+    final activeAuthorIds = allAuthorIds
+        .where((uid) => widget.post.authors[uid]?.removed != true)
+        .toList();
+
+    String nameFor(String uid) =>
+        userCache.getUserSync(uid)?.displayName ?? 'User';
+
+    final headerTitle = activeAuthorIds.isEmpty
+        ? widget.post.title
+        : activeAuthorIds.length == 1
+            ? nameFor(activeAuthorIds.first)
+            : '${nameFor(activeAuthorIds.first)} with '
+                '${activeAuthorIds.skip(1).map(nameFor).join(', ')}';
+
+    return RepaintBoundary(
+      child: Card(
+        key: const ValueKey('joint_post_card'),
+        margin: const EdgeInsets.only(bottom: AppSpacing.lg),
+        child: InkWell(
+          onTap:
+              widget.onTap ?? () => context.push('/post/${widget.post.id}'),
+          borderRadius: BorderRadius.circular(AppBorderRadius.md),
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (widget.showAuthorHeader)
+                  Row(
+                    children: [
+                      SizedBox(
+                        width: 40 + 24.0 * (activeAuthorIds.length - 1),
+                        height: 40,
+                        child: Stack(
+                          children: [
+                            for (var i = 0; i < activeAuthorIds.length; i++)
+                              Positioned(
+                                left: 24.0 * i,
+                                child: FluttermojiAvatar(
+                                  photoUrl: userCache
+                                      .getUserSync(activeAuthorIds[i])
+                                      ?.photoURL,
+                                  displayName: nameFor(activeAuthorIds[i]),
+                                  size: 40,
+                                  showGradientBorder: false,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.md),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              headerTitle,
+                              key: const ValueKey('joint_post_card_header'),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              timeago.format(widget.post.createdAt),
+                              style: TextStyle(
+                                fontSize: AppFontSize.sm,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurface
+                                    .withValues(alpha: 0.6),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+
+                if (widget.showAuthorHeader)
+                  const SizedBox(height: AppSpacing.md),
+
+                // Title
+                Text(
+                  widget.post.title,
+                  style: const TextStyle(
+                    fontSize: AppFontSize.lg,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+
+                // Both authors' photos, side by side.
+                Row(
+                  children: [
+                    for (final uid in activeAuthorIds)
+                      _buildJointPhotoTile(context, uid),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.md),
+
+                // Both authors' captions, attributed.
+                for (final uid in activeAuthorIds) _buildJointCaption(uid),
+                if (activeAuthorIds.isNotEmpty)
+                  const SizedBox(height: AppSpacing.sm),
+
+                // Expandable "Session activity" showing both summaries.
+                Theme(
+                  data: Theme.of(context).copyWith(
+                    dividerColor: Colors.transparent,
+                  ),
+                  child: ExpansionTile(
+                    key: const ValueKey('joint_post_card_activity'),
+                    tilePadding: EdgeInsets.zero,
+                    title: const Text('Session activity'),
+                    children: [
+                      for (final uid in activeAuthorIds)
+                        ListTile(
+                          key: ValueKey('joint_post_card_activity_$uid'),
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(nameFor(uid)),
+                          subtitle: Text(
+                            _jointSummaryLine(
+                              widget.post.authors[uid]?.summary,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: AppSpacing.md),
+
+                // Actions - Reaction buttons
+                if (widget.showReactions)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _isLoadingReactions
+                            ? const SizedBox(height: 40)
+                            : ReactionButtons(
+                                postId: widget.post.id,
+                                currentReaction: _userReaction,
+                                reactionCounts: _reactionCounts,
+                                onReactionTap: _handleReaction,
+                              ),
+                      ),
+                      const SizedBox(width: AppSpacing.md),
+                      if (FeatureFlags.isCommentsEnabled)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.comment_outlined),
+                              onPressed: () =>
+                                  context.push('/post/${widget.post.id}'),
+                            ),
+                            Text('${widget.post.commentsCount}'),
+                          ],
+                        ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// A single author's photo tile in the joint card's side-by-side media
+  /// row: their `authors[uid].photoUrl` when set, otherwise their profile
+  /// picture (via [FluttermojiAvatar], same fallback used for the solo
+  /// header avatar) so the tile is never left blank.
+  Widget _buildJointPhotoTile(BuildContext context, String uid) {
+    final userCache = ref.watch(userCacheServiceProvider);
+    final user = userCache.getUserSync(uid);
+    final displayName = user?.displayName ?? 'User';
+    final photoUrl = widget.post.authors[uid]?.photoUrl;
+    final height = context.responsive(mobile: 180.0, desktop: 220.0);
+    final hasPhoto = photoUrl != null && photoUrl.isNotEmpty;
+
+    return Expanded(
+      child: Container(
+        key: ValueKey('joint_post_card_photo_$uid'),
+        height: height,
+        margin: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceV2Elevated,
+          borderRadius: BorderRadius.circular(AppBorderRadius.md),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(AppBorderRadius.md),
+          child: hasPhoto
+              ? CachedNetworkImage(
+                  cacheManager: ZyntroImageCacheManager(),
+                  imageUrl: photoUrl,
+                  fit: BoxFit.cover,
+                  placeholder: (context, url) => Container(
+                    color: AppColors.surfaceV2,
+                  ),
+                  errorWidget: (context, url, error) => Center(
+                    child: FluttermojiAvatar(
+                      photoUrl: user?.photoURL,
+                      displayName: displayName,
+                      size: 56,
+                      showGradientBorder: false,
+                    ),
+                  ),
+                )
+              : Center(
+                  child: FluttermojiAvatar(
+                    photoUrl: user?.photoURL,
+                    displayName: displayName,
+                    size: 56,
+                    showGradientBorder: false,
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+
+  /// One author's attributed caption line in the joint card. Renders
+  /// nothing when that author left no caption.
+  Widget _buildJointCaption(String uid) {
+    final userCache = ref.watch(userCacheServiceProvider);
+    final name = userCache.getUserSync(uid)?.displayName ?? 'User';
+    final caption = widget.post.authors[uid]?.caption;
+    if (caption == null || caption.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      key: ValueKey('joint_post_card_caption_$uid'),
+      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+      child: RichText(
+        text: TextSpan(
+          style: DefaultTextStyle.of(context).style,
+          children: [
+            TextSpan(
+              text: '$name: ',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            TextSpan(text: caption),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Short human-readable summary of one author's session slot, for the
+  /// "Session activity" expandable section.
+  String _jointSummaryLine(SessionSummary? summary) {
+    if (summary == null) return 'No activity recorded';
+    final parts = <String>[];
+    if (summary.totalExercises != null) {
+      parts.add('${summary.totalExercises} exercises');
+    }
+    if (summary.totalSets != null) {
+      parts.add('${summary.totalSets} sets');
+    }
+    if (summary.duration != null) {
+      parts.add(summary.duration!);
+    }
+    if (summary.distance != null) {
+      parts.add('${summary.distance} km');
+    }
+    return parts.isEmpty ? 'No activity recorded' : parts.join(' • ');
   }
 
   Widget _buildCompactCard(BuildContext context) {
