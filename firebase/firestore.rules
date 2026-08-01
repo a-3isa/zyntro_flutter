@@ -179,6 +179,18 @@ service cloud.firestore {
       return existsAfter(path) && hasParticipant(getAfter(path).data.participants, request.auth.uid);
     }
 
+    // True when sessions/{sessionId} exists AND its participants array contains
+    // every uid in userIds. Unlike isSessionMember this reads the session's
+    // CURRENT state (exists/get, not existsAfter/getAfter) because the caller is
+    // writing a different collection entirely — the session is not part of the
+    // same write.
+    function sessionHasAllParticipants(sessionId, userIds) {
+      let path = /databases/$(database)/documents/sessions/$(sessionId);
+      return exists(path) &&
+        get(path).data.participants != null &&
+        get(path).data.participants.hasAll(userIds);
+    }
+
     function isBotSessionHost(sessionId) {
       let path = /databases/$(database)/documents/sessions/$(sessionId);
       return existsAfter(path) &&
@@ -321,26 +333,59 @@ service cloud.firestore {
           (!request.resource.data.keys().hasAny(['authors']) ||
              request.resource.data.authors.size() == 0);
       }
+      // A joint draft may only be created by someone who actually shared the
+      // named session with the other author.
+      //
+      // ATTACK THIS PREVENTS (without the sessionHasAllParticipants check a
+      // malicious client could create a coAuthored draft naming ANY other user
+      // as co-author — no shared session required — and that draft would then
+      // surface to the victim as a "post it together?" invite, and could reach
+      // the victim's own profile grid once published): the session must exist
+      // and its participants array must contain BOTH authorIds.
       function isJointDraftCreate() {
         return request.resource.data.coAuthored == true &&
           request.resource.data.status == 'draft' &&
           request.resource.data.authorIds.size() == 2 &&
           request.resource.data.authorIds.hasAny([request.auth.uid]) &&
           request.resource.data.authors.keys().hasAll(request.resource.data.authorIds) &&
-          request.resource.data.authorIds.hasAll(request.resource.data.authors.keys());
+          request.resource.data.authorIds.hasAll(request.resource.data.authors.keys()) &&
+          request.resource.data.sessionId is string &&
+          sessionHasAllParticipants(
+            request.resource.data.sessionId,
+            request.resource.data.authorIds
+          );
       }
       allow create: if isAuthenticated() && (isSoloCreate() || isJointDraftCreate());
 
-      function frozenPostFields() {
-        return ['authorIds', 'coAuthored', 'sessionId', 'authorId'];
-      }
+      // The ONLY top-level field a client may change on a co-authored post is
+      // the `authors` map, and inside it only their own slot.
+      //
+      // ATTACK THIS PREVENTS: an earlier version enumerated frozen fields
+      // (authorIds/coAuthored/sessionId/authorId/status) instead of constraining
+      // the whole top-level diff. That made the inner
+      // `authors.diff(...).hasOnly([uid])` check vacuously true whenever the
+      // write's real diff landed on some OTHER top-level field — so a co-author
+      // could raw-write `visibility: 'public'` alone on a published joint post
+      // (defeating the "if either author picks private the post is private"
+      // rule) or rewrite title/summary/mediaURLs/likesCount at will.
+      // hasOnly(['authors']) freezes every one of those by construction, and
+      // still blocks a client-side publish because `status` is not in the list.
       function isOwnAuthorSlotUpdate() {
-        // Only this author's authors.<uid>.* changed; identity + status frozen.
         return resource.data.coAuthored == true &&
           request.resource.data.authorIds.hasAny([request.auth.uid]) &&
-          !request.resource.data.diff(resource.data).affectedKeys().hasAny(frozenPostFields()) &&
-          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status']) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['authors']) &&
           request.resource.data.authors.diff(resource.data.authors).affectedKeys().hasOnly([request.auth.uid]);
+      }
+
+      // Engagement counters on a joint post, at exact parity with the solo
+      // branch below (which lets only the post's own author touch non-identity
+      // fields, counters included). Callers who are not an author of the post
+      // are denied here exactly as a non-owner is denied on a solo post.
+      function isJointAuthorCounterUpdate() {
+        return resource.data.coAuthored == true &&
+          resource.data.authorIds.hasAny([request.auth.uid]) &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['likesCount', 'commentsCount']);
       }
       allow update: if isAuthenticated() && (
         (resource.data.authorId == request.auth.uid &&
@@ -348,7 +393,8 @@ service cloud.firestore {
          request.resource.data.coAuthored != true &&
          !request.resource.data.diff(resource.data).affectedKeys()
             .hasAny(['authorIds', 'authors', 'authorId', 'coAuthored'])) ||
-        isOwnAuthorSlotUpdate()
+        isOwnAuthorSlotUpdate() ||
+        isJointAuthorCounterUpdate()
       );
 
       allow delete: if isAuthenticated() && resource.data.authorId == request.auth.uid

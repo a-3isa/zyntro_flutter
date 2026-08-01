@@ -2,6 +2,12 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+/// NOTE: these are *source-text* contracts — they prove a predicate is present
+/// in firebase/firestore.rules, not that it behaves correctly at runtime. The
+/// behavioral counterpart lives in `test/rules/posts_joint.rules.test.mjs`
+/// (@firebase/rules-unit-testing against the Firestore emulator); run it with
+/// `cd test/rules && npm install && npm test`. Any change to the co-authored
+/// post rules should be covered there, not just here.
 void main() {
   group('firestore rules contracts', () {
     late String rules;
@@ -159,11 +165,33 @@ void main() {
     test('posts rules gate joint draft create + own-slot-only update + no client publish', () {
       expect(rules, contains('isJointDraftCreate()'));
       expect(rules, contains('isOwnAuthorSlotUpdate()'));
-      // client can never set status on a coAuthored post:
+      // The joint update branch constrains the FULL top-level diff to
+      // ['authors'], which is what keeps `status` (client publish),
+      // `visibility` (private-wins bypass), and the identity fields frozen.
       expect(
         rules,
         contains(
-          "!request.resource.data.diff(resource.data).affectedKeys().hasAny(['status'])",
+          "request.resource.data.diff(resource.data).affectedKeys().hasOnly(['authors'])",
+        ),
+      );
+    });
+
+    test('joint draft create requires both authors to be session participants', () {
+      expect(rules, contains('function sessionHasAllParticipants(sessionId, userIds)'));
+      expect(rules, contains('get(path).data.participants.hasAll(userIds)'));
+      final idx = rules.indexOf('function isJointDraftCreate()');
+      expect(idx, isNonNegative);
+      final section = rules.substring(idx, rules.indexOf('allow create:', idx));
+      expect(section, contains('request.resource.data.sessionId is string'));
+      expect(section, contains('sessionHasAllParticipants('));
+    });
+
+    test('joint engagement counters stay at parity with the solo owner branch', () {
+      expect(rules, contains('function isJointAuthorCounterUpdate()'));
+      expect(
+        rules,
+        contains(
+          "resource.data.authorIds.hasAny([request.auth.uid]) &&\n          request.resource.data.diff(resource.data).affectedKeys()\n            .hasOnly(['likesCount', 'commentsCount'])",
         ),
       );
     });
@@ -221,12 +249,15 @@ void main() {
       final idx = rules.indexOf('match /posts/{postId}');
       expect(idx, isNonNegative);
       final section = rules.substring(idx, rules.indexOf('match /follows/{followId}'));
+      // The whole top-level diff is pinned to `authors` — enumerating frozen
+      // fields was vacuously satisfiable when the real diff hit another field.
       expect(
         section,
         contains(
-          "return ['authorIds', 'coAuthored', 'sessionId', 'authorId'];",
+          "request.resource.data.diff(resource.data).affectedKeys().hasOnly(['authors'])",
         ),
       );
+      expect(section, isNot(contains('frozenPostFields()')));
       expect(
         section,
         contains(

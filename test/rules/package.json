@@ -1,0 +1,14 @@
+{
+  "name": "zyntro-firestore-rules-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Behavioral (emulator-backed) tests for firebase/firestore.rules",
+  "type": "module",
+  "scripts": {
+    "test": "firebase emulators:exec --only firestore --project demo-zyntro \"node --test --test-reporter=spec posts_joint.rules.test.mjs\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "firebase": "^11.10.0"
+  }
+}
