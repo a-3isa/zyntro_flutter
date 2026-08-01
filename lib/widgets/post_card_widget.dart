@@ -540,6 +540,11 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
         .where((uid) => widget.post.authors[uid]?.removed != true)
         .toList();
 
+    final authState = ref.read(authSessionProvider);
+    final currentUserId = authState.value?.id;
+    final isActiveAuthor =
+        currentUserId != null && activeAuthorIds.contains(currentUserId);
+
     String nameFor(String uid) =>
         userCache.getUserSync(uid)?.displayName ?? 'User';
 
@@ -611,6 +616,43 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
                           ],
                         ),
                       ),
+                      // Overflow menu, scoped to a single "remove my slot"
+                      // action for a caller who is still an active author
+                      // on this joint post. No report/block parity with the
+                      // solo overflow menu is required here.
+                      if (widget.showOverflowMenu && isActiveAuthor)
+                        Semantics(
+                          label: 'Post Options',
+                          button: true,
+                          child: PopupMenuButton<String>(
+                            icon: const Icon(Icons.more_vert),
+                            onSelected: (value) => _handleJointPostAction(
+                              action: value,
+                              currentUserId: currentUserId,
+                            ),
+                            itemBuilder: (context) => [
+                              const PopupMenuItem(
+                                value: 'remove_author_slot',
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.remove_circle_outline,
+                                      size: 20,
+                                      color: Colors.red,
+                                    ),
+                                    SizedBox(width: 8),
+                                    Flexible(
+                                      child: Text(
+                                        'Remove from my profile',
+                                        style: TextStyle(color: Colors.red),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                     ],
                   ),
 
@@ -1142,6 +1184,69 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
                 ),
               );
             }
+          }
+        }
+        break;
+    }
+  }
+
+  /// Handles the joint-post overflow menu. The only action currently
+  /// offered is "remove my slot" - a soft-leave that hides the post from
+  /// this caller's own profile/feed via [PostService.removeAuthorSlot]. The
+  /// post remains visible to the other author; the Cloud Function
+  /// (`cleanupFullyRemovedJointPosts`) deletes the underlying doc once every
+  /// author slot has been removed.
+  Future<void> _handleJointPostAction({
+    required String action,
+    required String currentUserId,
+  }) async {
+    switch (action) {
+      case 'remove_author_slot':
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Remove from my profile'),
+            content: const Text(
+              'This post will no longer appear on your profile or feed. '
+              'It stays visible to your co-author until they remove it too.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text('Remove'),
+              ),
+            ],
+          ),
+        );
+
+        if (confirmed != true || !mounted) return;
+
+        try {
+          await ref.read(postServiceProvider).removeAuthorSlot(
+                postId: widget.post.id,
+                userId: currentUserId,
+              );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Removed from your profile'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Failed to remove: $e'),
+                backgroundColor: Colors.red,
+              ),
+            );
           }
         }
         break;

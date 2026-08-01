@@ -172,6 +172,12 @@ void main() {
         .thenAnswer((_) async => null);
     when(() => moderationService.blockUser(any(), any()))
         .thenAnswer((_) async {});
+    when(
+      () => postService.removeAuthorSlot(
+        postId: any(named: 'postId'),
+        userId: any(named: 'userId'),
+      ),
+    ).thenAnswer((_) async {});
 
     when(() => userCacheService.getUserSync(kSelfId)).thenReturn(
       _buildUser(id: kSelfId, displayName: 'Sam Self'),
@@ -368,4 +374,104 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets(
+    'co-authored own post overflow shows "Remove from my profile" and '
+    'calls removeAuthorSlot for the caller only',
+    (tester) async {
+      await tester.pumpWidget(
+        _buildApp(post: _buildJointPost(), overrides: overrides()),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      final overflow = find.byIcon(Icons.more_vert);
+      expect(overflow, findsOneWidget);
+
+      await tester.tap(overflow);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Remove from my profile'), findsOneWidget);
+      // Scoped to a single action - no report/block parity with the solo
+      // menu, and no generic "Delete" wording on a joint post.
+      expect(find.text('Delete'), findsNothing);
+      expect(find.text('Report Post'), findsNothing);
+      expect(find.text('Block User'), findsNothing);
+
+      await tester.tap(find.text('Remove from my profile'));
+      await tester.pumpAndSettle();
+
+      // Confirmation dialog guards the destructive action.
+      expect(
+        find.text(
+          'This post will no longer appear on your profile or feed. '
+          'It stays visible to your co-author until they remove it too.',
+        ),
+        findsOneWidget,
+      );
+      verifyNever(
+        () => postService.removeAuthorSlot(
+          postId: any(named: 'postId'),
+          userId: any(named: 'userId'),
+        ),
+      );
+
+      await tester.tap(find.text('Remove'));
+      await tester.pumpAndSettle();
+
+      verify(
+        () =>
+            postService.removeAuthorSlot(postId: kPostId, userId: kSelfId),
+      ).called(1);
+    },
+  );
+
+  testWidgets(
+    'co-authored post overflow removal is cancellable without calling '
+    'removeAuthorSlot',
+    (tester) async {
+      await tester.pumpWidget(
+        _buildApp(post: _buildJointPost(), overrides: overrides()),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Remove from my profile'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      verifyNever(
+        () => postService.removeAuthorSlot(
+          postId: any(named: 'postId'),
+          userId: any(named: 'userId'),
+        ),
+      );
+    },
+  );
+
+  testWidgets(
+    'solo (own) post has no co-author "Remove from my profile" option - '
+    'pre-existing solo overflow behavior is untouched by this feature',
+    (tester) async {
+      await tester.pumpWidget(
+        _buildApp(post: _buildSoloPost(), overrides: overrides()),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      // NOTE: at the time this test was written, the codebase has no
+      // existing full-delete affordance for solo posts anywhere (no menu
+      // item, no PostService method) - only report/user-block actions for
+      // posts that are NOT the viewer's own. This task's scope (per Task 3's
+      // removeAuthorSlot as the only consumed interface) is limited to
+      // adding co-authored "Remove from my profile"; it intentionally does
+      // not invent a new solo-delete capability.
+      expect(find.byIcon(Icons.more_vert), findsNothing);
+      expect(find.text('Remove from my profile'), findsNothing);
+    },
+  );
 }
