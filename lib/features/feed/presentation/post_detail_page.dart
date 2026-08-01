@@ -355,6 +355,17 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  ..._post!.coAuthored
+                      ? [
+                          // T10 fix: co-authored posts render via the
+                          // shared joint card instead of the hand-rolled
+                          // solo author/media/stats block below.
+                          PostCardWidget(
+                            post: _post!,
+                            displayMode: PostCardDisplayMode.full,
+                          ),
+                        ]
+                      : [
                   // Author row with overflow menu
                   Row(
                     children: [
@@ -685,6 +696,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                       ),
                     ),
                   const SizedBox(height: AppSpacing.lg),
+                        ],
 
                   // v2: 3-tab row
                   _buildTabRow(),

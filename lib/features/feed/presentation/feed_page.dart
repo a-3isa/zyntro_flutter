@@ -23,6 +23,7 @@ import '../../moderation/presentation/report_dialog.dart';
 import '../../../services/notification_service.dart';
 import '../../../services/feed_cache_service.dart';
 import '../../../widgets/skeleton_feed.dart';
+import '../../../widgets/post_card_widget.dart';
 
 /// Feed page showing posts with Public and Following tabs.
 class FeedPage extends ConsumerStatefulWidget {
@@ -700,6 +701,17 @@ class _FeedTabState extends ConsumerState<_FeedTab>
   }
 
   Widget _buildPostCard(Post post) {
+    if (post.coAuthored) {
+      return PostCardWidget(
+        post: post,
+        displayMode: PostCardDisplayMode.full,
+        onTap: () {
+          HapticManager.light();
+          context.push('/post/${post.id}');
+        },
+      );
+    }
+
     final authState = ref.read(authSessionProvider);
     final currentUserId = authState.value?.id;
     final isOwnPost = currentUserId == post.authorId;
