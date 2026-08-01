@@ -143,6 +143,44 @@ async function recipientAllowsPush(recipientId, type) {
   }
 }
 
+// Sends the FCM push for an already-persisted notification and returns
+// { delivered, failed, skipped }. This is the single push-delivery path in the
+// backend: the HTTP endpoint (client-triggered notifications) and
+// server-initiated notifications (e.g. the scheduled joint-draft expiry offer)
+// both go through it, so every type gets the same preference gate and the same
+// invalid-token pruning. Writing a notification doc without calling this leaves
+// the notification sitting silently in the in-app tab.
+async function pushToRecipientDevices(recipientId, type, payload) {
+  const allowPush = await recipientAllowsPush(recipientId, type);
+  if (!allowPush) {
+    logger.info("Recipient disabled push for this type.", { recipientId, type });
+    return { delivered: 0, failed: 0, skipped: true };
+  }
+
+  const devices = await getRecipientDevices(recipientId);
+  if (devices.length === 0) {
+    logger.info("No device tokens found for recipient.", { recipientId, type });
+    return { delivered: 0, failed: 0, skipped: true };
+  }
+
+  const response = await messaging.sendEachForMulticast({
+    tokens: devices.map((device) => device.token),
+    notification: {
+      title: payload.title,
+      body: payload.body,
+    },
+    data: normalizeData(payload.data),
+  });
+
+  await pruneInvalidTokens(recipientId, devices, response.responses);
+
+  return {
+    delivered: response.successCount,
+    failed: response.failureCount,
+    skipped: false,
+  };
+}
+
 async function persistRecipientNotification(recipientId, type, payload) {
   const notifications = db
     .collection("users")
@@ -586,9 +624,9 @@ exports.deliverNotificationPush = onRequest({ invoker: "public" }, async (req, r
 
     // The durable in-app doc is always written above; the FCM push, however,
     // respects the recipient's notification preferences (and global pushEnabled).
-    const allowPush = await recipientAllowsPush(recipientId, type);
-    if (!allowPush) {
-      logger.info("Recipient disabled push for this type.", { recipientId, type });
+    const result = await pushToRecipientDevices(recipientId, type, payload);
+
+    if (result.skipped) {
       res.status(200).json({
         notificationId,
         delivered: 0,
@@ -596,42 +634,19 @@ exports.deliverNotificationPush = onRequest({ invoker: "public" }, async (req, r
       });
       return;
     }
-
-    const devices = await getRecipientDevices(recipientId);
-
-    if (devices.length === 0) {
-      logger.info("No device tokens found for recipient.", { recipientId, type });
-      res.status(200).json({
-        notificationId,
-        delivered: 0,
-        skipped: true,
-      });
-      return;
-    }
-
-    const response = await messaging.sendEachForMulticast({
-      tokens: devices.map((device) => device.token),
-      notification: {
-        title: payload.title,
-        body: payload.body,
-      },
-      data: normalizeData(payload.data),
-    });
-
-    await pruneInvalidTokens(recipientId, devices, response.responses);
 
     logger.info("Delivered push notification.", {
       callerId,
       recipientId,
       type,
-      delivered: response.successCount,
-      failed: response.failureCount,
+      delivered: result.delivered,
+      failed: result.failed,
     });
 
     res.status(200).json({
       notificationId,
-      delivered: response.successCount,
-      failed: response.failureCount,
+      delivered: result.delivered,
+      failed: result.failed,
     });
   } catch (error) {
     if (error instanceof HttpsError) {
@@ -709,13 +724,28 @@ exports.publishJointPostWhenBothConfirm = onDocumentUpdated("posts/{postId}", as
 });
 
 // Writes the owner-scoped "post it solo?" notification for an author whose
-// joint post draft expired before their co-author confirmed. Shaped like
-// persistRecipientNotification's docs (title/message/data) so it renders via
-// the same client notification model; `data` carries the ids the recap/solo-
-// share screen needs to deep-link. The doc id is deterministic per
-// (recipient, post) so a re-run of the scheduler (e.g. after a partial
-// failure) can't create duplicate offers.
+// joint post draft expired before their co-author confirmed, and pushes it to
+// their devices. Shaped like persistRecipientNotification's docs
+// (title/message/data) so it renders via the same client notification model;
+// `data` carries the ids the recap/solo-share screen needs to deep-link. The
+// doc id is deterministic per (recipient, post) so a re-run of the scheduler
+// (e.g. after a partial failure) can't create duplicate offers.
+//
+// This offer is server-initiated (there is no client caller and therefore no
+// trip through deliverNotificationPush), so it must call the shared push path
+// itself — otherwise it would only ever appear in the in-app notifications tab
+// and the author would never learn the draft expired.
 async function sendSoloRepostOffer(userId, postId, sessionId) {
+  const payload = {
+    title: "Joint Post Expired",
+    body: "Your co-author didn't confirm in time. Want to post it solo instead?",
+    data: {
+      type: "joint_post_expired",
+      postId,
+      sessionId,
+    },
+  };
+
   const notificationRef = db
     .collection("users")
     .doc(userId)
@@ -726,23 +756,27 @@ async function sendSoloRepostOffer(userId, postId, sessionId) {
     {
       userId,
       type: "joint_post_expired",
-      title: "Joint Post Expired",
-      message: "Your co-author didn't confirm in time. Want to post it solo instead?",
-      data: {
-        type: "joint_post_expired",
-        postId,
-        sessionId,
-      },
+      title: payload.title,
+      message: payload.body,
+      data: payload.data,
       read: false,
       createdAt: FieldValue.serverTimestamp(),
     },
     { merge: true },
   );
+
+  // A push failure (bad token, FCM outage) must not abort the sweep or lose
+  // the durable doc that was just written.
+  try {
+    await pushToRecipientDevices(userId, "joint_post_expired", payload);
+  } catch (error) {
+    logger.warn("Failed to push solo repost offer.", { userId, postId, error });
+  }
 }
 
 // Sweeps joint post drafts whose confirmation window has passed. Flips them
 // to 'expired' and offers each author who had already confirmed a chance to
-// re-post solo (Task 7 delivery path handles the push side).
+// re-post solo (sendSoloRepostOffer writes the in-app doc AND pushes it).
 // NOTE: requires a composite index on posts(coAuthored ASC, status ASC,
 // expiresAt ASC).
 exports.expireStaleJointPostDrafts = onSchedule("every 15 minutes", async () => {
