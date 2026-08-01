@@ -23,6 +23,7 @@ class MockUserCacheService extends Mock implements UserCacheService {}
 const kSelfId = 'self-user';
 const kPartnerId = 'partner-user';
 const kRemovedId = 'removed-user';
+const kStrangerId = 'stranger-user';
 const kPostId = 'post-1';
 
 User _buildUser({
@@ -102,16 +103,16 @@ Post _buildSoloPost() {
   );
 }
 
-dynamic _authOverride() {
+dynamic _authOverride({String uid = kSelfId}) {
   return authSessionProvider.overrideWithValue(
-    const AsyncValue.data(
+    AsyncValue.data(
       AuthUserEntity(
-        id: kSelfId,
-        email: 'self@example.com',
-        displayName: 'Sam Self',
+        id: uid,
+        email: '$uid@example.com',
+        displayName: uid == kSelfId ? 'Sam Self' : 'Vic Viewer',
         photoUrl: null,
         emailVerified: true,
-        providerIds: ['password'],
+        providerIds: const ['password'],
       ),
     ),
   );
@@ -123,6 +124,8 @@ Widget _buildApp({
   // be named here; typed as Object and cast into ProviderScope (inference
   // supplies the hidden element type).
   required List<Object> overrides,
+  PostCardDisplayMode displayMode = PostCardDisplayMode.full,
+  String? slotUserId,
 }) {
   final router = GoRouter(
     initialLocation: '/',
@@ -131,7 +134,11 @@ Widget _buildApp({
         path: '/',
         builder: (context, state) => Scaffold(
           body: SingleChildScrollView(
-            child: PostCardWidget(post: post),
+            child: PostCardWidget(
+              post: post,
+              displayMode: displayMode,
+              slotUserId: slotUserId,
+            ),
           ),
         ),
       ),
@@ -192,10 +199,13 @@ void main() {
     when(() => userCacheService.getUserSync(kRemovedId)).thenReturn(
       _buildUser(id: kRemovedId, displayName: 'Removed Rex'),
     );
+    when(() => userCacheService.getUserSync(kStrangerId)).thenReturn(
+      _buildUser(id: kStrangerId, displayName: 'Vic Viewer'),
+    );
   });
 
-  List<Object> overrides() => [
-        _authOverride(),
+  List<Object> overrides({String uid = kSelfId}) => [
+        _authOverride(uid: uid),
         postServiceProvider.overrideWithValue(postService),
         moderationServiceProvider.overrideWithValue(moderationService),
         userCacheServiceProvider.overrideWithValue(userCacheService),
@@ -474,4 +484,208 @@ void main() {
       expect(find.text('Remove from my profile'), findsNothing);
     },
   );
+
+  // ---------------------------------------------------------------------
+  // Moderation reachability on co-authored posts (non-author viewer).
+  // ---------------------------------------------------------------------
+
+  testWidgets(
+    'a non-author viewing a co-authored post still gets an overflow menu '
+    'with report/block for each co-author',
+    (tester) async {
+      await tester.pumpWidget(
+        _buildApp(
+          post: _buildJointPost(),
+          overrides: overrides(uid: kStrangerId),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      final overflow = find.byKey(const ValueKey('joint_post_card_menu'));
+      expect(overflow, findsOneWidget);
+
+      await tester.tap(overflow);
+      await tester.pumpAndSettle();
+
+      // A stranger is not an author, so no soft-leave action is offered.
+      expect(find.text('Remove from my profile'), findsNothing);
+      expect(find.text('Report Post'), findsOneWidget);
+      // Both co-authors are individually reportable / blockable.
+      expect(find.text('Report Sam Self'), findsOneWidget);
+      expect(find.text('Report Priya Partner'), findsOneWidget);
+      expect(find.text('Block Sam Self'), findsOneWidget);
+      expect(find.text('Block Priya Partner'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'blocking a co-author from the joint menu blocks that specific author',
+    (tester) async {
+      await tester.pumpWidget(
+        _buildApp(
+          post: _buildJointPost(),
+          overrides: overrides(uid: kStrangerId),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      await tester.tap(find.byKey(const ValueKey('joint_post_card_menu')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Block Priya Partner'));
+      await tester.pumpAndSettle();
+
+      // Same confirmation dialog the solo card uses.
+      expect(
+        find.textContaining('Are you sure you want to block Priya Partner?'),
+        findsOneWidget,
+      );
+      verifyNever(() => moderationService.blockUser(any(), any()));
+
+      await tester.tap(find.widgetWithText(TextButton, 'Block'));
+      await tester.pumpAndSettle();
+
+      // The blocked user is the co-author the viewer picked, NOT the post's
+      // legacy `authorId` (which is always authorIds.first on a joint post).
+      verify(() => moderationService.blockUser(kStrangerId, kPartnerId))
+          .called(1);
+    },
+  );
+
+  testWidgets('a removed co-author is not offered as a report/block target', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _buildApp(
+        post: _buildJointPost(
+          authorIds: const [kSelfId, kPartnerId, kRemovedId],
+          authorsOverride: {
+            kSelfId: PostAuthorSlot(
+              userId: kSelfId,
+              confirmed: true,
+              summary: SessionSummary(),
+            ),
+            kPartnerId: PostAuthorSlot(
+              userId: kPartnerId,
+              confirmed: true,
+              summary: SessionSummary(),
+            ),
+            kRemovedId: PostAuthorSlot(
+              userId: kRemovedId,
+              removed: true,
+              summary: SessionSummary(),
+            ),
+          },
+        ),
+        overrides: overrides(uid: kStrangerId),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    await tester.tap(find.byKey(const ValueKey('joint_post_card_menu')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Block Removed Rex'), findsNothing);
+    expect(find.text('Report Removed Rex'), findsNothing);
+  });
+
+  // ---------------------------------------------------------------------
+  // Compact (profile grid) rendering of co-authored posts.
+  // ---------------------------------------------------------------------
+
+  testWidgets(
+    'compact co-authored tile renders the requested author slot photo and a '
+    'co-author badge',
+    (tester) async {
+      await tester.pumpWidget(
+        _buildApp(
+          post: _buildJointPost(),
+          overrides: overrides(uid: kStrangerId),
+          displayMode: PostCardDisplayMode.compact,
+          slotUserId: kPartnerId,
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        find.byKey(const ValueKey('joint_post_compact_card')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('joint_post_compact_badge')),
+        findsOneWidget,
+      );
+      // The photo comes from authors.<uid>.photoUrl, never from the (empty)
+      // top-level mediaURLs the solo compact tile reads.
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w.runtimeType.toString() == 'CachedNetworkImage' &&
+              (w as dynamic).imageUrl ==
+                  'https://example.com/partner-photo.jpg',
+        ),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'compact co-authored tile falls back to the author profile picture when '
+    'their slot has no photo',
+    (tester) async {
+      await tester.pumpWidget(
+        _buildApp(
+          post: _buildJointPost(),
+          overrides: overrides(),
+          displayMode: PostCardDisplayMode.compact,
+          // kSelfId's slot has no photoUrl in the default fixture.
+          slotUserId: kSelfId,
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        find.byKey(const ValueKey('joint_post_compact_card')),
+        findsOneWidget,
+      );
+      expect(find.byType(FluttermojiAvatar), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (w) => w.runtimeType.toString() == 'CachedNetworkImage',
+        ),
+        findsNothing,
+      );
+    },
+  );
+
+  testWidgets('compact solo tile is untouched by the co-author branch', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _buildApp(
+        post: _buildSoloPost(),
+        overrides: overrides(),
+        displayMode: PostCardDisplayMode.compact,
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(
+      find.byKey(const ValueKey('joint_post_compact_card')),
+      findsNothing,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (w) =>
+            w.runtimeType.toString() == 'CachedNetworkImage' &&
+            (w as dynamic).imageUrl == 'https://example.com/solo-photo.jpg',
+      ),
+      findsOneWidget,
+    );
+  });
 }

@@ -188,6 +188,9 @@ class _UserPostsPageState extends ConsumerState<UserPostsPage> {
                       return PostCardWidget(
                         post: filteredPosts[index],
                         displayMode: PostCardDisplayMode.compact,
+                        // Co-authored posts render the profile owner's own
+                        // slot photo/stats, not the viewer's.
+                        slotUserId: widget.userId,
                         onTap: () =>
                             context.push('/post/${filteredPosts[index].id}'),
                       );
