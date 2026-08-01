@@ -91,6 +91,136 @@ void main() {
           .get();
       expect(snapshot.docs.length, 1);
     });
+
+    test('uses a deterministic per-session document id', () async {
+      final postId = await postService.createJointDraft(
+        sessionId: 'session-det',
+        type: 'strength',
+        title: 'Leg day',
+        authorIds: ['ahmed', 'mohamed'],
+        summaries: {},
+      );
+
+      expect(postId, PostService.jointDraftIdForSession('session-det'));
+      expect(postId, 'joint_session-det');
+    });
+
+    test(
+      'two clients creating the draft at the same time converge on ONE doc',
+      () async {
+        // Both partners land on recap the instant the paired session ends, so
+        // each client calls createJointDraft with no chance to observe the
+        // other's write first. The deterministic id + transaction must make
+        // this collapse to a single document.
+        final clientA = PostService(fakeFirestore, testRef);
+        final clientB = PostService(fakeFirestore, testRef);
+
+        final ids = await Future.wait([
+          clientA.createJointDraft(
+            sessionId: 'session-race',
+            type: 'strength',
+            title: 'Leg day',
+            authorIds: ['ahmed', 'mohamed'],
+            summaries: {'ahmed': SessionSummary(totalSets: 10)},
+          ),
+          clientB.createJointDraft(
+            sessionId: 'session-race',
+            type: 'strength',
+            title: 'Leg day',
+            authorIds: ['ahmed', 'mohamed'],
+            summaries: {'mohamed': SessionSummary(totalSets: 12)},
+          ),
+        ]);
+
+        expect(ids.first, ids.last);
+
+        final snapshot = await fakeFirestore
+            .collection('posts')
+            .where('sessionId', isEqualTo: 'session-race')
+            .get();
+        expect(
+          snapshot.docs.length,
+          1,
+          reason: 'a second draft can never collect both confirmations',
+        );
+
+        // Both partners confirm on the SAME doc — the publish precondition.
+        await clientA.confirmJointPost(postId: ids.first, userId: 'ahmed');
+        await clientB.confirmJointPost(postId: ids.last, userId: 'mohamed');
+
+        final post = Post.fromFirestore(
+          await fakeFirestore.collection('posts').doc(ids.first).get(),
+        );
+        expect(post.authors['ahmed']?.confirmed, true);
+        expect(post.authors['mohamed']?.confirmed, true);
+      },
+    );
+
+    test('does not resurrect an already-published joint post', () async {
+      final postId = await postService.createJointDraft(
+        sessionId: 'session-pub',
+        type: 'strength',
+        title: 'Leg day',
+        authorIds: ['ahmed', 'mohamed'],
+        summaries: {},
+      );
+      // The dual-confirm Cloud Function published it.
+      await fakeFirestore.collection('posts').doc(postId).update({
+        'status': 'published',
+      });
+
+      await expectLater(
+        postService.createJointDraft(
+          sessionId: 'session-pub',
+          type: 'strength',
+          title: 'Leg day',
+          authorIds: ['ahmed', 'mohamed'],
+          summaries: {},
+        ),
+        throwsA(
+          isA<JointDraftUnavailableException>()
+              .having((e) => e.status, 'status', 'published')
+              .having((e) => e.postId, 'postId', postId),
+        ),
+      );
+
+      // The published post is left completely untouched.
+      final doc = await fakeFirestore.collection('posts').doc(postId).get();
+      expect(doc.data()!['status'], 'published');
+    });
+
+    test('does not resurrect an already-expired joint draft', () async {
+      final postId = await postService.createJointDraft(
+        sessionId: 'session-exp',
+        type: 'cardio',
+        title: 'Morning run',
+        authorIds: ['ahmed', 'mohamed'],
+        summaries: {},
+      );
+      await fakeFirestore.collection('posts').doc(postId).update({
+        'status': 'expired',
+      });
+
+      await expectLater(
+        postService.createJointDraft(
+          sessionId: 'session-exp',
+          type: 'cardio',
+          title: 'Morning run',
+          authorIds: ['ahmed', 'mohamed'],
+          summaries: {},
+        ),
+        throwsA(
+          isA<JointDraftUnavailableException>().having(
+            (e) => e.status,
+            'status',
+            'expired',
+          ),
+        ),
+      );
+
+      final doc = await fakeFirestore.collection('posts').doc(postId).get();
+      expect(doc.data()!['status'], 'expired');
+    });
   });
 
   test('setAuthorSlot updates only the caller\'s own slot fields', () async {
@@ -145,6 +275,12 @@ void main() {
       authorIds: ['ahmed', 'mohamed'],
       summaries: {},
     );
+
+    // fake_cloud_firestore's transaction stub applies writes without awaiting
+    // them (real runTransaction only resolves after the commit is acked), so
+    // sync on a read before subscribing.
+    final seeded = await fakeFirestore.collection('posts').doc(postId).get();
+    expect(seeded.exists, true);
 
     final stream = postService.watchJointDraft(postId);
     final firstEvent = stream.first;

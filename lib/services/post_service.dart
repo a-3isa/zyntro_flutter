@@ -93,6 +93,34 @@ class CreatePostParams {
   });
 }
 
+/// Thrown by [PostService.createJointDraft] when the session's joint post
+/// document already exists but is no longer a live, postable draft — it has
+/// already been `published` by the dual-confirm Cloud Function, or `expired`
+/// by the 24h TTL sweeper.
+///
+/// This is a genuine edge case (re-entering recap for an old session): the
+/// session's joint post is already decided, so a second draft attempt must
+/// neither resurrect the dead document nor quietly create a rival one.
+class JointDraftUnavailableException implements Exception {
+  /// The existing `posts/{id}` document (the deterministic joint-draft id).
+  final String postId;
+  final String sessionId;
+
+  /// The existing document's `status` — `'published'` or `'expired'`.
+  final String status;
+
+  const JointDraftUnavailableException({
+    required this.postId,
+    required this.sessionId,
+    required this.status,
+  });
+
+  @override
+  String toString() =>
+      'JointDraftUnavailableException: joint post $postId for session '
+      '$sessionId is already "$status", not a live draft';
+}
+
 /// Post service for managing posts, likes, and comments.
 /// Matches React Native postService.ts behavior.
 class PostService {
@@ -174,10 +202,29 @@ class PostService {
 
   // ==================== JOINT (CO-AUTHORED) POST DRAFTS ====================
 
-  /// Create a joint draft post for a two-author session.
-  /// Idempotent per session: if a draft already exists for [sessionId], its
-  /// id is returned instead of creating a duplicate. Publishing (draft ->
-  /// published) is handled by a Cloud Function, not the client.
+  /// The deterministic `posts/{id}` document id that holds the joint draft for
+  /// [sessionId]. Deterministic by design: both partners land on recap at the
+  /// same instant, so a random id plus a read-then-write check would let each
+  /// client create its own draft and neither would ever collect both
+  /// confirmations.
+  static String jointDraftIdForSession(String sessionId) => 'joint_$sessionId';
+
+  /// Create the joint draft post for a two-author session.
+  ///
+  /// Atomically idempotent: the draft always lives at
+  /// [jointDraftIdForSession], and the check-then-create runs inside a
+  /// Firestore transaction, so two clients racing on the same session end up
+  /// with exactly one document — whichever loses the race reads the winner's
+  /// doc and returns its id.
+  ///
+  /// Only a *live* draft is reused. If the document at that id has already
+  /// moved on (`published` — the pair posted this session — or `expired` — the
+  /// 24h TTL elapsed), this throws [JointDraftUnavailableException] rather
+  /// than handing back a dead post: the method's contract is "returns a live,
+  /// postable draft or creates a fresh one".
+  ///
+  /// Publishing (draft -> published) is handled by a Cloud Function, never
+  /// the client.
   Future<String> createJointDraft({
     required String sessionId,
     required String type,
@@ -186,16 +233,9 @@ class PostService {
     required Map<String, SessionSummary> summaries,
     Duration ttl = const Duration(hours: 24),
   }) async {
-    // Idempotent: one draft per session.
-    final existing = await _firestore
+    final ref = _firestore
         .collection('posts')
-        .where('sessionId', isEqualTo: sessionId)
-        .where('coAuthored', isEqualTo: true)
-        .limit(1)
-        .get();
-    if (existing.docs.isNotEmpty) return existing.docs.first.id;
-
-    final ref = _firestore.collection('posts').doc();
+        .doc(jointDraftIdForSession(sessionId));
     final authors = <String, dynamic>{
       for (final uid in authorIds)
         uid: PostAuthorSlot(
@@ -203,7 +243,7 @@ class PostService {
           summary: summaries[uid] ?? SessionSummary(),
         ).toMap(),
     };
-    await ref.set({
+    final draftData = <String, dynamic>{
       'coAuthored': true,
       'status': 'draft',
       'authorIds': authorIds,
@@ -219,8 +259,25 @@ class PostService {
       'commentsCount': 0,
       'createdAt': FieldValue.serverTimestamp(),
       'expiresAt': Timestamp.fromDate(DateTime.now().add(ttl)),
+    };
+
+    return _firestore.runTransaction<String>((txn) async {
+      // All reads before all writes (plan Global Constraints).
+      final snapshot = await txn.get(ref);
+      if (snapshot.exists) {
+        final status = (snapshot.data()?['status'] as String?) ?? 'published';
+        if (status != 'draft') {
+          throw JointDraftUnavailableException(
+            postId: ref.id,
+            sessionId: sessionId,
+            status: status,
+          );
+        }
+        return ref.id;
+      }
+      txn.set(ref, draftData);
+      return ref.id;
     });
-    return ref.id;
   }
 
   /// Update only the calling author's slot fields (caption/photoUrl/visibility).
