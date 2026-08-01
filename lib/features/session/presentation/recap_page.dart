@@ -43,10 +43,16 @@ class _RecapPageState extends ConsumerState<RecapPage> {
   final bool _postedToFeed = false;
   bool _privateSaveDone = false;
 
-  // Joint-post (two-human paired session) branch.
+  // Joint-post (two-human paired session) section.
   String? _jointDraftPostId;
   bool _isCreatingJointDraft = false;
   String? _jointDraftError;
+  // Terminal joint-draft state (Part A's JointDraftUnavailableException):
+  // this session's joint post is already decided — 'published' or 'expired'.
+  // Distinct from [_jointDraftError], which is a recoverable failure with a
+  // Retry action.
+  String? _jointDraftTerminalStatus;
+  String? _jointDraftTerminalPostId;
 
   @override
   void initState() {
@@ -95,6 +101,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
   Future<void> _ensureJointDraft() async {
     if (_jointDraftPostId != null ||
         _isCreatingJointDraft ||
+        _jointDraftTerminalStatus != null ||
         _session == null) {
       return;
     }
@@ -113,24 +120,38 @@ class _RecapPageState extends ConsumerState<RecapPage> {
         },
       );
       _isCreatingJointDraft = false;
-      if (mounted) {
-        setState(() {
-          _jointDraftPostId = postId;
-          _jointDraftError = null;
-        });
-      } else {
+      _applyJointState(() {
         _jointDraftPostId = postId;
         _jointDraftError = null;
-      }
+      });
+    } on JointDraftUnavailableException catch (e) {
+      _isCreatingJointDraft = false;
+      // Terminal, NOT retryable: this session's joint post already published
+      // or expired, so there is no live draft to compose against. Retrying
+      // would just throw again.
+      _applyJointState(() {
+        _jointDraftTerminalStatus = e.status;
+        _jointDraftTerminalPostId = e.postId;
+        _jointDraftError = null;
+      });
     } catch (e) {
       _isCreatingJointDraft = false;
       // Recoverable: surface an error with a retry action rather than
       // stranding the user on an indefinite spinner.
-      if (mounted) {
-        setState(() => _jointDraftError = 'Could not start your joint post.');
-      } else {
-        _jointDraftError = 'Could not start your joint post.';
-      }
+      _applyJointState(
+        () => _jointDraftError = 'Could not start your joint post.',
+      );
+    }
+  }
+
+  /// Applies a joint-draft state mutation through `setState` when this page is
+  /// still mounted, and directly otherwise (the async draft creation can land
+  /// after the user already left recap).
+  void _applyJointState(VoidCallback mutate) {
+    if (mounted) {
+      setState(mutate);
+    } else {
+      mutate();
     }
   }
 
@@ -484,6 +505,88 @@ class _RecapPageState extends ConsumerState<RecapPage> {
     }
   }
 
+  // ── joint composer section ────────────────────────────────────────────────
+
+  /// Task 13: the paired-session posting UI, rendered *inside* recap's
+  /// scrolling stats body (the stats/breakdown above it are identical to what
+  /// a solo session shows).
+  Widget _buildJointComposerSection() {
+    final terminalStatus = _jointDraftTerminalStatus;
+    if (terminalStatus != null) {
+      return _buildJointTerminalCard(terminalStatus);
+    }
+
+    final draftId = _jointDraftPostId;
+    if (draftId != null) {
+      return JointPostComposer(postId: draftId);
+    }
+
+    if (_jointDraftError != null) {
+      return Column(
+        children: [
+          Text(
+            _jointDraftError!,
+            textAlign: TextAlign.center,
+            style: AppTextStyles.body.copyWith(
+              color: AppColors.textV2Secondary,
+            ),
+          ),
+          const SizedBox(height: 16),
+          _GhostButton(label: 'Retry', onTap: _retryJointDraft),
+        ],
+      );
+    }
+
+    // Draft creation is in flight.
+    return SizedBox(
+      height: 120,
+      child: Center(
+        child: CircularProgressIndicator(color: AppColors.userAccent),
+      ),
+    );
+  }
+
+  /// Terminal state for a session whose joint post is already decided —
+  /// `published` (the pair posted it) or `expired` (24h TTL elapsed). Neither
+  /// is retryable, so this offers a way to *view* the post instead of a Retry.
+  /// The expired case deliberately routes into `/post/:postId`, where Task 14's
+  /// solo-repost flow already lives rather than being duplicated here.
+  Widget _buildJointTerminalCard(String status) {
+    final isPublished = status == 'published';
+    final message = isPublished
+        ? 'You already posted this session together'
+        : 'This joint post expired';
+    final actionLabel = isPublished ? 'View post' : 'See options';
+    final postId = _jointDraftTerminalPostId;
+
+    return Container(
+      key: const ValueKey('joint_draft_terminal_card'),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceV2,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        children: [
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: AppTextStyles.body.copyWith(
+              color: AppColors.textV2Secondary,
+            ),
+          ),
+          if (postId != null) ...[
+            const SizedBox(height: 16),
+            _GhostButton(
+              label: actionLabel,
+              onTap: () => context.push('/post/$postId'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   // ── build ─────────────────────────────────────────────────────────────────
 
   @override
@@ -518,56 +621,6 @@ class _RecapPageState extends ConsumerState<RecapPage> {
             ],
           ),
         ),
-      );
-    }
-
-    if (_isTwoHumanPairedSession) {
-      final draftId = _jointDraftPostId;
-      Widget jointBody;
-      if (draftId != null) {
-        jointBody = JointPostComposer(postId: draftId);
-      } else if (_jointDraftError != null) {
-        jointBody = Scaffold(
-          backgroundColor: AppColors.backgroundV2,
-          body: Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    _jointDraftError!,
-                    textAlign: TextAlign.center,
-                    style: AppTextStyles.body.copyWith(
-                      color: AppColors.textV2Secondary,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  _GhostButton(
-                    label: 'Retry',
-                    onTap: _retryJointDraft,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      } else {
-        // Draft creation is in flight.
-        jointBody = Scaffold(
-          backgroundColor: AppColors.backgroundV2,
-          body: Center(
-            child: CircularProgressIndicator(color: AppColors.userAccent),
-          ),
-        );
-      }
-      return PopScope(
-        canPop: false,
-        onPopInvokedWithResult: (didPop, result) {
-          if (didPop) return;
-          _goHome();
-        },
-        child: jointBody,
       );
     }
 
@@ -886,22 +939,31 @@ class _RecapPageState extends ConsumerState<RecapPage> {
 
                     const SizedBox(height: 16),
 
-                    // ── post to feed section ────────────────────────────────
+                    // ── post section ────────────────────────────────────────
+                    // Task 13: everyone sees the stats/breakdown above; only
+                    // the posting UI differs. A two-human paired session posts
+                    // through the embedded joint composer (its own Post button,
+                    // photo picker and visibility toggle), so the solo
+                    // "Post to feed" card — whose _handleShare is a no-op for
+                    // joint sessions — is swapped out rather than stacked on
+                    // top of it.
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: _PostToFeedSection(
-                        postedToFeed: _postedToFeed,
-                        selectedPhotoPath: _selectedPhotoPath,
-                        isPickingPhoto: _isPickingPhoto,
-                        isSharing: _isSharing,
-                        shareWithFriendsOnly: _shareWithFriendsOnly,
-                        uploadProgress: _uploadProgress,
-                        onPhotoTap: _showPhotoSourceDialog,
-                        onRemovePhoto: _removePhoto,
-                        onToggleFriendsOnly: (v) =>
-                            setState(() => _shareWithFriendsOnly = v),
-                        onShare: _handleShare,
-                      ),
+                      child: _isTwoHumanPairedSession
+                          ? _buildJointComposerSection()
+                          : _PostToFeedSection(
+                              postedToFeed: _postedToFeed,
+                              selectedPhotoPath: _selectedPhotoPath,
+                              isPickingPhoto: _isPickingPhoto,
+                              isSharing: _isSharing,
+                              shareWithFriendsOnly: _shareWithFriendsOnly,
+                              uploadProgress: _uploadProgress,
+                              onPhotoTap: _showPhotoSourceDialog,
+                              onRemovePhoto: _removePhoto,
+                              onToggleFriendsOnly: (v) =>
+                                  setState(() => _shareWithFriendsOnly = v),
+                              onShare: _handleShare,
+                            ),
                     ),
 
                     const SizedBox(height: 16),

@@ -110,7 +110,15 @@ GoRouter _buildRouter() {
     routes: [
       GoRoute(
         path: '/joint-post',
-        builder: (context, state) => const JointPostComposer(postId: kPostId),
+        // T13: the composer is an embeddable widget now (no Scaffold of its
+        // own), so the host route supplies the scaffold + scroll view exactly
+        // like recap_page.dart and joint_post_page.dart do.
+        builder: (context, state) => const Scaffold(
+          body: SingleChildScrollView(
+            padding: EdgeInsets.all(16),
+            child: JointPostComposer(postId: kPostId),
+          ),
+        ),
       ),
       GoRoute(
         path: '/',

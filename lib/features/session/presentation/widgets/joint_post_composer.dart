@@ -14,13 +14,20 @@ import '../../../../services/user_cache_service.dart';
 import '../../../../widgets/fluttermoji_avatar.dart';
 import '../../../auth/auth_providers.dart';
 
-/// Post-session screen where two workout partners assemble ONE shared post
+/// Post-session section where two workout partners assemble ONE shared post
 /// side by side. Each partner picks their own photo, writes their own
 /// caption, and chooses their own public/private visibility; the post only
 /// goes live once BOTH have tapped Post. The draft -> published flip itself
 /// is a Cloud Function's job (triggered once both `authors.*.confirmed` are
 /// true) — this widget just streams the draft and routes out once it
 /// observes `status == 'published'`.
+///
+/// Task 13: this is an **embeddable** widget, not a route-level screen — it
+/// owns no `Scaffold`, no `SafeArea` and no `Expanded`, so it can be dropped
+/// straight into `recap_page.dart`'s scrolling stats body (or into the
+/// standalone `/joint-post/:postId` page a partner reaches from the invite
+/// notification). Whoever embeds it owns the scaffold and the back-navigation
+/// guard.
 ///
 /// There is no mic/voice button here — this is a post-session screen.
 class JointPostComposer extends ConsumerStatefulWidget {
@@ -252,70 +259,65 @@ class _JointPostComposerState extends ConsumerState<JointPostComposer> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.backgroundV2,
-      body: SafeArea(
-        child: StreamBuilder<Post>(
-          stream: _draftStream,
-          builder: (context, snapshot) {
-            if (!snapshot.hasData) {
-              return Center(
-                child: CircularProgressIndicator(color: AppColors.userAccent),
-              );
-            }
-            final post = snapshot.data!;
-            _ensurePartnerAndSelfLoaded(post);
-            _routeToFeedIfPublished(post);
+    return StreamBuilder<Post>(
+      stream: _draftStream,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          // Height-bounded: this widget lives inside a scroll view, so an
+          // unbounded Center would have no height to lay out against.
+          return SizedBox(
+            height: 160,
+            child: Center(
+              child: CircularProgressIndicator(color: AppColors.userAccent),
+            ),
+          );
+        }
+        final post = snapshot.data!;
+        _ensurePartnerAndSelfLoaded(post);
+        _routeToFeedIfPublished(post);
 
-            final uid = _currentUserId;
-            final selfSlot = post.authors[uid];
-            final partnerSlot =
-                _partnerId != null ? post.authors[_partnerId] : null;
-            if (selfSlot?.confirmed == true) {
-              _hasConfirmedLocally = true;
-            }
+        final uid = _currentUserId;
+        final selfSlot = post.authors[uid];
+        final partnerSlot =
+            _partnerId != null ? post.authors[_partnerId] : null;
+        if (selfSlot?.confirmed == true) {
+          _hasConfirmedLocally = true;
+        }
 
-            return Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildHeader(),
-                  const SizedBox(height: 20),
-                  Expanded(
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final isNarrow = constraints.maxWidth < 480;
-                        final selfCard = _buildSelfSlot(post, selfSlot);
-                        final partnerCard = _buildPartnerSlot(partnerSlot);
-                        if (isNarrow) {
-                          return SingleChildScrollView(
-                            child: Column(
-                              children: [
-                                selfCard,
-                                const SizedBox(height: 16),
-                                partnerCard,
-                              ],
-                            ),
-                          );
-                        }
-                        return Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(child: selfCard),
-                            const SizedBox(width: 16),
-                            Expanded(child: partnerCard),
-                          ],
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
-      ),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildHeader(),
+            const SizedBox(height: 20),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final isNarrow = constraints.maxWidth < 480;
+                final selfCard = _buildSelfSlot(post, selfSlot);
+                final partnerCard = _buildPartnerSlot(partnerSlot);
+                if (isNarrow) {
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      selfCard,
+                      const SizedBox(height: 16),
+                      partnerCard,
+                    ],
+                  );
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: selfCard),
+                    const SizedBox(width: 16),
+                    Expanded(child: partnerCard),
+                  ],
+                );
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 

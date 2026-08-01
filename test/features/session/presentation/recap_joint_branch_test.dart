@@ -1,5 +1,10 @@
 // T8: Recap branches to the joint composer for two-human paired sessions,
 // and keeps the existing solo share flow for solo/bot sessions.
+//
+// T13: the joint branch no longer REPLACES recap. A paired session now shows
+// the same stats/breakdown body a solo session gets, with the embedded joint
+// composer appended below it on one scrollable page; only the solo
+// "Post to feed" card is swapped out for the composer.
 
 import 'dart:async';
 
@@ -133,7 +138,8 @@ void main() {
       ];
 
   testWidgets(
-    'a two-human paired session renders JointPostComposer and never calls createPost',
+    'a two-human paired session renders the stats body AND the embedded '
+    'JointPostComposer on one page, and never calls createPost',
     (tester) async {
       final session = _buildSession(
         participants: [kSelfId, kPartnerId],
@@ -159,8 +165,19 @@ void main() {
       await tester.pump();
       await tester.pump();
 
+      // T13: the stats/breakdown content solo sessions get is present…
+      expect(find.text('Done.'), findsOneWidget);
+      expect(find.text('Exercises'), findsOneWidget);
+      expect(find.text('Sets'), findsOneWidget);
+      expect(find.text('Duration'), findsOneWidget);
+      expect(find.text('Volume'), findsOneWidget);
+      // …on the SAME page as the composer (one scrollable recap, not a
+      // full-screen replacement).
       expect(find.byType(JointPostComposer), findsOneWidget);
+      // Only the solo posting card is swapped out — its _handleShare is a
+      // no-op for joint sessions, so it must not be reachable.
       expect(find.text('Post to feed'), findsNothing);
+      expect(find.text('Share Workout'), findsNothing);
 
       verify(
         () => postService.createJointDraft(
@@ -217,7 +234,12 @@ void main() {
 
       expect(find.byType(JointPostComposer), findsNothing);
       expect(find.text('Retry'), findsOneWidget);
+      // The stats body is still there — a draft failure degrades only the
+      // composer section, it never blanks the recap.
+      expect(find.text('Done.'), findsOneWidget);
 
+      await tester.ensureVisible(find.text('Retry'));
+      await tester.pump();
       await tester.tap(find.text('Retry'));
       // Flush: retry clears error -> createJointDraft (succeeds) -> setState.
       await tester.pump();
@@ -235,6 +257,91 @@ void main() {
           summaries: any(named: 'summaries'),
         ),
       ).called(2);
+    },
+  );
+
+  testWidgets(
+    'an already-published joint draft shows a terminal state, not Retry',
+    (tester) async {
+      final session = _buildSession(
+        participants: [kSelfId, kPartnerId],
+        partnerKind: PairedPartnerKind.realFriend,
+      );
+      when(() => sessionService.getSession(kSessionId))
+          .thenAnswer((_) async => session);
+      when(
+        () => postService.createJointDraft(
+          sessionId: any(named: 'sessionId'),
+          type: any(named: 'type'),
+          title: any(named: 'title'),
+          authorIds: any(named: 'authorIds'),
+          summaries: any(named: 'summaries'),
+        ),
+      ).thenThrow(
+        const JointDraftUnavailableException(
+          postId: kDraftId,
+          sessionId: kSessionId,
+          status: 'published',
+        ),
+      );
+
+      await tester.pumpWidget(
+        _buildApp(router: _buildRouter(), overrides: overrides()),
+      );
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byType(JointPostComposer), findsNothing);
+      expect(
+        find.text('You already posted this session together'),
+        findsOneWidget,
+      );
+      expect(find.text('View post'), findsOneWidget);
+      // Terminal, not recoverable: retrying would just throw again.
+      expect(find.text('Retry'), findsNothing);
+      // Stats body is unaffected.
+      expect(find.text('Done.'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'an expired joint draft shows the expiry terminal state',
+    (tester) async {
+      final session = _buildSession(
+        participants: [kSelfId, kPartnerId],
+        partnerKind: PairedPartnerKind.realFriend,
+      );
+      when(() => sessionService.getSession(kSessionId))
+          .thenAnswer((_) async => session);
+      when(
+        () => postService.createJointDraft(
+          sessionId: any(named: 'sessionId'),
+          type: any(named: 'type'),
+          title: any(named: 'title'),
+          authorIds: any(named: 'authorIds'),
+          summaries: any(named: 'summaries'),
+        ),
+      ).thenThrow(
+        const JointDraftUnavailableException(
+          postId: kDraftId,
+          sessionId: kSessionId,
+          status: 'expired',
+        ),
+      );
+
+      await tester.pumpWidget(
+        _buildApp(router: _buildRouter(), overrides: overrides()),
+      );
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byType(JointPostComposer), findsNothing);
+      expect(find.text('This joint post expired'), findsOneWidget);
+      expect(find.text('Retry'), findsNothing);
+      // Routes into /post/:postId, where Task 14's solo-repost flow lives.
+      expect(find.text('See options'), findsOneWidget);
     },
   );
 
