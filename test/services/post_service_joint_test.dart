@@ -586,7 +586,9 @@ void main() {
         expect(newData['status'], 'published');
         expect(newData['coAuthored'], false);
         expect(newData['visibility'], 'private');
-        expect(newData['title'], 'Leg day');
+        // The author's own composer caption wins over the session title —
+        // reposting solo must not silently discard the text they typed.
+        expect(newData['title'], 'Solid leg day');
         expect(newData['type'], 'strength');
         expect(
           (newData['mediaURLs'] as List).cast<String>(),
@@ -639,8 +641,75 @@ void main() {
             .get();
         expect((newDoc.data()!['mediaURLs'] as List), isEmpty);
         expect(newDoc.data()!['visibility'], 'public');
+        // No caption on the slot -> the session title is the fallback.
+        expect(newDoc.data()!['title'], 'Morning run');
       },
     );
+
+    test(
+      'a blank/whitespace-only caption falls back to the session title',
+      () async {
+        final postId = await postService.createJointDraft(
+          sessionId: 'session-11',
+          type: 'strength',
+          title: 'Pull day',
+          authorIds: ['ahmed', 'mohamed'],
+          summaries: {},
+        );
+        await postService.setAuthorSlot(
+          postId: postId,
+          userId: 'ahmed',
+          caption: '   ',
+        );
+        await postService.confirmJointPost(postId: postId, userId: 'ahmed');
+        await fakeFirestore.collection('posts').doc(postId).update({
+          'status': 'expired',
+        });
+
+        final newPostId = await postService.repostSoloFromExpiredDraft(
+          postId,
+          'ahmed',
+          visibility: 'public',
+        );
+
+        final newDoc = await fakeFirestore
+            .collection('posts')
+            .doc(newPostId)
+            .get();
+        expect(newDoc.data()!['title'], 'Pull day');
+      },
+    );
+
+    test('a padded caption is trimmed before it becomes the title', () async {
+      final postId = await postService.createJointDraft(
+        sessionId: 'session-12',
+        type: 'strength',
+        title: 'Pull day',
+        authorIds: ['ahmed', 'mohamed'],
+        summaries: {},
+      );
+      await postService.setAuthorSlot(
+        postId: postId,
+        userId: 'ahmed',
+        caption: '  New PR on rows  ',
+      );
+      await postService.confirmJointPost(postId: postId, userId: 'ahmed');
+      await fakeFirestore.collection('posts').doc(postId).update({
+        'status': 'expired',
+      });
+
+      final newPostId = await postService.repostSoloFromExpiredDraft(
+        postId,
+        'ahmed',
+        visibility: 'public',
+      );
+
+      final newDoc = await fakeFirestore
+          .collection('posts')
+          .doc(newPostId)
+          .get();
+      expect(newDoc.data()!['title'], 'New PR on rows');
+    });
   });
 
   test(

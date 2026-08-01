@@ -345,6 +345,14 @@ class PostService {
       throw StateError('User $uid has no author slot on draft $postId');
     }
 
+    // The author's own caption is what they actually typed into the joint
+    // composer, so it wins over the generic session title the draft carries.
+    // Falling straight through to draft.title silently discarded their text.
+    final caption = slot.caption?.trim();
+    final title = (caption != null && caption.isNotEmpty)
+        ? caption
+        : draft.title;
+
     final postRef = _firestore.collection('posts').doc();
     final postData = {
       'authorId': uid,
@@ -353,7 +361,7 @@ class PostService {
       'coAuthored': false,
       'sessionId': draft.sessionId,
       'visibility': visibility,
-      'title': draft.title,
+      'title': title,
       'type': draft.type,
       'summary': slot.summary.toMap(),
       'mediaURLs': (slot.photoUrl != null && slot.photoUrl!.isNotEmpty)
