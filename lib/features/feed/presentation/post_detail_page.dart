@@ -3,7 +3,10 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:timeago/timeago.dart' as timeago;
+
+import '../../../app/navigation/app_route_locations.dart';
 
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
@@ -44,6 +47,8 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
   String _selectedTab = 'Workout';
   // Task 14: guards against re-showing the solo-repost dialog on rebuilds.
   bool _expiredDialogShown = false;
+  // Fix 2: guards against re-issuing the draft -> composer redirect on rebuilds.
+  bool _draftRedirectStarted = false;
 
   @override
   void initState() {
@@ -305,6 +310,15 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
     // card instead of offering the confirmed author a solo-repost dialog.
     if (_post!.status == 'expired') {
       return _buildExpiredDraftScaffold();
+    }
+
+    // Fix 2 safety net: an unpublished draft must NEVER render as a normal
+    // (reactable, commentable) post. Invites now deep-link to
+    // /joint-post/:postId, but stale links, old app builds and manual
+    // navigation can still land here — so redirect a qualifying author to the
+    // composer and show everyone else an inert "not ready yet" state.
+    if (_post!.status == 'draft') {
+      return _buildUnpublishedDraftScaffold();
     }
 
     final commentsAsync = ref.watch(commentsProvider(widget.postId));
@@ -1020,6 +1034,50 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
       });
     }
 
+    return _buildTerminalStateScaffold('This post is no longer available');
+  }
+
+  /// Fix 2: the current user may still finish this joint draft — they hold a
+  /// slot in `authors` and have not removed themselves. Anyone else (a
+  /// non-author who followed a shared link, or an author who left the post)
+  /// only gets the inert "not ready yet" state.
+  bool _canCompleteDraft() {
+    if (_post == null) return false;
+    // Watched, not read: the auth stream's first value can land a frame or two
+    // after initState, so this must re-evaluate when the uid arrives (same
+    // reasoning as _qualifiesForSoloRepostOffer).
+    final uid = ref.watch(authSessionProvider).value?.id;
+    if (uid == null) return false;
+    final slot = _post!.authors[uid];
+    return slot != null && !slot.removed;
+  }
+
+  /// Fix 2: an unpublished (`status == 'draft'`) joint post. It has no
+  /// reactions, no comments and no normal card — it is not a post yet.
+  Widget _buildUnpublishedDraftScaffold() {
+    if (_canCompleteDraft()) {
+      if (!_draftRedirectStarted) {
+        _draftRedirectStarted = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          context.pushReplacement(
+            AppRouteLocations.jointPostComposer(widget.postId),
+          );
+        });
+      }
+      return const Scaffold(
+        backgroundColor: AppColors.backgroundV2,
+        body: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      );
+    }
+
+    return _buildTerminalStateScaffold("This post isn't ready yet");
+  }
+
+  /// Shared chrome for the non-renderable post states (expired / unpublished
+  /// draft): the plain header plus a centered message, and deliberately no
+  /// reactions, comments or post card.
+  Widget _buildTerminalStateScaffold(String message) {
     return Scaffold(
       backgroundColor: AppColors.backgroundV2,
       body: Column(
@@ -1074,7 +1132,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
               child: Padding(
                 padding: const EdgeInsets.all(AppSpacing.lg),
                 child: Text(
-                  'This post is no longer available',
+                  message,
                   textAlign: TextAlign.center,
                   style: AppTextStyles.body.copyWith(
                     color: AppColors.textV2Secondary,

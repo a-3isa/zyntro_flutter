@@ -39,6 +39,7 @@ import '../../features/profile/presentation/workout_history_page.dart';
 import '../../features/profile/presentation/edit_profile_page.dart';
 import '../../features/moderation/presentation/moderation_queue_page.dart';
 import '../../features/feed/presentation/post_detail_page.dart';
+import '../../features/session/presentation/joint_post_page.dart';
 import '../../features/auth/auth_providers.dart';
 import '../../features/auth/domain/entities/auth_user_entity.dart';
 
@@ -61,6 +62,7 @@ class AppRoutes {
   static const notificationPreferences = '/notifications/preferences';
   static const userProfile = '/user/:userId';
   static const postDetail = '/post/:postId';
+  static const jointPostComposer = '/joint-post/:postId';
 
   // Privacy & moderation routes
   static const privacySettings = '/settings/privacy';
@@ -558,6 +560,19 @@ final routerProvider = Provider<GoRouter>((ref) {
           state: state,
           child: const DeleteAccountPage(),
         ),
+      ),
+
+      // Joint post composer (invited partner completing a joint draft)
+      GoRoute(
+        path: '/joint-post/:postId',
+        pageBuilder: (context, state) {
+          final postId = state.pathParameters['postId']!;
+          return buildPremiumPageTransition(
+            context: context,
+            state: state,
+            child: JointPostPage(postId: postId),
+          );
+        },
       ),
 
       // Post detail

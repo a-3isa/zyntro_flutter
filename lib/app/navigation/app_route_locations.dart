@@ -76,6 +76,16 @@ class AppRouteLocations {
     return '/session/recap/$sessionId';
   }
 
+  static String postDetail(String postId) {
+    return '/post/$postId';
+  }
+
+  /// The invited partner's composer for an unpublished joint draft. Distinct
+  /// from [postDetail], which is for published posts only.
+  static String jointPostComposer(String postId) {
+    return '/joint-post/$postId';
+  }
+
   static String userFollowers(String userId) {
     return '/user/$userId/followers';
   }

@@ -688,10 +688,18 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         }
         break;
       case NotificationType.jointPostInvite:
+        // An invite points at an unpublished draft the recipient still has to
+        // complete — open the composer, not the (unpublishable) post detail.
+        final invitePostId = data?['postId'] as String?;
+        if (invitePostId != null) {
+          context.push(AppRouteLocations.jointPostComposer(invitePostId));
+        }
+        break;
       case NotificationType.jointPostExpired:
-        final postId = data?['postId'] as String?;
-        if (postId != null) {
-          context.push('/post/$postId');
+        // Expiry offers go to post detail, where the solo-repost flow lives.
+        final expiredPostId = data?['postId'] as String?;
+        if (expiredPostId != null) {
+          context.push(AppRouteLocations.postDetail(expiredPostId));
         }
         break;
     }

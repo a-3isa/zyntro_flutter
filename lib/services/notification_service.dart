@@ -455,11 +455,19 @@ class NotificationService {
       // Joint-post invite/expiry offers also carry sessionId (for context),
       // but must never fall through to the generic live-session route below
       // — the session itself may be long finished. Route to the post instead.
+      //
+      // An *invite* points at an unpublished draft the recipient still has to
+      // complete, so it opens the composer route; only the *expired* offer
+      // goes to post detail, where the solo-repost flow lives.
       if (notificationType == 'joint_post_invite' ||
           notificationType == 'joint_post_expired') {
         final postId = data['postId'] as String?;
         if (postId != null && navigatorContext.mounted) {
-          navigatorContext.push('/post/$postId');
+          navigatorContext.push(
+            notificationType == 'joint_post_invite'
+                ? AppRouteLocations.jointPostComposer(postId)
+                : AppRouteLocations.postDetail(postId),
+          );
         }
         return;
       }
