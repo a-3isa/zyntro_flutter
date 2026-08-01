@@ -433,6 +433,18 @@ class PostService {
     }
   }
 
+  /// True when [post] should be surfaced in a feed that was built by matching
+  /// on [queriedIds] (the followed / buddy user ids the query filtered on).
+  ///
+  /// A co-authored post stays visible while at least one of the matched
+  /// authors still has a non-removed slot — an author who "removed from my
+  /// profile" must not drag the post out of the *other* author's followers'
+  /// feeds. Solo posts carry an empty `authors` map, so they always pass.
+  bool _hasActiveQueriedAuthor(Post post, Set<String> queriedIds) =>
+      queriedIds.any(
+        (id) => post.authorIds.contains(id) && post.authors[id]?.removed != true,
+      );
+
   /// Get posts from followed users.
   /// Matches RN getFollowingPosts with optimized pagination strategy.
   Future<FeedResult> getFollowingPosts({
@@ -480,9 +492,14 @@ class PostService {
     }
 
     final futures = chunks.map((chunk) {
+      // `authorIds arrayContainsAny` (not `authorId whereIn`) so a co-authored
+      // post reaches the followers of BOTH authors, not just authorIds.first.
+      // `status == 'published'` keeps unconfirmed/expired joint drafts out of
+      // the feed — mirrors getUserPosts/getPublicFeedPosts.
       Query<Map<String, dynamic>> query = _firestore
           .collection('posts')
-          .where('authorId', whereIn: chunk)
+          .where('authorIds', arrayContainsAny: chunk)
+          .where('status', isEqualTo: 'published')
           .orderBy('createdAt', descending: true)
           .limit(limit);
 
@@ -498,6 +515,7 @@ class PostService {
     // Merge all results
     final allPosts = <Post>[];
     var anyChunkHasMore = false;
+    final queriedIds = allIds.toSet();
 
     for (final snapshot in snapshots) {
       if (snapshot.docs.length >= limit) {
@@ -508,6 +526,10 @@ class PostService {
         final post = Post.fromFirestore(doc);
         // Private posts are personal records only — never show in the social feed.
         if (post.visibility == 'private') continue;
+        // The viewer removed their own slot from this joint post.
+        if (post.authors[currentUserId]?.removed == true) continue;
+        // Every author this feed matched on has removed their slot.
+        if (!_hasActiveQueriedAuthor(post, queriedIds)) continue;
         allPosts.add(post);
       }
     }
@@ -569,14 +591,19 @@ class PostService {
   }) async {
     if (buddyIds.isEmpty) return [];
 
-    // Ensure at most 10 buddies per query for 'whereIn'.
+    // Ensure at most 10 buddies per query for 'arrayContainsAny'.
     final safeBuddyIds = buddyIds.take(10).toList();
+    final queriedIds = safeBuddyIds.toSet();
 
+    // `authorIds arrayContainsAny` so co-authored posts surface for BOTH
+    // authors; `status == 'published'` keeps unconfirmed/expired joint drafts
+    // out — mirrors getUserPosts/getPublicFeedPosts.
     // Query 1: Public posts
     final publicSnapshot = await _firestore
         .collection('posts')
-        .where('authorId', whereIn: safeBuddyIds)
+        .where('authorIds', arrayContainsAny: safeBuddyIds)
         .where('visibility', isEqualTo: 'public')
+        .where('status', isEqualTo: 'published')
         .orderBy('createdAt', descending: true)
         .limit(limit)
         .get();
@@ -584,8 +611,9 @@ class PostService {
     // Query 2: Followers posts
     final followersSnapshot = await _firestore
         .collection('posts')
-        .where('authorId', whereIn: safeBuddyIds)
+        .where('authorIds', arrayContainsAny: safeBuddyIds)
         .where('visibility', isEqualTo: 'followers')
+        .where('status', isEqualTo: 'published')
         .orderBy('createdAt', descending: true)
         .limit(limit)
         .get();
@@ -595,9 +623,12 @@ class PostService {
     // Deduplicate and Convert
     final uniquePosts = <String, Post>{};
     for (final doc in allDocs) {
-      if (!uniquePosts.containsKey(doc.id)) {
-        uniquePosts[doc.id] = Post.fromFirestore(doc);
-      }
+      if (uniquePosts.containsKey(doc.id)) continue;
+      final post = Post.fromFirestore(doc);
+      // Drop joint posts whose matched buddy authors have all removed their
+      // slots — the post is no longer theirs to show.
+      if (!_hasActiveQueriedAuthor(post, queriedIds)) continue;
+      uniquePosts[doc.id] = post;
     }
 
     // Sort by createdAt desc

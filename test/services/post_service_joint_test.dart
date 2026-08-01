@@ -212,6 +212,198 @@ void main() {
     });
   });
 
+  group('getFollowingPosts / getBuddiesRecentPosts joint-post visibility', () {
+    /// Seeds a co-authored post doc. [removed] lists authors whose slot is
+    /// soft-removed.
+    Future<String> seedJointPost({
+      required String sessionId,
+      required String status,
+      List<String> authorIds = const ['ahmed', 'mohamed'],
+      String visibility = 'public',
+      List<String> removed = const [],
+    }) async {
+      final ref = await fakeFirestore.collection('posts').add({
+        // Legacy singular field intentionally points at authorIds.first only —
+        // the whole point of the fix is that queries must not rely on it.
+        'authorId': authorIds.first,
+        'authorIds': authorIds,
+        'status': status,
+        'coAuthored': true,
+        'authors': {
+          for (final uid in authorIds)
+            uid: PostAuthorSlot(
+              userId: uid,
+              removed: removed.contains(uid),
+              summary: SessionSummary(),
+            ).toMap(),
+        },
+        'sessionId': sessionId,
+        'visibility': visibility,
+        'title': 'Joint $status',
+        'type': 'strength',
+        'summary': SessionSummary().toMap(),
+        'mediaURLs': <String>[],
+        'likesCount': 0,
+        'commentsCount': 0,
+        'createdAt': Timestamp.now(),
+      });
+      return ref.id;
+    }
+
+    test('getFollowingPosts excludes unconfirmed joint drafts', () async {
+      await seedJointPost(sessionId: 'session-f1', status: 'draft');
+
+      final result = await postService.getFollowingPosts(
+        currentUserId: 'viewer',
+        followingIds: ['ahmed', 'mohamed'],
+      );
+
+      expect(result.posts, isEmpty);
+    });
+
+    test('getFollowingPosts excludes expired joint drafts', () async {
+      await seedJointPost(sessionId: 'session-f2', status: 'expired');
+
+      final result = await postService.getFollowingPosts(
+        currentUserId: 'viewer',
+        followingIds: ['ahmed', 'mohamed'],
+      );
+
+      expect(result.posts, isEmpty);
+    });
+
+    test(
+      'a published joint post reaches followers of BOTH authors, not just '
+      'authorIds.first',
+      () async {
+        final postId = await seedJointPost(
+          sessionId: 'session-f3',
+          status: 'published',
+        );
+
+        // Follower of the SECOND co-author only.
+        final secondAuthorFollower = await postService.getFollowingPosts(
+          currentUserId: 'viewer',
+          followingIds: ['mohamed'],
+        );
+        expect(secondAuthorFollower.posts.map((p) => p.id), [postId]);
+
+        // Follower of the first co-author still sees it too.
+        final firstAuthorFollower = await postService.getFollowingPosts(
+          currentUserId: 'viewer2',
+          followingIds: ['ahmed'],
+        );
+        expect(firstAuthorFollower.posts.map((p) => p.id), [postId]);
+      },
+    );
+
+    test(
+      'getFollowingPosts drops a joint post whose only followed author '
+      'removed their slot, but keeps it for the other author',
+      () async {
+        final postId = await seedJointPost(
+          sessionId: 'session-f4',
+          status: 'published',
+          removed: ['mohamed'],
+        );
+
+        final followsRemovedAuthor = await postService.getFollowingPosts(
+          currentUserId: 'viewer',
+          followingIds: ['mohamed'],
+        );
+        expect(followsRemovedAuthor.posts, isEmpty);
+
+        final followsActiveAuthor = await postService.getFollowingPosts(
+          currentUserId: 'viewer2',
+          followingIds: ['ahmed'],
+        );
+        expect(followsActiveAuthor.posts.map((p) => p.id), [postId]);
+      },
+    );
+
+    test(
+      'getFollowingPosts hides a joint post the viewer removed themselves '
+      'from, even when they still follow the other author',
+      () async {
+        await seedJointPost(
+          sessionId: 'session-f5',
+          status: 'published',
+          authorIds: ['ahmed', 'viewer'],
+          removed: ['viewer'],
+        );
+
+        final result = await postService.getFollowingPosts(
+          currentUserId: 'viewer',
+          followingIds: ['ahmed'],
+        );
+
+        expect(result.posts, isEmpty);
+      },
+    );
+
+    test('getFollowingPosts still returns solo published posts', () async {
+      final soloId = await postService.createPost(
+        CreatePostParams(
+          authorId: 'ahmed',
+          sessionId: 'session-f6',
+          visibility: 'public',
+          title: 'Solo session',
+          type: 'strength',
+          summary: SessionSummary(),
+        ),
+      );
+
+      final result = await postService.getFollowingPosts(
+        currentUserId: 'viewer',
+        followingIds: ['ahmed'],
+      );
+
+      expect(result.posts.map((p) => p.id), [soloId]);
+    });
+
+    test('getBuddiesRecentPosts excludes unconfirmed joint drafts', () async {
+      await seedJointPost(sessionId: 'session-b1', status: 'draft');
+
+      final posts = await postService.getBuddiesRecentPosts([
+        'ahmed',
+        'mohamed',
+      ]);
+
+      expect(posts, isEmpty);
+    });
+
+    test(
+      'getBuddiesRecentPosts surfaces a published joint post for the second '
+      'co-author and drops it once that author removes their slot',
+      () async {
+        final postId = await seedJointPost(
+          sessionId: 'session-b2',
+          status: 'published',
+        );
+
+        final viaSecondAuthor = await postService.getBuddiesRecentPosts([
+          'mohamed',
+        ]);
+        expect(viaSecondAuthor.map((p) => p.id), [postId]);
+
+        await postService.removeAuthorSlot(
+          postId: postId,
+          userId: 'mohamed',
+        );
+
+        final afterRemoval = await postService.getBuddiesRecentPosts([
+          'mohamed',
+        ]);
+        expect(afterRemoval, isEmpty);
+
+        final viaOtherAuthor = await postService.getBuddiesRecentPosts([
+          'ahmed',
+        ]);
+        expect(viaOtherAuthor.map((p) => p.id), [postId]);
+      },
+    );
+  });
+
   group('repostSoloFromExpiredDraft', () {
     test(
       "writes a correctly-shaped solo post from the confirmed author's slot "
