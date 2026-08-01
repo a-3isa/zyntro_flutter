@@ -42,6 +42,8 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
   ReactionType? _currentReaction;
   Map<ReactionType, int> _reactionCounts = {};
   String _selectedTab = 'Workout';
+  // Task 14: guards against re-showing the solo-repost dialog on rebuilds.
+  bool _expiredDialogShown = false;
 
   @override
   void initState() {
@@ -295,6 +297,14 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
         appBar: AppBar(),
         body: const Center(child: Text('Post not found')),
       );
+    }
+
+    // Task 14: an expired joint draft still has coAuthored == true, so this
+    // check MUST run before the coAuthored branch below (Task 10) — without
+    // it, an expired/incomplete draft would render as a full joint post
+    // card instead of offering the confirmed author a solo-repost dialog.
+    if (_post!.status == 'expired') {
+      return _buildExpiredDraftScaffold();
     }
 
     final commentsAsync = ref.watch(commentsProvider(widget.postId));
@@ -980,6 +990,162 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
     final authState = ref.read(authSessionProvider);
     final currentUserId = authState.value?.id;
     return _post != null && currentUserId == _post!.authorId;
+  }
+
+  // Task 14: only a non-removed author who actually confirmed their slot
+  // gets the solo-repost offer. Everyone else (never confirmed, removed,
+  // or a stranger who opened a stale link) just sees the unavailable state.
+  bool _qualifiesForSoloRepostOffer() {
+    if (_post == null) return false;
+    // Watched (not read): this is called from build() via
+    // _buildExpiredDraftScaffold(), and the auth stream's first value can
+    // arrive a frame or two after initState — watching ensures the page
+    // rebuilds and re-evaluates once the real uid is available, instead of
+    // being stuck on a stale "not qualified" read from before it emitted.
+    final authState = ref.watch(authSessionProvider);
+    final uid = authState.value?.id;
+    if (uid == null) return false;
+    final slot = _post!.authors[uid];
+    if (slot == null) return false;
+    return slot.confirmed && !slot.removed;
+  }
+
+  Widget _buildExpiredDraftScaffold() {
+    final qualifies = _qualifiesForSoloRepostOffer();
+
+    if (qualifies && !_expiredDialogShown) {
+      _expiredDialogShown = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showSoloRepostDialog();
+      });
+    }
+
+    return Scaffold(
+      backgroundColor: AppColors.backgroundV2,
+      body: Column(
+        children: [
+          Container(
+            padding: EdgeInsets.only(
+              top: MediaQuery.paddingOf(context).top + 8,
+              bottom: 8,
+              left: 16,
+              right: 16,
+            ),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceV2,
+              border: Border(
+                bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+              ),
+            ),
+            child: Row(
+              children: [
+                GestureDetector(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    Navigator.pop(context);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceV2Elevated,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.arrow_back,
+                      color: AppColors.textV2Primary,
+                      size: 20,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                const Text(
+                  'Post',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textV2Primary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                child: Text(
+                  'This post is no longer available',
+                  textAlign: TextAlign.center,
+                  style: AppTextStyles.body.copyWith(
+                    color: AppColors.textV2Secondary,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Task 14: offer the confirmed author a solo repost of their own slot's
+  /// data now that the joint draft has expired (their partner never
+  /// confirmed in time). "Discard" just dismisses; Public/Private call
+  /// [PostService.repostSoloFromExpiredDraft] and navigate to the new post.
+  Future<void> _showSoloRepostDialog() async {
+    if (_post == null) return;
+
+    final choice = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Your joint post expired'),
+        content: const Text(
+          'Your workout partner never confirmed, so this post never went '
+          'live. Post it on your own instead?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'discard'),
+            child: const Text('Discard'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'private'),
+            child: const Text('Private'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'public'),
+            child: const Text('Public'),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted || choice == null || choice == 'discard') return;
+
+    final authState = ref.read(authSessionProvider);
+    final uid = authState.value?.id;
+    if (uid == null) return;
+
+    try {
+      final newPostId = await ref
+          .read(postServiceProvider)
+          .repostSoloFromExpiredDraft(_post!.id, uid, visibility: choice);
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => PostDetailPage(postId: newPostId),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to repost: $e'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 
   Future<void> _handlePostAction(String action) async {

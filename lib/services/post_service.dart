@@ -263,6 +263,54 @@ class PostService {
       .snapshots()
       .map((d) => Post.fromFirestore(d));
 
+  /// Create a new plain solo post from a confirmed author's own slot on an
+  /// expired joint draft (`status == 'expired'`), offered client-side after
+  /// the `expireStaleJointPostDrafts` Cloud Function (Task 6) has already
+  /// expired the draft and the confirmed author chooses to post solo.
+  ///
+  /// The slot's `photoUrl` is already an uploaded Storage URL (set back when
+  /// the draft was being composed) — this deliberately does NOT re-run the
+  /// photo-upload pipeline (unlike [createPost]); it writes that URL
+  /// straight into the new post's `mediaURLs`. The original expired draft
+  /// document is left completely untouched.
+  Future<String> repostSoloFromExpiredDraft(
+    String postId,
+    String uid, {
+    required String visibility,
+  }) async {
+    final draftDoc = await _firestore.collection('posts').doc(postId).get();
+    if (!draftDoc.exists) {
+      throw StateError('Expired draft $postId not found');
+    }
+    final draft = Post.fromFirestore(draftDoc);
+    final slot = draft.authors[uid];
+    if (slot == null) {
+      throw StateError('User $uid has no author slot on draft $postId');
+    }
+
+    final postRef = _firestore.collection('posts').doc();
+    final postData = {
+      'authorId': uid,
+      'authorIds': [uid],
+      'status': 'published',
+      'coAuthored': false,
+      'sessionId': draft.sessionId,
+      'visibility': visibility,
+      'title': draft.title,
+      'type': draft.type,
+      'summary': slot.summary.toMap(),
+      'mediaURLs': (slot.photoUrl != null && slot.photoUrl!.isNotEmpty)
+          ? [slot.photoUrl]
+          : <String>[],
+      'likesCount': 0,
+      'commentsCount': 0,
+      'createdAt': FieldValue.serverTimestamp(),
+    };
+
+    await withRetry(() => postRef.set(postData));
+    return postRef.id;
+  }
+
   /// Update post with a photo URL (for retry scenarios).
   Future<void> updatePostPhoto(String postId, String photoUrl) async {
     final postRef = _firestore.collection('posts').doc(postId);

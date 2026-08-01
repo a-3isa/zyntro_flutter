@@ -212,6 +212,109 @@ void main() {
     });
   });
 
+  group('repostSoloFromExpiredDraft', () {
+    test(
+      "writes a correctly-shaped solo post from the confirmed author's slot "
+      'and leaves the draft untouched',
+      () async {
+        final postId = await postService.createJointDraft(
+          sessionId: 'session-9',
+          type: 'strength',
+          title: 'Leg day',
+          authorIds: ['ahmed', 'mohamed'],
+          summaries: {
+            'ahmed': SessionSummary(totalSets: 8, totalExercises: 3),
+          },
+        );
+
+        // ahmed confirmed and had already uploaded a photo before mohamed
+        // let the draft expire.
+        await postService.setAuthorSlot(
+          postId: postId,
+          userId: 'ahmed',
+          caption: 'Solid leg day',
+          photoUrl: 'https://storage.example.com/ahmed-leg-day.jpg',
+        );
+        await postService.confirmJointPost(postId: postId, userId: 'ahmed');
+        await fakeFirestore.collection('posts').doc(postId).update({
+          'status': 'expired',
+        });
+
+        final newPostId = await postService.repostSoloFromExpiredDraft(
+          postId,
+          'ahmed',
+          visibility: 'private',
+        );
+
+        expect(newPostId, isNot(postId));
+
+        final newDoc = await fakeFirestore
+            .collection('posts')
+            .doc(newPostId)
+            .get();
+        final newData = newDoc.data()!;
+        expect(newData['authorId'], 'ahmed');
+        expect((newData['authorIds'] as List).cast<String>(), ['ahmed']);
+        expect(newData['status'], 'published');
+        expect(newData['coAuthored'], false);
+        expect(newData['visibility'], 'private');
+        expect(newData['title'], 'Leg day');
+        expect(newData['type'], 'strength');
+        expect(
+          (newData['mediaURLs'] as List).cast<String>(),
+          ['https://storage.example.com/ahmed-leg-day.jpg'],
+        );
+
+        final newPost = Post.fromFirestore(newDoc);
+        expect(newPost.summary.totalSets, 8);
+        expect(newPost.summary.totalExercises, 3);
+
+        // The original expired draft document is left exactly as-is.
+        final draftDoc = await fakeFirestore
+            .collection('posts')
+            .doc(postId)
+            .get();
+        expect(draftDoc.data()!['status'], 'expired');
+        expect(draftDoc.data()!['coAuthored'], true);
+        expect(draftDoc.data()!['authors'], isNotNull);
+      },
+    );
+
+    test(
+      'does not attempt a photo upload — falls back to no media when the '
+      "slot has no photoUrl",
+      () async {
+        final postId = await postService.createJointDraft(
+          sessionId: 'session-10',
+          type: 'cardio',
+          title: 'Morning run',
+          authorIds: ['ahmed', 'mohamed'],
+          summaries: {},
+        );
+        await postService.confirmJointPost(postId: postId, userId: 'mohamed');
+        await fakeFirestore.collection('posts').doc(postId).update({
+          'status': 'expired',
+        });
+
+        // No mediaServiceProvider override exists in this test's container —
+        // if the implementation tried to run the upload pipeline, reading
+        // that provider would throw. Succeeding here proves it didn't.
+        final newPostId = await postService.repostSoloFromExpiredDraft(
+          postId,
+          'mohamed',
+          visibility: 'public',
+        );
+
+        final newDoc = await fakeFirestore
+            .collection('posts')
+            .doc(newPostId)
+            .get();
+        expect((newDoc.data()!['mediaURLs'] as List), isEmpty);
+        expect(newDoc.data()!['visibility'], 'public');
+      },
+    );
+  });
+
   test(
     'solo createPost still writes authorIds/status/coAuthored and is discoverable via getUserPosts',
     () async {
