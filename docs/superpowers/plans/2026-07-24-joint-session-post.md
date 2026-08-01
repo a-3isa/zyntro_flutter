@@ -720,6 +720,55 @@ git commit -am "feat(post): co-authored delete removes only the caller's slot"
 
 ---
 
+## Task 13: Embed joint composer inside recap stats page
+
+**Decision (resolved 2026-07-28):** Task 8 shipped `JointPostComposer` as a full-screen `Scaffold` that replaces recap's entire body for paired sessions, so partners never see the stats/breakdown screen. User chose **option (c)**: redesign the composer as a section that renders inside the existing stats page, rather than a separate full-screen replacement — stats and compose in one scroll, not two screens.
+
+**Files:**
+- Modify: `lib/features/session/presentation/recap_page.dart` (remove the full-screen joint branch added in Task 8; render stats body always, append composer content below it for paired sessions)
+- Modify: `lib/features/session/presentation/widgets/joint_post_composer.dart` (de-`Scaffold`: expose the composer content as an embeddable widget/section rather than a route-level screen; preserve its existing `PopScope` back-navigation behavior by moving that guard up to `recap_page.dart`'s own scaffold)
+- Test: extend `test/features/session/presentation/recap_joint_branch_test.dart` — joint session now shows BOTH the stats/breakdown content AND the composer section on one page; solo path unchanged.
+
+**Interfaces:**
+- Consumes: `JointPostComposer` (Task 9), `_isTwoHumanPairedSession` / `_ensureJointDraft()` (Task 8).
+- Produces: paired-session recap = stats/breakdown (unchanged content) + joint composer section below it, one scrollable page. Solo recap unchanged.
+
+- [ ] **Step 1: Write the failing test** — joint recap renders both stats content and composer section; solo recap unchanged; back-navigation still guarded.
+- [ ] **Step 2: Run → fails**
+- [ ] **Step 3: Implement** — extract composer's body from its `Scaffold` into a plain widget; recap_page renders stats + composer section for paired sessions.
+- [ ] **Step 4: Run → passes**
+- [ ] **Step 5: Analyze + commit**
+
+```bash
+git commit -am "feat(post): embed joint composer inside recap stats page instead of replacing it"
+```
+
+---
+
+## Task 14: Solo-repost offer on an expired joint draft
+
+**Gap found in Task 12's regression pass (resolved 2026-07-28):** the plan states three times (Architecture, Global Constraints, Task 12's manual checklist) that an expired joint draft "offers the confirmed author a solo repost," but no task 1-13 ever built the client-side half. `expireStaleJointPostDrafts` (Task 6) sets `status: 'expired'` and fires a `joint_post_expired` notification; tapping it deep-links to `/post/:postId` (Task 7) — but nothing there handles `status == 'expired'`, so the confirmed author currently lands on a broken/partial draft render with no way to act on it.
+
+**Decision (resolved 2026-07-28):** user chose a simple dialog (Public / Private / Discard) over reusing the full recap share screen — minimal new UI, pre-filled with the confirmed author's own existing draft data.
+
+**Files:**
+- Modify: `lib/services/post_service.dart` — add `repostSoloFromExpiredDraft(String postId, String uid)`. Reads the draft's `authors[uid]` slot (caption, photoUrl — already-uploaded, do NOT re-run the photo-upload pipeline) plus the draft's `title`/`type`/`summary`, and writes a **new** plain solo post document with the same shape `createPost` produces (`authorId: uid`, `authorIds: [uid]`, `status: 'published'`, `coAuthored: false`, `visibility` per the user's dialog choice). The original expired draft document is left as-is (`status: 'expired'`) — it already doesn't appear in any query (author-scoped queries filter `status == 'published'`).
+- Modify: `lib/features/feed/presentation/post_detail_page.dart` — when the loaded post has `status == 'expired'` and the current user is a non-removed, confirmed author in `authors`, show a dialog (Public / Private / Discard) instead of (or before) attempting the normal render. "Discard" just dismisses. Public/Private calls `repostSoloFromExpiredDraft` and then navigates to the new post (or back to feed). A user who is NOT a confirmed author of the expired draft (e.g. opened via a stale link, or never confirmed) sees a plain "This post is no longer available" state — no dialog.
+- Test: `test/services/post_service_joint_test.dart` (extend) — `repostSoloFromExpiredDraft` writes a correctly-shaped solo post from an expired draft's slot data, does not touch the original draft doc, does not attempt a photo upload.
+- Test: extend `test/widgets/post_card_joint_test.dart` or create `test/features/feed/post_detail_page_expired_test.dart` — confirmed author sees the repost dialog on an expired draft; each button does the right thing; a non-author sees no dialog.
+
+- [ ] **Step 1: Write the failing tests** for both the service method and the page-level dialog behavior.
+- [ ] **Step 2: Run → fails**
+- [ ] **Step 3: Implement**
+- [ ] **Step 4: Run → passes**
+- [ ] **Step 5: Analyze + commit**
+
+```bash
+git commit -am "feat(post): offer solo repost when a joint draft expires"
+```
+
+---
+
 ## Self-Review
 
 - **Spec coverage:** one post on both profiles (Tasks 1,3,10) ✓; "A with B" + stacked avatars (10) ✓; both activities (10) ✓; side-by-side photo slots (9) ✓; partner sees the other's photo before posting (9, live stream) ✓; posts only when both tap Post (6 CF + 4 rules) ✓; no photo → profile picture (9,10) ✓; co-session public/private choice, private-wins (2,6) ✓; solo unchanged (3,8) ✓; expire→solo offer (6,7) ✓; remove-own-slot (11) ✓.
