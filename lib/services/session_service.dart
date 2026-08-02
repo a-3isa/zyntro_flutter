@@ -856,7 +856,7 @@ class SessionService {
     final session = await getSession(sessionId);
     if (session == null) return;
 
-    final durationMinutes = DateTime.now().difference(session.startedAt);
+    final sessionDuration = DateTime.now().difference(session.startedAt);
     // `partnerKind` is stamped at session creation, before the invited friend
     // responds — on its own it would pay the buddy bonus for a session the
     // inviter trained alone with a pending or declined invite. Require the
@@ -905,7 +905,7 @@ class SessionService {
     }
 
     final scoreResult = computeWorkoutScore(
-      sessionDuration: durationMinutes,
+      sessionDuration: sessionDuration,
       hasRealHumanBuddy: hasRealHumanBuddy,
       sessionType: sessionCategory,
       summary: summary,

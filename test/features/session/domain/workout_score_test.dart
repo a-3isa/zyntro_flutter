@@ -182,6 +182,34 @@ void main() {
       expect(capped.score, 40);
     });
 
+    test('a negative totalSets floors at 0 effort points, never negative', () {
+      final result = computeWorkoutScore(
+        sessionDuration: const Duration(minutes: 10),
+        hasRealHumanBuddy: false,
+        sessionType: 'strength',
+        summary: _strengthSummary(totalSets: -50, exercises: const []),
+        currentStrengthPrs: const {},
+        currentCardioPrs: const {},
+      );
+      // Time only — the bogus set count contributes nothing rather than -100.
+      expect(result.score, 10);
+    });
+
+    test('the total score never goes negative', () {
+      // The caller feeds this into FieldValue.increment, so a negative total
+      // would subtract from the user's stored leaderboard score.
+      final result = computeWorkoutScore(
+        sessionDuration: const Duration(minutes: -30),
+        hasRealHumanBuddy: false,
+        sessionType: 'strength',
+        summary: _strengthSummary(totalSets: -100, exercises: const []),
+        currentStrengthPrs: const {},
+        currentCardioPrs: const {},
+      );
+      expect(result.score, 0);
+      expect(result.score, greaterThanOrEqualTo(0));
+    });
+
     test('cardio: zero effort points regardless of totalSets', () {
       final result = computeWorkoutScore(
         sessionDuration: Duration.zero,

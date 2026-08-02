@@ -56,7 +56,9 @@ WorkoutScoreResult computeWorkoutScore({
 
   var effortPoints = 0;
   if (sessionType == 'strength') {
-    final totalSets = summary?.totalSets ?? 0;
+    // Floor at 0: totalSets is unvalidated, and a negative would otherwise
+    // produce negative effort points and drag the total below zero.
+    final totalSets = math.max(0, summary?.totalSets ?? 0);
     effortPoints = math.min(totalSets, _effortSetCap) * _effortPointsPerSet;
   }
 
@@ -119,8 +121,12 @@ WorkoutScoreResult computeWorkoutScore({
       : pctImprovements.reduce((a, b) => a + b) / pctImprovements.length;
   final progressBonus = averagePct * _progressPointsMultiplier;
 
-  final total =
-      (timePoints + buddyBonus + effortPoints + progressBonus).round();
+  // The caller feeds this straight into FieldValue.increment, so a negative
+  // total would subtract from the user's stored leaderboard score.
+  final total = math.max(
+    0,
+    (timePoints + buddyBonus + effortPoints + progressBonus).round(),
+  );
 
   return WorkoutScoreResult(
     score: total,
