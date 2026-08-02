@@ -59,12 +59,18 @@ class UserStreak {
   final int totalWorkouts;
   final int weeklyWorkouts;
 
+  /// Completed sessions that had more than one participant. Derived from the
+  /// same session read the other stats come from, so badge checks can use it
+  /// instead of re-scanning the user's whole session history.
+  final int buddyWorkouts;
+
   UserStreak({
     required this.currentStreak,
     required this.longestStreak,
     this.lastWorkoutDate,
     required this.totalWorkouts,
     this.weeklyWorkouts = 0,
+    this.buddyWorkouts = 0,
   });
 }
 
@@ -221,8 +227,11 @@ class UserService {
       // Extract unique dates + count sessions this week
       final workoutDates = <String>{};
       int weeklyCount = 0;
+      int buddyCount = 0;
       for (final doc in snapshot.docs) {
         final data = doc.data();
+        final participants = data['participants'];
+        if (participants is List && participants.length > 1) buddyCount++;
         if (data['createdAt'] != null) {
           final date = (data['createdAt'] as Timestamp).toDate();
           final dateStr = date.toIso8601String().split('T')[0];
@@ -239,6 +248,7 @@ class UserService {
           longestStreak: 0,
           totalWorkouts: snapshot.docs.length,
           weeklyWorkouts: weeklyCount,
+          buddyWorkouts: buddyCount,
         );
         _streakCache[userId] = (streak: streak, fetchedAt: DateTime.now());
         return streak;
@@ -284,6 +294,7 @@ class UserService {
         totalWorkouts: snapshot.docs.length,
         lastWorkoutDate: sortedDates[0],
         weeklyWorkouts: weeklyCount,
+        buddyWorkouts: buddyCount,
       );
 
       _streakCache[userId] = (streak: result, fetchedAt: DateTime.now());
@@ -555,6 +566,9 @@ class UserService {
 
       final stats = await calculateUserStreak(userId);
 
+      // Fetched lazily and at most once, no matter how many cheer badges exist.
+      int? cheersSent;
+
       for (final badge in availableBadges) {
         if (existingBadges.contains(badge.id)) continue;
 
@@ -584,37 +598,45 @@ class UserService {
             }
             break;
           case BadgeCriteriaType.buddySessions:
-            final sessionsSnapshot = await _firestore
-                .collection('sessions')
-                .where('participants', arrayContains: userId)
-                .where('status', isEqualTo: 'completed')
-                .get();
-            final buddySessionCount = sessionsSnapshot.docs
-                .where((d) => (d.data()['participants'] as List).length > 1)
-                .length;
-            shouldAward = buddySessionCount >= badge.criteria.threshold;
+            // Already derived from calculateUserStreak's single session read
+            // above. Querying the session history again here made every
+            // session-end re-scan the user's entire history a second time.
+            shouldAward = stats.buddyWorkouts >= badge.criteria.threshold;
             break;
           case BadgeCriteriaType.cheersSent:
-            // Count cheers in this session
-            final eventsSnapshot = await _firestore
-                .collection('sessions')
-                .doc(sessionId)
-                .collection('events')
-                .where('userId', isEqualTo: userId)
-                .where('type', isEqualTo: 'cheer')
-                .get();
-            shouldAward =
-                eventsSnapshot.docs.length >= badge.criteria.threshold;
+            // Cheers sent in this session only, so the count is bounded by one
+            // session's events. Read once and reuse across every cheer badge.
+            cheersSent ??= (await _firestore
+                    .collection('sessions')
+                    .doc(sessionId)
+                    .collection('events')
+                    .where('userId', isEqualTo: userId)
+                    .where('type', isEqualTo: 'cheer')
+                    .count()
+                    .get())
+                .count ??
+                0;
+            shouldAward = cheersSent >= badge.criteria.threshold;
             break;
         }
 
-        if (shouldAward) {
-          await awardBadge(userId, badge.id);
-          newlyUnlocked.add(badge.id);
-        }
+        if (shouldAward) newlyUnlocked.add(badge.id);
       }
-    } catch (e) {
-      // Silent fail for badge checks
+
+      // One write for the whole batch instead of one per badge.
+      if (newlyUnlocked.isNotEmpty) {
+        await _firestore.collection('users').doc(userId).update({
+          'badges': FieldValue.arrayUnion(newlyUnlocked),
+          for (final badgeId in newlyUnlocked)
+            'badgeUnlockDates.$badgeId': FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (e, st) {
+      // A badge check must never fail the session it runs after, but it also
+      // must not vanish — a swallowed error here hid the quota cost of the
+      // duplicate history scan this method used to perform.
+      debugPrint('Error checking badges for $userId: $e\n$st');
+      return const [];
     }
 
     return newlyUnlocked;
