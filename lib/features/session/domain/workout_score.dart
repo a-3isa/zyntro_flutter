@@ -71,6 +71,12 @@ WorkoutScoreResult computeWorkoutScore({
       final todayEstimate = exercise.setDetails
           .map((s) => _epleyEstimate(s.weight, s.reps))
           .reduce(math.max);
+      // A 0-weight (bodyweight) or negative estimate carries no comparable
+      // signal: storing it as a PR would make every later session on this
+      // exercise re-trigger the "first time ever" branch forever (0 <= 0) and
+      // pay the flat bonus regardless of actual rep improvement. Skip the
+      // exercise entirely — no averaging contribution, no PR write.
+      if (todayEstimate <= 0) continue;
       final personalBest = currentStrengthPrs[key];
 
       double pct;
@@ -89,7 +95,9 @@ WorkoutScoreResult computeWorkoutScore({
   } else if (sessionType == 'cardio') {
     final activityType = summary?.activityType;
     final todaySpeed = summary?.averageSpeed;
-    if (activityType != null && todaySpeed != null) {
+    // Same rule as strength: a non-positive speed is not a comparable record
+    // and must never be stored as a PR (it would be unbeatable-by-tie forever).
+    if (activityType != null && todaySpeed != null && todaySpeed > 0) {
       final personalBest = currentCardioPrs[activityType];
       double pct;
       if (personalBest == null || personalBest <= 0) {

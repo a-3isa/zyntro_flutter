@@ -361,6 +361,101 @@ void main() {
       expect(result.score, 44);
     });
 
+    test(
+      'bodyweight (0 weight) exercise earns no progress bonus and writes no PR',
+      () {
+        // Input validation allows logging push-ups at weight 0. Storing a 0.0
+        // PR would make every future session re-trigger the "first time ever"
+        // branch (0 <= 0) and pay the flat bonus forever.
+        final first = computeWorkoutScore(
+          sessionDuration: Duration.zero,
+          hasRealHumanBuddy: false,
+          sessionType: 'strength',
+          summary: _strengthSummary(
+            totalSets: 3,
+            exercises: [
+              _exercise('Push Ups', [
+                SetSummary(reps: 20, weight: 0, durationSeconds: 0),
+                SetSummary(reps: 18, weight: 0, durationSeconds: 0),
+                SetSummary(reps: 15, weight: 0, durationSeconds: 0),
+              ]),
+            ],
+          ),
+          currentStrengthPrs: const {},
+          currentCardioPrs: const {},
+        );
+
+        // Effort still counts the sets (3 * 2 = 6); progress contributes 0.
+        expect(first.score, 6);
+        expect(first.updatedStrengthPrs, isEmpty);
+
+        // Repeating the session forever never re-earns a first-time bonus,
+        // because no 0.0 PR was ever stored to re-trigger it.
+        for (var i = 0; i < 3; i++) {
+          final repeat = computeWorkoutScore(
+            sessionDuration: Duration.zero,
+            hasRealHumanBuddy: false,
+            sessionType: 'strength',
+            summary: _strengthSummary(
+              totalSets: 3,
+              exercises: [
+                _exercise('Push Ups', [
+                  SetSummary(reps: 30, weight: 0, durationSeconds: 0),
+                ]),
+              ],
+            ),
+            // Even if a legacy 0.0 PR somehow exists, it is not re-armed.
+            currentStrengthPrs: const {'push ups': 0.0},
+            currentCardioPrs: const {},
+          );
+          expect(repeat.score, 6);
+          expect(repeat.updatedStrengthPrs, isEmpty);
+        }
+      },
+    );
+
+    test(
+      'a bodyweight exercise does not drag down a weighted exercise average',
+      () {
+        final result = computeWorkoutScore(
+          sessionDuration: Duration.zero,
+          hasRealHumanBuddy: false,
+          sessionType: 'strength',
+          summary: _strengthSummary(
+            totalSets: 2,
+            exercises: [
+              _exercise('Push Ups', [
+                SetSummary(reps: 20, weight: 0, durationSeconds: 0),
+              ]),
+              // 10% improvement
+              _exercise('Squat', [
+                SetSummary(reps: 5, weight: 55, durationSeconds: 0),
+              ]),
+            ],
+          ),
+          currentStrengthPrs: {'squat': 50 * (1 + 5 / 30)},
+          currentCardioPrs: const {},
+        );
+        // Push Ups is skipped entirely, so the average is 10%, not 5%.
+        // effort 2 sets * 2 = 4, progress 0.10 * 800 = 80. Total 84.
+        expect(result.score, 84);
+        expect(result.updatedStrengthPrs.containsKey('push ups'), isFalse);
+      },
+    );
+
+    test('cardio: a zero average speed writes no PR and earns no bonus', () {
+      final result = computeWorkoutScore(
+        sessionDuration: Duration.zero,
+        hasRealHumanBuddy: false,
+        sessionType: 'cardio',
+        summary: SessionSummary(activityType: 'running', averageSpeed: 0),
+        currentStrengthPrs: const {},
+        currentCardioPrs: const {},
+      );
+      expect(result.score, 0);
+      expect(result.updatedCardioPrs, isEmpty);
+    });
+
     test('cardio progress uses average speed vs personal best, same mechanics', () {
       final result = computeWorkoutScore(
         sessionDuration: Duration.zero,
