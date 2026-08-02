@@ -7,7 +7,8 @@ Replace the current flat `+10 points per completed workout` leaderboard score wi
 ## Current state (what's being replaced)
 
 - `lib/services/session_service.dart`'s `endSession()` increments `workoutScore` by a flat `10` on every completed session, ignoring duration, solo/buddy, sets/reps, and any notion of progress.
-- `lib/services/user_service.dart`'s `updateWorkoutScore(userId, pointsToAdd)` is dead code — never called anywhere. It will be removed; its role is absorbed into the new scoring logic.
+- `lib/services/user_service.dart`'s `updateWorkoutScore(userId, pointsToAdd)` is dead code — never called anywhere. It will be deleted; its role is absorbed into the new scoring logic.
+- `lib/services/session_analytics_service.dart`'s `checkPersonalRecords(userId, exercises)` is also dead code — never called anywhere. It already writes to `users/{uid}/stats/prs`, a single document mapping `{exerciseNameLowercase: maxWeightEverUsed}`. It tracks raw max weight only (no rep-count normalization, so a 100kg×1 single and a 100kg×10 set register identically), which can't support this design's Epley-normalized, percentage-based progress math as-is. It will be deleted and its role absorbed into the new scoring logic, but its existing Firestore path (`users/{uid}/stats/prs`) is reused rather than replaced with a new one — see Data Model. Since it's dead code, no document has ever actually been written at that path in production, so redefining its value shape is free (no migration needed).
 - `lib/services/leaderboard_service.dart` sorts by whatever `workoutScore` number is stored; it has no opinion on how that number is computed and needs no changes.
 
 ## Core invariant (non-negotiable)
@@ -67,19 +68,24 @@ A capped-out single session: `60 (time) + 15 (buddy) + 40 (effort, strength) + 1
 
 ## Data model
 
-**New: `users/{uid}/personalRecords/{exerciseOrActivityKey}`** (Firestore subcollection), one document per exercise (strength) or per `activityType` (cardio):
+**Reused, redefined: `users/{uid}/stats/prs`** (single document — the same path `checkPersonalRecords` already used, dead code being replaced, not a new path):
 
 ```
 {
-  kind: 'strength' | 'cardio',
-  key: string,              // exercise name (strength) or activityType (cardio)
-  bestEstimate: number,     // Epley estimate (strength) or avg speed km/h (cardio)
-  achievedAt: Timestamp,
-  sourceSessionId: string,  // session that set this record, for audit/debugging
+  strength: {
+    "<exerciseNameLowercase>": { bestEstimate: number, achievedAt: Timestamp, sourceSessionId: string },
+    ...
+  },
+  cardio: {
+    "<activityType>": { bestEstimate: number, achievedAt: Timestamp, sourceSessionId: string },
+    ...
+  },
 }
 ```
 
-Rationale for a maintained per-exercise record rather than scanning the `workouts` collection on every session-end: `workouts` already accumulates one document per participant per completed session with a full `summary`, but scanning all of a user's historical workouts for the max estimate on every session-end is O(sessions) and gets slower as a user's history grows. A maintained record is O(1) to read and O(1) to update, at the cost of a small amount of write complexity at session-end (read the relevant record docs, compare, write updates alongside the score).
+`bestEstimate` is the Epley estimate (strength) or average speed km/h (cardio) — replacing the old shape's raw `maxWeight` number, which couldn't support this design's rep-normalized, percentage-based math. One document per user (not a subcollection) matches the existing dead code's shape and keeps a whole user's PRs in a single read/write.
+
+Rationale for a maintained record rather than scanning the `workouts` collection on every session-end: `workouts` already accumulates one document per participant per completed session with a full `summary`, but scanning all of a user's historical workouts for the max estimate on every session-end is O(sessions) and gets slower as a user's history grows. A maintained record is O(1) to read (one document) and O(1) to update, at the cost of a small amount of write complexity at session-end (read the one `stats/prs` doc, compare, merge-write updates alongside the score in the same batch).
 
 **Existing, unchanged:** `Session.startedAt`/`endedAt`, `Session.partnerKind`, `SessionSummary.totalSets`, `SessionSummary.exercises` (`List<ExerciseSummary>`, each with `setDetails: List<SetSummary>` giving per-set `weight`/`reps`), `SessionSummary.averageSpeed`, `Session.type` (`'strength'`/`'cardio'`).
 
@@ -87,7 +93,7 @@ Rationale for a maintained per-exercise record rather than scanning the `workout
 
 A new pure function, `computeWorkoutScore(...)`, in `lib/features/session/domain/workout_score.dart` (mirroring the existing `joint_post_draft.dart` pattern of pure, directly-unit-testable domain functions with no Firestore dependency). It takes the session, its summary, and a map of the user's current personal-best records (already read), and returns both the computed score and the list of any personal records that were just broken (so the caller can write the updates).
 
-`lib/services/session_service.dart`'s `endSession()` calls it: before building the existing write batch, it reads the relevant `personalRecords` docs for every exercise/activityType in the session's summary (plain `.get()` calls — no transaction needed; a personal-record update losing a rare race is low-stakes, unlike the joint-post feature's consent guarantees), computes the score via the pure function, then adds the score increment and any updated `personalRecords` docs to the same existing batch write. The dead `updateWorkoutScore` in `user_service.dart` is deleted — this fully replaces its intended role.
+`lib/services/session_service.dart`'s `endSession()` calls it: before building the existing write batch, it reads the user's single `users/{uid}/stats/prs` document (one plain `.get()` — no transaction needed; a personal-record update losing a rare race is low-stakes, unlike the joint-post feature's consent guarantees), computes the score via the pure function, then adds the score increment and the merged `stats/prs` update to the same existing batch write. The dead `updateWorkoutScore` (`user_service.dart`) and `checkPersonalRecords` (`session_analytics_service.dart`) are both deleted — this fully replaces both of their intended roles with one coherent, actually-wired path.
 
 ## Out of scope / explicitly not doing
 
