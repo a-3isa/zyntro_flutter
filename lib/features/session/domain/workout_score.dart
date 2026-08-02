@@ -26,6 +26,22 @@ const double _progressPointsMultiplier = 800;
 
 double _epleyEstimate(double weight, int reps) => weight * (1 + reps / 30);
 
+/// Average speed in km/h — the cardio progress metric this scorer compares
+/// against a user's own personal best.
+///
+/// [distanceKm] is a distance in kilometres (the unit `SessionSummary.distance`
+/// and `ParticipantProgress.totalDistance` both carry). Returns `null` when
+/// either input is non-positive, so a session with no logged distance or a
+/// zero-length clock yields no speed rather than 0.0 or a division blow-up —
+/// `computeWorkoutScore` skips a null/zero speed entirely.
+double? averageSpeedKmh({
+  required double distanceKm,
+  required Duration elapsed,
+}) {
+  if (distanceKm <= 0 || elapsed.inSeconds <= 0) return null;
+  return distanceKm / (elapsed.inSeconds / 3600);
+}
+
 WorkoutScoreResult computeWorkoutScore({
   required Duration sessionDuration,
   required bool hasRealHumanBuddy,

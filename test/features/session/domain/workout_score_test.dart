@@ -15,6 +15,88 @@ ExerciseSummary _exercise(String name, List<SetSummary> sets) {
 }
 
 void main() {
+  group('averageSpeedKmh', () {
+    test('converts km + elapsed duration to km/h', () {
+      expect(
+        averageSpeedKmh(
+          distanceKm: 5.0,
+          elapsed: const Duration(minutes: 30),
+        ),
+        closeTo(10.0, 0.0001),
+      );
+      expect(
+        averageSpeedKmh(distanceKm: 10.0, elapsed: const Duration(hours: 1)),
+        closeTo(10.0, 0.0001),
+      );
+    });
+
+    test('returns null rather than dividing by zero on a zero-length clock', () {
+      expect(
+        averageSpeedKmh(distanceKm: 5.0, elapsed: Duration.zero),
+        isNull,
+      );
+      expect(
+        averageSpeedKmh(
+          distanceKm: 5.0,
+          elapsed: const Duration(minutes: -10),
+        ),
+        isNull,
+      );
+    });
+
+    test('returns null when no distance was logged', () {
+      expect(
+        averageSpeedKmh(
+          distanceKm: 0.0,
+          elapsed: const Duration(minutes: 30),
+        ),
+        isNull,
+      );
+      expect(
+        averageSpeedKmh(
+          distanceKm: -1.0,
+          elapsed: const Duration(minutes: 30),
+        ),
+        isNull,
+      );
+    });
+
+    test(
+      'a finished cardio session with real distance/duration produces a '
+      'non-zero averageSpeed on the summary it feeds',
+      () {
+        // Mirrors _handleFinishSession's SessionSummary construction: the
+        // cardio progress term is dead unless averageSpeed is actually set.
+        const totalDistance = 8.0; // km, as tracked by ParticipantProgress
+        const elapsed = Duration(minutes: 48);
+
+        final summary = SessionSummary(
+          activityType: 'running',
+          distance: totalDistance,
+          averageSpeed: averageSpeedKmh(
+            distanceKm: totalDistance,
+            elapsed: elapsed,
+          ),
+        );
+
+        expect(summary.averageSpeed, isNotNull);
+        expect(summary.averageSpeed, closeTo(10.0, 0.0001));
+
+        // And the scorer's cardio branch actually fires off it.
+        final result = computeWorkoutScore(
+          sessionDuration: elapsed,
+          hasRealHumanBuddy: false,
+          sessionType: 'cardio',
+          summary: summary,
+          currentStrengthPrs: const {},
+          currentCardioPrs: const {'running': 9.0},
+        );
+        expect(result.updatedCardioPrs['running'], closeTo(10.0, 0.0001));
+        expect(result.score, greaterThan(elapsed.inMinutes));
+      },
+    );
+  });
+
   group('computeWorkoutScore - time points', () {
     test('awards 1 point per minute, capped at 60', () {
       final under = computeWorkoutScore(

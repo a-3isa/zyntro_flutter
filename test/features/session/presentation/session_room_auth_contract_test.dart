@@ -173,4 +173,28 @@ void main() {
       expect(source, contains('botGymPlanFromHostPlan(updatedPlan)'));
     },
   );
+
+  // ---------------------------------------------------------------------------
+  // Cardio progress scoring needs SessionSummary.averageSpeed populated. Without
+  // it the scorer's cardio branch never fires, so the finish handler must set it
+  // from the tracked distance and the session clock.
+  // ---------------------------------------------------------------------------
+  test(
+    'finish handler populates SessionSummary.averageSpeed from distance and elapsed',
+    () {
+      final source = File(
+        'lib/features/session/presentation/session_room_page.dart',
+      ).readAsStringSync();
+
+      final start = source.indexOf('Future<void> _handleFinishSession()');
+      final end = source.indexOf('Widget _buildAnimatedBackground()');
+      expect(start, greaterThan(-1));
+      expect(end, greaterThan(start));
+      final finishSource = source.substring(start, end);
+
+      expect(finishSource, contains('averageSpeed: averageSpeedKmh('));
+      expect(finishSource, contains('distanceKm: totalDistance'));
+      expect(finishSource, contains('elapsed: elapsed'));
+    },
+  );
 }

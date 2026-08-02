@@ -31,6 +31,7 @@ import 'widgets/parallel_cardio_view.dart';
 import 'widgets/gym_exercise_picker_sheet.dart';
 import '../domain/gym_session_plan.dart';
 import '../domain/turn_plan_progress.dart';
+import '../domain/workout_score.dart';
 
 /// Tracks real-time progress for a participant in a session.
 class ParticipantProgress {
@@ -2750,6 +2751,12 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       totalExercises: _exercises.length,
       totalVolume: totalVolume,
       distance: totalDistance,
+      // Cardio progress scores speed-vs-own-best, so the summary must carry it.
+      // Null when there is no distance or no elapsed clock (e.g. gym sessions).
+      averageSpeed: averageSpeedKmh(
+        distanceKm: totalDistance,
+        elapsed: elapsed,
+      ),
       exercises: _exercises
           .map(
             (e) => ExerciseSummary(
