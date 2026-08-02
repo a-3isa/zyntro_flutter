@@ -9,12 +9,31 @@ void main() {
 
       expect(
         pubspec,
-        contains('background_image: assets/splash_background.png'),
+        contains('background_image: design/splash_background.png'),
       );
-      expect(pubspec, contains('image: assets/splash_z_v5.png'));
+      expect(pubspec, contains('image: design/splash_z_v5.png'));
       expect(pubspec, contains('android_12:'));
-      expect(File('assets/splash_background.png').existsSync(), isTrue);
-      expect(File('assets/splash_z_v5.png').existsSync(), isTrue);
+      expect(File('design/splash_background.png').existsSync(), isTrue);
+      expect(File('design/splash_z_v5.png').existsSync(), isTrue);
+    });
+
+    test('does not bundle splash source art into the shipped app', () {
+      final pubspec = File('pubspec.yaml').readAsStringSync();
+
+      // Splash art is baked into native resources at generation time. Bundling
+      // it too would ship ~1.9 MB the app never loads at runtime, so the asset
+      // list must stay narrow and must not reintroduce a directory-wide glob.
+      expect(pubspec, isNot(contains('- assets/\n')));
+      expect(pubspec, contains('- assets/sounds/turn_start.wav'));
+      expect(Directory('assets').existsSync(), isTrue);
+      expect(
+        Directory('assets')
+            .listSync(recursive: true)
+            .whereType<File>()
+            .map((file) => file.path.replaceAll(r'\', '/'))
+            .toList(),
+        ['assets/sounds/turn_start.wav'],
+      );
     });
 
     test('generates Android launch resources from the configured assets', () {
@@ -45,12 +64,12 @@ void main() {
       expect(
         File('android/app/src/main/res/drawable/background.png')
             .readAsBytesSync(),
-        File('assets/splash_background.png').readAsBytesSync(),
+        File('design/splash_background.png').readAsBytesSync(),
       );
       expect(
         File('android/app/src/main/res/drawable-v21/background.png')
             .readAsBytesSync(),
-        File('assets/splash_background.png').readAsBytesSync(),
+        File('design/splash_background.png').readAsBytesSync(),
       );
 
       const expectedDensitySizes = {
@@ -87,7 +106,7 @@ void main() {
       expect(
         File('ios/Runner/Assets.xcassets/LaunchBackground.imageset/background.png')
             .readAsBytesSync(),
-        File('assets/splash_background.png').readAsBytesSync(),
+        File('design/splash_background.png').readAsBytesSync(),
       );
 
       expect(

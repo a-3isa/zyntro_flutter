@@ -86,24 +86,27 @@ dev_dependencies:
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/app_icon.png"
+  image_path: "design/app_icon.png"
   min_sdk_android: 21
 
 # Splash screen configuration
 flutter_native_splash:
-  background_image: assets/splash_background.png
-  image: assets/splash_z_v5.png
+  background_image: design/splash_background.png
+  image: design/splash_z_v5.png
   android: true
   ios: true
   android_min_sdk: 21
   android_12:
     color: "#0A0E1A"
-    image: assets/splash_z_v5.png
+    image: design/splash_z_v5.png
     icon_background_color: "#0A0E1A"
 
 flutter:
   uses-material-design: true
   
+  # Only runtime-loaded assets belong here. Splash and launcher-icon source
+  # art lives in design/ — flutter_native_splash and flutter_launcher_icons
+  # read it at generation time and bake it into native resources, so bundling
+  # it would ship ~1.9 MB the app never loads.
   assets:
-    - assets/
-    - assets/sounds/
+    - assets/sounds/turn_start.wav
