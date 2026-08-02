@@ -628,21 +628,6 @@ class UserService {
     );
   }
 
-  /// Update user's workout score after session completion.
-  /// Used for leaderboard ranking.
-  /// pointsToAdd: typically +10 per workout, +25 per challenge, +5 per judgment
-  Future<void> updateWorkoutScore(String userId, int pointsToAdd) async {
-    try {
-      await _firestore.collection('users').doc(userId).update({
-        'workoutScore': FieldValue.increment(pointsToAdd),
-        'totalWorkouts': FieldValue.increment(1),
-      });
-    } catch (e) {
-      // Log but don't fail - leaderboard score update is non-critical
-      // debugPrint would need import, but we keep it simple
-    }
-  }
-
   /// Get friend streak comparison for leaderboard.
   Future<List<FriendStreakComparison>> getFriendsStreakComparison(
     String currentUserId,

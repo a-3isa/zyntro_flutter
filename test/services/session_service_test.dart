@@ -114,6 +114,11 @@ void main() {
   late MockCollectionReference mockSessionsCollection;
   late MockDocumentReference mockSessionDoc;
   late MockBatch mockBatch;
+  late MockCollectionReference mockUsersCollection;
+  late MockDocumentReference mockUserDoc;
+  late MockCollectionReference mockUserStatsCollection;
+  late MockDocumentReference mockUserPrsDoc;
+  late MockDocumentSnapshot mockUserPrsSnapshot;
 
   setUpAll(() {
     registerFallbackValue(FakeDocumentReferenceObject());
@@ -129,6 +134,11 @@ void main() {
     mockSessionsCollection = MockCollectionReference();
     mockSessionDoc = MockDocumentReference();
     mockBatch = MockBatch();
+    mockUsersCollection = MockCollectionReference();
+    mockUserDoc = MockDocumentReference();
+    mockUserStatsCollection = MockCollectionReference();
+    mockUserPrsDoc = MockDocumentReference();
+    mockUserPrsSnapshot = MockDocumentSnapshot();
 
     final container = ProviderContainer(
       overrides: [
@@ -144,9 +154,10 @@ void main() {
     testRef = container.read(_testRefProvider);
 
     // Setup Firestore
-    when(
-      () => mockFirestore.collection(any()),
-    ).thenReturn(mockSessionsCollection);
+    when(() => mockFirestore.collection(any())).thenAnswer((invocation) {
+      final name = invocation.positionalArguments.first as String;
+      return name == 'users' ? mockUsersCollection : mockSessionsCollection;
+    });
     when(() => mockFirestore.batch()).thenReturn(mockBatch);
     when(() => mockSessionsCollection.doc(any())).thenReturn(mockSessionDoc);
     when(
@@ -155,6 +166,19 @@ void main() {
     when(() => mockSessionDoc.update(any())).thenAnswer((_) async {});
     when(() => mockSessionDoc.set(any())).thenAnswer((_) async {});
     when(() => mockBatch.commit()).thenAnswer((_) async {});
+
+    when(() => mockUsersCollection.doc(any())).thenReturn(mockUserDoc);
+    when(
+      () => mockUserDoc.collection('stats'),
+    ).thenReturn(mockUserStatsCollection);
+    when(
+      () => mockUserStatsCollection.doc('prs'),
+    ).thenReturn(mockUserPrsDoc);
+    when(() => mockUserPrsDoc.get()).thenAnswer((_) async => mockUserPrsSnapshot);
+    when(() => mockUserPrsSnapshot.exists).thenReturn(false);
+    when(() => mockUserPrsSnapshot.data()).thenReturn(null);
+    when(() => mockUserDoc.update(any())).thenAnswer((_) async {});
+    when(() => mockBatch.set(any(), any(), any())).thenAnswer((_) async {});
 
     // Setup ID generation
     when(() => mockSessionDoc.id).thenReturn('test_session_id');
@@ -677,9 +701,56 @@ void main() {
 
       await sessionService.endSession(kPairedSessionId, kPairedHostId, null);
 
-      verify(() => mockSessionsCollection.doc(kPairedHostId)).called(1);
-      verifyNever(() => mockSessionsCollection.doc(kPairedFriendId));
+      // Called once to build the PRs doc ref, once to build the stats-update ref.
+      verify(() => mockUsersCollection.doc(kPairedHostId)).called(2);
+      verifyNever(() => mockUsersCollection.doc(kPairedFriendId));
       verify(() => mockBatch.commit()).called(1);
+    });
+
+    test('endSession scores a solo strength session with no prior PRs', () async {
+      final mockDocSnapshot = MockDocumentSnapshot();
+      when(() => mockSessionDoc.get()).thenAnswer((_) async => mockDocSnapshot);
+      when(() => mockDocSnapshot.exists).thenReturn(true);
+      when(() => mockDocSnapshot.id).thenReturn(kPairedSessionId);
+      when(() => mockDocSnapshot.data()).thenReturn({
+        ...buildPairedSessionData(),
+        'type': 'strength',
+        'startedAt': Timestamp.fromDate(DateTime.now().subtract(const Duration(minutes: 20))),
+      });
+
+      Map<Object, Object?>? capturedScoreUpdate;
+      when(() => mockBatch.update(mockUserDoc, any())).thenAnswer((invocation) {
+        capturedScoreUpdate =
+            invocation.positionalArguments[1] as Map<Object, Object?>;
+      });
+
+      final summary = SessionSummary(
+        totalSets: 3,
+        exercises: [
+          ExerciseSummary(
+            name: 'Bench Press',
+            sets: 3,
+            setDetails: [
+              SetSummary(reps: 8, weight: 50, durationSeconds: 0),
+              SetSummary(reps: 8, weight: 50, durationSeconds: 0),
+              SetSummary(reps: 8, weight: 50, durationSeconds: 0),
+            ],
+          ),
+        ],
+      );
+
+      await sessionService.endSession(kPairedSessionId, kPairedHostId, summary);
+
+      expect(capturedScoreUpdate, isNotNull);
+      // 20 min time + 0 buddy (bot/solo) + 6 effort (3 sets * 2) + 40 progress
+      // (first-time 5% * 800) = 66.
+      expect(
+        capturedScoreUpdate!['workoutScore'],
+        FieldValue.increment(66),
+      );
+      verify(
+        () => mockBatch.set<Map<String, dynamic>>(mockUserPrsDoc, any(), any()),
+      ).called(1);
     });
 
     test('cancelSetup writes the audit fields and keeps roster intact',

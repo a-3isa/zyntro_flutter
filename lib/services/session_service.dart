@@ -7,6 +7,7 @@ import 'package:rxdart/rxdart.dart';
 import '../core/models/models.dart';
 import '../core/constants/constants.dart';
 import '../features/session/domain/gym_session_plan.dart';
+import '../features/session/domain/workout_score.dart';
 import '../utils/retry_helper.dart';
 import '../utils/offline_manager.dart';
 import '../features/auth/auth_providers.dart';
@@ -823,6 +824,36 @@ class SessionService {
     final session = await getSession(sessionId);
     if (session == null) return;
 
+    final durationMinutes = DateTime.now().difference(session.startedAt);
+    final hasRealHumanBuddy = session.partnerKind == PairedPartnerKind.realFriend;
+
+    final prsRef = _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('stats')
+        .doc('prs');
+    final prsSnapshot = await prsRef.get();
+    final prsData = prsSnapshot.exists
+        ? prsSnapshot.data() as Map<String, dynamic>
+        : <String, dynamic>{};
+    final currentStrengthPrs = <String, double>{
+      for (final entry in (prsData['strength'] as Map<String, dynamic>? ?? {}).entries)
+        entry.key: ((entry.value as Map<String, dynamic>)['bestEstimate'] as num).toDouble(),
+    };
+    final currentCardioPrs = <String, double>{
+      for (final entry in (prsData['cardio'] as Map<String, dynamic>? ?? {}).entries)
+        entry.key: ((entry.value as Map<String, dynamic>)['bestEstimate'] as num).toDouble(),
+    };
+
+    final scoreResult = computeWorkoutScore(
+      sessionDuration: durationMinutes,
+      hasRealHumanBuddy: hasRealHumanBuddy,
+      sessionType: session.type,
+      summary: summary,
+      currentStrengthPrs: currentStrengthPrs,
+      currentCardioPrs: currentCardioPrs,
+    );
+
     final batch = _firestore.batch();
 
     // 1. Update session status
@@ -862,9 +893,37 @@ class SessionService {
       if (participantId == userId) {
         // Client rules only permit users to update their own aggregate stats.
         batch.update(_firestore.collection('users').doc(participantId), {
-          'workoutScore': FieldValue.increment(10),
+          'workoutScore': FieldValue.increment(scoreResult.score),
           'totalWorkouts': FieldValue.increment(1),
         });
+
+        if (scoreResult.updatedStrengthPrs.isNotEmpty ||
+            scoreResult.updatedCardioPrs.isNotEmpty) {
+          batch.set(
+            prsRef,
+            {
+              if (scoreResult.updatedStrengthPrs.isNotEmpty)
+                'strength': {
+                  for (final entry in scoreResult.updatedStrengthPrs.entries)
+                    entry.key: {
+                      'bestEstimate': entry.value,
+                      'achievedAt': FieldValue.serverTimestamp(),
+                      'sourceSessionId': sessionId,
+                    },
+                },
+              if (scoreResult.updatedCardioPrs.isNotEmpty)
+                'cardio': {
+                  for (final entry in scoreResult.updatedCardioPrs.entries)
+                    entry.key: {
+                      'bestEstimate': entry.value,
+                      'achievedAt': FieldValue.serverTimestamp(),
+                      'sourceSessionId': sessionId,
+                    },
+                },
+            },
+            SetOptions(merge: true),
+          );
+        }
       }
     }
 

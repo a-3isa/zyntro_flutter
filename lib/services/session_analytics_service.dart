@@ -223,63 +223,6 @@ class SessionAnalyticsService {
     return calories.round();
   }
 
-  /// Check for Personal Records (PRs) in a completed session.
-  /// Returns a list of strings describing new PRs.
-  Future<List<String>> checkPersonalRecords(
-    String userId,
-    List<Exercise> exercises,
-  ) async {
-    final newPrs = <String>[];
-
-    // Fetch existing PRs for user
-    // We assume a 'stats' subcollection or 'personalRecords' document
-    final statsRef = _firestore
-        .collection('users')
-        .doc(userId)
-        .collection('stats')
-        .doc('prs');
-
-    final statsDoc = await statsRef.get();
-    final currentPrs = statsDoc.exists
-        ? statsDoc.data() as Map<String, dynamic>
-        : {};
-
-    final batch = _firestore.batch();
-    bool updated = false;
-
-    for (final exercise in exercises) {
-      // normalize name
-      final exerciseKey = exercise.name.toLowerCase().trim();
-
-      // Calculate max weight used in this session for this exercise (1RM estimate or just max weight)
-      // We'll track Max Weight for simplicity.
-      double maxWeight = 0;
-      for (final set in exercise.sets) {
-        if (set.weight > maxWeight) maxWeight = set.weight;
-      }
-
-      if (maxWeight > 0) {
-        final previousBest =
-            (currentPrs[exerciseKey] as num?)?.toDouble() ?? 0.0;
-
-        if (maxWeight > previousBest) {
-          updated = true;
-          newPrs.add('${exercise.name}: ${maxWeight}kg'); // Localize unit later
-          currentPrs[exerciseKey] = maxWeight;
-        }
-      }
-    }
-
-    if (updated) {
-      batch.set(statsRef, currentPrs, SetOptions(merge: true));
-      // Also log specific PR events?
-      // For now just update the stats doc.
-      await batch.commit();
-    }
-
-    return newPrs;
-  }
-
   /// Update user workout streaks and weekly stats.
   /// Called when session ends.
   Future<void> updateWorkoutStats(String userId, Session session) async {
