@@ -194,7 +194,64 @@ void main() {
 
       expect(finishSource, contains('averageSpeed: averageSpeedKmh('));
       expect(finishSource, contains('distanceKm: totalDistance'));
-      expect(finishSource, contains('elapsed: elapsed'));
+      expect(finishSource, contains('elapsed: activityElapsed'));
+    },
+  );
+
+  // ---------------------------------------------------------------------------
+  // Regression: averageSpeedKmh must be fed the time actually spent on the
+  // cardio activity (myProgress.totalDuration, accumulated from logged
+  // entries), not wall-clock session-room-open time. Using wall-clock elapsed
+  // let a user inflate their recorded speed (and PR/progress bonus) simply by
+  // closing the session promptly after finishing, instead of leaving the room
+  // open idle — same distance, less wall-clock time, higher computed speed.
+  // ---------------------------------------------------------------------------
+  test(
+    'finish handler derives cardio speed elapsed time from myProgress.totalDuration, '
+    'not the wall-clock session timer',
+    () {
+      final source = File(
+        'lib/features/session/presentation/session_room_page.dart',
+      ).readAsStringSync();
+
+      final start = source.indexOf('Future<void> _handleFinishSession()');
+      final end = source.indexOf('Widget _buildAnimatedBackground()');
+      expect(start, greaterThan(-1));
+      expect(end, greaterThan(start));
+      final finishSource = source.substring(start, end);
+
+      // Primary path: activity-duration-based elapsed, sourced from the
+      // logged-activity progress record rather than DateTime.now() /
+      // the wall-clock session timer.
+      expect(
+        finishSource,
+        contains(
+          'final activityElapsed = myProgress != null\n'
+          '        ? Duration(minutes: myProgress.totalDuration)\n'
+          '        : elapsed;',
+        ),
+      );
+
+      // Fallback path: degrade to the existing wall-clock `elapsed` only
+      // when there is no progress record to read a real duration from —
+      // never crash on a null myProgress.
+      final activityElapsedStart = finishSource.indexOf(
+        'final activityElapsed =',
+      );
+      expect(activityElapsedStart, greaterThan(-1));
+      final activityElapsedDecl = finishSource.substring(
+        activityElapsedStart,
+        activityElapsedStart + 120,
+      );
+      expect(activityElapsedDecl, contains('myProgress != null'));
+      expect(activityElapsedDecl, contains(': elapsed;'));
+
+      // The averageSpeedKmh call site itself must use the fixed variable.
+      final callSiteIndex = finishSource.indexOf('averageSpeed: averageSpeedKmh(');
+      expect(callSiteIndex, greaterThan(-1));
+      final callSite = finishSource.substring(callSiteIndex, callSiteIndex + 120);
+      expect(callSite, contains('elapsed: activityElapsed'));
+      expect(callSite, isNot(contains('elapsed: elapsed')));
     },
   );
 }

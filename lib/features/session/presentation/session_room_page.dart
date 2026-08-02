@@ -2744,6 +2744,15 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     final elapsed = _sessionStartTime != null
         ? DateTime.now().difference(_sessionStartTime!)
         : _elapsedTime;
+    // Cardio speed must be computed from time actually spent doing the
+    // activity, not from how long the session room happened to stay open.
+    // myProgress.totalDuration (minutes) accumulates from logged cardio
+    // entries, so it can't be inflated by lingering in — or rushing out of —
+    // the room after the activity is done. Fall back to the wall-clock
+    // `elapsed` only when there's no progress record to read from.
+    final activityElapsed = myProgress != null
+        ? Duration(minutes: myProgress.totalDuration)
+        : elapsed;
     final summary = SessionSummary(
       activityType: _cardioActivityType,
       duration: _formatElapsedTime(elapsed),
@@ -2755,7 +2764,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       // Null when there is no distance or no elapsed clock (e.g. gym sessions).
       averageSpeed: averageSpeedKmh(
         distanceKm: totalDistance,
-        elapsed: elapsed,
+        elapsed: activityElapsed,
       ),
       exercises: _exercises
           .map(
