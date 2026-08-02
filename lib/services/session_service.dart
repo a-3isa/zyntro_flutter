@@ -110,6 +110,38 @@ class SessionService {
     );
   }
 
+  /// Parse one section (`strength` or `cardio`) of a `users/{uid}/stats/prs`
+  /// document into `{recordKey: bestEstimate}`.
+  ///
+  /// Deliberately total: the section being absent, not a map, an entry not
+  /// being a map, a non-string key, or `bestEstimate` being missing or
+  /// non-numeric all yield "no record" for that entry rather than throwing.
+  /// This runs before the session-end batch is built, so a throw here would
+  /// permanently block session completion for that user — and Firestore rules
+  /// let a client put any shape in its own stats/prs doc.
+  static Map<String, double> parsePersonalBests(Object? section) {
+    final records = <String, double>{};
+    if (section is! Map) return records;
+
+    for (final entry in section.entries) {
+      final key = entry.key;
+      if (key is! String) continue;
+
+      final value = entry.value;
+      if (value is! Map) continue;
+
+      final bestEstimate = value['bestEstimate'];
+      if (bestEstimate is! num) continue;
+
+      final asDouble = bestEstimate.toDouble();
+      if (asDouble.isNaN || asDouble.isInfinite) continue;
+
+      records[key] = asDouble;
+    }
+
+    return records;
+  }
+
   static Map<String, dynamic> participantCompletionRecord({
     required String sessionId,
     required String userId,
@@ -836,18 +868,35 @@ class SessionService {
         .doc(userId)
         .collection('stats')
         .doc('prs');
-    final prsSnapshot = await prsRef.get();
-    final prsData = prsSnapshot.exists
-        ? prsSnapshot.data() as Map<String, dynamic>
-        : <String, dynamic>{};
-    final currentStrengthPrs = <String, double>{
-      for (final entry in (prsData['strength'] as Map<String, dynamic>? ?? {}).entries)
-        entry.key: ((entry.value as Map<String, dynamic>)['bestEstimate'] as num).toDouble(),
-    };
-    final currentCardioPrs = <String, double>{
-      for (final entry in (prsData['cardio'] as Map<String, dynamic>? ?? {}).entries)
-        entry.key: ((entry.value as Map<String, dynamic>)['bestEstimate'] as num).toDouble(),
-    };
+    // Reading the PR doc is best-effort: it must never block a user from
+    // finishing their session. A network/permission failure, or a doc in an
+    // unexpected shape (client rules allow any shape under the user's own
+    // stats/prs), degrades to "no PRs known" instead of throwing out of
+    // endSession — which would otherwise brick session completion permanently.
+    var currentStrengthPrs = <String, double>{};
+    var currentCardioPrs = <String, double>{};
+    // When the read fails we must NOT write PRs: computeWorkoutScore treats an
+    // absent personal best as first-time-ever and hands back today's number as
+    // the new PR, which would silently overwrite a real stored PR downward.
+    var canWritePrs = false;
+    try {
+      final prsSnapshot = await prsRef.get();
+      final Object? rawPrsData = prsSnapshot.data();
+      final prsData = rawPrsData is Map<Object?, Object?>
+          ? rawPrsData
+          : const <Object?, Object?>{};
+      currentStrengthPrs = parsePersonalBests(prsData['strength']);
+      currentCardioPrs = parsePersonalBests(prsData['cardio']);
+      canWritePrs = true;
+    } catch (e) {
+      debugPrint(
+        '[SessionService] Failed to read personal records for $userId; '
+        'scoring without PR history and skipping PR writes: $e',
+      );
+      currentStrengthPrs = <String, double>{};
+      currentCardioPrs = <String, double>{};
+      canWritePrs = false;
+    }
 
     final scoreResult = computeWorkoutScore(
       sessionDuration: durationMinutes,
@@ -901,8 +950,9 @@ class SessionService {
           'totalWorkouts': FieldValue.increment(1),
         });
 
-        if (scoreResult.updatedStrengthPrs.isNotEmpty ||
-            scoreResult.updatedCardioPrs.isNotEmpty) {
+        if (canWritePrs &&
+            (scoreResult.updatedStrengthPrs.isNotEmpty ||
+                scoreResult.updatedCardioPrs.isNotEmpty)) {
           batch.set(
             prsRef,
             {

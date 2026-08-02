@@ -898,6 +898,161 @@ void main() {
       },
     );
 
+    test('parsePersonalBests reads a well-formed stats/prs section', () {
+      final parsed = SessionService.parsePersonalBests({
+        'bench press': {
+          'bestEstimate': 66.6,
+          'achievedAt': null,
+          'sourceSessionId': 's1',
+        },
+        'squat': {'bestEstimate': 100},
+      });
+
+      expect(parsed, {'bench press': 66.6, 'squat': 100.0});
+    });
+
+    test(
+      'parsePersonalBests never throws on a malformed stats/prs doc',
+      () {
+        // Firestore rules let a client write any shape to its own stats/prs
+        // doc. An unguarded cast here runs before the batch is built, so a
+        // throw would permanently block endSession for that user.
+        expect(SessionService.parsePersonalBests(null), isEmpty);
+        expect(SessionService.parsePersonalBests('not-a-map'), isEmpty);
+        expect(SessionService.parsePersonalBests(42), isEmpty);
+        expect(SessionService.parsePersonalBests(const []), isEmpty);
+
+        // Entry-level garbage skips just that entry, keeping the good ones.
+        final mixed = SessionService.parsePersonalBests({
+          'legacy-shape': 120, // old maxWeight number, not a map
+          'no-best-estimate': {'achievedAt': 'yesterday'},
+          'string-best-estimate': {'bestEstimate': '80'},
+          'null-best-estimate': {'bestEstimate': null},
+          'nan-best-estimate': {'bestEstimate': double.nan},
+          'infinite-best-estimate': {'bestEstimate': double.infinity},
+          7: {'bestEstimate': 90}, // non-string key
+          'good': {'bestEstimate': 55.5},
+        });
+        expect(mixed, {'good': 55.5});
+      },
+    );
+
+    test(
+      'endSession still completes when the stats/prs doc is malformed',
+      () async {
+        final mockDocSnapshot = MockDocumentSnapshot();
+        when(
+          () => mockSessionDoc.get(),
+        ).thenAnswer((_) async => mockDocSnapshot);
+        when(() => mockDocSnapshot.exists).thenReturn(true);
+        when(() => mockDocSnapshot.id).thenReturn(kPairedSessionId);
+        when(() => mockDocSnapshot.data()).thenReturn({
+          ...buildPairedSessionData(type: WorkoutType.gym.value),
+          'startedAt': Timestamp.fromDate(
+            DateTime.now().subtract(const Duration(minutes: 20)),
+          ),
+        });
+
+        // Old/foreign shape: `strength` is a bare number map, `cardio` a string.
+        when(() => mockUserPrsSnapshot.exists).thenReturn(true);
+        when(() => mockUserPrsSnapshot.data()).thenReturn({
+          'strength': {'bench press': 120},
+          'cardio': 'corrupted',
+        });
+
+        Map<Object, Object?>? capturedScoreUpdate;
+        when(() => mockBatch.update(mockUserDoc, any())).thenAnswer((
+          invocation,
+        ) {
+          capturedScoreUpdate =
+              invocation.positionalArguments[1] as Map<Object, Object?>;
+        });
+
+        await sessionService.endSession(
+          kPairedSessionId,
+          kPairedHostId,
+          SessionSummary(
+            totalSets: 3,
+            exercises: [
+              ExerciseSummary(
+                name: 'Bench Press',
+                sets: 3,
+                setDetails: [
+                  SetSummary(reps: 8, weight: 50, durationSeconds: 0),
+                ],
+              ),
+            ],
+          ),
+        );
+
+        // Did not throw; the session still completed and a score was written.
+        verify(() => mockBatch.commit()).called(1);
+        expect(capturedScoreUpdate, isNotNull);
+        // Unreadable entries are treated as "no record", i.e. first-time bonus.
+        expect(capturedScoreUpdate!['workoutScore'], FieldValue.increment(66));
+      },
+    );
+
+    test(
+      'endSession survives a failed stats/prs read and suppresses the PR write',
+      () async {
+        final mockDocSnapshot = MockDocumentSnapshot();
+        when(
+          () => mockSessionDoc.get(),
+        ).thenAnswer((_) async => mockDocSnapshot);
+        when(() => mockDocSnapshot.exists).thenReturn(true);
+        when(() => mockDocSnapshot.id).thenReturn(kPairedSessionId);
+        when(() => mockDocSnapshot.data()).thenReturn({
+          ...buildPairedSessionData(type: WorkoutType.gym.value),
+          'startedAt': Timestamp.fromDate(
+            DateTime.now().subtract(const Duration(minutes: 20)),
+          ),
+        });
+
+        // Offline / permission-denied read.
+        when(
+          () => mockUserPrsDoc.get(),
+        ).thenThrow(FirebaseException(plugin: 'cloud_firestore', code: 'unavailable'));
+
+        Map<Object, Object?>? capturedScoreUpdate;
+        when(() => mockBatch.update(mockUserDoc, any())).thenAnswer((
+          invocation,
+        ) {
+          capturedScoreUpdate =
+              invocation.positionalArguments[1] as Map<Object, Object?>;
+        });
+
+        await sessionService.endSession(
+          kPairedSessionId,
+          kPairedHostId,
+          SessionSummary(
+            totalSets: 3,
+            exercises: [
+              ExerciseSummary(
+                name: 'Bench Press',
+                sets: 3,
+                setDetails: [
+                  SetSummary(reps: 8, weight: 50, durationSeconds: 0),
+                ],
+              ),
+            ],
+          ),
+        );
+
+        // The user is not blocked from finishing: score still written.
+        verify(() => mockBatch.commit()).called(1);
+        expect(capturedScoreUpdate, isNotNull);
+        expect(capturedScoreUpdate!['workoutScore'], FieldValue.increment(66));
+
+        // But no PR write — today's number must not overwrite a real stored PR
+        // that merely failed to load.
+        verifyNever(
+          () =>
+              mockBatch.set<Map<String, dynamic>>(mockUserPrsDoc, any(), any()),
+        );
+      },
+    );
+
     test('cancelSetup writes the audit fields and keeps roster intact',
         () async {
       Map<Object, Object?>? capturedUpdate;
