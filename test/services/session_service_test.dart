@@ -84,6 +84,8 @@ Map<String, dynamic> buildPairedSessionData({
   String phase = 'live',
   String status = 'active',
   String? activeUserId,
+  String? partnerKind,
+  String? invitationStatus,
 }) {
   final resolvedParticipants = participants ?? [hostId, partnerId];
   return {
@@ -92,6 +94,8 @@ Map<String, dynamic> buildPairedSessionData({
     'title': 'Paired Workout',
     'type': type,
     'status': status,
+    'partnerKind': ?partnerKind,
+    'invitationStatus': ?invitationStatus,
     'participants': resolvedParticipants,
     'activeUserId': activeUserId ?? hostId,
     'phase': phase,
@@ -897,6 +901,113 @@ void main() {
         );
       },
     );
+
+    group('endSession buddy bonus', () {
+      Future<Object?> scoreForInvite({
+        required String partnerKind,
+        String? invitationStatus,
+      }) async {
+        final mockDocSnapshot = MockDocumentSnapshot();
+        when(
+          () => mockSessionDoc.get(),
+        ).thenAnswer((_) async => mockDocSnapshot);
+        when(() => mockDocSnapshot.exists).thenReturn(true);
+        when(() => mockDocSnapshot.id).thenReturn(kPairedSessionId);
+        when(() => mockDocSnapshot.data()).thenReturn({
+          ...buildPairedSessionData(
+            type: WorkoutType.yoga.value, // time + buddy only, easy to read
+            partnerKind: partnerKind,
+            invitationStatus: invitationStatus,
+          ),
+          'startedAt': Timestamp.fromDate(
+            DateTime.now().subtract(const Duration(minutes: 20)),
+          ),
+        });
+
+        Map<Object, Object?>? capturedScoreUpdate;
+        when(() => mockBatch.update(mockUserDoc, any())).thenAnswer((
+          invocation,
+        ) {
+          capturedScoreUpdate =
+              invocation.positionalArguments[1] as Map<Object, Object?>;
+        });
+
+        await sessionService.endSession(
+          kPairedSessionId,
+          kPairedHostId,
+          null,
+        );
+        return capturedScoreUpdate?['workoutScore'];
+      }
+
+      test('an accepted real-friend invite earns the +15 bonus', () async {
+        // 20 time + 15 buddy.
+        expect(
+          await scoreForInvite(
+            partnerKind: PairedPartnerKind.realFriend.value,
+            invitationStatus: WorkoutInvitationStatus.accepted.value,
+          ),
+          FieldValue.increment(35),
+        );
+      });
+
+      test('a pending invite earns no buddy bonus', () async {
+        // partnerKind is stamped at creation; the friend never showed up.
+        expect(
+          await scoreForInvite(
+            partnerKind: PairedPartnerKind.realFriend.value,
+            invitationStatus: WorkoutInvitationStatus.pending.value,
+          ),
+          FieldValue.increment(20),
+        );
+      });
+
+      test('a declined invite earns no buddy bonus', () async {
+        expect(
+          await scoreForInvite(
+            partnerKind: PairedPartnerKind.realFriend.value,
+            invitationStatus: WorkoutInvitationStatus.declined.value,
+          ),
+          FieldValue.increment(20),
+        );
+      });
+
+      test('an expired or cancelled invite earns no buddy bonus', () async {
+        expect(
+          await scoreForInvite(
+            partnerKind: PairedPartnerKind.realFriend.value,
+            invitationStatus: WorkoutInvitationStatus.expired.value,
+          ),
+          FieldValue.increment(20),
+        );
+        expect(
+          await scoreForInvite(
+            partnerKind: PairedPartnerKind.realFriend.value,
+            invitationStatus: WorkoutInvitationStatus.cancelled.value,
+          ),
+          FieldValue.increment(20),
+        );
+      });
+
+      test('a missing invitationStatus earns no buddy bonus', () async {
+        expect(
+          await scoreForInvite(
+            partnerKind: PairedPartnerKind.realFriend.value,
+          ),
+          FieldValue.increment(20),
+        );
+      });
+
+      test('a bot partner earns no buddy bonus even if accepted', () async {
+        expect(
+          await scoreForInvite(
+            partnerKind: PairedPartnerKind.bot.value,
+            invitationStatus: WorkoutInvitationStatus.accepted.value,
+          ),
+          FieldValue.increment(20),
+        );
+      });
+    });
 
     test('parsePersonalBests reads a well-formed stats/prs section', () {
       final parsed = SessionService.parsePersonalBests({

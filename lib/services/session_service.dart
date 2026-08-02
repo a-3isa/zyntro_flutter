@@ -857,7 +857,13 @@ class SessionService {
     if (session == null) return;
 
     final durationMinutes = DateTime.now().difference(session.startedAt);
-    final hasRealHumanBuddy = session.partnerKind == PairedPartnerKind.realFriend;
+    // `partnerKind` is stamped at session creation, before the invited friend
+    // responds — on its own it would pay the buddy bonus for a session the
+    // inviter trained alone with a pending or declined invite. Require the
+    // invite to have actually been accepted.
+    final hasRealHumanBuddy =
+        session.partnerKind == PairedPartnerKind.realFriend &&
+        session.invitationStatus == WorkoutInvitationStatus.accepted;
     // `session.type` stores a WorkoutType.value ('gym', 'running', ...), never
     // the scorer's category literals. Map it to the category the scorer branches
     // on ('strength' / 'cardio' / 'flexibility' / 'mixed').
