@@ -826,6 +826,10 @@ class SessionService {
 
     final durationMinutes = DateTime.now().difference(session.startedAt);
     final hasRealHumanBuddy = session.partnerKind == PairedPartnerKind.realFriend;
+    // `session.type` stores a WorkoutType.value ('gym', 'running', ...), never
+    // the scorer's category literals. Map it to the category the scorer branches
+    // on ('strength' / 'cardio' / 'flexibility' / 'mixed').
+    final sessionCategory = WorkoutType.fromString(session.type).category;
 
     final prsRef = _firestore
         .collection('users')
@@ -848,7 +852,7 @@ class SessionService {
     final scoreResult = computeWorkoutScore(
       sessionDuration: durationMinutes,
       hasRealHumanBuddy: hasRealHumanBuddy,
-      sessionType: session.type,
+      sessionType: sessionCategory,
       summary: summary,
       currentStrengthPrs: currentStrengthPrs,
       currentCardioPrs: currentCardioPrs,

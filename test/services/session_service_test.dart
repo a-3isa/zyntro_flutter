@@ -753,6 +753,151 @@ void main() {
       ).called(1);
     });
 
+    test(
+      'endSession scores a realistic gym session — session.type is a '
+      'WorkoutType value, not a scorer category literal',
+      () async {
+        // Regression guard: `session.type` is always a WorkoutType.value
+        // ('gym', 'running', ...). Passing it straight to computeWorkoutScore
+        // (which branches on the categories 'strength'/'cardio') made effort and
+        // progress silently zero for every real session in production.
+        final mockDocSnapshot = MockDocumentSnapshot();
+        when(
+          () => mockSessionDoc.get(),
+        ).thenAnswer((_) async => mockDocSnapshot);
+        when(() => mockDocSnapshot.exists).thenReturn(true);
+        when(() => mockDocSnapshot.id).thenReturn(kPairedSessionId);
+        when(() => mockDocSnapshot.data()).thenReturn({
+          ...buildPairedSessionData(type: WorkoutType.gym.value),
+          'startedAt': Timestamp.fromDate(
+            DateTime.now().subtract(const Duration(minutes: 20)),
+          ),
+        });
+
+        Map<Object, Object?>? capturedScoreUpdate;
+        when(() => mockBatch.update(mockUserDoc, any())).thenAnswer((
+          invocation,
+        ) {
+          capturedScoreUpdate =
+              invocation.positionalArguments[1] as Map<Object, Object?>;
+        });
+
+        final summary = SessionSummary(
+          totalSets: 3,
+          exercises: [
+            ExerciseSummary(
+              name: 'Bench Press',
+              sets: 3,
+              setDetails: [
+                SetSummary(reps: 8, weight: 50, durationSeconds: 0),
+                SetSummary(reps: 8, weight: 50, durationSeconds: 0),
+                SetSummary(reps: 8, weight: 50, durationSeconds: 0),
+              ],
+            ),
+          ],
+        );
+
+        await sessionService.endSession(
+          kPairedSessionId,
+          kPairedHostId,
+          summary,
+        );
+
+        expect(capturedScoreUpdate, isNotNull);
+        // 20 time + 0 buddy + 6 effort (3 sets * 2) + 40 progress (first-time
+        // 5% * 800) = 66. The effort+progress contribution (46) is exactly what
+        // the type-matching bug silently dropped — a time-only score of 20 here
+        // means the scorer fell through both branches again.
+        expect(capturedScoreUpdate!['workoutScore'], FieldValue.increment(66));
+        // Non-zero effort/progress actually landed, not just time points.
+        expect(
+          capturedScoreUpdate!['workoutScore'],
+          isNot(FieldValue.increment(20)),
+        );
+        // A PR row was written for the exercise, proving the strength branch ran.
+        verify(
+          () =>
+              mockBatch.set<Map<String, dynamic>>(mockUserPrsDoc, any(), any()),
+        ).called(1);
+      },
+    );
+
+    test(
+      'endSession scores a realistic running session as cardio',
+      () async {
+        final mockDocSnapshot = MockDocumentSnapshot();
+        when(
+          () => mockSessionDoc.get(),
+        ).thenAnswer((_) async => mockDocSnapshot);
+        when(() => mockDocSnapshot.exists).thenReturn(true);
+        when(() => mockDocSnapshot.id).thenReturn(kPairedSessionId);
+        when(() => mockDocSnapshot.data()).thenReturn({
+          ...buildPairedSessionData(type: WorkoutType.running.value),
+          'startedAt': Timestamp.fromDate(
+            DateTime.now().subtract(const Duration(minutes: 20)),
+          ),
+        });
+
+        Map<Object, Object?>? capturedScoreUpdate;
+        when(() => mockBatch.update(mockUserDoc, any())).thenAnswer((
+          invocation,
+        ) {
+          capturedScoreUpdate =
+              invocation.positionalArguments[1] as Map<Object, Object?>;
+        });
+
+        await sessionService.endSession(
+          kPairedSessionId,
+          kPairedHostId,
+          SessionSummary(activityType: 'running', averageSpeed: 11.0),
+        );
+
+        expect(capturedScoreUpdate, isNotNull);
+        // 20 time + 0 effort (cardio) + 40 progress (first-time 5% * 800) = 60.
+        expect(capturedScoreUpdate!['workoutScore'], FieldValue.increment(60));
+      },
+    );
+
+    test(
+      'endSession scores a yoga session as flexibility — time and buddy only',
+      () async {
+        final mockDocSnapshot = MockDocumentSnapshot();
+        when(
+          () => mockSessionDoc.get(),
+        ).thenAnswer((_) async => mockDocSnapshot);
+        when(() => mockDocSnapshot.exists).thenReturn(true);
+        when(() => mockDocSnapshot.id).thenReturn(kPairedSessionId);
+        when(() => mockDocSnapshot.data()).thenReturn({
+          ...buildPairedSessionData(type: WorkoutType.yoga.value),
+          'startedAt': Timestamp.fromDate(
+            DateTime.now().subtract(const Duration(minutes: 20)),
+          ),
+        });
+
+        Map<Object, Object?>? capturedScoreUpdate;
+        when(() => mockBatch.update(mockUserDoc, any())).thenAnswer((
+          invocation,
+        ) {
+          capturedScoreUpdate =
+              invocation.positionalArguments[1] as Map<Object, Object?>;
+        });
+
+        await sessionService.endSession(
+          kPairedSessionId,
+          kPairedHostId,
+          SessionSummary(totalSets: 5),
+        );
+
+        expect(capturedScoreUpdate, isNotNull);
+        // By design: flexibility scores time only (no effort, no progress).
+        expect(capturedScoreUpdate!['workoutScore'], FieldValue.increment(20));
+        verifyNever(
+          () =>
+              mockBatch.set<Map<String, dynamic>>(mockUserPrsDoc, any(), any()),
+        );
+      },
+    );
+
     test('cancelSetup writes the audit fields and keeps roster intact',
         () async {
       Map<Object, Object?>? capturedUpdate;
