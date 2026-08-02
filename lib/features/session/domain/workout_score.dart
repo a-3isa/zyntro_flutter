@@ -40,13 +40,8 @@ WorkoutScoreResult computeWorkoutScore({
 
   var effortPoints = 0;
   if (sessionType == 'strength') {
-    final exerciseCount = summary?.exercises?.length ?? 0;
-    // Count effort if no exercises (fallback) or if multiple exercises
-    // Skip effort for single-exercise sessions
-    if (exerciseCount == 0 || exerciseCount > 1) {
-      final totalSets = summary?.totalSets ?? 0;
-      effortPoints = math.min(totalSets, _effortSetCap) * _effortPointsPerSet;
-    }
+    final totalSets = summary?.totalSets ?? 0;
+    effortPoints = math.min(totalSets, _effortSetCap) * _effortPointsPerSet;
   }
 
   final updatedStrengthPrs = <String, double>{};

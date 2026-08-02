@@ -206,7 +206,7 @@ void main() {
         currentStrengthPrs: {'deadlift': 100 * (1 + 5 / 30)},
         currentCardioPrs: const {},
       );
-      expect(result.score, 0);
+      expect(result.score, 2);
       expect(result.updatedStrengthPrs, isEmpty);
     });
 
@@ -226,7 +226,7 @@ void main() {
         currentStrengthPrs: {'overhead press': 10}, // huge raw % jump
         currentCardioPrs: const {},
       );
-      expect(result.score, 160); // 0.20 * 800, capped
+      expect(result.score, 162); // 1 set * 2 effort + 0.20 * 800 progress
       expect(
         result.updatedStrengthPrs['overhead press'],
         closeTo(100 * (1 + 5 / 30), 0.001),
@@ -247,7 +247,7 @@ void main() {
         currentStrengthPrs: const {}, // no prior record for lunges
         currentCardioPrs: const {},
       );
-      expect(result.score, 40); // 0.05 * 800
+      expect(result.score, 42); // 1 set * 2 effort + 0.05 * 800 progress
       expect(result.updatedStrengthPrs.containsKey('lunges'), isTrue);
     });
 
