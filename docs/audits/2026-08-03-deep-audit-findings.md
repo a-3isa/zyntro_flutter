@@ -258,11 +258,31 @@ Updated as remediation lands. Commits are on `006-offline-cache-sync`.
 | C1 — unbounded reads | **Mostly fixed** | `b71acef`, `6bbe17c`, `21d7234` |
 | C2 — badge N+1 | **Fixed** | `6dd5096` |
 | C3 — crash reporting | **Fixed** (console enablement pending) | `4498399` |
+| H1 — rules untested | **Fixed** (47 new emulator cases, 67/67 pass) | `717e409` |
+| H2 — provider lifecycle | **Fixed** | `e36dc2f` |
 | H3 — cold start | **Fixed** | `b8c85d2` |
+| H5 — accessibility | **Partial** — see correction below | `b015371` |
 | M1 — asset bloat | **Fixed** (3.0 MB → 128 KB) | `bbc219c` |
-| H1, H2, H4, H5 | Open | — |
-| M2, M4, M5, M6, M7 (partial), M8 | Open | — |
-| L1–L5 | Open | — |
+| L1 — dead auth shim | **Fixed** | `b712780` |
+| H4, M2, M4, M5, M6, M7 (partial), M8, L2–L5 | Open | — |
+
+### Correction to H5
+
+The "13 `Semantics` across 62,935 lines" count is accurate but understated what
+exists. `reaction_buttons.dart`, `zyntro_button.dart`, `zyntro_card.dart` and
+`auth_error_surface.dart` already carry proper `Semantics` with labels, button
+roles and selected state — the app's core interactive widgets are labelled.
+
+The genuine gaps are narrower than the raw count implies:
+- 69 `CircularProgressIndicator`s, one of which has a `semanticsLabel`. A screen
+  reader user gets no announcement of what the app is loading.
+- Layouts unverified at large `textScaler` values (only 14 `MediaQuery.of` call
+  sites app-wide).
+- Icon-only navigation chrome — addressed in `b015371`.
+
+Accessibility is patchy rather than absent. That distinction changes the fix
+from "add semantics everywhere" to "label loading states and verify text
+scaling", which is a much smaller and better-targeted job.
 
 C1 residue: the live listeners in `follow_service` and `presence_service` are still unbounded. Bounding them needs a pagination design for the follower lists, not just a `.limit()`, so they stay open.
 
@@ -282,6 +302,17 @@ The aggregate fix in `b71acef` cuts that read to three per post card. Actually m
 
 ### R3 — `AvatarConstants` pointed at a directory that does not exist
 Declared twenty asset paths under `assets/avatars/`; no such directory exists anywhere in the repo. Only referenced from inside its own file. Deleted in `bbc219c`. Anything that had rendered those avatars would have thrown at runtime.
+
+### R5 — Any signed-in user can read any other user's personal records
+`firebase/firestore.rules` — `users/{userId}/stats/{statId}` is `allow read: if isAuthenticated()`. Personal records (Epley 1RM estimates per exercise, cardio best speeds) are therefore readable by anyone with an account, not just the owner or their followers.
+
+Writes are correctly owner-only. This may well be intentional — PRs arguably belong on a public profile — but it is not stated anywhere, and it sits oddly beside the private-account and block features. Pinned by a test in `social.rules.test.mjs` that documents current behavior rather than asserting a preference. **Product decision, not fixed here.**
+
+### R6 — Emulator rules suites wiped each other's fixtures
+`test/rules/package.json` ran `node --test` without `--test-concurrency=1`. Test *files* run in parallel by default, and every suite calls `clearFirestore()` in `beforeEach` against one shared emulator — so adding a second suite made two pre-existing joint-post tests fail for reasons unrelated to the rules. Fixed in `717e409`. Anyone adding a third suite would have hit the same thing.
+
+### R7 — `ref.keepAlive()` was a no-op in `userWorkoutsProvider`
+`workout_service.dart` carried the comment "Cache for 2 minutes to prevent repeated fetches on tab switch", implemented with `ref.keepAlive()` plus a timer. `keepAlive()` does nothing on a provider that never auto-disposes, and Riverpod 3 still defaults `isAutoDispose` to `false` — so it cached forever, not for two minutes. Fixed in `e36dc2f` by making the provider `autoDispose`, which is what gives the window meaning.
 
 ### R4 — Three pure helpers orphaned by dead-code removal
 `calculatePerUserVolume`, `calculatePerUserExercises` and `calculateActiveCalories` in `session_analytics_service.dart` lost their only caller when `getSessionComparison` was deleted in `b71acef`. They are pure, have no runtime cost, and represent real domain logic a session-comparison feature would want, so they were kept rather than removed. They remain untested.
