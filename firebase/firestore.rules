@@ -141,6 +141,21 @@ service cloud.firestore {
         );
     }
 
+    // A profile is public unless its owner set isPrivate. A missing user
+    // document is treated as NOT public, so a deleted or unreadable owner
+    // fails closed rather than exposing their data.
+    function isPublicProfile(userId) {
+      let path = /databases/$(database)/documents/users/$(userId);
+      return exists(path) && get(path).data.isPrivate != true;
+    }
+
+    // The caller is an approved follower of userId. Follow edge ids are
+    // '<followerId>_<followeeId>', so this is the caller's own outgoing edge.
+    function isApprovedFollowerOf(userId) {
+      let path = /databases/$(database)/documents/follows/$(request.auth.uid + '_' + userId);
+      return exists(path) && get(path).data.status == 'approved';
+    }
+
     function isModerator() {
       return isAuthenticated() &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isModerator == true;
@@ -240,8 +255,16 @@ service cloud.firestore {
         allow create: if isOwner(userId) && request.resource.data.userId == userId;
       }
 
+      // Personal records (1RM estimates per exercise, best cardio speeds).
+      // Previously readable by ANY signed-in user, which ignored the owner's
+      // privacy setting entirely. A private account's stats are now visible
+      // only to the owner and to followers they actually approved.
       match /stats/{statId} {
-        allow read: if isAuthenticated();
+        allow read: if isAuthenticated() && (
+          isOwner(userId) ||
+          isPublicProfile(userId) ||
+          isApprovedFollowerOf(userId)
+        );
         allow create, update, delete: if isOwner(userId);
       }
 

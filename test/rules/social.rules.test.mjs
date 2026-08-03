@@ -511,19 +511,103 @@ describe('users/{userId} private subcollections', () => {
     );
   });
 
-  it('documents that any signed-in user can READ another user\'s stats', async () => {
-    // stats/{statId} is `allow read: if isAuthenticated()`, so personal records
-    // are readable by anyone signed in. That is the rule as written today and
-    // this test pins it; whether PRs should be public is a product question,
-    // recorded in the audit findings rather than changed here.
+});
+
+describe('users/{userId}/stats — personal record visibility', () => {
+  async function seedStats(uid) {
     await testEnv.withSecurityRulesDisabled(async (ctx) => {
-      await setDoc(doc(ctx.firestore(), 'users', ALICE, 'stats', 'prs'), {
+      await setDoc(doc(ctx.firestore(), 'users', uid, 'stats', 'prs'), {
         strength: { bench: { bestEstimate: 100 } },
       });
     });
+  }
+
+  async function setPrivate(uid, isPrivate) {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), 'users', uid),
+        { isPrivate },
+        { merge: true },
+      );
+    });
+  }
+
+  async function seedApprovedFollow(follower, followee) {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'follows', `${follower}_${followee}`), {
+        followerId: follower,
+        followeeId: followee,
+        status: 'approved',
+      });
+    });
+  }
+
+  it('lets anyone signed in read a public account\'s records', async () => {
+    await setPrivate(ALICE, false);
+    await seedStats(ALICE);
 
     await assertSucceeds(
       getDoc(doc(as(MALLORY), 'users', ALICE, 'stats', 'prs')),
     );
+  });
+
+  it('hides a private account\'s records from a stranger', async () => {
+    await setPrivate(ALICE, true);
+    await seedStats(ALICE);
+
+    await assertFails(getDoc(doc(as(MALLORY), 'users', ALICE, 'stats', 'prs')));
+  });
+
+  it('still shows a private account\'s records to its owner', async () => {
+    await setPrivate(ALICE, true);
+    await seedStats(ALICE);
+
+    await assertSucceeds(getDoc(doc(as(ALICE), 'users', ALICE, 'stats', 'prs')));
+  });
+
+  it('shows a private account\'s records to an approved follower', async () => {
+    // Going private must not cut off the followers the owner already approved.
+    await setPrivate(ALICE, true);
+    await seedStats(ALICE);
+    await seedApprovedFollow(BOB, ALICE);
+
+    await assertSucceeds(getDoc(doc(as(BOB), 'users', ALICE, 'stats', 'prs')));
+  });
+
+  it('hides a private account\'s records from a pending follower', async () => {
+    await setPrivate(ALICE, true);
+    await seedStats(ALICE);
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'follows', `${BOB}_${ALICE}`), {
+        followerId: BOB,
+        followeeId: ALICE,
+        status: 'pending',
+      });
+    });
+
+    await assertFails(getDoc(doc(as(BOB), 'users', ALICE, 'stats', 'prs')));
+  });
+
+  it('does not treat being followed BY someone as permission to read them', async () => {
+    // alice follows mallory; that says nothing about mallory's right to read
+    // alice. The follow edge direction must not be usable backwards.
+    await setPrivate(ALICE, true);
+    await seedStats(ALICE);
+    await seedApprovedFollow(ALICE, MALLORY);
+
+    await assertFails(getDoc(doc(as(MALLORY), 'users', ALICE, 'stats', 'prs')));
+  });
+
+  it('fails closed when the owner document does not exist', async () => {
+    await seedStats('ghost');
+
+    await assertFails(getDoc(doc(as(MALLORY), 'users', 'ghost', 'stats', 'prs')));
+  });
+
+  it('stops an unauthenticated client reading any records', async () => {
+    await setPrivate(ALICE, false);
+    await seedStats(ALICE);
+
+    await assertFails(getDoc(doc(anon(), 'users', ALICE, 'stats', 'prs')));
   });
 });
