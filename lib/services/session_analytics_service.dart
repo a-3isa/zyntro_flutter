@@ -149,63 +149,6 @@ class SessionAnalyticsService {
     return userExercises;
   }
 
-  /// Get session comparison for buddy sessions.
-  /// Returns comparison metrics between participants.
-  Future<Map<String, dynamic>> getSessionComparison(String sessionId) async {
-    try {
-      final snapshot = await _firestore
-          .collection('sessions')
-          .doc(sessionId)
-          .collection('events')
-          .where('type', isEqualTo: 'setLogged')
-          .get();
-
-      final events = snapshot.docs
-          .map((doc) => TimelineEvent.fromFirestore(doc))
-          .toList();
-
-      final volumes = calculatePerUserVolume(events);
-      final exercises = calculatePerUserExercises(events);
-      final setCounts = <String, int>{};
-
-      for (final event in events) {
-        setCounts[event.userId] = (setCounts[event.userId] ?? 0) + 1;
-      }
-
-      // Find leader in each category
-      String? volumeLeader;
-      double maxVolume = 0;
-      for (final entry in volumes.entries) {
-        if (entry.value > maxVolume) {
-          maxVolume = entry.value;
-          volumeLeader = entry.key;
-        }
-      }
-
-      String? setLeader;
-      int maxSets = 0;
-      for (final entry in setCounts.entries) {
-        if (entry.value > maxSets) {
-          maxSets = entry.value;
-          setLeader = entry.key;
-        }
-      }
-
-      return {
-        'volumes': volumes,
-        'setCounts': setCounts,
-        'exercises': exercises,
-        'volumeLeader': volumeLeader,
-        'setLeader': setLeader,
-        'totalVolume': volumes.values.fold<double>(0.0, (acc, v) => acc + v),
-        'totalSets': setCounts.values.fold<int>(0, (acc, c) => acc + c),
-      };
-    } catch (e) {
-      debugPrint('[SessionAnalyticsService] Error getting comparison: $e');
-      return {};
-    }
-  }
-
   /// Calculate active calories based on volume and duration.
   /// Uses a simplified MET estimate (Strength ~5, Cardio ~8).
   int calculateActiveCalories({
@@ -221,23 +164,6 @@ class SessionAnalyticsService {
     // For now, simple formula: Calories = MET * Weight * Hours
     final calories = met * userWeightKg * hours;
     return calories.round();
-  }
-
-  /// Update user workout streaks and weekly stats.
-  /// Called when session ends.
-  Future<void> updateWorkoutStats(String userId, Session session) async {
-    // Logic to update streaks
-    // We check 'users/{userId}/stats/activity'
-    // We check 'users/{userId}/stats/activity'
-    // final activityRef = _firestore
-    //     .collection('users')
-    //     .doc(userId)
-    //     .collection('stats')
-    //     .doc('activity');
-
-    // Implementation placeholder: Update total workouts, streaks logic
-    // This duplicates SessionService logic partially (SessionService increments totalWorkouts).
-    // AnalyticsService can handle more complex like "Current Streak".
   }
 
   // ==================== AUTOCOMPLETE ====================
@@ -381,45 +307,6 @@ class SessionAnalyticsService {
     }
   }
 
-  /// Get photo upload success rates for a user
-  Future<Map<String, dynamic>> getPhotoUploadStats(String userId) async {
-    try {
-      final completedQuery = await _firestore
-          .collection('analytics')
-          .where('userId', isEqualTo: userId)
-          .where('type', isEqualTo: 'photo_upload_completed')
-          .get();
-
-      final failedQuery = await _firestore
-          .collection('analytics')
-          .where('userId', isEqualTo: userId)
-          .where('type', isEqualTo: 'photo_upload_failed')
-          .get();
-
-      final completed = completedQuery.docs.length;
-      final failed = failedQuery.docs.length;
-      final total = completed + failed;
-      final successRate = total > 0 ? completed / total * 100 : 100.0;
-
-      // Calculate average upload duration
-      int totalDuration = 0;
-      for (final doc in completedQuery.docs) {
-        totalDuration += (doc.data()['uploadDurationMs'] as int?) ?? 0;
-      }
-      final avgDurationMs = completed > 0 ? totalDuration ~/ completed : 0;
-
-      return {
-        'totalUploads': total,
-        'successfulUploads': completed,
-        'failedUploads': failed,
-        'successRatePercent': successRate,
-        'avgUploadDurationMs': avgDurationMs,
-      };
-    } catch (e) {
-      debugPrint('[SessionAnalyticsService] Error getting upload stats: $e');
-      return {};
-    }
-  }
 }
 
 /// Analytics service provider.

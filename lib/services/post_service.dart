@@ -853,17 +853,28 @@ class PostService {
 
   /// Get reaction counts by type for a post.
   /// Returns a map of ReactionType to count.
+  /// Counted with one aggregate query per reaction type rather than by reading
+  /// every reaction document. This runs once per post card, so on a feed the
+  /// old version billed one read per reaction per visible post — a post with
+  /// 200 reactions cost 200 reads every time it scrolled into view. An
+  /// aggregate bills as a single read regardless of how many reactions match.
   Future<Map<ReactionType, int>> getReactionCounts(String postId) async {
-    final snapshot = await _firestore
+    final reactions = _firestore
         .collection('posts')
         .doc(postId)
-        .collection('reactions')
-        .get();
+        .collection('reactions');
+
+    final results = await Future.wait(
+      ReactionType.values.map(
+        (type) =>
+            reactions.where('type', isEqualTo: type.value).count().get(),
+      ),
+    );
 
     final counts = <ReactionType, int>{};
-    for (final doc in snapshot.docs) {
-      final type = ReactionType.fromString(doc.data()['type'] ?? 'like');
-      counts[type] = (counts[type] ?? 0) + 1;
+    for (var i = 0; i < ReactionType.values.length; i++) {
+      final count = results[i].count ?? 0;
+      if (count > 0) counts[ReactionType.values[i]] = count;
     }
     return counts;
   }
@@ -887,17 +898,6 @@ class PostService {
         'createdAt': doc.data()['createdAt'],
       };
     }).toList();
-  }
-
-  /// Get all user IDs who reacted to a post.
-  Future<List<String>> getPostLikes(String postId) async {
-    final snapshot = await _firestore
-        .collection('posts')
-        .doc(postId)
-        .collection('reactions')
-        // .where('type', isEqualTo: 'like') // Optional: filter by type? usually "likes" implies all reactions
-        .get();
-    return snapshot.docs.map((doc) => doc.id).toList();
   }
 
   // ==================== COMMENTS ====================
