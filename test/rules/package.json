@@ -5,7 +5,8 @@
   "description": "Behavioral (emulator-backed) tests for firebase/firestore.rules",
   "type": "module",
   "scripts": {
-    "test": "firebase emulators:exec --only firestore --project demo-zyntro \"node --test --test-reporter=spec posts_joint.rules.test.mjs\""
+    "_comment": "test-concurrency=1 is required: every suite calls clearFirestore() in beforeEach against one shared emulator, so files running in parallel wipe each other's fixtures.",
+    "test": "firebase emulators:exec --only firestore --project demo-zyntro \"node --test --test-concurrency=1 --test-reporter=spec *.rules.test.mjs\""
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^4.0.1",
