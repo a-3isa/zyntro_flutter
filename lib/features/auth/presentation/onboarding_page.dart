@@ -39,8 +39,8 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
 
   // Profile: accent color — all neon shades. This becomes the user's app color.
   final List<Color> _avatarColors = const [
-    Color(0xFFC8FF00), // acid lime (default)
-    Color(0xFF39FF14), // neon green
+    AppColors.accentLime, // acid lime (default)
+    AppColors.neonGreen, // neon green
     Color(0xFF00FFC6), // neon teal
     Color(0xFF00E5FF), // neon cyan
     Color(0xFF2979FF), // neon blue

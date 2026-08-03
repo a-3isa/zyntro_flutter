@@ -684,7 +684,7 @@ class _SocialPageState extends ConsumerState<SocialPage>
                     style: AppTextStyles.caption.copyWith(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
-                      color: const Color(0xFF080808),
+                      color: AppColors.backgroundV2,
                     ),
                   ),
                 ),

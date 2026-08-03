@@ -839,7 +839,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
                                 child: _StatCell(
                                   value: durationStr,
                                   label: 'Duration',
-                                  accentColor: const Color(0xFFFF8C00),
+                                  accentColor: AppColors.warnV2,
                                 ),
                               ),
                               const SizedBox(width: 10),
@@ -849,7 +849,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
                                       ? '${totalVolume.toStringAsFixed(1)} kg'
                                       : '—',
                                   label: 'Volume',
-                                  accentColor: const Color(0xFFFF4D4D),
+                                  accentColor: AppColors.errorV2,
                                 ),
                               ),
                             ],

@@ -41,11 +41,11 @@ Color? avatarColorFromConfig(String? config) {
 Color _buildTypeColor(String type) {
   switch (type.toLowerCase()) {
     case 'gym':
-      return const Color(0xFFC8FF00);
+      return AppColors.accentLime;
     case 'cardio':
       return const Color(0xFF38BDF8);
     case 'hiit':
-      return const Color(0xFFFF8C00);
+      return AppColors.warnV2;
     case 'cycling':
       return const Color(0xFFA78BFA);
     case 'yoga':

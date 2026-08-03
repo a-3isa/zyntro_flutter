@@ -153,7 +153,7 @@ class _StreakCardState extends State<StreakCard>
                               '${_countAnim.value}',
                               style: AppTextStyles.display.copyWith(
                                 fontSize: 52,
-                                color: const Color(0xFFFF8C00),
+                                color: AppColors.warnV2,
                                 letterSpacing: -2,
                                 height: 1,
                               ),
@@ -279,9 +279,9 @@ class _StreakCardState extends State<StreakCard>
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(8),
               color: isToday
-                  ? const Color(0xFFFF8C00)
+                  ? AppColors.warnV2
                   : isDone
-                      ? const Color(0x33FF8C00)
+                      ? AppColors.warnV2Glow
                       : AppColors.surfaceV2Elevated,
             ),
             child: Center(
@@ -293,7 +293,7 @@ class _StreakCardState extends State<StreakCard>
                   color: isToday
                       ? Colors.black
                       : isDone
-                          ? const Color(0xFFFF8C00)
+                          ? AppColors.warnV2
                           : AppColors.textV2Tertiary,
                 ),
               ),

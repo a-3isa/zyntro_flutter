@@ -896,7 +896,7 @@ class _LimeToggle extends StatelessWidget {
             height: 18,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: value ? const Color(0xFF080808) : AppColors.textV2Tertiary,
+              color: value ? AppColors.backgroundV2 : AppColors.textV2Tertiary,
             ),
           ),
         ),
@@ -944,7 +944,7 @@ class _SegmentedSelector extends StatelessWidget {
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
                 color: isSelected
-                    ? const Color(0xFF080808)
+                    ? AppColors.backgroundV2
                     : AppColors.textV2Secondary,
               ),
             ),

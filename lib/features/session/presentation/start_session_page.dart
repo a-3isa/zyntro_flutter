@@ -609,7 +609,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
   Color _getTypeColor(WorkoutType type) {
     switch (type.value) {
       case 'gym':
-        return const Color(0xFFC8FF00);
+        return AppColors.accentLime;
       case 'running':
         return const Color(0xFF38BDF8);
       case 'cycling':
@@ -619,9 +619,9 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
       case 'yoga':
         return const Color(0xFF34D399);
       case 'hiit':
-        return const Color(0xFFFF8C00);
+        return AppColors.warnV2;
       default:
-        return const Color(0xFF888888);
+        return AppColors.textV2Secondary;
     }
   }
 
@@ -710,14 +710,14 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
             ),
           ),
           const SizedBox(width: 8),
-          PulseDot(color: const Color(0xFFFF4D4D), size: 6),
+          PulseDot(color: AppColors.errorV2, size: 6),
           const SizedBox(width: 6),
           Text(
             'LIVE',
             style: AppTextStyles.caption.copyWith(
               fontSize: 10,
               fontWeight: FontWeight.w700,
-              color: const Color(0xFFFF4D4D),
+              color: AppColors.errorV2,
               letterSpacing: 0.08,
             ),
           ),
@@ -1631,7 +1631,7 @@ class _RingPainter extends CustomPainter {
         sweepFull * progress,
         false,
         Paint()
-          ..color = const Color(0xFFC8FF00)
+          ..color = AppColors.accentLime
           ..strokeWidth = strokeWidth
           ..style = PaintingStyle.stroke
           ..strokeCap = StrokeCap.round,

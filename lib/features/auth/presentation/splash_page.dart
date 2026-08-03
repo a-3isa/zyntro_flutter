@@ -40,7 +40,7 @@ class SplashPage extends ConsumerWidget {
               height: 280,
               decoration: const BoxDecoration(
                 gradient: RadialGradient(
-                  colors: [Color(0x10C8FF00), Colors.transparent],
+                  colors: [AppColors.accentLimeGlowFaint, Colors.transparent],
                 ),
               ),
             ),

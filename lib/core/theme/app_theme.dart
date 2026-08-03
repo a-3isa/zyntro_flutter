@@ -183,6 +183,8 @@ class AppColors {
   static const Color errorV2 = Color(0xFFFF4D4D);
   static const Color okV2 = Color(0xFF00D68F);
   static const Color warnV2 = Color(0xFFFF8C00);
+  static const Color warnV2Glow = Color(0x33FF8C00); // warn @ 20%
+  static const Color accentLimeGlowFaint = Color(0x10C8FF00); // lime @ 6%
 
   // Light mode surfaces
   static const Color backgroundV2Light = Color(0xFFF8F8F8);
