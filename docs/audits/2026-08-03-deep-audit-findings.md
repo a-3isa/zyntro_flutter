@@ -249,6 +249,43 @@ Untested: `payment_service`, `media_service`, `moderation_service`, `presence_se
 
 ---
 
+## Resolution Status
+
+Updated as remediation lands. Commits are on `006-offline-cache-sync`.
+
+| Finding | Status | Commit |
+|---|---|---|
+| C1 — unbounded reads | **Mostly fixed** | `b71acef`, `6bbe17c`, `21d7234` |
+| C2 — badge N+1 | **Fixed** | `6dd5096` |
+| C3 — crash reporting | **Fixed** (console enablement pending) | `4498399` |
+| H3 — cold start | **Fixed** | `b8c85d2` |
+| M1 — asset bloat | **Fixed** (3.0 MB → 128 KB) | `bbc219c` |
+| H1, H2, H4, H5 | Open | — |
+| M2, M4, M5, M6, M7 (partial), M8 | Open | — |
+| L1–L5 | Open | — |
+
+C1 residue: the live listeners in `follow_service` and `presence_service` are still unbounded. Bounding them needs a pagination design for the follower lists, not just a `.limit()`, so they stay open.
+
+M7 progress: `user_service`, `post_service` reactions and `workout_streak` gained test files (523 → 577 tests). `payment_service`, `media_service`, `presence_service`, `storage_service`, `matchmaking_service`, `buddy_service`, `content_filter_service`, `username_service`, `voice_recording_service` still have none.
+
+## Found During Remediation
+
+### R1 — Local Gradle builds are broken by JDK 25 (pre-existing, blocks the pending release)
+`java -version` reports OpenJDK 25.0.1. Android Gradle Plugin 8.11.1 cannot parse that version and fails with `java.lang.IllegalArgumentException: 25.0.1` on any direct `gradlew` invocation. Confirmed pre-existing — it reproduces with all audit changes stashed.
+
+`flutter build` is unaffected because it selects Android Studio's bundled JDK, and `flutter build apk --debug` completes successfully. Only raw `gradlew` is broken. Worth fixing (JDK 21 for `JAVA_HOME`, or an AGP upgrade) before anyone tries to script a release build outside the Flutter tool.
+
+### R2 — `Post.reactionCounts` is a field nothing ever writes
+The `Post` model declares `reactionCounts` as "Optional cached reaction counts by type", but the write path (`reactToPost`, `removeReaction`) only ever maintains `likesCount`. The denormalized field exists and is dead, which is why the UI paid for a subcollection read instead.
+
+The aggregate fix in `b71acef` cuts that read to three per post card. Actually maintaining `reactionCounts` at write time would cut it to zero, since the value would already be on the post document the feed has loaded. That needs per-type increments in `reactToPost`, a reaction-type read in `removeReaction`, and a legacy-post fallback — worth doing, not done.
+
+### R3 — `AvatarConstants` pointed at a directory that does not exist
+Declared twenty asset paths under `assets/avatars/`; no such directory exists anywhere in the repo. Only referenced from inside its own file. Deleted in `bbc219c`. Anything that had rendered those avatars would have thrown at runtime.
+
+### R4 — Three pure helpers orphaned by dead-code removal
+`calculatePerUserVolume`, `calculatePerUserExercises` and `calculateActiveCalories` in `session_analytics_service.dart` lost their only caller when `getSessionComparison` was deleted in `b71acef`. They are pure, have no runtime cost, and represent real domain logic a session-comparison feature would want, so they were kept rather than removed. They remain untested.
+
 ## Priority Order
 
 1. **C3** — crash reporting, because it makes everything else measurable.
