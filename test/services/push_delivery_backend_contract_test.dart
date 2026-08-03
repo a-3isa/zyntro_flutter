@@ -67,4 +67,38 @@ void main() {
       );
     },
   );
+
+  test(
+    'expireStaleJointPostDrafts batches its writes and fans out notifications',
+    () {
+      final source = File('functions/index.js').readAsStringSync();
+
+      final start = source.indexOf('exports.expireStaleJointPostDrafts');
+      expect(start, isNonNegative);
+      final body = source.substring(
+        start,
+        source.indexOf('exports.', start + 10),
+      );
+
+      // The query is capped at 400 documents. Updating them one await at a
+      // time, plus one await per confirmed author, meant hundreds of
+      // sequential round trips in a single invocation — enough to risk the
+      // function timeout and push expiry past its 15-minute schedule.
+      expect(body, contains('db.batch()'));
+      expect(body, contains('batch.commit()'));
+      expect(
+        body,
+        isNot(contains('await doc.ref.update(')),
+        reason: 'per-document awaits defeat the batch',
+      );
+
+      // allSettled, not all: one failed push must not abandon the remaining
+      // authors' notifications.
+      expect(body, contains('Promise.allSettled('));
+      expect(body, isNot(contains('Promise.all(')));
+
+      // A dropped notification must still be visible in the logs.
+      expect(body, contains('logger.error('));
+    },
+  );
 }

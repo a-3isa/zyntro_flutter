@@ -793,18 +793,39 @@ exports.expireStaleJointPostDrafts = onSchedule("every 15 minutes", async () => 
     return;
   }
 
-  for (const doc of snapshot.docs) {
-    const data = doc.data();
-    await doc.ref.update({ status: "expired" });
+  // The status flips go in one batch, and the notifications fan out in
+  // parallel. Doing both serially meant up to 400 sequential round trips plus
+  // one per confirmed author in a single invocation, which risks the function
+  // timeout and pushes expiry past the 15-minute schedule. The sibling
+  // expireStalePairedInvites already batches its writes this way.
+  const batch = db.batch();
+  snapshot.docs.forEach((doc) => batch.update(doc.ref, { status: "expired" }));
+  await batch.commit();
 
-    const authors = Object.values(data.authors || {});
-    const confirmedAuthors = authors.filter((author) => author.confirmed === true && !author.removed);
-    for (const author of confirmedAuthors) {
-      await sendSoloRepostOffer(author.userId, doc.id, data.sessionId);
-    }
+  const offers = snapshot.docs.flatMap((doc) => {
+    const data = doc.data();
+    return Object.values(data.authors || {})
+      .filter((author) => author.confirmed === true && !author.removed)
+      .map((author) => sendSoloRepostOffer(author.userId, doc.id, data.sessionId));
+  });
+
+  // allSettled, not all: one user's push failing must not abandon the rest.
+  // The status flips are already committed, so a lost notification does not
+  // leave a draft stuck in `draft` forever.
+  const results = await Promise.allSettled(offers);
+  const failed = results.filter((r) => r.status === "rejected");
+  if (failed.length > 0) {
+    logger.error("Some solo-repost offers failed to send.", {
+      failed: failed.length,
+      total: offers.length,
+      firstReason: String(failed[0].reason),
+    });
   }
 
-  logger.info("Expired stale joint post drafts.", { count: snapshot.size });
+  logger.info("Expired stale joint post drafts.", {
+    count: snapshot.size,
+    offersSent: offers.length - failed.length,
+  });
 });
 
 // Deletes a joint post once every author slot has soft-left (removed). A
