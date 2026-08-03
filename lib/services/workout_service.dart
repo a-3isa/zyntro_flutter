@@ -217,12 +217,17 @@ class WorkoutService {
   }
 
   /// Get user's workout count.
+  ///
+  /// Counted with an aggregate rather than by reading every workout document:
+  /// the old version's cost grew with every workout the user had ever logged,
+  /// purely to produce a number.
   Future<int> getUserWorkoutCount(String userId) async {
     final snapshot = await _firestore
         .collection('workouts')
         .where('userId', isEqualTo: userId)
+        .count()
         .get();
-    return snapshot.docs.length;
+    return snapshot.count ?? 0;
   }
 
   /// Get user's workout count by type.
@@ -231,8 +236,9 @@ class WorkoutService {
         .collection('workouts')
         .where('userId', isEqualTo: userId)
         .where('type', isEqualTo: type.value)
+        .count()
         .get();
-    return snapshot.docs.length;
+    return snapshot.count ?? 0;
   }
 }
 

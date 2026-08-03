@@ -79,12 +79,17 @@ class ModerationService {
     debugPrint('[ModerationService] Comment reported: $commentId');
   }
 
-  /// Get reports submitted by a user.
+  /// How many of a user's own reports to show. Ordered newest-first, so this
+  /// is a recency window rather than a truncated set.
+  static const int myReportsLimit = 50;
+
+  /// Get reports submitted by a user, newest first.
   Future<List<Report>> getMyReports(String userId) async {
     final snapshot = await _firestore
         .collection('reports')
         .where('reporterId', isEqualTo: userId)
         .orderBy('createdAt', descending: true)
+        .limit(myReportsLimit)
         .get();
 
     return snapshot.docs.map((doc) => Report.fromFirestore(doc)).toList();
@@ -133,6 +138,7 @@ class ModerationService {
     final snapshot = await _firestore
         .collection('blocks')
         .where('blockerId', isEqualTo: userId)
+        .limit(blockedUsersLimit)
         .get();
 
     final blockedUserIds = snapshot.docs
@@ -152,12 +158,29 @@ class ModerationService {
     return users;
   }
 
+  /// Ceiling on how many blocks are read at once.
+  ///
+  /// Deliberately far above any realistic blocklist rather than a display
+  /// window: this list filters blocked users out of the feed, so quietly
+  /// truncating it would let blocked users' content back through. The cap
+  /// exists to bound worst-case cost, and hitting it is logged rather than
+  /// silently tolerated.
+  static const int blockedUsersLimit = 1000;
+
   /// Get list of blocked user IDs (for filtering).
   Future<List<String>> getBlockedUserIds(String userId) async {
     final snapshot = await _firestore
         .collection('blocks')
         .where('blockerId', isEqualTo: userId)
+        .limit(blockedUsersLimit)
         .get();
+
+    if (snapshot.docs.length == blockedUsersLimit) {
+      debugPrint(
+        '[ModerationService] $userId has at least $blockedUsersLimit blocks; '
+        'the block filter is now truncated and needs pagination.',
+      );
+    }
 
     return snapshot.docs
         .map((doc) => doc.data()['blockedUserId'] as String)
@@ -175,12 +198,17 @@ class ModerationService {
   // Moderation Methods (Admin only)
   // ============================================================
 
-  /// Get pending reports (for moderators).
+  /// One page of the moderation queue. The queue is worked newest-first and is
+  /// global, so it must not read every pending report ever filed.
+  static const int pendingReportsLimit = 100;
+
+  /// Get pending reports (for moderators), newest first.
   Future<List<Report>> getPendingReports() async {
     final snapshot = await _firestore
         .collection('reports')
         .where('status', isEqualTo: 'pending')
         .orderBy('createdAt', descending: true)
+        .limit(pendingReportsLimit)
         .get();
 
     return snapshot.docs.map((doc) => Report.fromFirestore(doc)).toList();
