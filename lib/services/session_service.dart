@@ -8,6 +8,7 @@ import '../core/models/models.dart';
 import '../core/constants/constants.dart';
 import '../features/session/domain/gym_session_plan.dart';
 import '../features/session/domain/workout_score.dart';
+import '../features/session/domain/workout_streak.dart';
 import '../utils/retry_helper.dart';
 import '../utils/offline_manager.dart';
 import '../features/auth/auth_providers.dart';
@@ -904,6 +905,28 @@ class SessionService {
       canWritePrs = false;
     }
 
+    // Streak counters are maintained here rather than recomputed on read.
+    // Reading them is best-effort for the same reason the PR read is: a failure
+    // must not stop a user finishing their session. When the read fails we skip
+    // the streak write entirely rather than advance from a zeroed state, which
+    // would reset a real streak to 1.
+    StreakState? previousStreak;
+    try {
+      final userSnapshot = await _firestore
+          .collection('users')
+          .doc(userId)
+          .get();
+      previousStreak = streakStateFromUserData(userSnapshot.data());
+    } catch (e) {
+      debugPrint(
+        '[SessionService] Failed to read streak state for $userId; '
+        'skipping streak update for this session: $e',
+      );
+    }
+    final nextStreak = previousStreak == null
+        ? null
+        : advanceStreak(previous: previousStreak, completedAt: DateTime.now());
+
     final scoreResult = computeWorkoutScore(
       sessionDuration: sessionDuration,
       hasRealHumanBuddy: hasRealHumanBuddy,
@@ -954,6 +977,15 @@ class SessionService {
         batch.update(_firestore.collection('users').doc(participantId), {
           'workoutScore': FieldValue.increment(scoreResult.score),
           'totalWorkouts': FieldValue.increment(1),
+          if (session.participants.length > 1)
+            'buddyWorkouts': FieldValue.increment(1),
+          if (nextStreak != null) ...{
+            'currentStreak': nextStreak.currentStreak,
+            'longestStreak': nextStreak.longestStreak,
+            'lastWorkoutDate': nextStreak.lastWorkoutDate,
+            'weeklyWorkouts': nextStreak.weeklyWorkouts,
+            'weekStartDate': nextStreak.weekStartDate,
+          },
         });
 
         if (canWritePrs &&

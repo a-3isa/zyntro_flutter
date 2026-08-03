@@ -705,8 +705,9 @@ void main() {
 
       await sessionService.endSession(kPairedSessionId, kPairedHostId, null);
 
-      // Called once to build the PRs doc ref, once to build the stats-update ref.
-      verify(() => mockUsersCollection.doc(kPairedHostId)).called(2);
+      // Called once to build the PRs doc ref, once to read the streak counters,
+      // once to build the stats-update ref.
+      verify(() => mockUsersCollection.doc(kPairedHostId)).called(3);
       verifyNever(() => mockUsersCollection.doc(kPairedFriendId));
       verify(() => mockBatch.commit()).called(1);
     });

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/models/models.dart';
 import '../features/auth/auth_providers.dart';
+import '../features/session/domain/workout_streak.dart';
 
 /// Streak risk levels for at-risk detection.
 enum StreakRisk {
@@ -189,8 +190,14 @@ class UserService {
   final Map<String, ({UserStreak streak, DateTime fetchedAt})> _streakCache =
       {};
 
-  /// Calculate user's workout streak based on session history.
-  /// Matches RN calculateUserStreak.
+  /// Read a user's workout streak stats.
+  ///
+  /// Served from the counters maintained on the user document at session end,
+  /// which costs one document read regardless of how long the user's history
+  /// is. Users whose documents predate those counters fall back to
+  /// [_calculateUserStreakFromHistory], which scans their sessions — that path
+  /// exists only until a user's next completed session writes the counters, or
+  /// until the backfill in scripts/backfill_user_streak_counters.js runs.
   Future<UserStreak> calculateUserStreak(String userId) async {
     // Check cache (5 min TTL)
     if (_streakCache.containsKey(userId)) {
@@ -200,6 +207,53 @@ class UserService {
       }
     }
 
+    try {
+      final userDoc = await _firestore.collection('users').doc(userId).get();
+      final data = userDoc.data();
+      final state = streakStateFromUserData(data);
+
+      // lastWorkoutDate is written by every session end, so its absence on a
+      // user with completed workouts means the counters were never populated.
+      final totalWorkouts = (data?['totalWorkouts'] as num?)?.toInt() ?? 0;
+      if (state.lastWorkoutDate == null && totalWorkouts > 0) {
+        return _calculateUserStreakFromHistory(userId);
+      }
+
+      final streak = UserStreak(
+        currentStreak: _isStreakStillActive(state.lastWorkoutDate)
+            ? state.currentStreak
+            : 0,
+        longestStreak: state.longestStreak,
+        totalWorkouts: totalWorkouts,
+        lastWorkoutDate: state.lastWorkoutDate,
+        weeklyWorkouts: state.weekStartDate == weekStartFor(DateTime.now())
+            ? state.weeklyWorkouts
+            : 0,
+        buddyWorkouts: (data?['buddyWorkouts'] as num?)?.toInt() ?? 0,
+      );
+
+      _streakCache[userId] = (streak: streak, fetchedAt: DateTime.now());
+      return streak;
+    } catch (e) {
+      debugPrint('Error reading streak counters for $userId: $e');
+      return UserStreak(currentStreak: 0, longestStreak: 0, totalWorkouts: 0);
+    }
+  }
+
+  /// A stored streak only still counts if the user trained today or yesterday.
+  /// The counter itself is never decayed on read, so this is where a lapsed
+  /// streak becomes zero.
+  static bool _isStreakStillActive(String? lastWorkoutDate) {
+    if (lastWorkoutDate == null) return false;
+    final now = DateTime.now();
+    return lastWorkoutDate == calendarDay(now) ||
+        lastWorkoutDate == calendarDay(now.subtract(const Duration(days: 1)));
+  }
+
+  /// Pre-counter fallback: derives the same stats by reading a user's whole
+  /// completed-session history. Kept only for user documents written before the
+  /// counters existed.
+  Future<UserStreak> _calculateUserStreakFromHistory(String userId) async {
     try {
       final snapshot = await _firestore
           .collection('sessions')

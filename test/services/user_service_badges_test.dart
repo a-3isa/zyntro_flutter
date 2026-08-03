@@ -1,10 +1,15 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zyntro_flutter/features/session/domain/workout_streak.dart';
 import 'package:zyntro_flutter/services/user_service.dart';
 
 /// Adds `count` completed sessions for [userId], the first
 /// [buddyCount] of which have a second participant.
+///
+/// This is the pre-counter shape: sessions exist but the user document carries
+/// no streak counters, which is what a user looks like before their first
+/// post-migration session end.
 Future<void> _seedSessions(
   FakeFirebaseFirestore firestore,
   String userId, {
@@ -21,6 +26,28 @@ Future<void> _seedSessions(
   }
 }
 
+/// Writes the maintained counters onto the user document, the way session end
+/// does in production. `totalWorkouts` alone is not enough to look migrated —
+/// `lastWorkoutDate` is what marks the counters as populated.
+Future<void> _seedCounters(
+  FakeFirebaseFirestore firestore,
+  String userId, {
+  required int totalWorkouts,
+  required int buddyWorkouts,
+  List<String> badges = const [],
+}) {
+  return firestore.collection('users').doc(userId).set({
+    'badges': badges,
+    'totalWorkouts': totalWorkouts,
+    'buddyWorkouts': buddyWorkouts,
+    'currentStreak': 1,
+    'longestStreak': 1,
+    'lastWorkoutDate': calendarDay(DateTime.now()),
+    'weeklyWorkouts': 1,
+    'weekStartDate': weekStartFor(DateTime.now()),
+  });
+}
+
 void main() {
   late FakeFirebaseFirestore firestore;
   late UserService service;
@@ -31,8 +58,82 @@ void main() {
     service = UserService(firestore);
   });
 
-  group('calculateUserStreak buddy derivation', () {
-    test('counts multi-participant sessions from the same read', () async {
+  group('calculateUserStreak from maintained counters', () {
+    test('serves stats from the user document without scanning sessions', () async {
+      await _seedCounters(
+        firestore,
+        userId,
+        totalWorkouts: 42,
+        buddyWorkouts: 17,
+      );
+      // No session documents exist at all: if the counters are being used, the
+      // absence of history is irrelevant.
+      final stats = await service.calculateUserStreak(userId);
+
+      expect(stats.totalWorkouts, 42);
+      expect(stats.buddyWorkouts, 17);
+      expect(stats.currentStreak, 1);
+    });
+
+    test('reports a lapsed streak as zero without losing the record', () async {
+      await firestore.collection('users').doc(userId).set({
+        'totalWorkouts': 30,
+        'currentStreak': 9,
+        'longestStreak': 14,
+        // Two days ago: too old to still count as an active streak.
+        'lastWorkoutDate': calendarDay(
+          DateTime.now().subtract(const Duration(days: 2)),
+        ),
+      });
+
+      final stats = await service.calculateUserStreak(userId);
+
+      expect(stats.currentStreak, 0);
+      expect(stats.longestStreak, 14);
+    });
+
+    test('keeps a streak alive when the last workout was yesterday', () async {
+      await firestore.collection('users').doc(userId).set({
+        'totalWorkouts': 30,
+        'currentStreak': 9,
+        'longestStreak': 14,
+        'lastWorkoutDate': calendarDay(
+          DateTime.now().subtract(const Duration(days: 1)),
+        ),
+      });
+
+      expect((await service.calculateUserStreak(userId)).currentStreak, 9);
+    });
+
+    test('zeroes the weekly tally once the stored week has passed', () async {
+      await firestore.collection('users').doc(userId).set({
+        'totalWorkouts': 30,
+        'lastWorkoutDate': calendarDay(DateTime.now()),
+        'weeklyWorkouts': 6,
+        'weekStartDate': weekStartFor(
+          DateTime.now().subtract(const Duration(days: 14)),
+        ),
+      });
+
+      expect((await service.calculateUserStreak(userId)).weeklyWorkouts, 0);
+    });
+
+    test('returns zeroes for a brand new user with no workouts', () async {
+      await firestore.collection('users').doc(userId).set({'totalWorkouts': 0});
+
+      final stats = await service.calculateUserStreak(userId);
+
+      expect(stats.totalWorkouts, 0);
+      expect(stats.currentStreak, 0);
+      expect(stats.buddyWorkouts, 0);
+    });
+  });
+
+  group('calculateUserStreak pre-counter fallback', () {
+    test('scans history when a user has workouts but no counters', () async {
+      // totalWorkouts > 0 with no lastWorkoutDate is exactly what a user
+      // document written before the counters existed looks like.
+      await firestore.collection('users').doc(userId).set({'totalWorkouts': 5});
       await _seedSessions(firestore, userId, count: 5, buddyCount: 3);
 
       final stats = await service.calculateUserStreak(userId);
@@ -42,6 +143,7 @@ void main() {
     });
 
     test('counts zero buddy workouts when every session was solo', () async {
+      await firestore.collection('users').doc(userId).set({'totalWorkouts': 4});
       await _seedSessions(firestore, userId, count: 4, buddyCount: 0);
 
       final stats = await service.calculateUserStreak(userId);
@@ -50,7 +152,8 @@ void main() {
       expect(stats.buddyWorkouts, 0);
     });
 
-    test('tolerates a session document with no participants field', () async {
+    test('tolerates a session document with no createdAt field', () async {
+      await firestore.collection('users').doc(userId).set({'totalWorkouts': 2});
       await firestore.collection('sessions').add({
         'participants': [userId],
         'status': 'completed',
@@ -75,9 +178,10 @@ void main() {
       await firestore.collection('users').doc(userId).set({'badges': <String>[]});
     });
 
-    test('awards social_butterfly from derived stats, not a second scan', () async {
-      // 10 buddy sessions is the social_butterfly threshold.
-      await _seedSessions(firestore, userId, count: 12, buddyCount: 10);
+    test('awards social_butterfly from the counter, not a history scan', () async {
+      // 10 buddy sessions is the social_butterfly threshold. No session history
+      // is seeded, so this can only pass by reading the maintained counter.
+      await _seedCounters(firestore, userId, totalWorkouts: 12, buddyWorkouts: 10);
       await firestore.collection('sessions').doc('session-1').set({
         'participants': [userId, 'buddy-x'],
         'status': 'completed',
@@ -90,7 +194,7 @@ void main() {
     });
 
     test('does not award social_butterfly below the threshold', () async {
-      await _seedSessions(firestore, userId, count: 12, buddyCount: 4);
+      await _seedCounters(firestore, userId, totalWorkouts: 12, buddyWorkouts: 4);
       await firestore.collection('sessions').doc('session-1').set({
         'participants': [userId, 'buddy-x'],
         'status': 'completed',
@@ -105,7 +209,7 @@ void main() {
     test('persists every unlocked badge in a single merged write', () async {
       // early_bird (before 7am) and iron_will (50 workouts) both trip here, so
       // the batched write has to carry more than one badge.
-      await _seedSessions(firestore, userId, count: 50, buddyCount: 0);
+      await _seedCounters(firestore, userId, totalWorkouts: 50, buddyWorkouts: 0);
       await firestore.collection('sessions').doc('session-1').set({
         'participants': [userId],
         'status': 'completed',
@@ -190,10 +294,13 @@ void main() {
     });
 
     test('skips badges the user already holds', () async {
-      await firestore.collection('users').doc(userId).set({
-        'badges': <String>['early_bird'],
-      });
-      await _seedSessions(firestore, userId, count: 3, buddyCount: 0);
+      await _seedCounters(
+        firestore,
+        userId,
+        totalWorkouts: 3,
+        buddyWorkouts: 0,
+        badges: const ['early_bird'],
+      );
       await firestore.collection('sessions').doc('session-1').set({
         'participants': [userId],
         'status': 'completed',
