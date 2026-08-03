@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -48,6 +49,17 @@ void main() async {
   );
 
   await _loadLocalEnvironment(envFile);
+
+  // Crash reporting stays off in debug so development crashes never land in
+  // production crash data. GlobalErrorHandler also skips reporting in debug;
+  // this covers native crashes, which never reach the Dart handler.
+  try {
+    await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(
+      !kDebugMode,
+    );
+  } catch (e, st) {
+    _debugPrintStartupFailure('Crashlytics', e, st);
+  }
 
   // Initialize Global Error Handler
   GlobalErrorHandler().init();

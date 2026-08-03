@@ -1,7 +1,42 @@
+import 'dart:async';
+
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'offline_handlers.dart'; // For OfflineErrorCategory
+
+/// Reports an error to a crash backend. Injectable so tests can assert what
+/// would be sent without touching Firebase.
+typedef CrashReporter =
+    Future<void> Function(Object error, StackTrace? stack, {required bool fatal});
+
+final _emailPattern = RegExp(r'[\w.+-]+@[\w-]+\.[\w.-]+');
+// Firebase UIDs, session/post document ids, and the app's own uuid v4 ids.
+final _longIdPattern = RegExp(r'\b[A-Za-z0-9_-]{20,}\b');
+final _urlPattern = RegExp(r'https?://\S+');
+final _phonePattern = RegExp(r'(?<!\d)\+?\d[\d\s()-]{7,}\d(?!\d)');
+
+/// Strips identifying values out of an error before it leaves the device.
+///
+/// An error's `toString()` routinely embeds user content — a Firestore document
+/// body, a rejected message, an email in an auth failure, a signed media URL.
+/// The exception type and the stack trace are what actually identify a fault,
+/// so everything that could name a person is replaced with a placeholder while
+/// the shape of the message is preserved.
+String scrubForReport(Object error) {
+  final scrubbed = error
+      .toString()
+      .replaceAll(_urlPattern, '[url]')
+      .replaceAll(_emailPattern, '[email]')
+      .replaceAll(_phonePattern, '[phone]')
+      .replaceAll(_longIdPattern, '[id]');
+
+  // A very long message is user content far more often than it is diagnostic.
+  const maxLength = 300;
+  if (scrubbed.length <= maxLength) return scrubbed;
+  return '${scrubbed.substring(0, maxLength)}… [truncated]';
+}
 
 /// Global key for ScaffoldMessenger to show snackbars without context
 final GlobalKey<ScaffoldMessengerState> scannerMessengerKey =
@@ -14,6 +49,33 @@ class GlobalErrorHandler {
   factory GlobalErrorHandler() => _instance;
 
   GlobalErrorHandler._internal();
+
+  /// Where errors are reported. Defaults to Crashlytics; tests override it.
+  CrashReporter _report = _reportToCrashlytics;
+
+  /// Overrides the crash reporter. Tests only.
+  @visibleForTesting
+  void debugSetReporter(CrashReporter reporter) => _report = reporter;
+
+  /// Restores the default Crashlytics reporter.
+  @visibleForTesting
+  void debugResetReporter() => _report = _reportToCrashlytics;
+
+  static Future<void> _reportToCrashlytics(
+    Object error,
+    StackTrace? stack, {
+    required bool fatal,
+  }) {
+    return FirebaseCrashlytics.instance.recordError(
+      error,
+      stack,
+      fatal: fatal,
+      // The error's own toString() can carry user content (a Firestore
+      // document body, a failed message, an email in an auth error). Send a
+      // scrubbed reason and let the type plus stack trace identify the fault.
+      reason: scrubForReport(error),
+    );
+  }
 
   /// Initialize error handlers
   void init() {
@@ -41,10 +103,17 @@ class GlobalErrorHandler {
     // Show feedback to user if appropriate
     _showUserFeedback(message, action, fatal);
 
-    // TODO: Report to Crashlytics
-    // if (!kDebugMode) {
-    //   FirebaseCrashlytics.instance.recordError(error, stack, fatal: fatal);
-    // }
+    // Debug builds log to the console above; shipping those to Crashlytics
+    // would bury real user crashes under development noise.
+    if (kDebugMode) return;
+
+    // Reporting must never itself throw out of an error handler — that would
+    // turn a handled error into an unhandled one.
+    unawaited(
+      _report(error, stack, fatal: fatal).catchError((Object e) {
+        debugPrint('[GlobalErrorHandler] Failed to report error: $e');
+      }),
+    );
   }
 
   void _logError(Object error, StackTrace? stack, bool fatal) {
