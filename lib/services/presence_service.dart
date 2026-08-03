@@ -284,7 +284,8 @@ final presenceServiceProvider = Provider<PresenceService>((ref) {
 });
 
 /// Session online users stream provider.
-final sessionOnlineUsersProvider = StreamProvider.family<List<String>, String>((
+final sessionOnlineUsersProvider =
+    StreamProvider.autoDispose.family<List<String>, String>((
   ref,
   sessionId,
 ) {
@@ -293,6 +294,6 @@ final sessionOnlineUsersProvider = StreamProvider.family<List<String>, String>((
 
 /// All session presence stream provider.
 final sessionPresenceProvider =
-    StreamProvider.family<List<UserPresence>, String>((ref, sessionId) {
+    StreamProvider.autoDispose.family<List<UserPresence>, String>((ref, sessionId) {
       return ref.watch(presenceServiceProvider).listenToAllPresence(sessionId);
     });

@@ -248,10 +248,12 @@ final workoutServiceProvider = Provider<WorkoutService>((ref) {
 });
 
 /// User workouts provider.
-final userWorkoutsProvider = FutureProvider.family<WorkoutQueryResult, String>((
-  ref,
-  userId,
-) async {
+///
+/// autoDispose is what makes the keepAlive window below mean anything:
+/// ref.keepAlive() is a no-op on a provider that never disposes, so this
+/// previously cached forever rather than for the two minutes it claimed.
+final userWorkoutsProvider = FutureProvider.autoDispose
+    .family<WorkoutQueryResult, String>((ref, userId) async {
   // Cache for 2 minutes to prevent repeated fetches on tab switch
   final link = ref.keepAlive();
   final timer = Timer(const Duration(minutes: 2), () => link.close());

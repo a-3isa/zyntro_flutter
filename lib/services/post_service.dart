@@ -1036,7 +1036,7 @@ final publicFeedProvider = FutureProvider.autoDispose<List<Post>>((ref) async {
 });
 
 /// User posts provider — real-time stream so the grid updates without a pull-to-refresh.
-final userPostsProvider = StreamProvider.family<List<Post>, String>((
+final userPostsProvider = StreamProvider.autoDispose.family<List<Post>, String>((
   ref,
   userId,
 ) {
@@ -1044,7 +1044,7 @@ final userPostsProvider = StreamProvider.family<List<Post>, String>((
 });
 
 /// Comments stream provider.
-final commentsProvider = StreamProvider.family<List<Comment>, String>((
+final commentsProvider = StreamProvider.autoDispose.family<List<Comment>, String>((
   ref,
   postId,
 ) {

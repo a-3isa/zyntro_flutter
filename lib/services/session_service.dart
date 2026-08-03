@@ -1626,10 +1626,19 @@ final sessionServiceProvider = Provider<SessionService>((ref) {
 });
 
 /// Stream provider for current session.
-final currentSessionProvider = StreamProvider.family<Session?, String>((
+///
+/// Session-scoped, so it autoDisposes with the session room rather than
+/// holding a Firestore listener for every session ever opened. The grace
+/// window keeps a brief navigation away from tearing it down and re-running
+/// the participant cache warm below, which is a burst of reads.
+final currentSessionProvider = StreamProvider.autoDispose.family<Session?, String>((
   ref,
   sessionId,
 ) {
+  final link = ref.keepAlive();
+  final grace = Timer(const Duration(minutes: 2), link.close);
+  ref.onDispose(grace.cancel);
+
   // Warm cache when listening starts
   ref.read(userCacheServiceProvider).warmSessionParticipants(sessionId);
   return ref.watch(sessionServiceProvider).listenToSession(sessionId);
@@ -1637,7 +1646,7 @@ final currentSessionProvider = StreamProvider.family<Session?, String>((
 
 /// Stream provider for a participant's gym setup plan.
 final gymSessionPlanProvider =
-    StreamProvider.family<GymSessionPlan?, ({String sessionId, String userId})>(
+    StreamProvider.autoDispose.family<GymSessionPlan?, ({String sessionId, String userId})>(
       (ref, params) {
         return ref
             .watch(sessionServiceProvider)
@@ -1647,14 +1656,14 @@ final gymSessionPlanProvider =
 
 /// Stream provider for session events.
 final sessionEventsProvider =
-    StreamProvider.family<List<TimelineEvent>, String>((ref, sessionId) {
+    StreamProvider.autoDispose.family<List<TimelineEvent>, String>((ref, sessionId) {
       return ref.watch(sessionServiceProvider).listenToSessionEvents(sessionId);
     });
 
 /// Debounced session events provider (reduces rebuild frequency).
 /// Use this for UI components that don't need immediate updates.
 final debouncedSessionEventsProvider =
-    StreamProvider.family<List<TimelineEvent>, String>((ref, sessionId) {
+    StreamProvider.autoDispose.family<List<TimelineEvent>, String>((ref, sessionId) {
       return ref
           .watch(sessionServiceProvider)
           .listenToSessionEvents(sessionId)
@@ -1662,8 +1671,8 @@ final debouncedSessionEventsProvider =
     });
 
 /// Stream provider for recent session events (paginated).
-final recentSessionEventsProvider =
-    StreamProvider.family<List<TimelineEvent>, ({String sessionId, int limit})>(
+final recentSessionEventsProvider = StreamProvider.autoDispose
+    .family<List<TimelineEvent>, ({String sessionId, int limit})>(
       (ref, params) {
         return ref
             .watch(sessionServiceProvider)
@@ -1674,7 +1683,7 @@ final recentSessionEventsProvider =
 /// Stream provider for real-time participant progress.
 /// Returns aggregated progress data per participant.
 final sessionProgressProvider =
-    StreamProvider.family<Map<String, dynamic>, String>((ref, sessionId) {
+    StreamProvider.autoDispose.family<Map<String, dynamic>, String>((ref, sessionId) {
       return ref
           .watch(sessionServiceProvider)
           .listenToSessionProgress(sessionId)
@@ -1684,7 +1693,7 @@ final sessionProgressProvider =
 /// Throttled session events provider - emits first event immediately then throttles.
 /// Use for UI-critical updates that need immediate first response.
 final throttledSessionEventsProvider =
-    StreamProvider.family<List<TimelineEvent>, String>((ref, sessionId) {
+    StreamProvider.autoDispose.family<List<TimelineEvent>, String>((ref, sessionId) {
       return ref
           .watch(sessionServiceProvider)
           .listenToSessionEvents(sessionId)

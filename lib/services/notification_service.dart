@@ -1381,14 +1381,26 @@ final notificationServiceProvider = Provider<NotificationService>((ref) {
 
 /// User notifications stream provider.
 final userNotificationsProvider =
-    StreamProvider.family<List<AppNotification>, String>((ref, userId) {
+    StreamProvider.autoDispose.family<List<AppNotification>, String>((ref, userId) {
       return ref
           .watch(notificationServiceProvider)
           .listenToNotifications(userId);
     });
 
 /// Unread notification count stream provider.
-final unreadCountProvider = StreamProvider.family<int, String>((ref, userId) {
+///
+/// autoDispose with a grace window rather than plain autoDispose: this backs
+/// the notification badge in the app shell, so a momentary drop to zero
+/// listeners during a navigation transition would otherwise tear down the
+/// listener and re-subscribe, making the badge flicker.
+final unreadCountProvider = StreamProvider.autoDispose.family<int, String>((
+  ref,
+  userId,
+) {
+  final link = ref.keepAlive();
+  final timer = Timer(const Duration(minutes: 2), link.close);
+  ref.onDispose(timer.cancel);
+
   return ref.watch(notificationServiceProvider).listenToUnreadCount(userId);
 });
 
