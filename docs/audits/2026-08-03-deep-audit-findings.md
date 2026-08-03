@@ -264,7 +264,40 @@ Updated as remediation lands. Commits are on `006-offline-cache-sync`.
 | H5 — accessibility | **Partial** — see correction below | `b015371` |
 | M1 — asset bloat | **Fixed** (3.0 MB → 128 KB) | `bbc219c` |
 | L1 — dead auth shim | **Fixed** | `b712780` |
-| H4, M2, M4, M5, M6, M7 (partial), M8, L2–L5 | Open | — |
+| L2 — repo junk | **Fixed** (35 files) | `829eb37` |
+| M2 — design tokens | **Fixed** — see correction below | `d2a708d` |
+| M5 — eager lists | **Withdrawn** — not a real defect, see below | — |
+| M6 — serial scheduler | **Fixed** | `540abe7` |
+| R5 — PR privacy | **Fixed** | `bd61927` |
+| H4, M4, M7 (partial), M8, L3–L5 | Open | — |
+
+**Two changes are committed but NOT yet live:** `bd61927` (rules) and `540abe7`
+(functions) both require a deploy to take effect in production.
+
+### Correction to M2
+
+"145 hardcoded `Color(0x…)` literals" counted the token definitions inside
+`app_theme.dart` itself, which is where colour literals belong. The real figure
+was 75.
+
+Of those, 22 were byte-identical duplicates of an existing token and are now
+routed through it (`d2a708d`). The remaining ~53 are genuine one-offs with no
+token to route through — Facebook brand blue on the Facebook button, silver and
+bronze medal colours, chart palette entries. Turning those into "design tokens"
+would be dressing up one-offs, so they were deliberately left alone.
+
+### Withdrawn: M5
+
+The finding counted 32 `SingleChildScrollView` and 5 non-builder `ListView(`
+without distinguishing static layout scrollers from data-driven lists. On
+inspection only two scrollers render a mapped collection at all: a row of four
+hardcoded filter chips in `workout_history_page.dart`, and a form-style column
+in `active_turn_screen.dart`. Neither grows with user data.
+
+Every list that actually grows — the feed, profile sessions, both profile
+grids, notifications — already uses `ListView.builder` or `GridView.builder`.
+There is no defect here. The finding was an artefact of counting instead of
+reading.
 
 ### Correction to H5
 
