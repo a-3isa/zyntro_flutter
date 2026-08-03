@@ -146,6 +146,7 @@ class _MatchmakingPageState extends ConsumerState<MatchmakingPage>
               Align(
                 alignment: Alignment.centerLeft,
                 child: IconButton(
+                  tooltip: 'Cancel matchmaking',
                   onPressed: _isCancelling ? null : _cancel,
                   icon: const Icon(Icons.close_rounded),
                   color: AppColors.textV2Secondary,

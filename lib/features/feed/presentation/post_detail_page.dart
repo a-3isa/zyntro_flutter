@@ -775,11 +775,18 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                     ),
                     const SizedBox(width: AppSpacing.sm),
                     IconButton(
+                      tooltip: _isSubmitting ? 'Sending comment' : 'Send comment',
                       icon: _isSubmitting
                           ? const SizedBox(
                               width: 20,
                               height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                // Otherwise a screen reader announces an
+                                // unlabelled spinner with no indication of
+                                // what is in flight.
+                                semanticsLabel: 'Sending comment',
+                              ),
                             )
                           : const Icon(Icons.send),
                       onPressed: _isSubmitting ? null : _handleSubmitComment,

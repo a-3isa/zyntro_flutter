@@ -1096,6 +1096,7 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
           Row(
             children: [
               IconButton(
+                tooltip: 'Back',
                 onPressed: context.pop,
                 icon: const Icon(Icons.arrow_back_ios_new_rounded),
                 color: AppColors.textV2Secondary,

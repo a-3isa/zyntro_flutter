@@ -146,13 +146,20 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
                       GestureDetector(
                         onTap: () =>
                             context.push('/user/${widget.post.authorId}'),
-                        child: Hero(
-                          tag: 'avatar-${widget.post.authorId}',
-                          child: FluttermojiAvatar(
-                            photoUrl: author?.photoURL,
-                            displayName: authorName,
-                            size: 40,
-                            showGradientBorder: false,
+                        child: Semantics(
+                          button: true,
+                          // The name beside it is labelled separately; without
+                          // this the avatar is an unlabelled tap target that
+                          // navigates somewhere a screen reader cannot name.
+                          label: 'View profile of $authorName',
+                          child: Hero(
+                            tag: 'avatar-${widget.post.authorId}',
+                            child: FluttermojiAvatar(
+                              photoUrl: author?.photoURL,
+                              displayName: authorName,
+                              size: 40,
+                              showGradientBorder: false,
+                            ),
                           ),
                         ),
                       ),
@@ -515,6 +522,7 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
+                              tooltip: 'View comments',
                               icon: const Icon(Icons.comment_outlined),
                               onPressed: () =>
                                   context.push('/post/${widget.post.id}'),
@@ -800,6 +808,7 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
+                              tooltip: 'View comments',
                               icon: const Icon(Icons.comment_outlined),
                               onPressed: () =>
                                   context.push('/post/${widget.post.id}'),
