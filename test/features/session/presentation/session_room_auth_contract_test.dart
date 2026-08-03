@@ -17,6 +17,13 @@ void main() {
     },
   );
 
+  test('the legacy auth compatibility shim is gone for good', () {
+    // lib/services/auth_service.dart was a temporary bridge while session
+    // flows migrated to features/auth/auth_providers.dart. The migration is
+    // done and nothing imported it, so the file is deleted; this pins that.
+    expect(File('lib/services/auth_service.dart').existsSync(), isFalse);
+  });
+
   test('v2 session header uses a compact layout for narrow widths', () {
     final source = File(
       'lib/features/session/presentation/session_room_page.dart',
