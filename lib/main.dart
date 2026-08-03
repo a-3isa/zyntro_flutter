@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -71,33 +73,41 @@ void main() async {
     overrides: [sharedPreferencesProvider.overrideWithValue(sharedPrefs)],
   );
 
-  // Initialize notification service
-  try {
-    await container.read(notificationServiceProvider).init();
-  } catch (e, st) {
-    _debugPrintStartupFailure('NotificationService', e, st);
-  }
-
-  // Initialize storage service
-  try {
-    await container.read(storageServiceProvider).init();
-  } catch (e, st) {
-    _debugPrintStartupFailure('StorageService', e, st);
-  }
-
-  // Register offline handlers
-  try {
-    await registerOfflineHandlers(container);
-  } catch (e, st) {
-    _debugPrintStartupFailure('OfflineHandlers', e, st);
-  }
-
   runApp(
     UncontrolledProviderScope(
       container: container,
       child: const ErrorBoundaryWidget(child: ZyntroApp()),
     ),
   );
+
+  // Deliberately after runApp: none of these gate the first frame, and awaiting
+  // them serially beforehand held the splash screen for the duration of a
+  // notification-permission round trip. They run concurrently now, and each
+  // still swallows its own failure so one bad init cannot take down startup.
+  unawaited(_initDeferredServices(container));
+}
+
+/// Startup work that the first frame does not depend on.
+Future<void> _initDeferredServices(ProviderContainer container) async {
+  await Future.wait([
+    _guarded(
+      'NotificationService',
+      () => container.read(notificationServiceProvider).init(),
+    ),
+    _guarded(
+      'StorageService',
+      () => container.read(storageServiceProvider).init(),
+    ),
+    _guarded('OfflineHandlers', () => registerOfflineHandlers(container)),
+  ]);
+}
+
+Future<void> _guarded(String component, Future<void> Function() init) async {
+  try {
+    await init();
+  } catch (e, st) {
+    _debugPrintStartupFailure(component, e, st);
+  }
 }
 
 void _debugPrintStartupFailure(
