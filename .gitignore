@@ -89,3 +89,8 @@ android_keys.txt
 
 .claude/
 .codex/
+
+# Knowledge-graph and Obsidian tooling output — generated, not source
+graphify-out/
+.obsidian/
+zyntro/
