@@ -258,6 +258,14 @@ class AppColors {
   /// Unfilled portion of a progress ring or bar.
   static const Color progressTrack = Color(0xFF2A2A2A);
 
+  /// Base of the activity-card gradient — the shared first stop each workout
+  /// type's gradient starts from.
+  static const Color activityGradientBase = Color(0xFF1F2940);
+
+  /// Inline field-validation red. Softer than [errorV2], which is reserved for
+  /// failed operations rather than "this input is not valid yet".
+  static const Color validationError = Color(0xFFFF6B6B);
+
   /// Accent for [type], which may be a [WorkoutType.value] or a category.
   ///
   /// Gym and unknown types resolve to [userAccent] rather than a fixed lime so

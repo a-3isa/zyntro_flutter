@@ -457,7 +457,7 @@ class _StepProfileState extends State<_StepProfile> {
       case _UsernameStatus.invalid:
         return const Icon(
           Icons.error_outline_rounded,
-          color: Color(0xFFFF6B6B),
+          color: AppColors.validationError,
           size: 22,
         );
       case _UsernameStatus.idle:
@@ -475,7 +475,7 @@ class _StepProfileState extends State<_StepProfile> {
         widget.usernameStatus == _UsernameStatus.taken ||
         widget.usernameStatus == _UsernameStatus.invalid;
     final Color usernameBorder = usernameError
-        ? const Color(0xFFFF6B6B).withValues(alpha: 0.5)
+        ? AppColors.validationError.withValues(alpha: 0.5)
         : (widget.usernameStatus == _UsernameStatus.available
               ? AppColors.userAccent.withValues(alpha: 0.4)
               : AppColors.surfaceV2Elevated);
@@ -595,7 +595,7 @@ class _StepProfileState extends State<_StepProfile> {
                       'Letters, numbers and underscores. 3–20 characters.',
                   style: AppTextStyles.caption.copyWith(
                     color: usernameError
-                        ? const Color(0xFFFF6B6B)
+                        ? AppColors.validationError
                         : AppColors.textV2Tertiary,
                   ),
                 ),

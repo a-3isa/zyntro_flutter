@@ -205,16 +205,16 @@ class RecentActivityCard extends StatelessWidget {
 
     if (workoutType.isStrength) {
       // Purple/blue for strength
-      return [const Color(0xFF1F2940), const Color(0xFF2A1F40)];
+      return [AppColors.activityGradientBase, const Color(0xFF2A1F40)];
     } else if (workoutType.isCardio) {
       // Orange/red for cardio
-      return [const Color(0xFF1F2940), const Color(0xFF401F1F)];
+      return [AppColors.activityGradientBase, const Color(0xFF401F1F)];
     } else if (workoutType == WorkoutType.cycling) {
       // Green for cycling
-      return [const Color(0xFF1F2940), const Color(0xFF1F4028)];
+      return [AppColors.activityGradientBase, const Color(0xFF1F4028)];
     } else {
       // Neutral for other
-      return [const Color(0xFF1F2940), const Color(0xFF141B2D)];
+      return [AppColors.activityGradientBase, const Color(0xFF141B2D)];
     }
   }
 
