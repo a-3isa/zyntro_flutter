@@ -68,6 +68,31 @@ void main() {
     },
   );
 
+  test('functions never use the Dart Firestore API on a snapshot', () {
+    final source = File('functions/index.js').readAsStringSync();
+
+    // R16: expireStalePairedInvites called batch.update(doc.reference, ...).
+    // `reference` is the Dart/Flutter property; the Node SDK exposes `ref` and
+    // has no `reference` at all, so this passed undefined to batch.update and
+    // the function threw on every scheduled run for as long as it existed —
+    // paired-session invites were never expired in production.
+    //
+    // The failure was invisible in the stack trace: the v2 scheduler logs
+    // err.message as a string, and the logger wraps a bare string in a fresh
+    // Error to get a stack, so every frame pointed at the logger rather than
+    // at the real call site.
+    expect(
+      source,
+      isNot(contains('.reference')),
+      reason: 'use doc.ref — .reference is the Dart API and is undefined here',
+    );
+
+    // The sibling Dart-only names, for the same reason.
+    for (final dartism in ['.documents', '.getDocuments(', '.setData(', '.updateData(']) {
+      expect(source, isNot(contains(dartism)), reason: dartism);
+    }
+  });
+
   test(
     'expireStaleJointPostDrafts batches its writes and fans out notifications',
     () {

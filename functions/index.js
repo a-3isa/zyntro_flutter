@@ -683,7 +683,10 @@ exports.expireStalePairedInvites = onSchedule("every 15 minutes", async () => {
 
   const batch = db.batch();
   snapshot.docs.forEach((doc) => {
-    batch.update(doc.reference, { invitationStatus: "expired" });
+    // `ref`, not `reference` — the latter is the Dart/Flutter property and is
+    // undefined in the Node SDK, which made this pass undefined to
+    // batch.update and throw on every scheduled run.
+    batch.update(doc.ref, { invitationStatus: "expired" });
   });
   await batch.commit();
 
