@@ -16,7 +16,7 @@ import '../../../widgets/responsive_center.dart';
 
 import '../../auth/auth_providers.dart';
 import '../../auth/presentation/providers/auth_controller.dart';
-import 'profile_page.dart';
+import 'profile_providers.dart';
 
 import 'package:cached_network_image/cached_network_image.dart';
 

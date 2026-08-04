@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/workout_type_visuals.dart';
 import '../../../core/constants/feature_flags.dart';
 import '../../../app/navigation/app_router.dart';
 import '../../../app/navigation/app_route_locations.dart';
@@ -940,16 +941,11 @@ class _FeedTabState extends ConsumerState<_FeedTab>
   }
 
   Widget _workoutTypeIcon(String type, {double size = 24}) {
-    final icons = {
-      'gym': Icons.fitness_center,
-      'cardio': Icons.directions_run,
-      'hiit': Icons.flash_on,
-      'cycling': Icons.directions_bike,
-      'yoga': Icons.self_improvement,
-      'swimming': Icons.pool,
-    };
-    final color = AppColors.typeColor(type);
-    return Icon(icons[type] ?? Icons.fitness_center, size: size, color: color);
+    return Icon(
+      workoutTypeIcon(type),
+      size: size,
+      color: AppColors.typeColor(type),
+    );
   }
 
   /// Handle reaction tap - toggle or change reaction type with haptic feedback.
