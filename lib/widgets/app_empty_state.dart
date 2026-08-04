@@ -179,19 +179,29 @@ class _AppEmptyStateState extends State<AppEmptyState>
       ],
     );
 
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.xxl),
-        child: AnimatedBuilder(
-          animation: _controller,
-          builder: (context, child) => Opacity(
-            opacity: _fade.value,
-            child: Transform.translate(
-              offset: Offset(0, _rise.value),
-              child: child,
+    // Scrollable so the block still fits at large accessibility text sizes.
+    // Centred while it fits, scrolls once it does not — without this the icon,
+    // title, message and action overflowed the viewport at 2x text.
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.xxl),
+              child: AnimatedBuilder(
+                animation: _controller,
+                builder: (context, child) => Opacity(
+                  opacity: _fade.value,
+                  child: Transform.translate(
+                    offset: Offset(0, _rise.value),
+                    child: child,
+                  ),
+                ),
+                child: content,
+              ),
             ),
           ),
-          child: content,
         ),
       ),
     );

@@ -356,14 +356,22 @@ class _ZyntroButtonState extends State<ZyntroButton>
                       ),
                       const SizedBox(width: AppSpacing.sm),
                     ],
-                    Text(
-                      widget.title,
-                      style: TextStyle(
-                        fontFamily: AppFonts.display,
-                        fontSize: _getFontSize(context),
-                        fontWeight: FontWeight.w700,
-                        color: foregroundColor,
-                        letterSpacing: 0.3,
+                    // Flexible, not a bare Text: the label was an unconstrained
+                    // Row child, so a long title — or an ordinary one at a
+                    // large accessibility text size — overflowed the button.
+                    Flexible(
+                      child: Text(
+                        widget.title,
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: AppFonts.display,
+                          fontSize: _getFontSize(context),
+                          fontWeight: FontWeight.w700,
+                          color: foregroundColor,
+                          letterSpacing: 0.3,
+                        ),
                       ),
                     ),
                     if (widget.rightIcon != null) ...[
