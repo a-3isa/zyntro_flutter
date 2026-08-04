@@ -32,6 +32,17 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   debugPaintSizeEnabled = false;
   debugPaintBaselinesEnabled = false;
+
+  // Flutter's debugPrint is NOT stripped from release builds — it writes to the
+  // platform log (logcat on Android), where any app on the device with log
+  // access can read it. The app has 227 debugPrint call sites, 97 of which
+  // interpolate a caught exception, and an exception's toString() routinely
+  // embeds user content. Silencing the sink in release closes all of them at
+  // once, and keeps debug logging untouched.
+  if (kReleaseMode) {
+    debugPrint = (String? message, {int? wrapWidth}) {};
+  }
+
   await Firebase.initializeApp();
 
   // Load environment-specific .env file
@@ -130,6 +141,22 @@ void _debugPrintStartupFailure(
   debugPrint('[$component] Init failed (non-fatal): $error');
   if (kDebugMode && stackTrace != null) {
     debugPrint('[$component] Stack: $stackTrace');
+  }
+
+  // debugPrint is silenced in release, so without this a failed startup
+  // service would be completely invisible in production. Reported as
+  // non-fatal: the app deliberately carries on when one of these fails.
+  if (kReleaseMode) {
+    unawaited(
+      FirebaseCrashlytics.instance
+          .recordError(
+            error,
+            stackTrace,
+            fatal: false,
+            reason: '$component init failed: ${scrubForReport(error)}',
+          )
+          .catchError((_) {}),
+    );
   }
 }
 
