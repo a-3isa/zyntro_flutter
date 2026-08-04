@@ -124,7 +124,7 @@ class _NotificationPreferencesPageState
           ),
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const Center(child: CircularProgressIndicator(semanticsLabel: 'Loading notification settings'))
                 : _preferences == null
                 ? const Center(child: Text('Error loading preferences'))
                 : SingleChildScrollView(

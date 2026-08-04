@@ -177,7 +177,7 @@ class _FollowRequestsPageState extends ConsumerState<FollowRequestsPage> {
                       );
                     },
                     loading: () =>
-                        const Center(child: CircularProgressIndicator()),
+                        const Center(child: CircularProgressIndicator(semanticsLabel: 'Loading follow requests')),
                     error: (e, _) => Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,

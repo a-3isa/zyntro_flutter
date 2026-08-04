@@ -301,7 +301,7 @@ class _GymExercisePickerSheetState
 
   Widget _buildResultsArea(String query, bool showNoResults) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: CircularProgressIndicator(semanticsLabel: 'Loading exercises'));
     }
     if (_error) {
       return Center(

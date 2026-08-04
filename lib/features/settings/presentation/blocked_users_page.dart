@@ -152,7 +152,7 @@ class _BlockedUsersPageState extends ConsumerState<BlockedUsersPage> {
                       );
                     },
                     loading: () =>
-                        const Center(child: CircularProgressIndicator()),
+                        const Center(child: CircularProgressIndicator(semanticsLabel: 'Loading blocked users')),
                     error: (e, _) => Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,

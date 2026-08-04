@@ -307,11 +307,11 @@ class _ModerationQueuePageState extends ConsumerState<ModerationQueuePage> {
                     );
                   },
                   loading: () =>
-                      const Center(child: CircularProgressIndicator()),
+                      const Center(child: CircularProgressIndicator(semanticsLabel: 'Loading reports')),
                   error: (e, _) => Center(child: Text('Error: $e')),
                 );
               },
-              loading: () => const Center(child: CircularProgressIndicator()),
+              loading: () => const Center(child: CircularProgressIndicator(semanticsLabel: 'Loading reports')),
               error: (e, _) => Center(child: Text('Error: $e')),
             ),
           ),
@@ -391,7 +391,7 @@ class _ModerationQueuePageState extends ConsumerState<ModerationQueuePage> {
             SizedBox(
               width: double.infinity,
               child: isProcessing
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const Center(child: CircularProgressIndicator(semanticsLabel: 'Processing report'))
                   : ElevatedButton(
                       onPressed: () => _showActionMenu(report, moderatorId),
                       child: const Text('Take Action'),

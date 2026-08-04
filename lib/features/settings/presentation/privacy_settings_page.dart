@@ -313,7 +313,7 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
                   ],
                 );
               },
-              loading: () => const Center(child: CircularProgressIndicator()),
+              loading: () => const Center(child: CircularProgressIndicator(semanticsLabel: 'Loading privacy settings')),
               error: (e, _) => Center(child: Text('Error: $e')),
             ),
           ),

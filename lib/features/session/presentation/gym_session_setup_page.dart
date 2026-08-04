@@ -682,7 +682,7 @@ class _GymSessionSetupPageState extends ConsumerState<GymSessionSetupPage> {
             const Center(
               child: Padding(
                 padding: EdgeInsets.symmetric(vertical: 32),
-                child: CircularProgressIndicator(),
+                child: CircularProgressIndicator(semanticsLabel: 'Loading exercises'),
               ),
             )
           else ...[

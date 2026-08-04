@@ -198,7 +198,7 @@ class _UserPostsPageState extends ConsumerState<UserPostsPage> {
                   ),
                 );
               },
-              loading: () => const Center(child: CircularProgressIndicator()),
+              loading: () => const Center(child: CircularProgressIndicator(semanticsLabel: 'Loading posts')),
               error: (error, stack) => Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,

@@ -868,7 +868,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
             children: all.map((c) => _buildCommentTile(c)).toList(),
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(child: CircularProgressIndicator(semanticsLabel: 'Loading post')),
         error: (_, _) => const Text('Error loading comments'),
       ),
     );

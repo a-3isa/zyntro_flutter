@@ -21,7 +21,7 @@ class SplashPage extends ConsumerWidget {
     if (authState.isLoading || user != null) {
       return const Scaffold(
         backgroundColor: AppColors.backgroundV2,
-        body: Center(child: CircularProgressIndicator()),
+        body: Center(child: CircularProgressIndicator(semanticsLabel: 'Starting Zyntro')),
       );
     }
 
