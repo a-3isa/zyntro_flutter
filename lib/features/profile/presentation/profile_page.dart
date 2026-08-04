@@ -16,6 +16,7 @@ import '../../../services/moderation_service.dart';
 import '../../../services/follow_service.dart';
 import '../../../services/post_service.dart';
 import '../../../services/session_service.dart';
+import '../../../widgets/widgets.dart';
 import '../../moderation/presentation/report_dialog.dart';
 import '../../auth/auth_providers.dart';
 import '../../../services/leaderboard_service.dart';
@@ -2386,13 +2387,14 @@ class _HistoryTab extends ConsumerWidget {
         child: CircularProgressIndicator(
           strokeWidth: 2,
           color: AppColors.userAccent,
+          semanticsLabel: 'Loading workout history',
         ),
       ),
-      error: (_, _) => Center(
-        child: Text(
-          'Failed to load history',
-          style: AppTextStyles.body.copyWith(color: AppColors.textV2Tertiary),
-        ),
+      // Previously a bare "Failed to load history" line with no way forward —
+      // the only escape was leaving the tab and coming back.
+      error: (_, _) => AppErrorState(
+        title: 'Couldn\'t load history',
+        onRetry: () => ref.invalidate(userSessionsProvider(targetUserId)),
       ),
     );
   }

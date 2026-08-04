@@ -308,11 +308,17 @@ class _ModerationQueuePageState extends ConsumerState<ModerationQueuePage> {
                   },
                   loading: () =>
                       const Center(child: CircularProgressIndicator(semanticsLabel: 'Loading reports')),
-                  error: (e, _) => Center(child: Text('Error: $e')),
+                  error: (e, _) => AppErrorState(
+                    title: "Couldn't load the moderation queue",
+                    onRetry: () => ref.invalidate(pendingReportsProvider),
+                  ),
                 );
               },
               loading: () => const Center(child: CircularProgressIndicator(semanticsLabel: 'Loading reports')),
-              error: (e, _) => Center(child: Text('Error: $e')),
+              error: (e, _) => AppErrorState(
+                    title: "Couldn't load the moderation queue",
+                    onRetry: () => ref.invalidate(pendingReportsProvider),
+                  ),
             ),
           ),
         ],

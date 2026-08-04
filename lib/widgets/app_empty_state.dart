@@ -11,6 +11,51 @@ import '../core/theme/app_text_styles.dart';
 /// A soft accent halo frames the icon, the title uses the display type scale,
 /// and an optional call-to-action gives the user a clear next step. The whole
 /// block fades and rises gently on first build for a touch of delight.
+/// The error counterpart to [AppEmptyState].
+///
+/// Screens were rendering `Center(child: Text('Error: $e'))`, which shows the
+/// raw exception to the user — unreadable, and capable of leaking internal
+/// detail. It also left them stuck, because nothing offered a way to try again.
+///
+/// This keeps the same visual language as the empty state, states the problem
+/// in plain language, and always offers a retry when the caller can provide
+/// one. The underlying exception is deliberately never rendered; it belongs in
+/// crash reporting, not on screen.
+class AppErrorState extends StatelessWidget {
+  /// Short headline, e.g. "Couldn't load your posts".
+  final String title;
+
+  /// Optional supporting line explaining what the user can do.
+  final String? message;
+
+  /// Called when the user taps retry. When null, no retry button is shown.
+  final VoidCallback? onRetry;
+
+  /// Whether to play the entrance animation. Disable inside tests if needed.
+  final bool animate;
+
+  const AppErrorState({
+    super.key,
+    required this.title,
+    this.message,
+    this.onRetry,
+    this.animate = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AppEmptyState(
+      icon: Icons.cloud_off_rounded,
+      title: title,
+      message: message ?? 'Check your connection and try again.',
+      accentColor: AppColors.warnV2,
+      actionLabel: onRetry == null ? null : 'Try again',
+      onAction: onRetry,
+      animate: animate,
+    );
+  }
+}
+
 class AppEmptyState extends StatefulWidget {
   /// Glyph shown inside the accent halo.
   final IconData icon;
