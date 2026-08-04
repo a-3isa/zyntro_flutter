@@ -8,12 +8,48 @@ import '../core/constants/constants.dart';
 import '../features/auth/auth_providers.dart';
 import 'notification_service.dart';
 
+/// One page of a follower / following list, plus the cursor to continue from.
+class FollowPage {
+  final List<User> users;
+
+  /// Pass back as `startAfter` to fetch the next page. Null when the list ended.
+  final DocumentSnapshot<Map<String, dynamic>>? cursor;
+
+  /// Whether another page is likely available. False once a page came back
+  /// short of the requested size.
+  final bool hasMore;
+
+  const FollowPage({
+    required this.users,
+    this.cursor,
+    required this.hasMore,
+  });
+
+  static const empty = FollowPage(users: [], hasMore: false);
+}
+
 /// Follow service for managing follow relationships.
 /// Matches React Native followService.ts behavior.
 class FollowService {
   final FirebaseFirestore _firestore;
   final Ref _ref;
   static const _userLookupChunkSize = 10;
+
+  /// Rows fetched per page of a follower / following list.
+  ///
+  /// These queries used to be unbounded, so opening the followers list on a
+  /// popular account read every follow edge that account had.
+  static const followPageSize = 30;
+
+  /// How often the follower / following count streams re-read their aggregate.
+  ///
+  /// Those streams used to be `.snapshots()` over the whole follow set, mapped
+  /// to `docs.length` — so a user with 10,000 followers streamed 10,000
+  /// documents, and re-read all of them on every single follow or unfollow. A
+  /// count() aggregate bills as one read regardless of set size, but aggregates
+  /// cannot be streamed, so the count is polled instead. A follower total does
+  /// not need to be accurate to the second.
+  static const countPollInterval = Duration(seconds: 30);
 
   // Simple in-memory cache for mutual follows to reduce reads
   final Map<String, List<User>> _mutualFollowsCache = {};
@@ -267,11 +303,15 @@ class FollowService {
 
   /// Get pending follow requests for a user.
   /// Matches RN getPendingFollowRequests.
-  Future<List<User>> getPendingFollowRequests(String userId) async {
+  Future<List<User>> getPendingFollowRequests(
+    String userId, {
+    int limit = followPageSize,
+  }) async {
     final snapshot = await _firestore
         .collection('follows')
         .where('followeeId', isEqualTo: userId)
         .where('status', isEqualTo: 'pending')
+        .limit(limit)
         .get();
 
     final followerIds = snapshot.docs
@@ -280,49 +320,113 @@ class FollowService {
 
     if (followerIds.isEmpty) return [];
     return _fetchUsersByIds(followerIds);
+  }
+
+  /// One page of approved follow edges, resolved to user profiles.
+  ///
+  /// [matchField] is the side of the edge being matched against [userId], and
+  /// [readField] is the side to resolve into profiles.
+  Future<FollowPage> _followPage({
+    required String userId,
+    required String matchField,
+    required String readField,
+    required int limit,
+    DocumentSnapshot<Map<String, dynamic>>? startAfter,
+  }) async {
+    var query = _firestore
+        .collection('follows')
+        .where(matchField, isEqualTo: userId)
+        .where('status', isEqualTo: 'approved')
+        // A stable order is what makes the cursor meaningful; without it two
+        // pages can overlap or skip rows.
+        .orderBy(FieldPath.documentId)
+        .limit(limit);
+
+    if (startAfter != null) query = query.startAfterDocument(startAfter);
+
+    final snapshot = await query.get();
+    if (snapshot.docs.isEmpty) return FollowPage.empty;
+
+    final ids = snapshot.docs
+        .map((doc) => doc.data()[readField] as String)
+        .toList();
+
+    return FollowPage(
+      users: await _fetchUsersByIds(ids),
+      cursor: snapshot.docs.last,
+      hasMore: snapshot.docs.length == limit,
+    );
+  }
+
+  /// One page of a user's followers, newest cursor first.
+  Future<FollowPage> getFollowersPage(
+    String userId, {
+    int limit = followPageSize,
+    DocumentSnapshot<Map<String, dynamic>>? startAfter,
+  }) {
+    return _followPage(
+      userId: userId,
+      matchField: 'followeeId',
+      readField: 'followerId',
+      limit: limit,
+      startAfter: startAfter,
+    );
+  }
+
+  /// One page of the accounts a user follows.
+  Future<FollowPage> getFollowingPage(
+    String userId, {
+    int limit = followPageSize,
+    DocumentSnapshot<Map<String, dynamic>>? startAfter,
+  }) {
+    return _followPage(
+      userId: userId,
+      matchField: 'followerId',
+      readField: 'followeeId',
+      limit: limit,
+      startAfter: startAfter,
+    );
   }
 
   /// Get followers list for a user.
-  /// Matches RN getFollowersList.
+  ///
+  /// Returns the first page only. Callers that need to scroll past it should
+  /// use [getFollowersPage], which hands back a cursor.
   Future<List<User>> getFollowersList(String userId) async {
-    final snapshot = await _firestore
-        .collection('follows')
-        .where('followeeId', isEqualTo: userId)
-        .where('status', isEqualTo: 'approved')
-        .get();
-
-    final followerIds = snapshot.docs
-        .map((doc) => doc.data()['followerId'] as String)
-        .toList();
-
-    if (followerIds.isEmpty) return [];
-    return _fetchUsersByIds(followerIds);
+    return (await getFollowersPage(userId)).users;
   }
 
   /// Get following list for a user.
-  /// Matches RN getFollowingList.
+  ///
+  /// Returns the first page only — see [getFollowingPage] to continue.
   Future<List<User>> getFollowingList(String userId) async {
-    final snapshot = await _firestore
-        .collection('follows')
-        .where('followerId', isEqualTo: userId)
-        .where('status', isEqualTo: 'approved')
-        .get();
-
-    final followeeIds = snapshot.docs
-        .map((doc) => doc.data()['followeeId'] as String)
-        .toList();
-
-    if (followeeIds.isEmpty) return [];
-    return _fetchUsersByIds(followeeIds);
+    return (await getFollowingPage(userId)).users;
   }
 
   /// Get list of IDs that the user follows.
+  /// Ceiling on how many follow edges are read at once for the id list.
+  ///
+  /// Deliberately far above a realistic following count rather than a display
+  /// page: this list decides whose posts appear in the feed and who is excluded
+  /// from suggestions, so quietly truncating it would silently change what a
+  /// user sees. The cap bounds worst-case cost, and reaching it is logged
+  /// rather than passed over.
+  static const followingIdsLimit = 1000;
+
   Future<List<String>> getFollowingIds(String userId) async {
     final snapshot = await _firestore
         .collection('follows')
         .where('followerId', isEqualTo: userId)
         .where('status', isEqualTo: 'approved')
+        .limit(followingIdsLimit)
         .get();
+
+    if (snapshot.docs.length == followingIdsLimit) {
+      debugPrint(
+        '[FollowService] $userId follows at least $followingIdsLimit accounts; '
+        'the feed and suggestion filters are now truncated and need paging.',
+      );
+    }
 
     return snapshot.docs
         .map((doc) => doc.data()['followeeId'] as String)
@@ -341,13 +445,17 @@ class FollowService {
     return snapshot.count ?? 0;
   }
 
+  /// Emits [count] immediately, then re-reads it every [countPollInterval].
+  ///
+  /// Polling an aggregate rather than streaming the underlying documents: one
+  /// read per poll instead of one per follow edge per change.
+  Stream<int> _pollCount(Future<int> Function() count) async* {
+    yield await count();
+    yield* Stream.periodic(countPollInterval).asyncMap((_) => count());
+  }
+
   Stream<int> watchFollowersCount(String userId) {
-    return _firestore
-        .collection('follows')
-        .where('followeeId', isEqualTo: userId)
-        .where('status', isEqualTo: 'approved')
-        .snapshots()
-        .map((snapshot) => snapshot.docs.length);
+    return _pollCount(() => getFollowersCount(userId));
   }
 
   /// Get following count.
@@ -363,12 +471,7 @@ class FollowService {
   }
 
   Stream<int> watchFollowingCount(String userId) {
-    return _firestore
-        .collection('follows')
-        .where('followerId', isEqualTo: userId)
-        .where('status', isEqualTo: 'approved')
-        .snapshots()
-        .map((snapshot) => snapshot.docs.length);
+    return _pollCount(() => getFollowingCount(userId));
   }
 
   /// Get mutual follows (friends) for a user.

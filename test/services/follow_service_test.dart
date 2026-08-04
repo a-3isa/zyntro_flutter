@@ -64,6 +64,7 @@ void main() {
     final mockCollection = MockCollectionReference();
     final mockQuery1 = MockQuery();
     final mockQuery2 = MockQuery();
+    final mockQuery3 = MockQuery();
     final mockSnapshot = MockQuerySnapshot();
     final mockDoc = MockQueryDocumentSnapshot();
 
@@ -74,7 +75,11 @@ void main() {
     when(
       () => mockQuery1.where('status', isEqualTo: 'approved'),
     ).thenReturn(mockQuery2);
-    when(() => mockQuery2.get()).thenAnswer((_) async => mockSnapshot);
+    // The query is now capped so a huge following list cannot be read whole.
+    when(
+      () => mockQuery2.limit(FollowService.followingIdsLimit),
+    ).thenReturn(mockQuery3);
+    when(() => mockQuery3.get()).thenAnswer((_) async => mockSnapshot);
     when(() => mockSnapshot.docs).thenReturn([mockDoc]);
     when(() => mockDoc.data()).thenReturn({'followeeId': 'user2'});
 
