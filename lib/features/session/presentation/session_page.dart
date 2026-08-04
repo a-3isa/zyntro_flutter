@@ -14,24 +14,11 @@ import '../../../services/user_service.dart';
 import '../../../services/session_service.dart';
 
 // ── WorkoutType color map ────────────────────────────────────────────────────
-Color _typeColor(WorkoutType t) {
-  switch (t) {
-    case WorkoutType.gym:
-      return AppColors.userAccent;
-    case WorkoutType.running:
-      return const Color(0xFF38BDF8);
-    case WorkoutType.cycling:
-      return const Color(0xFF34D399);
-    case WorkoutType.swimming:
-      return const Color(0xFF22D3EE);
-    case WorkoutType.yoga:
-      return const Color(0xFFA78BFA);
-    case WorkoutType.hiit:
-      return const Color(0xFFFB923C);
-    default:
-      return AppColors.userAccent;
-  }
-}
+/// Delegates to the shared palette. This used to be a local switch that
+/// disagreed with start_session_page's: cycling was emerald here and purple
+/// there, with yoga reversed, so the same workout type changed colour between
+/// screens.
+Color _typeColor(WorkoutType t) => AppColors.typeColor(t.value);
 
 IconData _typeIcon(WorkoutType t) {
   switch (t) {

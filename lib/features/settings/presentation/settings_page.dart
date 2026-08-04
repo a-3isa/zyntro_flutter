@@ -407,12 +407,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1877F2).withValues(alpha: 0.15),
+                  color: AppColors.brandFacebook.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(
                   Icons.facebook,
-                  color: Color(0xFF1877F2),
+                  color: AppColors.brandFacebook,
                   size: 20,
                 ),
               ),
@@ -457,7 +457,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   style: AppTextStyles.body.copyWith(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: const Color(0xFF1877F2),
+                    color: AppColors.brandFacebook,
                   ),
                 ),
             ],

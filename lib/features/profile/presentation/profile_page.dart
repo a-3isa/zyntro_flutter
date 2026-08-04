@@ -44,15 +44,15 @@ Color _buildTypeColor(String type) {
     case 'gym':
       return AppColors.accentLime;
     case 'cardio':
-      return const Color(0xFF38BDF8);
+      return AppColors.accentSky;
     case 'hiit':
       return AppColors.warnV2;
     case 'cycling':
-      return const Color(0xFFA78BFA);
+      return AppColors.accentPurple;
     case 'yoga':
-      return const Color(0xFF34D399);
+      return AppColors.accentEmerald;
     case 'swimming':
-      return const Color(0xFF22D3EE);
+      return AppColors.accentCyan;
     default:
       return AppColors.userAccent;
   }
@@ -1510,7 +1510,7 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
     if (rankInfo == null) return circle;
 
     // Gold for global leaderboard, owner accent for friends rank.
-    final badgeColor = rankInfo.isGlobal ? const Color(0xFFFFD700) : ringColor;
+    final badgeColor = rankInfo.isGlobal ? AppColors.accentGold : ringColor;
 
     return Stack(
       clipBehavior: Clip.none,

@@ -3211,7 +3211,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                 width: 9,
                 height: 9,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF34D399),
+                  color: AppColors.accentEmerald,
                   shape: BoxShape.circle,
                   border: Border.all(color: AppColors.backgroundV2, width: 2),
                 ),
@@ -3374,7 +3374,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: active
-                      ? const Color(0xFF34D399)
+                      ? AppColors.accentEmerald
                       : AppColors.textV2Tertiary,
                 ),
               ),

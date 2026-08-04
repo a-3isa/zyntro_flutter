@@ -201,17 +201,73 @@ class AppColors {
   static const Color textV2SecondaryLight = Color(0xFF555555);
   static const Color textV2TertiaryLight = Color(0xFFBBBBBB);
 
-  // Workout type accent colors
+  // Accent palette — also offered to users as their profile accent choice.
+  static const Color accentSky = Color(0xFF38BDF8);
+  static const Color accentPurple = Color(0xFFA78BFA);
+  static const Color accentEmerald = Color(0xFF34D399);
+  static const Color accentCyan = Color(0xFF22D3EE);
+  static const Color accentPink = Color(0xFFFF4D6D);
+  static const Color accentAmber = Color(0xFFFBBF24);
+  /// Leaderboard first place and the global-rank badge.
+  static const Color accentGold = Color(0xFFFFD700);
+  static const Color accentSilver = Color(0xFFC0C0C0);
+  static const Color accentBronze = Color(0xFFCD7F32);
+
+  /// Third-party brand colours. Fixed by the vendor, not ours to theme — named
+  /// here so they are written once rather than retyped at each usage.
+  static const Color brandFacebook = Color(0xFF1877F2);
+
+  /// The accent colours a user may pick for their profile, in display order.
+  static const List<Color> userAccentChoices = [
+    accentLime,
+    accentSky,
+    warnV2,
+    accentPurple,
+    accentEmerald,
+    accentCyan,
+    accentPink,
+    accentAmber,
+  ];
+
+  /// Accent colour per workout type, keyed by [WorkoutType.value].
+  ///
+  /// Previously this map mixed a category key ('cardio') in with type keys and
+  /// omitted running, walking, sports and other — so typeColor('running')
+  /// silently fell through to the default. Three screens had each grown their
+  /// own switch to work around that, and they disagreed: cycling rendered
+  /// emerald on one screen and purple on another, with yoga reversed. This map
+  /// is now the single source, and covers every WorkoutType value.
   static const Map<String, Color> typeColors = {
-    'gym': Color(0xFFC8FF00),
-    'cardio': Color(0xFF38BDF8),
-    'hiit': Color(0xFFFF8C00),
-    'cycling': Color(0xFFA78BFA),
-    'yoga': Color(0xFF34D399),
-    'swimming': Color(0xFF22D3EE),
+    'gym': accentLime,
+    'running': accentSky,
+    'walking': accentSky,
+    'cycling': accentPurple,
+    'swimming': accentCyan,
+    'yoga': accentEmerald,
+    'hiit': warnV2,
+    'sports': accentPurple,
+    'other': accentLime,
+    // Category keys, for callers holding a post's category rather than its
+    // workout type (Post.type stores a category, not a WorkoutType value).
+    'strength': accentLime,
+    'cardio': accentSky,
+    'flexibility': accentEmerald,
+    'mixed': warnV2,
   };
 
-  static Color typeColor(String type) => typeColors[type] ?? accentLime;
+  /// Unfilled portion of a progress ring or bar.
+  static const Color progressTrack = Color(0xFF2A2A2A);
+
+  /// Accent for [type], which may be a [WorkoutType.value] or a category.
+  ///
+  /// Gym and unknown types resolve to [userAccent] rather than a fixed lime so
+  /// the user's chosen profile colour carries through. [accentLime] is the
+  /// default accent, so this is unchanged for anyone who has not picked one.
+  static Color typeColor(String type) {
+    final mapped = typeColors[type];
+    if (mapped == null || mapped == accentLime) return userAccent;
+    return mapped;
+  }
 }
 
 /// Helper class for creating gradients with common configurations.

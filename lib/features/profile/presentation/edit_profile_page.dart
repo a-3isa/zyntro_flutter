@@ -63,16 +63,9 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
   Color? _selectedAccentColor;
   Color? _originalAccentColor;
 
-  static const List<Color> _accentColors = [
-    AppColors.accentLime, // Lime (default)
-    Color(0xFF38BDF8), // Sky
-    AppColors.warnV2, // Orange
-    Color(0xFFA78BFA), // Purple
-    Color(0xFF34D399), // Emerald
-    Color(0xFF22D3EE), // Cyan
-    Color(0xFFFF4D6D), // Pink
-    Color(0xFFFBBF24), // Amber
-  ];
+  /// The same eight swatches as before, now named in the theme rather than
+  /// re-typed as literals here.
+  static const List<Color> _accentColors = AppColors.userAccentChoices;
 
   @override
   void initState() {

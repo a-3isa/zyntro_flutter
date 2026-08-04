@@ -530,15 +530,15 @@ class _SocialPageState extends ConsumerState<SocialPage>
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: const Color(0xFF1877F2).withValues(alpha: 0.10),
+          color: AppColors.brandFacebook.withValues(alpha: 0.10),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: const Color(0xFF1877F2).withValues(alpha: 0.25),
+            color: AppColors.brandFacebook.withValues(alpha: 0.25),
           ),
         ),
         child: Row(
           children: [
-            const Icon(Icons.people_alt_outlined, color: Color(0xFF1877F2), size: 20),
+            const Icon(Icons.people_alt_outlined, color: AppColors.brandFacebook, size: 20),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
@@ -568,7 +568,7 @@ class _SocialPageState extends ConsumerState<SocialPage>
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1877F2),
+                  color: AppColors.brandFacebook,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
@@ -1036,9 +1036,9 @@ class _PodiumSpot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const podiumColors = {
-      1: Color(0xFFFFD700),
-      2: Color(0xFFC0C0C0),
-      3: Color(0xFFCD7F32),
+      1: AppColors.accentGold,
+      2: AppColors.accentSilver,
+      3: AppColors.accentBronze,
     };
     final podiumColor = podiumColors[rank]!;
     final avatarRadius = rank == 1 ? 30.0 : 24.0;

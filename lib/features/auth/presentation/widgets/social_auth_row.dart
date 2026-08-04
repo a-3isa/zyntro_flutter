@@ -55,7 +55,7 @@ class SocialAuthRow extends StatelessWidget {
             icon: Container(
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
-                color: const Color(0xFF1877F2),
+                color: AppColors.brandFacebook,
                 borderRadius: BorderRadius.circular(6),
               ),
               child: const Icon(Icons.facebook, size: 20, color: Colors.white),

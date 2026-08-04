@@ -827,7 +827,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
                                 child: _StatCell(
                                   value: '$totalSets',
                                   label: 'Sets',
-                                  accentColor: const Color(0xFF38BDF8),
+                                  accentColor: AppColors.accentSky,
                                 ),
                               ),
                             ],

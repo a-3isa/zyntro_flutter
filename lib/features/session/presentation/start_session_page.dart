@@ -606,24 +606,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
     });
   }
 
-  Color _getTypeColor(WorkoutType type) {
-    switch (type.value) {
-      case 'gym':
-        return AppColors.accentLime;
-      case 'running':
-        return const Color(0xFF38BDF8);
-      case 'cycling':
-        return const Color(0xFFA78BFA);
-      case 'swimming':
-        return const Color(0xFF22D3EE);
-      case 'yoga':
-        return const Color(0xFF34D399);
-      case 'hiit':
-        return AppColors.warnV2;
-      default:
-        return AppColors.textV2Secondary;
-    }
-  }
+  Color _getTypeColor(WorkoutType type) => AppColors.typeColor(type.value);
 
   Widget _buildAvatarPlaceholder(User user) {
     return Container(
@@ -1617,7 +1600,7 @@ class _RingPainter extends CustomPainter {
       sweepFull,
       false,
       Paint()
-        ..color = const Color(0xFF2A2A2A)
+        ..color = AppColors.progressTrack
         ..strokeWidth = strokeWidth
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round,
