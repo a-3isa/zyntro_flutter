@@ -7,6 +7,7 @@ import 'package:audioplayers/audioplayers.dart';
 import '../../../app/navigation/app_route_locations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/models/models.dart';
+import 'live_participant_progress.dart';
 import '../../../core/constants/constants.dart';
 import '../../../services/session_service.dart';
 import '../../auth/auth_providers.dart';
@@ -19,6 +20,7 @@ import '../../../services/user_cache_service.dart';
 import '../../../utils/offline_manager.dart';
 import '../../../utils/retry_helper.dart';
 import '../../../widgets/session_widgets.dart';
+import 'widgets/session_room_animations.dart';
 import '../../../widgets/shimmer_widgets.dart';
 import '../../../widgets/connection_status_widget.dart';
 import '../../../services/storage_service.dart';
@@ -32,71 +34,6 @@ import 'widgets/gym_exercise_picker_sheet.dart';
 import '../domain/gym_session_plan.dart';
 import '../domain/turn_plan_progress.dart';
 import '../domain/workout_score.dart';
-
-/// Tracks real-time progress for a participant in a session.
-class ParticipantProgress {
-  final String currentExercise;
-  final int totalSets;
-  final double totalVolume;
-  final DateTime? lastActivity;
-  // Weight/reps/duration of the most recently logged set (gym only).
-  final double? lastWeight;
-  final int? lastReps;
-  final int? lastSetSeconds;
-  // Cardio-specific metrics
-  final double totalDistance; // in km
-  final int totalDuration; // in minutes
-  final String? averagePace; // e.g., "5:30/km"
-  final String? activityType; // 'running' or 'cycling'
-
-  const ParticipantProgress({
-    this.currentExercise = '',
-    this.totalSets = 0,
-    this.totalVolume = 0,
-    this.lastActivity,
-    this.lastWeight,
-    this.lastReps,
-    this.lastSetSeconds,
-    this.totalDistance = 0,
-    this.totalDuration = 0,
-    this.averagePace,
-    this.activityType,
-  });
-
-  /// Check if participant is active (logged set in last 2 minutes).
-  bool get isActive {
-    if (lastActivity == null) return false;
-    return DateTime.now().difference(lastActivity!).inMinutes < 2;
-  }
-
-  ParticipantProgress copyWith({
-    String? currentExercise,
-    int? totalSets,
-    double? totalVolume,
-    DateTime? lastActivity,
-    double? lastWeight,
-    int? lastReps,
-    int? lastSetSeconds,
-    double? totalDistance,
-    int? totalDuration,
-    String? averagePace,
-    String? activityType,
-  }) {
-    return ParticipantProgress(
-      currentExercise: currentExercise ?? this.currentExercise,
-      totalSets: totalSets ?? this.totalSets,
-      totalVolume: totalVolume ?? this.totalVolume,
-      lastActivity: lastActivity ?? this.lastActivity,
-      lastWeight: lastWeight ?? this.lastWeight,
-      lastReps: lastReps ?? this.lastReps,
-      lastSetSeconds: lastSetSeconds ?? this.lastSetSeconds,
-      totalDistance: totalDistance ?? this.totalDistance,
-      totalDuration: totalDuration ?? this.totalDuration,
-      averagePace: averagePace ?? this.averagePace,
-      activityType: activityType ?? this.activityType,
-    );
-  }
-}
 
 /// Session room page for active workout sessions.
 class SessionRoomPage extends ConsumerStatefulWidget {
@@ -213,7 +150,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   DateTime? _lastProcessedEventTime;
 
   // Participant progress tracking
-  final Map<String, ParticipantProgress> _participantProgress = {};
+  final Map<String, LiveParticipantProgress> _participantProgress = {};
 
   // Session mode flags
   bool _isSoloSession = false;
@@ -664,10 +601,10 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   }
 
   /// Update participant progress from service map.
-  void _updateParticipantProgressFromMap(Map<String, dynamic> data) {
+  void _updateLiveParticipantProgressFromMap(Map<String, dynamic> data) {
     if (data.isEmpty) return;
 
-    final newProgress = <String, ParticipantProgress>{};
+    final newProgress = <String, LiveParticipantProgress>{};
 
     data.forEach((userId, stats) {
       if (stats is Map<String, dynamic>) {
@@ -678,7 +615,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           } catch (_) {}
         }
 
-        newProgress[userId] = ParticipantProgress(
+        newProgress[userId] = LiveParticipantProgress(
           // Strength metrics
           currentExercise: stats['currentExercise'] as String? ?? '',
           totalSets: stats['totalSets'] as int? ?? 0,
@@ -826,7 +763,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         },
       );
       setState(() {
-        _participantProgress[uid] = ParticipantProgress(
+        _participantProgress[uid] = LiveParticipantProgress(
           currentExercise: _currentExercise!,
           totalSets: newTotalSets,
           totalVolume: newVolume,
@@ -1180,7 +1117,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         },
       );
       setState(() {
-        _participantProgress[uid] = ParticipantProgress(
+        _participantProgress[uid] = LiveParticipantProgress(
           activityType: _cardioActivityType,
           totalDistance: newDistance,
           totalDuration: newDuration,
@@ -2229,7 +2166,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                   button: true,
                   label: 'Log Amount',
                   hint: 'Adds this set to your workout',
-                  child: BounceAnimation(
+                  child: SessionBounce(
                     onTap: (_currentExercise != null && !_isLogging)
                         ? _handleLogSetFromControllers
                         : null,
@@ -2334,7 +2271,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                   ),
                 )
               else
-                BounceAnimation(
+                SessionBounce(
                   onTap: _toggleRecording,
                   child: Container(
                     padding: const EdgeInsets.all(16),
@@ -2610,7 +2547,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           Row(
             children: [
               Expanded(
-                child: BounceAnimation(
+                child: SessionBounce(
                   onTap: (_cardioActivityType != null && !_isLogging)
                       ? _handleLogCardioFromControllers
                       : null,
@@ -2660,7 +2597,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                 ),
               ),
               const SizedBox(width: 12),
-              BounceAnimation(
+              SessionBounce(
                 onTap: _isUploadingVoice ? null : _toggleRecording,
                 child: Container(
                   padding: const EdgeInsets.all(16),
@@ -2832,7 +2769,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         Positioned(
           top: -150,
           right: -150,
-          child: PulseAnimation(
+          child: SessionPulse(
             duration: const Duration(seconds: 8),
             child: Container(
               width: 500,
@@ -2854,7 +2791,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         Positioned(
           bottom: -200,
           left: -200,
-          child: PulseAnimation(
+          child: SessionPulse(
             duration: const Duration(seconds: 12),
             child: Container(
               width: 600,
@@ -2947,7 +2884,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
 
     // Update participant progress from service stream
     ref.listen(sessionProgressProvider(widget.sessionId), (previous, next) {
-      next.whenData(_updateParticipantProgressFromMap);
+      next.whenData(_updateLiveParticipantProgressFromMap);
     });
 
     // Update session clock when the first set timer start reaches Firestore.
@@ -3512,239 +3449,5 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
     }
     return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
-  }
-}
-
-class PulseAnimation extends StatefulWidget {
-  final Widget child;
-  final Duration duration;
-
-  const PulseAnimation({
-    super.key,
-    required this.child,
-    this.duration = const Duration(seconds: 2),
-  });
-
-  @override
-  State<PulseAnimation> createState() => _PulseAnimationState();
-}
-
-class _PulseAnimationState extends State<PulseAnimation>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _scaleAnimation;
-  late Animation<double> _fadeAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(vsync: this, duration: widget.duration);
-    _scaleAnimation = Tween<double>(
-      begin: 0.8,
-      end: 1.2,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
-    _fadeAnimation = Tween<double>(
-      begin: 0.5,
-      end: 1.0,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
-
-    _controller.repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return Transform.scale(
-          scale: _scaleAnimation.value,
-          child: Opacity(opacity: _fadeAnimation.value, child: widget.child),
-        );
-      },
-    );
-  }
-}
-
-/// Horizontal exercise-plan progress strip.
-/// Shows labeled dots for up to [totalExercises] exercises;
-/// dots for [completedExercises] are filled lime.
-class PlanProgressBar extends StatelessWidget {
-  final int completedExercises;
-  final int totalExercises;
-
-  const PlanProgressBar({
-    super.key,
-    required this.completedExercises,
-    required this.totalExercises,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (totalExercises == 0) return const SizedBox.shrink();
-    final completed = completedExercises.clamp(0, totalExercises);
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      color: AppColors.surfaceV2,
-      child: Row(
-        children: [
-          Text(
-            'PLAN',
-            style: TextStyle(
-              color: AppColors.textV2Tertiary,
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 2,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Row(
-              children: List.generate(totalExercises, (i) {
-                final done = i < completed;
-                return Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: done
-                            ? AppColors.userAccent
-                            : (AppColors.surfaceV2Active),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                );
-              }),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Text(
-            '$completed/$totalExercises',
-            style: TextStyle(
-              color: AppColors.userAccent,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class AnimatedProgressBar extends StatelessWidget {
-  final double value;
-  final Color backgroundColor;
-  final Color foregroundColor;
-  final double height;
-
-  const AnimatedProgressBar({
-    super.key,
-    required this.value,
-    this.backgroundColor = Colors.grey,
-    this.foregroundColor = Colors.blue,
-    this.height = 4,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: height,
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(height / 2),
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          return Stack(
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                width: constraints.maxWidth * value,
-                height: height,
-                decoration: BoxDecoration(
-                  color: foregroundColor,
-                  borderRadius: BorderRadius.circular(height / 2),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
-class BounceAnimation extends StatefulWidget {
-  final Widget child;
-  final VoidCallback? onTap;
-  final double scaleDown;
-  final Duration duration;
-
-  const BounceAnimation({
-    super.key,
-    required this.child,
-    this.onTap,
-    this.scaleDown = 0.95,
-    this.duration = const Duration(milliseconds: 100),
-  });
-
-  @override
-  State<BounceAnimation> createState() => _BounceAnimationState();
-}
-
-class _BounceAnimationState extends State<BounceAnimation>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _bounceController;
-  late Animation<double> _scaleAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _bounceController = AnimationController(
-      duration: widget.duration,
-      vsync: this,
-    );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: widget.scaleDown).animate(
-      CurvedAnimation(parent: _bounceController, curve: Curves.easeInOut),
-    );
-  }
-
-  @override
-  void dispose() {
-    _bounceController.dispose();
-    super.dispose();
-  }
-
-  void _handleTapDown(TapDownDetails details) => _bounceController.forward();
-
-  void _handleTapUp(TapUpDetails details) {
-    _bounceController.reverse().then((_) => widget.onTap?.call());
-  }
-
-  void _handleTapCancel() => _bounceController.reverse();
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: _handleTapDown,
-      onTapUp: _handleTapUp,
-      onTapCancel: _handleTapCancel,
-      child: AnimatedBuilder(
-        animation: _scaleAnimation,
-        builder: (context, child) =>
-            Transform.scale(scale: _scaleAnimation.value, child: widget.child),
-      ),
-    );
   }
 }
