@@ -726,14 +726,18 @@ class PostService {
         final reactionDoc = await transaction.get(reactionRef);
 
         if (reactionDoc.exists) {
-          // Already reacted, check if type changed?
-          // If we want to support changing reaction, we'd update 'type'.
-          // For now, if already exists, we might just update valid
+          // Changing reaction type: the total is unchanged, but the per-type
+          // tallies move one across.
           final currentType = reactionDoc.data()?['type'];
           if (currentType != type.value) {
             transaction.update(reactionRef, {
               'type': type.value,
               'updatedAt': FieldValue.serverTimestamp(),
+            });
+            transaction.update(postRef, {
+              'reactionCounts.${type.value}': FieldValue.increment(1),
+              if (currentType is String)
+                'reactionCounts.$currentType': FieldValue.increment(-1),
             });
           }
           return;
@@ -744,7 +748,10 @@ class PostService {
           'createdAt': FieldValue.serverTimestamp(),
         });
 
-        transaction.update(postRef, {'likesCount': FieldValue.increment(1)});
+        transaction.update(postRef, {
+          'likesCount': FieldValue.increment(1),
+          'reactionCounts.${type.value}': FieldValue.increment(1),
+        });
       }),
     );
 
@@ -796,28 +803,37 @@ class PostService {
   }
 
   /// Remove reaction (Unlike) a post.
+  ///
+  /// Runs in a transaction rather than a read-then-batch: the per-type tally
+  /// can only be decremented if we know which type was stored, and reading the
+  /// reaction outside the write let two rapid unreacts both see it present and
+  /// double-decrement the count.
   Future<void> removeReaction(String postId, String userId) async {
-    final batch = _firestore.batch();
+    final postRef = _firestore.collection('posts').doc(postId);
+    final reactionRef = postRef.collection('reactions').doc(userId);
 
-    final reactionRef = _firestore
-        .collection('posts')
-        .doc(postId)
-        .collection('reactions')
-        .doc(userId);
+    await withRetry(
+      () => _firestore.runTransaction((transaction) async {
+        // Every read must precede every write in a Firestore transaction, so
+        // both documents are fetched up front.
+        final reactionDoc = await transaction.get(reactionRef);
+        // Nothing to remove — and nothing to decrement, which is what stops a
+        // repeated unreact from driving the counts negative.
+        if (!reactionDoc.exists) return;
+        final postDoc = await transaction.get(postRef);
 
-    batch.delete(reactionRef);
+        final storedType = reactionDoc.data()?['type'];
+        final currentLikes = postDoc.data()?['likesCount'];
 
-    final postDoc = await _firestore.collection('posts').doc(postId).get();
-    if (postDoc.exists) {
-      final currentLikes = postDoc.data()?['likesCount'] ?? 0;
-      if (currentLikes > 0) {
-        batch.update(_firestore.collection('posts').doc(postId), {
-          'likesCount': FieldValue.increment(-1),
+        transaction.delete(reactionRef);
+        transaction.update(postRef, {
+          if (currentLikes is num && currentLikes > 0)
+            'likesCount': FieldValue.increment(-1),
+          if (storedType is String)
+            'reactionCounts.$storedType': FieldValue.increment(-1),
         });
-      }
-    }
-
-    await withRetry(() => batch.commit());
+      }),
+    );
   }
 
   // T030: unlikePost with offline queue fallback. Uses stable ID to deduplicate.
@@ -853,21 +869,55 @@ class PostService {
 
   /// Get reaction counts by type for a post.
   /// Returns a map of ReactionType to count.
-  /// Counted with one aggregate query per reaction type rather than by reading
-  /// every reaction document. This runs once per post card, so on a feed the
-  /// old version billed one read per reaction per visible post — a post with
-  /// 200 reactions cost 200 reads every time it scrolled into view. An
-  /// aggregate bills as a single read regardless of how many reactions match.
+  /// Reaction tallies for a post, by type.
+  ///
+  /// Served from the `reactionCounts` map maintained on the post document, so
+  /// the common path costs one document read — and callers that already hold
+  /// the post can skip this entirely via [reactionCountsFrom].
+  ///
+  /// This runs once per post card. Originally it read every reaction document,
+  /// so a post with 200 reactions cost 200 reads each time it scrolled into
+  /// view; then it used three count() aggregates. Maintaining the map at write
+  /// time removes the per-card cost altogether.
   Future<Map<ReactionType, int>> getReactionCounts(String postId) async {
-    final reactions = _firestore
-        .collection('posts')
-        .doc(postId)
-        .collection('reactions');
+    final postRef = _firestore.collection('posts').doc(postId);
+    final postDoc = await postRef.get();
+    final data = postDoc.data();
 
+    final maintained = data?['reactionCounts'];
+    if (maintained is Map) return reactionCountsFrom(maintained);
+
+    // No maintained map. A post with no reactions at all needs no further
+    // reads; only a pre-migration post with real reactions has to be counted.
+    final likes = data?['likesCount'];
+    if (likes is! num || likes <= 0) return <ReactionType, int>{};
+
+    return _countReactionsByAggregate(postRef);
+  }
+
+  /// Parses a post's stored `reactionCounts` map.
+  ///
+  /// Tolerates a missing or wrongly typed entry rather than throwing: the map
+  /// is written with dotted field increments, and a post card must never fail
+  /// to render because one tally is malformed.
+  static Map<ReactionType, int> reactionCountsFrom(Map<dynamic, dynamic> raw) {
+    final counts = <ReactionType, int>{};
+    for (final type in ReactionType.values) {
+      final value = raw[type.value];
+      if (value is num && value > 0) counts[type] = value.toInt();
+    }
+    return counts;
+  }
+
+  /// Pre-migration fallback: one aggregate per reaction type. Each bills as a
+  /// single read regardless of how many reactions match.
+  Future<Map<ReactionType, int>> _countReactionsByAggregate(
+    DocumentReference<Map<String, dynamic>> postRef,
+  ) async {
+    final reactions = postRef.collection('reactions');
     final results = await Future.wait(
       ReactionType.values.map(
-        (type) =>
-            reactions.where('type', isEqualTo: type.value).count().get(),
+        (type) => reactions.where('type', isEqualTo: type.value).count().get(),
       ),
     );
 
