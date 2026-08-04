@@ -428,7 +428,7 @@ The existing emulator rules test already pins that a user cannot grant
 themselves access, so the security side is covered — it is the client
 expectation that is wrong.
 
-### R16 — `expireStalePairedInvites` is failing on every scheduled run in production
+### R16 — `expireStalePairedInvites` never expired anything (FIXED, verified in production)
 Found in Cloud Logging immediately after the 2026-08-04 deploy, and **pre-existing** — the failures run from at least 13:57 UTC, well before the deploy landed at ~15:44.
 
 Every 15-minute invocation ends in:
@@ -444,7 +444,14 @@ The function's own `logger.info("Expired stale paired-session invites.")` never 
 
 The stack is the v2 scheduler wrapper catching a handler error and logging it, so the message is the underlying Firestore rejection surfacing through the logger, not a logging bug. The handler's only `DocumentReference` use is `batch.update(doc.reference, …)` over `snapshot.docs`, which should never be invalid — pointing at a library-level mismatch rather than the function's own logic. The deploy also warned that `package.json` pins an outdated `firebase-functions`, and the deployed tree installs from `^` ranges so it need not match the local `@google-cloud/firestore` 7.11.6.
 
-Not diagnosed further: this needs a reproduction against the emulator, not a guess. `expireStaleJointPostDrafts` — the scheduler that *was* changed in `540abe7` — shows no errors.
+**Root cause:** `functions/index.js` called `batch.update(doc.reference, …)`. `reference` is the **Dart/Flutter** property for a document snapshot — the Node SDK exposes `ref` and declares no `reference` at all, so `undefined` reached `batch.update`. A Dart-ism carried into JavaScript.
+
+The stack was actively misleading. The v2 scheduler logs `err.message` as a plain **string**, and `entryFromArgs` wraps a bare string in `new Error(message)` to obtain a stack — so every reported frame pointed at `firebase-functions/lib/logger` while the *message* was the real Firestore rejection. The trace was fabricated at log time, not captured at the fault.
+
+**Fixed** in `2565a7b` (one line) and deployed. Verified by forcing the Cloud Scheduler job: the success log appeared for the first time —
+`{"message":"Expired stale paired-session invites.","count":13}` — clearing 13 invites that had been stuck pending. No errors since.
+
+The contract test now rejects `.reference` and the other Dart-only snapshot names across `functions/index.js`. Nothing else caught this: it is valid JavaScript, so `node --check` passes, and there is no Cloud Functions test harness.
 
 ### R15 — `fake_cloud_firestore` does not implement cursors
 `startAfterDocument` returns an empty result for any cursored query, including one ordered on an ordinary field. Cursor continuation therefore cannot be asserted against the fake; the pagination tests verify page size, `hasMore` and cursor presence instead, and say so inline. Together with the `SetOptions(merge:)`-inside-transaction gap (R13), worth knowing before writing tests that depend on either.
@@ -458,7 +465,6 @@ Not diagnosed further: this needs a reproduction against the emulator, not a gue
 - **R14** — the paid global-leaderboard flow needs moving to a Cloud Function before it can work at all.
 - **H5 residue** — the 1.3 text-scale ceiling still caps what a user setting 200% system text receives. Shared widgets are verified to 2.0x; raising it is gated on covering the large screens.
 - **R1** — JDK 25 still breaks raw `gradlew`. `flutter build` is unaffected.
-- **R16** — `expireStalePairedInvites` fails on every run in production; paired-invite expiry is not happening at all. Pre-existing, found via Cloud Logging after the deploy.
 - **Deployed 2026-08-04**: `bd61927` (rules) and `540abe7` (functions) are both live on `zynrto`, verified against the live ruleset and the deployed function list.
 
 ## Method Note
