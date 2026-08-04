@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+
+import '../../../l10n/app_localizations.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -160,6 +162,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
     return Scaffold(
       resizeToAvoidBottomInset: true,
       backgroundColor: AppColors.backgroundV2,
@@ -205,7 +209,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
                   // Heading
                   Text(
-                    'Welcome back',
+                    l10n.welcomeBack,
                     style: AppTextStyles.h2.copyWith(
                       fontSize: 28,
                       fontWeight: FontWeight.w700,
@@ -219,7 +223,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
                   // Subtitle
                   Text(
-                    'Sign in to continue your fitness journey',
+                    l10n.signInSubtitle,
                     style: AppTextStyles.body.copyWith(
                       color: AppColors.textV2Secondary,
                       height: 1.4,
@@ -247,7 +251,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   AuthTextField(
                     controller: _emailController,
                     focusNode: _emailFocusNode,
-                    hint: 'Email Address',
+                    hint: l10n.emailAddress,
                     icon: Icons.email_outlined,
                     enabled: !_isLoading,
                     validator: validateEmail,
@@ -263,14 +267,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   AuthTextField(
                     controller: _passwordController,
                     focusNode: _passwordFocusNode,
-                    hint: 'Password',
+                    hint: l10n.password,
                     icon: Icons.lock_outline,
                     isPassword: true,
                     enabled: !_isLoading,
                     textInputAction: TextInputAction.done,
                     autofillHints: const [AutofillHints.password],
                     validator: (value) => (value == null || value.isEmpty)
-                        ? 'Please enter your password'
+                        ? l10n.enterPassword
                         : null,
                     onFieldSubmitted: (_) => _handleEmailSignIn(),
                   ),
@@ -287,7 +291,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                               context.push(AppRoutes.forgotPassword);
                             },
                       child: Text(
-                        'Forgot password?',
+                        l10n.forgotPassword,
                         style: AppTextStyles.label.copyWith(
                           color: AppColors.userAccent,
                         ),
@@ -298,7 +302,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   const SizedBox(height: 16),
 
                   ZyntroButton(
-                    title: 'Sign In',
+                    title: l10n.signIn,
                     fullWidth: true,
                     loading: _emailLoading,
                     size: ZyntroButtonSize.lg,

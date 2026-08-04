@@ -9,6 +9,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
 
   # Firebase
   firebase_core: 4.11.0
@@ -104,6 +106,8 @@ flutter_native_splash:
 
 flutter:
   uses-material-design: true
+  # Generates lib/l10n/app_localizations.dart from lib/l10n/*.arb
+  generate: true
   
   # Only runtime-loaded assets belong here. Splash and launcher-icon source
   # art lives in design/ — flutter_native_splash and flutter_launcher_icons

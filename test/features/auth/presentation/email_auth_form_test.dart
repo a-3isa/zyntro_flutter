@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'package:zyntro_flutter/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -23,7 +25,13 @@ const _user = AuthUserEntity(
 Widget _wrap(Widget page, AuthController controller) {
   return ProviderScope(
     overrides: [authControllerProvider.overrideWithValue(controller)],
-    child: MaterialApp(home: page),
+    child: MaterialApp(
+      // LoginPage reads AppLocalizations, so the harness must supply the same
+      // delegates MaterialApp.router installs in production.
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: page,
+    ),
   );
 }
 
