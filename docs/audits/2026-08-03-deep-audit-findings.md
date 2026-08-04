@@ -403,20 +403,52 @@ Writes are correctly owner-only. This may well be intentional — PRs arguably b
 ### R4 — Three pure helpers orphaned by dead-code removal
 `calculatePerUserVolume`, `calculatePerUserExercises` and `calculateActiveCalories` in `session_analytics_service.dart` lost their only caller when `getSessionComparison` was deleted in `b71acef`. They are pure, have no runtime cost, and represent real domain logic a session-comparison feature would want, so they were kept rather than removed. They remain untested.
 
+## Found During Remediation (third pass)
+
+### R14 — The paid global-leaderboard feature cannot work client-side
+**Every write the payment flow makes targets a field the security rules forbid.**
+
+`privilegedUserFields()` in `firebase/firestore.rules` denies client writes to
+`hasGlobalLeaderboardAccess`, `globalAccessGrantedAt` and `transactions`. Those
+are exactly — and only — the fields the payment path writes:
+
+- `PaymentService.grantGlobalLeaderboardAccess` writes `hasGlobalLeaderboardAccess` + `globalAccessGrantedAt` → denied
+- `PaymentService.recordPaymentTransaction` writes `transactions` → denied, and it catches the failure silently
+- `LeaderboardService.grantGlobalLeaderboardAccess` is a **second copy** of the same method, with the same problem
+
+So a user could pay and never receive access, and the audit row recording that
+they paid would fail without surfacing anything. The rules are right; the
+client code predates them and was never moved server-side. Granting entitlement
+after payment belongs in a Cloud Function, which is also where the Stripe
+intent should be created — `createGlobalLeaderboardPaymentIntent` currently
+returns a mock secret with the real implementation commented out.
+
+Not fixed here: it needs a Cloud Function and a Stripe decision, not a patch.
+The existing emulator rules test already pins that a user cannot grant
+themselves access, so the security side is covered — it is the client
+expectation that is wrong.
+
+### R15 — `fake_cloud_firestore` does not implement cursors
+`startAfterDocument` returns an empty result for any cursored query, including one ordered on an ordinary field. Cursor continuation therefore cannot be asserted against the fake; the pagination tests verify page size, `hasMore` and cursor presence instead, and say so inline. Together with the `SetOptions(merge:)`-inside-transaction gap (R13), worth knowing before writing tests that depend on either.
+
 ## What Is Still Open
 
-- **H4 (partial)** — `session_room_page.dart` is 3,453 lines after the first cut. The input-section builders are the next ~550, but they are tightly coupled to page state and want their own change with proper coverage. `profile_page.dart` (3,006) is untouched.
-- **M7 (partial)** — `username`, `buddy` and `content_filter` are covered. Still untested: `payment_service`, `media_service`, `presence_service`, `storage_service`, `matchmaking_service`, `voice_recording_service`.
+- **H4 (partial)** — `session_room_page.dart` is 3,362 lines and `profile_page.dart` 2,388, both down from ~3,000-3,750. The remaining bulk is the session room's input-section builders (~550 lines), which read about twenty pieces of page state; extracting them correctly means first lifting that state into a controller object, which is a behaviour-carrying refactor rather than a file split.
+- **M7 — closed.** Every service in `lib/services` now has tests. Voice recording and storage are deliberately thin (platform channel and live FirebaseStorage respectively), and say so inline.
 - **M8 (foundation only)** — Arabic and RTL ship, proven on the login screen. The other ~190 English literals are not extracted.
-- **C1 residue** — the live listeners in `follow_service` and `presence_service` remain unbounded; bounding them needs a pagination design, not a `.limit()`.
+- **C1 — closed for follow_service.** Lists paginate and counts use aggregates. The `presence_service` half of that finding was **wrong**: every presence listener is scoped to `sessions/{id}/presence`, and sessions are hard-capped at two participants, so they read at most two documents.
+- **R14** — the paid global-leaderboard flow needs moving to a Cloud Function before it can work at all.
+- **H5 residue** — the 1.3 text-scale ceiling still caps what a user setting 200% system text receives. Shared widgets are verified to 2.0x; raising it is gated on covering the large screens.
 - **R1** — JDK 25 still breaks raw `gradlew`. `flutter build` is unaffected.
 - **Two commits are not yet live**: `bd61927` (rules) and `540abe7` (functions) need `firebase deploy`.
 
 ## Method Note
 
-Three of the original findings (H5, M2, M5) were overstated and one (L5) was
-understated, all for the same reason: they were derived from counting rather
-than reading. Counting located the right areas — every fix in this document
+Five of the original findings were mis-graded, all for the same reason: they
+were derived from counting rather than reading. H5, M2 and M5 were overstated
+(M5 withdrawn outright); L5 was understated — filed Low, it was a read storm;
+and C1's presence half was simply wrong, because a session-scoped collection
+cannot grow past two documents. Counting located the right areas — every fix in this document
 started from one of those counts — but it consistently mis-graded them. A raw
 `Color(0x…)` count included the token definitions; a `Semantics` count missed
 that the core widgets were already labelled; a `SingleChildScrollView` count did
