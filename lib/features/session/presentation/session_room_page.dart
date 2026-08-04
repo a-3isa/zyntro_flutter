@@ -7,6 +7,7 @@ import 'package:audioplayers/audioplayers.dart';
 import '../../../app/navigation/app_route_locations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/models/models.dart';
+import 'cardio_activity_options.dart';
 import 'live_participant_progress.dart';
 import '../../../core/constants/constants.dart';
 import '../../../services/session_service.dart';
@@ -1095,7 +1096,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
             '$paceMinsPart:${paceSecsPart.toString().padLeft(2, '0')}/km';
       }
 
-      final activityName = _getActivityLabel(_cardioActivityType);
+      final activityName = cardioActivityLabel(_cardioActivityType);
       final eventText =
           '$activityName: ${distance.toStringAsFixed(2)}km in ${duration}min';
 
@@ -2301,102 +2302,10 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   }
 
   /// Get available cardio activity options based on workout type.
-  List<Map<String, dynamic>> _getCardioActivityOptions() {
-    switch (_workoutType) {
-      case WorkoutType.running:
-        return [
-          {
-            'value': 'running',
-            'label': 'Running',
-            'icon': Icons.directions_run,
-          },
-          {
-            'value': 'jogging',
-            'label': 'Jogging',
-            'icon': Icons.directions_run,
-          },
-        ];
-      case WorkoutType.cycling:
-        return [
-          {
-            'value': 'cycling',
-            'label': 'Cycling',
-            'icon': Icons.directions_bike,
-          },
-          {
-            'value': 'stationary',
-            'label': 'Stationary',
-            'icon': Icons.pedal_bike,
-          },
-        ];
-      case WorkoutType.swimming:
-        return [
-          {'value': 'swimming', 'label': 'Swimming', 'icon': Icons.pool},
-          {'value': 'laps', 'label': 'Laps', 'icon': Icons.pool},
-        ];
-      case WorkoutType.walking:
-        return [
-          {
-            'value': 'walking',
-            'label': 'Walking',
-            'icon': Icons.directions_walk,
-          },
-          {'value': 'hiking', 'label': 'Hiking', 'icon': Icons.terrain},
-        ];
-      default:
-        // For generic cardio or other types, show common options
-        return [
-          {
-            'value': 'running',
-            'label': 'Running',
-            'icon': Icons.directions_run,
-          },
-          {
-            'value': 'cycling',
-            'label': 'Cycling',
-            'icon': Icons.directions_bike,
-          },
-          {'value': 'swimming', 'label': 'Swimming', 'icon': Icons.pool},
-          {
-            'value': 'walking',
-            'label': 'Walking',
-            'icon': Icons.directions_walk,
-          },
-        ];
-    }
-  }
-
-  /// Get icon for activity type.
-  IconData _getActivityIcon(String activityType) {
-    switch (activityType) {
-      case 'running':
-      case 'jogging':
-        return Icons.directions_run;
-      case 'cycling':
-      case 'stationary':
-        return Icons.directions_bike;
-      case 'swimming':
-      case 'laps':
-        return Icons.pool;
-      case 'walking':
-      case 'hiking':
-        return Icons.directions_walk;
-      default:
-        return Icons.fitness_center;
-    }
-  }
-
-  /// Get display label for activity type.
-  String _getActivityLabel(String? activityType) {
-    if (activityType == null) return 'Activity';
-    // Capitalize first letter
-    return activityType[0].toUpperCase() + activityType.substring(1);
-  }
-
   /// Build cardio input section (activity type, distance, duration, pace).
   Widget _buildCardioInputSection() {
     // Get available activity options based on workout type
-    final activityOptions = _getCardioActivityOptions();
+    final activityOptions = cardioActivityOptions(_workoutType);
 
     return FocusTraversalGroup(
       child: Column(
@@ -2417,7 +2326,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  _getActivityIcon(_workoutType.value),
+                  cardioActivityIcon(_workoutType.value),
                   size: 16,
                   color: AppColors.userAccentDim,
                 ),
