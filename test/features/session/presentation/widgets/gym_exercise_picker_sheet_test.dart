@@ -50,6 +50,9 @@ void main() {
     await tester.pumpWidget(_wrap(const GymExercisePickerSheet()));
 
     await tester.enterText(find.byType(TextField), 'bench');
+    // Advance past the search debounce; pumpAndSettle does not wait on a
+    // pending Timer.
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
 
     expect(find.text('Bench Press'), findsOneWidget);
@@ -64,6 +67,9 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(TextField), 'bench');
+    // Advance past the search debounce; pumpAndSettle does not wait on a
+    // pending Timer.
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Bench Press'));
@@ -87,6 +93,9 @@ void main() {
     await tester.pumpWidget(_wrap(const GymExercisePickerSheet()));
 
     await tester.enterText(find.byType(TextField), 'bench');
+    // Advance past the search debounce; pumpAndSettle does not wait on a
+    // pending Timer.
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Bench Press'));
@@ -106,6 +115,9 @@ void main() {
     await tester.pumpWidget(_wrap(const GymExercisePickerSheet()));
 
     await tester.enterText(find.byType(TextField), 'bench');
+    // Advance past the search debounce; pumpAndSettle does not wait on a
+    // pending Timer.
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Bench Press'));
     await tester.pumpAndSettle();
@@ -131,6 +143,9 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.enterText(find.byType(TextField), 'bench');
+      // Advance past the search debounce; pumpAndSettle does not wait on a
+      // pending Timer.
+      await tester.pump(const Duration(milliseconds: 300));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Bench Press'));
       await tester.pumpAndSettle();
@@ -138,6 +153,9 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.enterText(find.byType(TextField), 'deadlift');
+      // Advance past the search debounce; pumpAndSettle does not wait on a
+      // pending Timer.
+      await tester.pump(const Duration(milliseconds: 300));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Deadlift'));
       await tester.pumpAndSettle();
@@ -166,6 +184,9 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(TextField), 'mystery move');
+    // Advance past the search debounce; pumpAndSettle does not wait on a
+    // pending Timer.
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
 
     expect(find.text('No exercises matched'), findsOneWidget);
@@ -237,6 +258,9 @@ void main() {
     // Instance 1 — start-session consumer
     await tester.pumpWidget(_wrap(const GymExercisePickerSheet()));
     await tester.enterText(find.byType(TextField), 'squat');
+    // Advance past the search debounce; pumpAndSettle does not wait on a
+    // pending Timer.
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
     final names1 = tester
         .widgetList<Text>(find.descendant(
@@ -250,6 +274,9 @@ void main() {
     // Instance 2 — late-session consumer (same widget, different instance)
     await tester.pumpWidget(_wrap(const GymExercisePickerSheet()));
     await tester.enterText(find.byType(TextField), 'squat');
+    // Advance past the search debounce; pumpAndSettle does not wait on a
+    // pending Timer.
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
     final names2 = tester
         .widgetList<Text>(find.descendant(
@@ -269,6 +296,9 @@ void main() {
     await tester.pumpWidget(_wrap(const GymExercisePickerSheet()));
 
     await tester.enterText(find.byType(TextField), 'zzzzznotanexercise');
+    // Advance past the search debounce; pumpAndSettle does not wait on a
+    // pending Timer.
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
 
     expect(find.text('No exercises matched'), findsOneWidget);

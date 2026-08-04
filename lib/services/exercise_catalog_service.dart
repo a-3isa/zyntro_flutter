@@ -274,6 +274,87 @@ class ExerciseCatalogService {
 
   ExerciseCatalogService([this._firestore]);
 
+  /// How long a fetched catalog stays usable before it is read again.
+  ///
+  /// The picker's search field has no debounce, so every keystroke used to
+  /// trigger a full read of `exerciseCatalog` plus the user's
+  /// `personalExercises` — typing "bench press" cost 22 collection scans.
+  /// Matching is done client-side over the whole set anyway, so the same
+  /// snapshot serves every keystroke. The shared catalog is moderated content
+  /// that changes rarely, so a stale entry for a few minutes is harmless.
+  static const cacheTtl = Duration(minutes: 10);
+
+  static List<ExerciseCatalogEntry>? _catalogCache;
+  static DateTime? _catalogFetchedAt;
+
+  static final Map<String, List<PersonalExerciseEntry>> _personalCache = {};
+  static final Map<String, DateTime> _personalFetchedAt = {};
+
+  static bool _isFresh(DateTime? fetchedAt) =>
+      fetchedAt != null && DateTime.now().difference(fetchedAt) < cacheTtl;
+
+  /// Telemetry must never be able to break a search.
+  ///
+  /// FirebaseAnalytics.instance throws when Firebase is not initialized, which
+  /// took the whole search down with it and made search untestable without a
+  /// live Firebase.
+  static void _logAnalyticsEvent(String name) {
+    try {
+      FirebaseAnalytics.instance.logEvent(name: name);
+    } catch (e) {
+      debugPrint('[ExerciseCatalogService] analytics unavailable ($name): $e');
+    }
+  }
+
+  /// Drops every cached catalog and personal-exercise snapshot.
+  ///
+  /// Called after a write that changes what a search should return, and
+  /// exposed for tests so one case cannot leak state into the next.
+  static void invalidateCaches() {
+    _catalogCache = null;
+    _catalogFetchedAt = null;
+    _personalCache.clear();
+    _personalFetchedAt.clear();
+  }
+
+  Future<List<ExerciseCatalogEntry>> _loadCatalog(FirebaseFirestore db) async {
+    final cached = _catalogCache;
+    if (cached != null && _isFresh(_catalogFetchedAt)) return cached;
+
+    final snap = await db
+        .collection('exerciseCatalog')
+        .where('isActive', isEqualTo: true)
+        .get();
+    final entries = snap.docs
+        .map((doc) => ExerciseCatalogEntry.fromMap(doc.id, doc.data()))
+        .toList();
+
+    _catalogCache = entries;
+    _catalogFetchedAt = DateTime.now();
+    return entries;
+  }
+
+  Future<List<PersonalExerciseEntry>> _loadPersonalExercises(
+    FirebaseFirestore db,
+    String userId,
+  ) async {
+    final cached = _personalCache[userId];
+    if (cached != null && _isFresh(_personalFetchedAt[userId])) return cached;
+
+    final snap = await db
+        .collection('users')
+        .doc(userId)
+        .collection('personalExercises')
+        .get();
+    final entries = snap.docs
+        .map((doc) => PersonalExerciseEntry.fromMap(doc.id, doc.data()))
+        .toList();
+
+    _personalCache[userId] = entries;
+    _personalFetchedAt[userId] = DateTime.now();
+    return entries;
+  }
+
   /// Search shared catalog + user's personal exercises (T011).
   Future<List<ExercisePickerResult>> search(
       String userId, String query) async {
@@ -284,13 +365,9 @@ class ExerciseCatalogService {
     if (db == null) return _fallbackSearch(normalized);
 
     try {
-      final catalogSnap = await db
-          .collection('exerciseCatalog')
-          .where('isActive', isEqualTo: true)
-          .get();
+      final catalogEntries = await _loadCatalog(db);
 
-      for (final doc in catalogSnap.docs) {
-        final entry = ExerciseCatalogEntry.fromMap(doc.id, doc.data());
+      for (final entry in catalogEntries) {
         if (_entryMatchesQuery(
             entry.normalizedName, entry.searchTokens, normalized)) {
           results.add(ExercisePickerResult(
@@ -308,17 +385,7 @@ class ExerciseCatalogService {
       // which would drop the whole search into the local-catalog fallback.
       final personalEntries = <PersonalExerciseEntry>[];
       if (userId.isNotEmpty) {
-        final personalSnap = await db
-            .collection('users')
-            .doc(userId)
-            .collection('personalExercises')
-            .get();
-
-        personalEntries.addAll(
-          personalSnap.docs.map(
-            (doc) => PersonalExerciseEntry.fromMap(doc.id, doc.data()),
-          ),
-        );
+        personalEntries.addAll(await _loadPersonalExercises(db, userId));
 
         // T038: persist personal exercises to cache for offline fallback.
         await _cachePersonalExercises(userId, personalEntries);
@@ -365,13 +432,9 @@ class ExerciseCatalogService {
     // loop so personal exercises are never mixed with fallback entries.
     if (results.isEmpty) {
       results = _fallbackSearch(normalized);
-      FirebaseAnalytics.instance.logEvent(
-        name: 'exercise_catalog_fallback_used',
-      );
+      _logAnalyticsEvent('exercise_catalog_fallback_used');
     } else {
-      FirebaseAnalytics.instance.logEvent(
-        name: 'exercise_catalog_firestore_hit',
-      );
+      _logAnalyticsEvent('exercise_catalog_firestore_hit');
     }
 
     // T048: success-rate log — one line per completed search.
@@ -448,6 +511,12 @@ class ExerciseCatalogService {
       debugPrint('[ExerciseCatalogService] createCustomExercise failed ($e).');
       rethrow;
     }
+
+    // The user's cached personal list no longer reflects what they own. Without
+    // this the exercise they just created would be missing from search until
+    // the TTL expired.
+    _personalCache.remove(userId);
+    _personalFetchedAt.remove(userId);
 
     // T048: success log.
     debugPrint('[ExerciseCatalogService] createCustomExercise succeeded: '

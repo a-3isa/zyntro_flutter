@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -38,6 +40,14 @@ class _GymExercisePickerSheetState
   static const int _maxSets = 20;
   static const int _defaultSets = 3;
 
+  /// Pending debounce for the search field.
+  ///
+  /// onChanged fires per keystroke, and each search filters the catalog, so
+  /// without this a fast typist queues a search per character and the results
+  /// flicker through intermediate states as they resolve out of order.
+  Timer? _searchDebounce;
+  static const _searchDebounceDelay = Duration(milliseconds: 250);
+
   @override
   void initState() {
     super.initState();
@@ -46,8 +56,14 @@ class _GymExercisePickerSheetState
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged(String query) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(_searchDebounceDelay, () => _doSearch(query));
   }
 
   Future<void> _doSearch(String query) async {
@@ -258,7 +274,7 @@ class _GymExercisePickerSheetState
                   labelText: 'Search exercises',
                   prefixIcon: Icon(Icons.search_rounded),
                 ),
-                onChanged: (v) => _doSearch(v.trim()),
+                onChanged: (v) => _onSearchChanged(v.trim()),
               ),
               const SizedBox(height: 16),
               Flexible(child: _buildResultsArea(query, showNoResults)),
