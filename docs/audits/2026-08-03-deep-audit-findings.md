@@ -428,6 +428,24 @@ The existing emulator rules test already pins that a user cannot grant
 themselves access, so the security side is covered — it is the client
 expectation that is wrong.
 
+### R16 — `expireStalePairedInvites` is failing on every scheduled run in production
+Found in Cloud Logging immediately after the 2026-08-04 deploy, and **pre-existing** — the failures run from at least 13:57 UTC, well before the deploy landed at ~15:44.
+
+Every 15-minute invocation ends in:
+
+```
+Error: Value for argument "documentRef" is not a valid DocumentReference.
+    at entryFromArgs (firebase-functions/lib/logger/index.js:120:13)
+    at Object.error (firebase-functions/lib/logger/index.js:109:8)
+    at httpFunc (firebase-functions/lib/v2/providers/scheduler.js:65:25)
+```
+
+The function's own `logger.info("Expired stale paired-session invites.")` never appears, so it is failing before completion on every run. **Pending paired-session invites are therefore never being flipped to `expired` in production** — the 24h invite TTL is not being enforced, and users keep seeing invites that should have lapsed.
+
+The stack is the v2 scheduler wrapper catching a handler error and logging it, so the message is the underlying Firestore rejection surfacing through the logger, not a logging bug. The handler's only `DocumentReference` use is `batch.update(doc.reference, …)` over `snapshot.docs`, which should never be invalid — pointing at a library-level mismatch rather than the function's own logic. The deploy also warned that `package.json` pins an outdated `firebase-functions`, and the deployed tree installs from `^` ranges so it need not match the local `@google-cloud/firestore` 7.11.6.
+
+Not diagnosed further: this needs a reproduction against the emulator, not a guess. `expireStaleJointPostDrafts` — the scheduler that *was* changed in `540abe7` — shows no errors.
+
 ### R15 — `fake_cloud_firestore` does not implement cursors
 `startAfterDocument` returns an empty result for any cursored query, including one ordered on an ordinary field. Cursor continuation therefore cannot be asserted against the fake; the pagination tests verify page size, `hasMore` and cursor presence instead, and say so inline. Together with the `SetOptions(merge:)`-inside-transaction gap (R13), worth knowing before writing tests that depend on either.
 
@@ -440,7 +458,8 @@ expectation that is wrong.
 - **R14** — the paid global-leaderboard flow needs moving to a Cloud Function before it can work at all.
 - **H5 residue** — the 1.3 text-scale ceiling still caps what a user setting 200% system text receives. Shared widgets are verified to 2.0x; raising it is gated on covering the large screens.
 - **R1** — JDK 25 still breaks raw `gradlew`. `flutter build` is unaffected.
-- **Two commits are not yet live**: `bd61927` (rules) and `540abe7` (functions) need `firebase deploy`.
+- **R16** — `expireStalePairedInvites` fails on every run in production; paired-invite expiry is not happening at all. Pre-existing, found via Cloud Logging after the deploy.
+- **Deployed 2026-08-04**: `bd61927` (rules) and `540abe7` (functions) are both live on `zynrto`, verified against the live ruleset and the deployed function list.
 
 ## Method Note
 
