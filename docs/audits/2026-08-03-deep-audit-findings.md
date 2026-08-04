@@ -269,7 +269,60 @@ Updated as remediation lands. Commits are on `006-offline-cache-sync`.
 | M5 — eager lists | **Withdrawn** — not a real defect, see below | — |
 | M6 — serial scheduler | **Fixed** | `540abe7` |
 | R5 — PR privacy | **Fixed** | `bd61927` |
-| H4, M4, M7 (partial), M8, L3–L5 | Open | — |
+| L3 — release log leaks | **Fixed** | `c5f9f93` |
+| L4 — animation disposal | **Verified clean**, guarded by test | `07706f9` |
+| L5 — catalog reads | **Fixed** (worse than graded) | `634b6be` |
+| M4 — error states | **Fixed** (narrower than graded) | `9fac562` |
+| M7 — untested services | **Partial** (3 of 9 covered) | `15f7a55` |
+| M8 — i18n | **Fixed** — Arabic + RTL shipped | `f27aba4` |
+| R2 — reactionCounts | **Fixed** | `6663e23` |
+| H4 — god files | **Partial** — first cut, collisions resolved | `82a52c7` |
+| H5 — accessibility | **Fixed** (loading states labelled) | `f08e361` |
+
+### Re-graded during remediation
+
+**L5 was under-graded.** Filed as Low, "a good caching candidate". In fact the
+picker's search field had no debounce, so every keystroke re-read the whole
+`exerciseCatalog` collection *and* the user's `personalExercises`. Typing
+"bench press" cost 22 collection scans. Both the cache and the debounce were
+missing. This belonged at High.
+
+**M4 was over-graded and mis-derived.** "63 async providers but only 26
+`.when()` call sites" conflated `AsyncValue.when` with the sealed `Result.when`
+in `auth_providers.dart`, which handles both branches. Every list screen already
+had an empty state. The genuine defects were two raw-exception renders and one
+dead-end error branch.
+
+**L4 was a non-finding**, as the finding itself allowed. All 27
+`AnimationController` fields across 20 files are disposed; the 89-vs-62 gap was
+one `dispose()` freeing several controllers. A scan now guards it.
+
+**H5's text-scaling claim was wrong.** `app.dart` already clamps scaling with
+`MediaQuery.withClampedTextScaling(maxScaleFactor: 1.3)`. Worth noting that the
+1.3 ceiling does cap what a user who sets 200% system text actually gets —
+a deliberate layout-safety trade-off, not an oversight.
+
+## Found During Remediation (second pass)
+
+### R8 — `debugPrint` is not stripped from release builds
+Flutter's `debugPrint` writes to the platform log in release. The app had 227 call sites, 97 interpolating a caught exception (whose `toString()` embeds user content) and 13 interpolating a `userId` directly. Fixed in `c5f9f93` by reassigning the sink in release, which closes all of them at once. Startup failures now route to Crashlytics so silencing the sink does not cost observability.
+
+### R9 — "Snatch" was blocked as profanity
+`ContentFilterService` used a general-purpose word list with no domain allowlist, so the Olympic lift "snatch" was rejected. In a workout app, a user could not title a post after the exercise they had just done. Found by writing the first tests for that service; fixed in `15f7a55` with a narrow gym-term allowlist, plus a test proving real profanity beside an allowlisted word is still caught.
+
+### R10 — Four classes were shadowed by same-named locals
+`session_room_page.dart` declared `ParticipantProgress`, `AnimatedProgressBar`, `PulseAnimation` and `BounceAnimation`, all of which already existed elsewhere — and two of those files are imported by the page. A locally declared class shadows an imported one, so each local version silently won.
+
+The `ParticipantProgress` case was the worst: the model in `core/models` is the persisted document shape, while the local one was a UI view model with entirely different fields. Resolved in `82a52c7` by extracting and renaming.
+
+### R11 — Telemetry could kill the exercise search
+`FirebaseAnalytics.instance` throws when Firebase is not initialized, and `ExerciseCatalogService.search` called it unguarded — taking the whole search down with it, and making `search` untestable without a live Firebase. Guarded in `634b6be`.
+
+### R12 — A transaction read followed a write
+Caught by tests while implementing `reactionCounts`: the first version of `removeReaction` read the post document *after* deleting the reaction. Firestore requires every read in a transaction to precede every write, so it would have thrown against the real backend. Fixed before commit in `6663e23`.
+
+### R13 — Emulator rules suites needed serialising
+See R6. Worth repeating that `fake_cloud_firestore` has its own gap: it ignores `SetOptions(merge: true)` inside a transaction while honouring it outside one. A test asserting merge behaviour there would be testing the fake, not the backend — documented inline in `username_service_test.dart`.
 
 **Two changes are committed but NOT yet live:** `bd61927` (rules) and `540abe7`
 (functions) both require a deploy to take effect in production.
@@ -349,6 +402,29 @@ Writes are correctly owner-only. This may well be intentional — PRs arguably b
 
 ### R4 — Three pure helpers orphaned by dead-code removal
 `calculatePerUserVolume`, `calculatePerUserExercises` and `calculateActiveCalories` in `session_analytics_service.dart` lost their only caller when `getSessionComparison` was deleted in `b71acef`. They are pure, have no runtime cost, and represent real domain logic a session-comparison feature would want, so they were kept rather than removed. They remain untested.
+
+## What Is Still Open
+
+- **H4 (partial)** — `session_room_page.dart` is 3,453 lines after the first cut. The input-section builders are the next ~550, but they are tightly coupled to page state and want their own change with proper coverage. `profile_page.dart` (3,006) is untouched.
+- **M7 (partial)** — `username`, `buddy` and `content_filter` are covered. Still untested: `payment_service`, `media_service`, `presence_service`, `storage_service`, `matchmaking_service`, `voice_recording_service`.
+- **M8 (foundation only)** — Arabic and RTL ship, proven on the login screen. The other ~190 English literals are not extracted.
+- **C1 residue** — the live listeners in `follow_service` and `presence_service` remain unbounded; bounding them needs a pagination design, not a `.limit()`.
+- **R1** — JDK 25 still breaks raw `gradlew`. `flutter build` is unaffected.
+- **Two commits are not yet live**: `bd61927` (rules) and `540abe7` (functions) need `firebase deploy`.
+
+## Method Note
+
+Three of the original findings (H5, M2, M5) were overstated and one (L5) was
+understated, all for the same reason: they were derived from counting rather
+than reading. Counting located the right areas — every fix in this document
+started from one of those counts — but it consistently mis-graded them. A raw
+`Color(0x…)` count included the token definitions; a `Semantics` count missed
+that the core widgets were already labelled; a `SingleChildScrollView` count did
+not distinguish static layout from data lists; a "caching candidate" note missed
+that there was no debounce at all.
+
+Anyone using this document to plan further work should treat the counts as a
+map, not a verdict.
 
 ## Priority Order
 
