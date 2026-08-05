@@ -188,12 +188,21 @@ async function persistRecipientNotification(recipientId, type, payload) {
     .collection("notifications");
   const isSessionInvite = type === "session_invite" && payload.data.sessionId;
   const isJointPostInvite = type === "joint_post_invite" && payload.data.postId;
-  const isDeterministic = isSessionInvite || isJointPostInvite;
+  // One departure, one notification. Keyed on (session, leaver) so a retry, or
+  // a partner who terminates while the recipient reopens the app repeatedly,
+  // refreshes the same doc instead of stacking duplicates for one event.
+  const isPartnerLeft =
+    type === "partner_left" && payload.data.sessionId && payload.data.leaverId;
+  const isDeterministic = isSessionInvite || isJointPostInvite || isPartnerLeft;
   const notificationRef = isSessionInvite
     ? notifications.doc(`session_invite_${payload.data.sessionId}`)
     : isJointPostInvite
       ? notifications.doc(`joint_post_invite_${payload.data.postId}`)
-      : notifications.doc();
+      : isPartnerLeft
+        ? notifications.doc(
+          `partner_left_${payload.data.sessionId}_${payload.data.leaverId}`,
+        )
+        : notifications.doc();
 
   const base = {
     userId: recipientId,
@@ -693,6 +702,54 @@ exports.expireStalePairedInvites = onSchedule("every 15 minutes", async () => {
   logger.info("Expired stale paired-session invites.", {
     count: snapshot.size,
   });
+});
+
+// A live session must not outlive the workout it represents. The app can no
+// longer close sessions on its own: terminating on app-close was removed
+// because it destroyed the very session the member wanted to come back to, and
+// `AppLifecycleState.detached` is not delivered reliably on a force-quit or an
+// OS kill anyway. So expiry has to happen server-side, with no client running.
+//
+// `expiresAt` is written by the client as max(lastActivityAt, lastOccupiedAt)
+// + 3h. It is stored rather than derived here because Firestore permits only
+// one range filter per query — the two conditions in the spec (3h without
+// activity, 3h with an empty room) cannot both be expressed otherwise.
+//
+// Guarded on `status === 'active'`, so a re-run cannot double-expire a session.
+// Recorded work is untouched: this closes the session document only.
+exports.expireStaleSessions = onSchedule("every 15 minutes", async () => {
+  const now = Timestamp.now();
+  const snapshot = await db
+    .collection("sessions")
+    .where("status", "==", "active")
+    .where("expiresAt", "<", now)
+    .limit(400)
+    .get();
+
+  if (snapshot.empty) {
+    return;
+  }
+
+  const batch = db.batch();
+  snapshot.docs.forEach((doc) => {
+    // `ref`, not `reference` — the latter is the Dart/Flutter property and is
+    // undefined in the Node SDK. It broke expireStalePairedInvites once.
+    batch.update(doc.ref, {
+      status: "completed",
+      endedReason: "expired",
+      endedAt: FieldValue.serverTimestamp(),
+    });
+    // Abandonment counter for SC-014: a session nobody came back to, as
+    // distinct from one somebody deliberately finished.
+    batch.set(db.collection("analytics").doc(), {
+      type: "session_expired_abandoned",
+      sessionId: doc.id,
+      timestamp: FieldValue.serverTimestamp(),
+    });
+  });
+  await batch.commit();
+
+  logger.info("Expired stale sessions.", { count: snapshot.size });
 });
 
 // ==================== JOINT (CO-AUTHORED) POST LIFECYCLE ====================

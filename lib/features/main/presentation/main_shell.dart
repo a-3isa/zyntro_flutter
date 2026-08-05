@@ -16,6 +16,7 @@ import '../../session/presentation/start_session_page.dart'
         sessionFabLoadingProvider,
         sessionStartTriggerProvider;
 import '../../session/presentation/session_invite_listener.dart';
+import '../../session/presentation/widgets/resume_decision_surface.dart';
 import '../../social/presentation/social_page.dart';
 import '../../profile/presentation/profile_page.dart';
 import '../../../utils/offline_manager.dart';
@@ -139,11 +140,15 @@ class _MainShellState extends ConsumerState<MainShell>
 
     ref.listen<AsyncValue<FailedSyncEvent>>(syncFailureProvider, (_, next) {
       next.whenData((event) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Sync failed for ${event.operationType} — saved locally'),
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 4),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Sync failed for ${event.operationType} — saved locally',
+            ),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
+          ),
+        );
       });
     });
     final pages = [
@@ -153,69 +158,79 @@ class _MainShellState extends ConsumerState<MainShell>
       const ProfilePage(),
     ];
 
-    return SessionInviteListener(
-      child: PopScope(
-        canPop: false,
-        onPopInvokedWithResult: (didPop, _) {
-          if (didPop) return;
-          _onRootBackPress();
-        },
-        child: Scaffold(
-          backgroundColor: AppColors.backgroundV2,
-          // Nav lives inside the body Stack so the FAB can overflow above the pill.
-          body: NotificationListener<ScrollNotification>(
-            onNotification: _handleScrollNotification,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                // Pages fill the full screen (each manages its own bottom padding)
-                Positioned.fill(
-                  child: IndexedStack(index: _currentIndex, children: pages),
-                ),
-                // T040a/T041: offline/sync status banner at top of screen.
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  child: SafeArea(
-                    bottom: false,
-                    child: Builder(builder: (_) {
-                      final isOffline =
-                          !(ref.watch(connectivityProvider).value ?? true);
-                      final queueCount =
-                          ref.watch(pendingQueueCountProvider).value ?? 0;
-                      final syncProgress =
-                          ref.watch(syncProgressProvider).value;
-                      final isSyncing = syncProgress != null &&
-                          syncProgress.remaining > 0 &&
-                          !isOffline;
-                      return ConnectionStatusWidget(
-                        isOffline: isOffline,
-                        queueCount: queueCount,
-                        isSyncing: isSyncing,
-                        syncProgress: isSyncing ? syncProgress : null,
-                      );
-                    }),
+    // A warm session redirects before this screen is ever built. The quiet
+    // prompt and the session-ended notice are not navigations, so they surface
+    // here — once, on the screen the member actually landed on.
+    return ResumeDecisionSurface(
+      child: SessionInviteListener(
+        child: PopScope(
+          canPop: false,
+          onPopInvokedWithResult: (didPop, _) {
+            if (didPop) return;
+            _onRootBackPress();
+          },
+          child: Scaffold(
+            backgroundColor: AppColors.backgroundV2,
+            // Nav lives inside the body Stack so the FAB can overflow above the pill.
+            body: NotificationListener<ScrollNotification>(
+              onNotification: _handleScrollNotification,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  // Pages fill the full screen (each manages its own bottom padding)
+                  Positioned.fill(
+                    child: IndexedStack(index: _currentIndex, children: pages),
                   ),
-                ),
-                // Floating nav overlaid at the bottom
-                Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: AnimatedSlide(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeInOut,
-                    offset:
-                        isNavBarVisible ? Offset.zero : const Offset(0, 1),
-                    child: AnimatedOpacity(
-                      duration: const Duration(milliseconds: 200),
-                      opacity: isNavBarVisible ? 1.0 : 0.0,
-                      child: _buildFloatingBottomNav(),
+                  // T040a/T041: offline/sync status banner at top of screen.
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: SafeArea(
+                      bottom: false,
+                      child: Builder(
+                        builder: (_) {
+                          final isOffline =
+                              !(ref.watch(connectivityProvider).value ?? true);
+                          final queueCount =
+                              ref.watch(pendingQueueCountProvider).value ?? 0;
+                          final syncProgress = ref
+                              .watch(syncProgressProvider)
+                              .value;
+                          final isSyncing =
+                              syncProgress != null &&
+                              syncProgress.remaining > 0 &&
+                              !isOffline;
+                          return ConnectionStatusWidget(
+                            isOffline: isOffline,
+                            queueCount: queueCount,
+                            isSyncing: isSyncing,
+                            syncProgress: isSyncing ? syncProgress : null,
+                          );
+                        },
+                      ),
                     ),
                   ),
-                ),
-              ],
+                  // Floating nav overlaid at the bottom
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: AnimatedSlide(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                      offset: isNavBarVisible
+                          ? Offset.zero
+                          : const Offset(0, 1),
+                      child: AnimatedOpacity(
+                        duration: const Duration(milliseconds: 200),
+                        opacity: isNavBarVisible ? 1.0 : 0.0,
+                        child: _buildFloatingBottomNav(),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -359,24 +374,24 @@ class _MainShellState extends ConsumerState<MainShell>
                             ),
                           )
                         : showStart
-                            ? Center(
-                                child: Text(
-                                  'START',
-                                  style: TextStyle(
-                                    color: canStart
-                                        ? Colors.white
-                                        : AppColors.textV2Secondary,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 1.2,
-                                  ),
-                                ),
-                              )
-                            : Icon(
-                                Icons.fitness_center_rounded,
-                                color: AppColors.userAccent,
-                                size: 26,
+                        ? Center(
+                            child: Text(
+                              'START',
+                              style: TextStyle(
+                                color: canStart
+                                    ? Colors.white
+                                    : AppColors.textV2Secondary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.2,
                               ),
+                            ),
+                          )
+                        : Icon(
+                            Icons.fitness_center_rounded,
+                            color: AppColors.userAccent,
+                            size: 26,
+                          ),
                   ),
                 ),
               ),

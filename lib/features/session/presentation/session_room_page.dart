@@ -33,6 +33,8 @@ import 'widgets/parallel_gym_view.dart';
 import 'widgets/parallel_cardio_view.dart';
 import 'widgets/gym_exercise_picker_sheet.dart';
 import '../domain/gym_session_plan.dart';
+import '../domain/turn_eligibility.dart';
+import 'widgets/partner_left_dialog.dart';
 import '../domain/turn_plan_progress.dart';
 import '../domain/workout_score.dart';
 
@@ -99,9 +101,21 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   bool _isProcessingBotTurn = false;
   String? _lastBotTurnKey;
 
-  // Inactivity timer — terminates session after 10 minutes without logging
-  Timer? _inactivityTimer;
-  static const _inactivityLimit = Duration(minutes: 10);
+  // Presence heartbeat — proves someone is still in the room so the session
+  // does not expire underneath them. Refreshed faster than the staleness
+  // threshold so one missed beat is tolerated.
+  Timer? _presenceHeartbeatTimer;
+
+  // Damped shared↔solo state. A partner who closes their app must not leave the
+  // member stuck on a waiting screen, but a flaky connection must not strobe
+  // the view either.
+  final _soloDamper = SoloModeDamper();
+  Timer? _soloReevaluationTimer;
+
+  // Departures already announced, so the dialog raises once per partner rather
+  // than on every snapshot re-emit.
+  final _announcedDepartures = AnnouncedDepartures();
+  bool _departureSeedDone = false;
 
   // Voice recording state
   bool _isRecording = false;
@@ -201,7 +215,6 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     _initPresence();
     _initConnectivity();
     _initSessionTimer();
-    _resetInactivityTimer();
     // Initialize marker to ignore historical events
     _lastProcessedEventTime = DateTime.now();
 
@@ -321,6 +334,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       _presenceUserId = uid;
       _presenceServiceRef = ref.read(presenceServiceProvider);
       await _presenceServiceRef!.setOnline(widget.sessionId, uid);
+      _startPresenceHeartbeat(uid);
     }
   }
 
@@ -479,20 +493,105 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     return '${diff.inDays}d ago';
   }
 
-  void _resetInactivityTimer() {
-    _inactivityTimer?.cancel();
-    _inactivityTimer = Timer(_inactivityLimit, _terminateSessionInactive);
+  /// Announces a partner leaving, once, to the member still in the room.
+  ///
+  /// Only for departures that happen while they are watching. A partner who
+  /// left before they opened the session is seeded as already-seen: the
+  /// avatar's "left" state tells them, and a dialog about something that
+  /// happened while they were away would be noise.
+  ///
+  /// Dismissing is equivalent to carrying on — this never ends the member's own
+  /// session for them.
+  void _announceDeparturesIfNeeded(Session session, String currentUserId) {
+    final departed =
+        session.endedParticipants.where((id) => id != currentUserId).toList();
+
+    if (!_departureSeedDone) {
+      _departureSeedDone = true;
+      _announcedDepartures.markSeen(departed);
+      return;
+    }
+
+    final fresh = _announcedDepartures.takeUnannounced(departed);
+    if (fresh.isEmpty) return;
+
+    // Out of the build phase — showDialog cannot run during a rebuild.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final leaverId = fresh.first;
+      final leaver = await ref.read(userCacheServiceProvider).getUser(leaverId);
+      if (!mounted) return;
+
+      final choice = await PartnerLeftDialog.show(
+        context,
+        partnerName: leaver?.displayName ?? 'Your partner',
+      );
+
+      if (choice == PartnerLeftChoice.finishToo && mounted) {
+        await _handleFinishSession();
+      }
+    });
   }
 
-  Future<void> _terminateSessionInactive() async {
-    final uid = ref.read(authSessionProvider).value?.id;
-    if (uid == null || !mounted) return;
-    await ref
-        .read(sessionServiceProvider)
-        .endSession(widget.sessionId, uid, null);
-    if (mounted) {
-      context.go(AppRouteLocations.mainTab(MainShellTab.feed));
+  /// How a partner should currently be rendered — present, temporarily away,
+  /// or gone for good.
+  ParticipantStanding _partnerStanding(Session session, String partnerId) {
+    if (partnerId.isEmpty) return ParticipantStanding.active;
+
+    final presence =
+        ref.watch(sessionPresenceProvider(widget.sessionId)).value ??
+        const <UserPresence>[];
+
+    return standingOf(
+      userId: partnerId,
+      session: session,
+      presence: {for (final p in presence) p.userId: p},
+      now: DateTime.now().toUtc(),
+    );
+  }
+
+  /// Re-evaluates whether the member is effectively training alone.
+  ///
+  /// Called on every presence change. A partner who closed their app must not
+  /// leave the member stuck on a waiting screen for someone who is never going
+  /// to take their turn — but a connection blip must not flip the view either,
+  /// hence the damper.
+  bool _evaluateSolo(Session session, String currentUserId) {
+    final presence =
+        ref.watch(sessionPresenceProvider(widget.sessionId)).value ??
+        const <UserPresence>[];
+
+    final byUser = {for (final p in presence) p.userId: p};
+    final now = DateTime.now().toUtc();
+
+    final rawSolo = isEffectivelySolo(
+      userId: currentUserId,
+      session: session,
+      presence: byUser,
+      now: now,
+    );
+
+    final damped = _soloDamper.update(rawSolo: rawSolo, now: now);
+
+    // Presence streams only push when something changes, so without this the
+    // grace period could elapse with nothing left to notice it.
+    final pending = _soloDamper.timeUntilSolo;
+    if (pending != null && (_soloReevaluationTimer?.isActive != true)) {
+      _soloReevaluationTimer = Timer(pending, () {
+        if (mounted) setState(() {});
+      });
+    } else if (pending == null) {
+      _soloReevaluationTimer?.cancel();
     }
+
+    return damped;
+  }
+
+  void _startPresenceHeartbeat(String userId) {
+    _presenceHeartbeatTimer?.cancel();
+    _presenceHeartbeatTimer = ref
+        .read(presenceServiceProvider)
+        .startHeartbeat(widget.sessionId, userId);
   }
 
   @override
@@ -507,19 +606,25 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     switch (state) {
       case AppLifecycleState.resumed:
         presenceService.setOnline(widget.sessionId, uid);
-        _resetInactivityTimer();
+        _startPresenceHeartbeat(uid);
         break;
       case AppLifecycleState.paused:
       case AppLifecycleState.inactive:
         presenceService.setAway(widget.sessionId, uid);
+        _presenceHeartbeatTimer?.cancel();
         break;
       case AppLifecycleState.detached:
       case AppLifecycleState.hidden:
+        // Best-effort only: `detached` is frequently skipped when the app is
+        // swiped out of the recent-apps list, and never fires on an OS kill.
+        // Nothing here may be load-bearing.
+        //
+        // This used to call endSession(), which destroyed the very session the
+        // member wanted to return to — the whole reason resume was impossible.
+        // Expiry is now the scheduled `expireStaleSessions` Function's job, so
+        // a session outlives the app and can be resumed on the next cold start.
         presenceService.setAway(widget.sessionId, uid);
-        // Terminate session when app is fully closed
-        ref
-            .read(sessionServiceProvider)
-            .endSession(widget.sessionId, uid, null);
+        _presenceHeartbeatTimer?.cancel();
         break;
     }
   }
@@ -541,7 +646,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     _syncProgressSubscription?.cancel();
     _connectivitySubscription?.cancel();
     _audioPlayerSubscription?.cancel();
-    _inactivityTimer?.cancel();
+    _presenceHeartbeatTimer?.cancel();
+    _soloReevaluationTimer?.cancel();
     _setOfflinePresence();
 
     _exerciseNameFocus.dispose();
@@ -840,8 +946,9 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       _weightController.clear();
       _repsController.clear();
 
-      // Reset inactivity timer on each logged set
-      _resetInactivityTimer();
+      // Logging a set stamps session activity server-side (see
+      // SessionService.activityStamp), which is what pushes expiry out. No
+      // client-side timer is involved any more.
 
       // Advance planned exercise list (per-set cycling through plan)
       if (_plannedExercises.isNotEmpty) {
@@ -1563,6 +1670,10 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     Map<String, GymSessionPlan> plans,
     List<TimelineEvent> events,
   ) {
+    // Applies to both modes: a partner walking out of a parallel session is
+    // just as much news as one walking out of a turn-based one.
+    _announceDeparturesIfNeeded(session, currentUserId);
+
     switch (session.derivedMode) {
       case SessionMode.turnBased:
         final counts = _completedSetsByUserAndExercise(events);
@@ -1573,7 +1684,14 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
             )) {
           return _buildPlanCompleteView(session, currentUserId, plans);
         }
-        final isMyTurn = session.activeUserId == currentUserId;
+        // Whoever the session thinks holds the turn, a member training alone
+        // takes it. Otherwise closing one app would strand the other on a
+        // waiting screen for a partner who is never going to act.
+        //
+        // Presentation-layer only — `derivedMode` is untouched, so the session
+        // reverts to shared on its own the moment the partner comes back.
+        final trainingAlone = _evaluateSolo(session, currentUserId);
+        final isMyTurn = session.activeUserId == currentUserId || trainingAlone;
         if (isMyTurn) {
           return _buildActiveTurnView(
             session,
@@ -1896,6 +2014,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       currentExercise: partnerProgress?.currentExercise,
       totalSets: partnerProgress?.totalSets ?? 0,
       totalVolume: partnerProgress?.totalVolume ?? 0,
+      standing: _partnerStanding(session, partnerId),
     );
 
     final exerciseName = _currentTurnExercise ?? 'Workout';
@@ -1937,6 +2056,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       currentExercise: partnerProgress?.currentExercise,
       totalSets: partnerProgress?.totalSets ?? 0,
       totalVolume: partnerProgress?.totalVolume ?? 0,
+      standing: _partnerStanding(session, partnerId),
     );
 
     return ParallelCardioView(

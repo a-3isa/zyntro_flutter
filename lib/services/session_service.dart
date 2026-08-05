@@ -7,12 +7,15 @@ import 'package:rxdart/rxdart.dart';
 import '../core/models/models.dart';
 import '../core/constants/constants.dart';
 import '../features/session/domain/gym_session_plan.dart';
+import '../features/session/domain/resume_decision.dart';
+import '../features/session/domain/turn_eligibility.dart';
 import '../features/session/domain/workout_score.dart';
 import '../features/session/domain/workout_streak.dart';
 import '../utils/retry_helper.dart';
 import '../utils/offline_manager.dart';
 import '../features/auth/auth_providers.dart';
 import 'notification_service.dart';
+import 'presence_service.dart';
 import 'user_cache_service.dart';
 import 'session_analytics_service.dart';
 import 'follow_service.dart';
@@ -143,6 +146,37 @@ class SessionService {
     return records;
   }
 
+  /// Fields to merge into any write that counts as session activity.
+  ///
+  /// Recorded work or a state change by *any* participant resets the 3-hour
+  /// clock (FR-007a). `expiresAt` is stamped alongside because the scheduled
+  /// sweep range-filters on it, and Firestore allows only one range filter per
+  /// query — so it is stored rather than derived at read time.
+  ///
+  /// Merely viewing a session must NOT use this; viewing counts as presence,
+  /// not activity.
+  static Map<String, dynamic> activityStamp() {
+    return {
+      'lastActivityAt': FieldValue.serverTimestamp(),
+      'expiresAt': Timestamp.fromDate(
+        DateTime.now().toUtc().add(Session.inactivityLimit),
+      ),
+    };
+  }
+
+  /// Fields to merge into a write that only proves someone is present —
+  /// the presence heartbeat. Pushes expiry out without touching the activity
+  /// clock, so an idle-but-occupied session stays alive while still reading as
+  /// "quiet" for the warm/quiet split.
+  static Map<String, dynamic> occupancyStamp() {
+    return {
+      'lastOccupiedAt': FieldValue.serverTimestamp(),
+      'expiresAt': Timestamp.fromDate(
+        DateTime.now().toUtc().add(Session.inactivityLimit),
+      ),
+    };
+  }
+
   static Map<String, dynamic> participantCompletionRecord({
     required String sessionId,
     required String userId,
@@ -202,6 +236,106 @@ class SessionService {
     } catch (e) {
       debugPrint('Error checking active session: $e');
       return null;
+    }
+  }
+
+  /// The session this member should be returned to on a cold start, or null.
+  ///
+  /// Extends [checkActiveSession], which returns `snapshot.docs.first` with no
+  /// ordering — non-deterministic, and unable to satisfy the "most recent
+  /// activity wins" rule when a member somehow holds more than one.
+  ///
+  /// Never throws. This runs during start-up, so a failure here must degrade to
+  /// "no session to resume" rather than block the member from opening the app.
+  Future<ResumeCandidate?> findResumableSession(String userId) async {
+    try {
+      final snapshot = await _firestore
+          .collection('sessions')
+          .where('participants', arrayContains: userId)
+          .where('status', isEqualTo: SessionStatus.active.value)
+          .where('phase', isEqualTo: SessionPhase.live.value)
+          .orderBy('lastActivityAt', descending: true)
+          .limit(5)
+          .get();
+
+      // Ordering happens server-side, but a member who already terminated is
+      // filtered client-side: `endedParticipants` cannot be an inequality
+      // filter alongside the ordering above.
+      Session? session;
+      for (final doc in snapshot.docs) {
+        final candidate = Session.fromFirestore(doc);
+        if (!candidate.hasTerminated(userId)) {
+          session = candidate;
+          break;
+        }
+      }
+      if (session == null) return null;
+
+      return ResumeCandidate.fromSession(
+        session,
+        userId,
+        otherParticipantPresent: await _isAnyOtherParticipantPresent(
+          session,
+          userId,
+        ),
+      );
+    } catch (e) {
+      debugPrint('[SessionService] findResumableSession failed: $e');
+      return null;
+    }
+  }
+
+  /// Current presence for every participant, keyed by user id.
+  ///
+  /// Returns an empty map on failure, which reads as "nobody is present" — the
+  /// safe direction. Guessing someone is there would hand them a turn they can
+  /// never take.
+  Future<Map<String, UserPresence>> _presenceByUser(String sessionId) async {
+    try {
+      final snapshot = await _firestore
+          .collection('sessions')
+          .doc(sessionId)
+          .collection('presence')
+          .get();
+      return {
+        for (final doc in snapshot.docs) doc.id: UserPresence.fromFirestore(doc),
+      };
+    } catch (e) {
+      debugPrint('[SessionService] presence map lookup failed: $e');
+      return const {};
+    }
+  }
+
+  /// Whether anyone other than [userId] is actually in the room right now.
+  ///
+  /// Staleness-filtered: a force-killed app leaves `status: 'online'` written
+  /// forever, so trusting the flag alone would make every abandoned session
+  /// read as occupied and redirect with no prompt.
+  Future<bool> _isAnyOtherParticipantPresent(
+    Session session,
+    String userId,
+  ) async {
+    try {
+      final now = DateTime.now().toUtc();
+      final presence = await _firestore
+          .collection('sessions')
+          .doc(session.id)
+          .collection('presence')
+          .get();
+
+      return presence.docs.any((doc) {
+        if (doc.id == userId) return false;
+        if (session.hasTerminated(doc.id)) return false;
+        return PresenceService.isPresenceLive(
+          UserPresence.fromFirestore(doc),
+          now,
+        );
+      });
+    } catch (e) {
+      // Unknown presence must read as absent: guessing "present" would turn a
+      // dead session into a silent redirect.
+      debugPrint('[SessionService] presence lookup failed: $e');
+      return false;
     }
   }
 
@@ -281,7 +415,15 @@ class SessionService {
       'activeUserId': hostId,
       'phase': phase.value,
       'participantTypes': {hostId: type},
+      ...activityStamp(),
     });
+
+    // Denominator of the abandonment rate (SC-014). Captured at creation so a
+    // pre-release baseline exists to compare against.
+    _trackFunnelEvent(
+      ResumeSessionAnalyticsEvent.sessionStarted,
+      sessionRef.id,
+    );
 
     if (phase == SessionPhase.setup) {
       final hostPlanRef = sessionRef.collection('plans').doc(hostId);
@@ -473,6 +615,7 @@ class SessionService {
       'startedAt': FieldValue.serverTimestamp(),
       'activeUserId': hostId,
       'botProfile': BotFriend.gymSimulation().gymReps,
+      ...activityStamp(),
     });
     batch.set(hostPlanRef, hostPlan.toMap());
     batch.set(botPlanRef, botPlan.toMap());
@@ -562,6 +705,7 @@ class SessionService {
         'activeSetStartedAt': started
             ? FieldValue.serverTimestamp()
             : FieldValue.delete(),
+        ...activityStamp(),
       });
     } catch (e) {
       debugPrint('setActiveSetStarted($started) failed: $e');
@@ -579,6 +723,7 @@ class SessionService {
     await withRetryCircuitBreakerVoid(
       () => _firestore.collection('sessions').doc(sessionId).update({
         'participants': FieldValue.arrayUnion([userId]),
+        ...activityStamp(),
       }),
       operationType: 'session_join',
       maxFailures: 5,
@@ -642,6 +787,7 @@ class SessionService {
       'participants': FieldValue.arrayUnion([userId]),
       'participantTypes.$userId': chosenWorkoutType,
       'invitationStatus': WorkoutInvitationStatus.accepted.value,
+      ...activityStamp(),
     });
 
     // Not-ready plan stub so the lobby can edit / confirm before readiness.
@@ -728,6 +874,7 @@ class SessionService {
     await withRetry(
       () => _firestore.collection('sessions').doc(sessionId).update({
         'status': 'paused',
+        ...activityStamp(),
       }),
     );
 
@@ -745,6 +892,7 @@ class SessionService {
     await withRetry(
       () => _firestore.collection('sessions').doc(sessionId).update({
         'status': 'active',
+        ...activityStamp(),
       }),
     );
 
@@ -848,6 +996,100 @@ class SessionService {
 
   /// End a session.
   /// Matches RN endSession with batched writes for atomicity.
+  /// Ends [userId]'s own part in the session, leaving it live for everyone
+  /// else.
+  ///
+  /// Terminating has always been meant per-member: one member walking out must
+  /// not end their partner's workout. The remaining participant is notified and
+  /// gets to choose whether to finish too or carry on alone — this method never
+  /// makes that choice for them.
+  ///
+  /// The last member out is different: with nobody left, the session is
+  /// genuinely over, so this delegates to [endSession] and all the existing
+  /// scoring, streak and workout-logging behaviour runs unchanged.
+  Future<void> terminateForMember(String sessionId, String userId) async {
+    final session = await getSession(sessionId);
+    if (session == null) return;
+    if (!session.participants.contains(userId)) return;
+    if (session.hasTerminated(userId)) return;
+
+    final remaining = session.participants
+        .where((id) => id != userId && !session.hasTerminated(id))
+        .toList();
+
+    if (remaining.isEmpty) {
+      // Nobody left to carry it on — this is a real session end.
+      await endSession(sessionId, userId, null);
+      return;
+    }
+
+    final updates = <String, dynamic>{
+      'endedParticipants': FieldValue.arrayUnion([userId]),
+      ...activityStamp(),
+    };
+
+    // If the leaver held the turn, hand it on in the same write. Otherwise the
+    // session stalls on an activeUserId belonging to someone who has gone.
+    if (session.activeUserId == userId) {
+      final next = nextTurnHolder(
+        currentUserId: userId,
+        session: session,
+        presence: await _presenceByUser(sessionId),
+        now: DateTime.now().toUtc(),
+      );
+      updates['activeUserId'] = next ?? remaining.first;
+    }
+
+    await withRetry(
+      () => _firestore.collection('sessions').doc(sessionId).update(updates),
+    );
+
+    await addSessionEvent(
+      sessionId: sessionId,
+      type: SessionEventType.leave,
+      userId: userId,
+      text: 'Left the session',
+    );
+
+    await _notifyPartnersOfDeparture(
+      sessionId: sessionId,
+      leaverId: userId,
+      recipients: remaining,
+    );
+  }
+
+  /// Tells the remaining participants their partner has gone.
+  ///
+  /// The notification is for speed only. The finish-or-continue choice itself
+  /// renders from `endedParticipants` on the session, so a member who never
+  /// receives this — phone off, no signal, notification dismissed — still gets
+  /// the choice the next time they open the session.
+  ///
+  /// Best-effort: a failed notification must never leave the leaver stuck in a
+  /// session they have already left.
+  Future<void> _notifyPartnersOfDeparture({
+    required String sessionId,
+    required String leaverId,
+    required List<String> recipients,
+  }) async {
+    try {
+      final leaver = await _ref.read(userCacheServiceProvider).getUser(leaverId);
+      final leaverName = leaver?.displayName ?? 'Your partner';
+      final notificationService = _ref.read(notificationServiceProvider);
+
+      for (final recipientId in recipients) {
+        await notificationService.notifyPartnerLeft(
+          recipientId: recipientId,
+          sessionId: sessionId,
+          leaverId: leaverId,
+          leaverName: leaverName,
+        );
+      }
+    } catch (e) {
+      debugPrint('[SessionService] partner-left notification failed: $e');
+    }
+  }
+
   Future<void> endSession(
     String sessionId,
     String userId,
@@ -1025,6 +1267,30 @@ class SessionService {
       maxFailures: 5,
       cooldownDuration: const Duration(seconds: 30),
     );
+
+    // Numerator of the abandonment rate: a session that reached a real ending
+    // because somebody chose to finish it, as opposed to one that expired with
+    // nobody in it.
+    _trackFunnelEvent(
+      ResumeSessionAnalyticsEvent.sessionCompleted,
+      sessionId,
+    );
+  }
+
+  /// Records a funnel event without ever letting it affect the caller.
+  ///
+  /// A session must complete whether or not its telemetry does — including when
+  /// the analytics dependency is unavailable entirely.
+  void _trackFunnelEvent(ResumeSessionAnalyticsEvent event, String sessionId) {
+    try {
+      unawaited(
+        _ref
+            .read(sessionAnalyticsServiceProvider)
+            .trackResumeEvent(event, sessionId: sessionId),
+      );
+    } catch (e) {
+      debugPrint('[SessionService] funnel telemetry skipped: $e');
+    }
   }
 
   /// Get session by ID.
@@ -1220,6 +1486,7 @@ class SessionService {
         final liveUpdate = <String, dynamic>{
           'phase': SessionPhase.live.value,
           'mode': mode, // derivePairedSessionMode(participantTypes) above
+          ...activityStamp(),
         };
         if (sessionData['sharedClockStartedAt'] == null) {
           liveUpdate['sharedClockStartedAt'] = FieldValue.serverTimestamp();
@@ -1330,9 +1597,24 @@ class SessionService {
       return;
     }
 
-    // Calculate next participant index using modulo for round-robin cycling
-    final nextIndex = (currentIndex + 1) % session.participants.length;
-    final nextUserId = session.participants[nextIndex];
+    // Round-robin, but skipping anyone who cannot actually take the turn — a
+    // partner who terminated, or whose app is closed. Handing the turn to an
+    // absent member would stall the session: the one still training would sit
+    // on a waiting screen for someone who is never going to act.
+    //
+    // When nobody qualifies — both apps closed, or presence could not be read
+    // at all — this falls back to plain round-robin, i.e. exactly the previous
+    // behaviour. Degrading to the old rule beats inventing an answer from
+    // presence data we do not actually have, and such a session is heading for
+    // expiry anyway. `activeUserId` is never cleared: a null would need
+    // handling on every read for no benefit.
+    final nextUserId = nextTurnHolder(
+          currentUserId: currentUserId,
+          session: session,
+          presence: await _presenceByUser(sessionId),
+          now: DateTime.now().toUtc(),
+        ) ??
+        session.participants[(currentIndex + 1) % session.participants.length];
 
     // Get next participant's display name
     final nextUser = await _ref
@@ -1343,6 +1625,7 @@ class SessionService {
     await withRetry(() async {
       await _firestore.collection('sessions').doc(sessionId).update({
         'activeUserId': nextUserId,
+        ...activityStamp(),
       });
     });
 

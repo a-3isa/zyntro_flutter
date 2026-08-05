@@ -48,7 +48,16 @@ service cloud.firestore {
         resource.data.inviteExpiresAt is timestamp &&
         resource.data.inviteExpiresAt > request.time &&
         request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['participants', 'participantTypes', 'invitationStatus', 'mode']);
+          .hasOnly(['participants', 'participantTypes', 'invitationStatus', 'mode'].concat(activityStampKeys()));
+    }
+
+    // Accepting an invite, joining, or any other state change also refreshes
+    // the session's activity clock and its derived expiry, so every strict
+    // hasOnly() transition must tolerate these two alongside its own fields.
+    // They carry no authority on their own — a write that changes ONLY these is
+    // still rejected, because each transition has its own required conditions.
+    function activityStampKeys() {
+      return ['lastActivityAt', 'lastOccupiedAt', 'expiresAt'];
     }
 
     // An existing participant updating live session state (turn, phase, status,
@@ -56,10 +65,15 @@ service cloud.firestore {
     // frozen so a participant cannot hijack the host, tamper with the invite
     // list, or forge the invite status. (participants stays mutable because the
     // matchmaking host legitimately adds the matched partner to the roster.)
+    // `endedParticipants` is frozen here on purpose. This predicate uses a
+    // blocklist, so anything not named is writable — which would let one
+    // participant write their PARTNER's uid into the termination list and end a
+    // workout that is not theirs. Terminating has exactly one legitimate shape,
+    // and isOwnTerminationUpdate() below is it.
     function isParticipantSessionUpdate() {
       return hasParticipant(resource.data.participants, request.auth.uid) &&
         !request.resource.data.diff(resource.data).affectedKeys()
-          .hasAny(['hostId', 'invitedUserIds', 'invitationStatus']) &&
+          .hasAny(['hostId', 'invitedUserIds', 'invitationStatus', 'endedParticipants']) &&
         request.resource.data.participantTypes.diff(resource.data.participantTypes).affectedKeys().hasOnly([request.auth.uid]);
     }
 
@@ -75,7 +89,23 @@ service cloud.firestore {
         request.resource.data.participants.hasAll(resource.data.participants) &&
         hasParticipant(request.resource.data.participants, request.auth.uid) &&
         request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['participants']);
+          .hasOnly(['participants'].concat(activityStampKeys()));
+    }
+
+    // A participant ending their own part in a shared session. Terminating is
+    // per-member: the session stays live for everyone else, so this must NOT be
+    // able to end it for them. The caller may add only their own uid, may never
+    // remove anyone already there, and may touch nothing but the termination
+    // list and the activity stamps.
+    function isOwnTerminationUpdate() {
+      return hasParticipant(resource.data.participants, request.auth.uid) &&
+        request.resource.data.endedParticipants.hasAll(
+          resource.data.get('endedParticipants', [])) &&
+        request.resource.data.endedParticipants.hasOnly(
+          resource.data.get('endedParticipants', []).concat([request.auth.uid])) &&
+        hasParticipant(request.resource.data.endedParticipants, request.auth.uid) &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['endedParticipants'].concat(activityStampKeys()));
     }
 
     function isInviteDeclineUpdate() {
@@ -283,6 +313,15 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Runtime feature flags — kill switches that must be flippable from the
+    // console without shipping a build. Readable by anyone (the app reads them
+    // before sign-in completes); writable only from the Firebase console or an
+    // admin SDK, never from a client.
+    match /config/{document} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     match /sessions/{sessionId} {
       allow read: if isAuthenticated() &&
         (hasParticipant(resource.data.participants, request.auth.uid) ||
@@ -293,6 +332,7 @@ service cloud.firestore {
         hasValidPairedInviteEligibility();
       allow update: if isAuthenticated() && (
         isParticipantSessionUpdate() ||
+        isOwnTerminationUpdate() ||
         isInviteAcceptUpdate() ||
         isInviteDeclineUpdate() ||
         isGenericSelfJoinUpdate()

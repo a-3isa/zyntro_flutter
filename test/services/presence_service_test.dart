@@ -205,4 +205,148 @@ void main() {
       expect(all.map((p) => p.userId), containsAll(<String>[alice, bob]));
     });
   });
+
+  // A force-killed app never gets to write `away` or `offline`, so it leaves
+  // `status: 'online'` behind permanently. Trusting `status` alone would make
+  // every abandoned session read as occupied — and the warm/quiet split would
+  // then resolve the wrong way on exactly the sessions this feature exists to
+  // catch. Hence the staleness check.
+  group('isPresenceLive', () {
+    final now = DateTime.utc(2026, 8, 5, 12, 0);
+
+    UserPresence aged(PresenceStatus status, Duration age) => UserPresence(
+      userId: alice,
+      status: status,
+      lastChanged: now.subtract(age),
+    );
+
+    test('a freshly refreshed online record counts as present', () {
+      expect(
+        PresenceService.isPresenceLive(
+          aged(PresenceStatus.online, Duration.zero),
+          now,
+        ),
+        isTrue,
+      );
+    });
+
+    test('tolerates exactly one missed heartbeat', () {
+      expect(
+        PresenceService.heartbeatInterval,
+        lessThan(PresenceService.presenceTimeout),
+        reason: 'the timeout must outlast a single dropped beat',
+      );
+      expect(
+        PresenceService.isPresenceLive(
+          aged(PresenceStatus.online, PresenceService.heartbeatInterval),
+          now,
+        ),
+        isTrue,
+      );
+    });
+
+    test('a stale online record does NOT count as present', () {
+      // The force-killed app: still claims online, never refreshed again.
+      expect(
+        PresenceService.isPresenceLive(
+          aged(PresenceStatus.online, const Duration(minutes: 5)),
+          now,
+        ),
+        isFalse,
+      );
+    });
+
+    test('stops counting at the timeout boundary', () {
+      expect(
+        PresenceService.isPresenceLive(
+          aged(
+            PresenceStatus.online,
+            PresenceService.presenceTimeout - const Duration(seconds: 1),
+          ),
+          now,
+        ),
+        isTrue,
+      );
+      expect(
+        PresenceService.isPresenceLive(
+          aged(PresenceStatus.online, PresenceService.presenceTimeout),
+          now,
+        ),
+        isFalse,
+      );
+    });
+
+    test('away never counts as present, however fresh', () {
+      expect(
+        PresenceService.isPresenceLive(
+          aged(PresenceStatus.away, Duration.zero),
+          now,
+        ),
+        isFalse,
+      );
+    });
+
+    test('offline never counts as present, however fresh', () {
+      expect(
+        PresenceService.isPresenceLive(
+          aged(PresenceStatus.offline, Duration.zero),
+          now,
+        ),
+        isFalse,
+      );
+    });
+
+    test('a missing record counts as absent', () {
+      expect(PresenceService.isPresenceLive(null, now), isFalse);
+    });
+  });
+
+  group('startHeartbeat', () {
+    test('asserts presence immediately rather than after the first interval',
+        () async {
+      final timer = service.startHeartbeat(sessionId, alice);
+      addTearDown(timer.cancel);
+
+      // Without the eager first beat a member who just walked in would be
+      // invisible — and read as absent — for a full interval.
+      await Future<void>.delayed(Duration.zero);
+      expect((await readPresence(alice))?['status'], 'online');
+    });
+
+    test('pushes the session occupancy and expiry forward', () async {
+      await firestore.collection('sessions').doc(sessionId).set({
+        'participants': [alice],
+        'status': 'active',
+        'phase': 'live',
+      });
+
+      final timer = service.startHeartbeat(sessionId, alice);
+      addTearDown(timer.cancel);
+      await Future<void>.delayed(Duration.zero);
+
+      final session =
+          (await firestore.collection('sessions').doc(sessionId).get()).data();
+      expect(session?['lastOccupiedAt'], isNotNull);
+      expect(session?['expiresAt'], isNotNull);
+    });
+
+    test('does not stamp the activity clock — occupancy is not activity',
+        () async {
+      await firestore.collection('sessions').doc(sessionId).set({
+        'participants': [alice],
+        'status': 'active',
+        'phase': 'live',
+      });
+
+      final timer = service.startHeartbeat(sessionId, alice);
+      addTearDown(timer.cancel);
+      await Future<void>.delayed(Duration.zero);
+
+      // Sitting in the room keeps the session alive but must leave it reading
+      // as quiet, or a session nobody is working in would redirect as warm.
+      final session =
+          (await firestore.collection('sessions').doc(sessionId).get()).data();
+      expect(session?.containsKey('lastActivityAt'), isFalse);
+    });
+  });
 }

@@ -28,6 +28,49 @@ enum PairedSessionAnalyticsEvent {
   const PairedSessionAnalyticsEvent(this.value);
 }
 
+/// Telemetry for the resume-active-session feature.
+///
+/// Constitution IV requires success rate, error rate and rollback-trigger
+/// conditions to be observable before cutover, so every outcome of the resume
+/// decision emits one of these.
+enum ResumeSessionAnalyticsEvent {
+  /// A warm session took the member straight back in, with no prompt.
+  redirect('session_resume_redirect'),
+
+  /// A quiet session asked the member to continue or discard.
+  promptShown('session_resume_prompt_shown'),
+
+  /// The member answered that prompt. Payload carries `choice`:
+  /// `continue` or `discard`.
+  promptAnswered('session_resume_prompt_answered'),
+
+  /// A member chose what to do after their partner left. Payload carries
+  /// `choice`: `finish_too` or `carry_on`.
+  partnerLeftChoice('session_partner_left_choice'),
+
+  /// The scheduled sweep closed a session that had gone stale.
+  expiredSwept('session_expired_swept'),
+
+  /// The resume lookup failed and start-up fell back to the landing screen.
+  /// This is the rollback trigger — a spike here means flip the kill switch.
+  error('session_resume_error'),
+
+  /// A session went live. The denominator of the abandonment rate.
+  sessionStarted('session_started'),
+
+  /// A session reached a real ending — someone finished it deliberately.
+  /// The numerator, together with [sessionExpiredAbandoned].
+  sessionCompleted('session_completed'),
+
+  /// A session ended because nobody came back to it. This is the abandonment
+  /// the feature is meant to reduce: before it existed, force-closing the app
+  /// destroyed the session outright and the member had no way back.
+  sessionExpiredAbandoned('session_expired_abandoned');
+
+  final String value;
+  const ResumeSessionAnalyticsEvent(this.value);
+}
+
 /// Analytics service for session data analysis and PR tracking.
 class SessionAnalyticsService {
   final FirebaseFirestore _firestore;
@@ -79,6 +122,33 @@ class SessionAnalyticsService {
       });
     } catch (e) {
       debugPrint('[SessionAnalyticsService] Error tracking paired event: $e');
+    }
+  }
+
+  /// Records an outcome of the resume decision.
+  ///
+  /// Constitution IV requires success rate, error rate and rollback-trigger
+  /// conditions to be observable before cutover — a spike in
+  /// [ResumeSessionAnalyticsEvent.error] is what tells an operator to flip the
+  /// kill switch.
+  ///
+  /// Best-effort by design: telemetry must never take down a start-up path.
+  Future<void> trackResumeEvent(
+    ResumeSessionAnalyticsEvent event, {
+    String? sessionId,
+    Map<String, dynamic> extra = const {},
+  }) async {
+    try {
+      await _firestore.collection('analytics').add({
+        'type': event.value,
+        'sessionId': ?sessionId,
+        ...extra.map(
+          (key, value) => MapEntry(key, _serializeAnalyticsValue(value)),
+        ),
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint('[SessionAnalyticsService] Error tracking resume event: $e');
     }
   }
 

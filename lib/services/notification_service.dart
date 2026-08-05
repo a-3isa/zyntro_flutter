@@ -17,6 +17,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
+import '../app/launch_intent.dart';
 import '../app/navigation/app_route_locations.dart';
 import '../app/navigation/app_router.dart';
 import '../core/constants/constants.dart';
@@ -43,6 +44,7 @@ enum NotificationType {
   turnChange,
   jointPostInvite,
   jointPostExpired,
+  partnerLeft,
 }
 
 extension NotificationTypeExtension on NotificationType {
@@ -84,6 +86,8 @@ extension NotificationTypeExtension on NotificationType {
         return 'joint_post_invite';
       case NotificationType.jointPostExpired:
         return 'joint_post_expired';
+      case NotificationType.partnerLeft:
+        return 'partner_left';
     }
   }
 
@@ -125,6 +129,8 @@ extension NotificationTypeExtension on NotificationType {
         return NotificationType.jointPostInvite;
       case 'joint_post_expired':
         return NotificationType.jointPostExpired;
+      case 'partner_left':
+        return NotificationType.partnerLeft;
       default:
         return NotificationType.unknown;
     }
@@ -356,6 +362,18 @@ class NotificationService {
     // onMessageOpenedApp does NOT fire for this case — only getInitialMessage does.
     // init() is called before runApp(), so defer navigation one frame.
     final initialMessage = await _messaging.getInitialMessage();
+
+    // Record that this launch already has a destination, BEFORE runApp() builds
+    // the router. Session-resume reads this and stands down.
+    //
+    // Without it the two race: this navigation runs from a post-frame callback
+    // while the resume redirect runs from GoRouter's redirect callback, both
+    // driving the same navigator with nothing sequencing them — so a member who
+    // tapped a notification while holding a live session would land wherever
+    // the scheduler happened to finish last. init() running before runApp()
+    // turns that race into an ordering fact.
+    LaunchIntent.instance.hasExplicitDestination = initialMessage != null;
+
     if (initialMessage != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         unawaited(_navigateBasedOnData(initialMessage.data));
@@ -449,6 +467,35 @@ class NotificationService {
         }
         if (!navigatorContext.mounted) return;
         navigatorContext.push(AppRouteLocations.gymSessionSetup(sessionId));
+        return;
+      }
+
+      // A partner leaving points at a session that is still live for the
+      // recipient — they are mid-workout and get to decide whether to carry on.
+      // Mark it read on the way in so the notification list does not keep
+      // nagging about something they have now seen; the finish-or-continue
+      // choice itself comes from the session document, not from this doc, so
+      // clearing it costs them nothing.
+      if (notificationType == 'partner_left') {
+        final uid = _auth.currentUser?.uid;
+        final leaverId = data['leaverId'] as String?;
+        if (uid != null && leaverId != null) {
+          try {
+            await _userNotificationRef(
+              uid,
+              'partner_left_${sessionId}_$leaverId',
+            ).update({'read': true});
+          } catch (_) {
+            // Push-only path — the doc may not exist yet. Safe to ignore.
+          }
+        }
+        if (!navigatorContext.mounted) return;
+        navigatorContext.push(
+          AppRouteLocations.sessionRoom(
+            sessionId,
+            type: (data['sessionType'] as String?) ?? WorkoutType.gym.value,
+          ),
+        );
         return;
       }
 
@@ -841,6 +888,11 @@ class NotificationService {
         // notifications — mirrors the Cloud Function's recipientAllowsPush
         // default (honour only the global pushEnabled switch checked above).
         return true;
+      case NotificationType.partnerLeft:
+        // Core in-session information, like turn alerts: the member is mid
+        // workout and their partner has just walked out. Honour only the global
+        // pushEnabled switch (already checked above).
+        return true;
     }
   }
 
@@ -877,6 +929,42 @@ class NotificationService {
       recipientId: recipientId,
       data: data,
       rethrowOnFailure: true,
+    );
+  }
+
+  /// Tell the remaining participants that a partner has left the session.
+  ///
+  /// This is the fast route only. The finish-or-continue choice itself renders
+  /// from `endedParticipants` on the session document, so a member whose phone
+  /// was off, who had no signal, or who dismissed this still gets the choice
+  /// the next time they open the session. Never make the decision depend on
+  /// delivery.
+  ///
+  /// CF-authoritative like [notifySessionInvite]: the Cloud Function writes the
+  /// in-app doc (clients cannot create cross-user notifications — owner-only
+  /// rule) under the deterministic `partner_left_<sessionId>_<leaverId>` key,
+  /// so one departure yields exactly one notification however many times it is
+  /// retried.
+  ///
+  /// Not `rethrowOnFailure`: unlike an invite, a failed send here must not undo
+  /// anything. The member has already left, and the session record is the
+  /// source of truth regardless.
+  Future<void> notifyPartnerLeft({
+    required String recipientId,
+    required String sessionId,
+    required String leaverId,
+    required String leaverName,
+  }) async {
+    await _deliverPushNotification(
+      type: NotificationType.partnerLeft,
+      recipientId: recipientId,
+      data: {
+        'type': NotificationType.partnerLeft.value,
+        'sessionId': sessionId,
+        'leaverId': leaverId,
+        'leaverName': leaverName,
+        'byUserName': leaverName,
+      },
     );
   }
 

@@ -132,6 +132,24 @@ class Session {
   /// Per-participant workout type choice. {userId: workoutTypeValue}
   final Map<String, String> participantTypes;
 
+  /// Most recent moment any participant recorded work or changed session
+  /// state — a set logged, a turn passed, a plan committed, an invite
+  /// accepted. Merely viewing the session does NOT move this.
+  final DateTime? lastActivityAt;
+
+  /// Most recent moment any participant had the session room open, refreshed
+  /// by the presence heartbeat.
+  final DateTime? lastOccupiedAt;
+
+  /// `max(lastActivityAt, lastOccupiedAt) + 3h`. Stored rather than derived so
+  /// the scheduled sweep can range-filter on a single field — Firestore allows
+  /// only one range filter per query.
+  final DateTime? expiresAt;
+
+  /// Participants who have terminated their own part in the session.
+  /// Terminating is per-member: the session stays live for everyone else.
+  final List<String> endedParticipants;
+
   Session({
     required this.id,
     required this.type,
@@ -152,6 +170,10 @@ class Session {
     required this.startedAt,
     this.endedAt,
     this.participantTypes = const {},
+    this.lastActivityAt,
+    this.lastOccupiedAt,
+    this.expiresAt,
+    this.endedParticipants = const [],
   });
 
   /// Derive session mode from participant workout types.
@@ -207,8 +229,39 @@ class Session {
       participantTypes: rawTypes != null
           ? rawTypes.map((k, v) => MapEntry(k, v as String))
           : const {},
+      lastActivityAt: _dateTimeFromValue(data['lastActivityAt']),
+      lastOccupiedAt: _dateTimeFromValue(data['lastOccupiedAt']),
+      expiresAt: _dateTimeFromValue(data['expiresAt']),
+      endedParticipants:
+          (data['endedParticipants'] as List<dynamic>?)?.cast<String>() ??
+          const [],
     );
   }
+
+  /// How long a session survives with no activity and nobody present.
+  static const inactivityLimit = Duration(hours: 3);
+
+  /// Whether [userId] has terminated their own part in this session.
+  bool hasTerminated(String userId) => endedParticipants.contains(userId);
+
+  /// Whether the session has passed its expiry.
+  ///
+  /// A session written before this feature has no [expiresAt] and is treated as
+  /// expired — the sweep cannot see it, so it must never be resumed either.
+  bool isExpiredAt(DateTime now) =>
+      expiresAt == null || !now.isBefore(expiresAt!);
+
+  /// Whether [userId] can be automatically returned to this session.
+  ///
+  /// Live stage only. A session still in setup, or one already completed or
+  /// cancelled, is never resumed — there is no separate "wrap-up" stage to
+  /// check for, because a wrapped-up session is simply completed.
+  bool isResumableFor(String userId, DateTime now) =>
+      phase == SessionPhase.live &&
+      status == SessionStatus.active &&
+      participants.contains(userId) &&
+      !hasTerminated(userId) &&
+      !isExpiredAt(now);
 }
 
 DateTime? _dateTimeFromValue(Object? value) {

@@ -1,10 +1,10 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import 'parallel_gym_view.dart'; // for ParallelPartnerData
+import 'participant_avatar.dart';
 
 /// The cardio-side UI shown in parallel mode - the logged-in participant
 /// is running/cycling/swimming/walking while their partner does
@@ -351,24 +351,10 @@ class _CardioPartnerCard extends StatelessWidget {
             const SizedBox(height: 10),
             Row(
               children: [
-                CircleAvatar(
-                  radius: 18,
-                  backgroundColor: AppColors.surfaceV2,
-                  backgroundImage:
-                      partner.photoUrl != null && partner.photoUrl!.isNotEmpty
-                      ? CachedNetworkImageProvider(partner.photoUrl!)
-                      : null,
-                  child: partner.photoUrl == null || partner.photoUrl!.isEmpty
-                      ? Text(
-                          partner.name.isNotEmpty
-                              ? partner.name[0].toUpperCase()
-                              : '?',
-                          style: TextStyle(
-                            color: AppColors.textV2Primary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        )
-                      : null,
+                ParticipantAvatar(
+                  name: partner.name,
+                  photoUrl: partner.photoUrl,
+                  standing: partner.standing,
                 ),
                 const SizedBox(width: 10),
                 Expanded(

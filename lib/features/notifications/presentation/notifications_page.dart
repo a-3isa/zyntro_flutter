@@ -611,6 +611,9 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         break;
       case NotificationType.sessionInvite:
       case NotificationType.buddySession:
+      // A partner leaving opens the same place: the session, which is still
+      // live for this member and theirs to finish or leave.
+      case NotificationType.partnerLeft:
         final sessionId = data?['sessionId'] as String?;
         final sessionType =
             data?['sessionType'] as String? ?? WorkoutType.gym.value;
@@ -736,6 +739,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         return Icons.heart_broken_rounded;
       case NotificationType.turnChange:
         return Icons.swap_horiz_rounded;
+      case NotificationType.partnerLeft:
+        return Icons.person_remove_rounded;
       case NotificationType.jointPostInvite:
         return Icons.group_add_rounded;
       case NotificationType.jointPostExpired:
@@ -772,6 +777,9 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         return Colors.grey;
       case NotificationType.turnChange:
         return AppColors.userAccent;
+      case NotificationType.partnerLeft:
+        // Informational, not an alert — the member's own session is unaffected.
+        return AppColors.textV2Secondary;
       case NotificationType.jointPostInvite:
         return AppColors.userAccent;
       case NotificationType.jointPostExpired:

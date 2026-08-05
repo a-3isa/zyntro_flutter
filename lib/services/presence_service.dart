@@ -67,6 +67,58 @@ class PresenceService {
 
   PresenceService(this._firestore);
 
+  /// How often a member in the session room re-asserts their presence.
+  static const heartbeatInterval = Duration(seconds: 60);
+
+  /// How long a presence record stays trustworthy without a refresh.
+  ///
+  /// Deliberately longer than [heartbeatInterval] so one missed beat — a brief
+  /// network blip — does not read as the member having left.
+  static const presenceTimeout = Duration(seconds: 90);
+
+  /// Whether [presence] means the member is actually in the room right now.
+  ///
+  /// The `status` field alone cannot be trusted: a force-killed app never gets
+  /// to write `away`, so it leaves `online` behind permanently. Without the
+  /// staleness check every abandoned session would read as occupied, and the
+  /// warm/quiet split would resolve the wrong way every time.
+  static bool isPresenceLive(UserPresence? presence, DateTime now) {
+    if (presence == null) return false;
+    if (presence.status != PresenceStatus.online) return false;
+    return now.difference(presence.lastChanged) < presenceTimeout;
+  }
+
+  /// Starts refreshing presence for as long as the member has the room open.
+  ///
+  /// Each beat also pushes the session's occupancy and expiry forward, so a
+  /// session with someone sitting in it never expires underneath them. Callers
+  /// own the returned timer and must cancel it on dispose.
+  Timer startHeartbeat(String sessionId, String userId) {
+    // Beat immediately so a member who just arrived is not invisible for the
+    // first interval.
+    unawaited(_beat(sessionId, userId));
+    return Timer.periodic(
+      heartbeatInterval,
+      (_) => unawaited(_beat(sessionId, userId)),
+    );
+  }
+
+  Future<void> _beat(String sessionId, String userId) async {
+    try {
+      await updateSessionPresence(sessionId, userId, PresenceStatus.online);
+      await _firestore.collection('sessions').doc(sessionId).update({
+        'lastOccupiedAt': FieldValue.serverTimestamp(),
+        'expiresAt': Timestamp.fromDate(
+          DateTime.now().toUtc().add(const Duration(hours: 3)),
+        ),
+      });
+    } catch (e) {
+      // A dropped beat is survivable — presenceTimeout tolerates one, and the
+      // next beat repairs it. Never let this surface to the member mid-workout.
+      debugPrint('[PresenceService] Heartbeat failed for $sessionId: $e');
+    }
+  }
+
   /// Get cached presence or offline if not found.
   PresenceStatus _getCachedPresence(String sessionId, String userId) {
     return _presenceCache[sessionId]?[userId] ?? PresenceStatus.offline;

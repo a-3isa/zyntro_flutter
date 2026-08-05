@@ -1,9 +1,10 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_theme.dart';
+import '../../domain/turn_eligibility.dart';
+import 'participant_avatar.dart';
 import 'rep_counter_screen.dart';
 
 /// Partner metrics shown in the compact partner card while training
@@ -27,10 +28,18 @@ class ParallelPartnerData {
   final int totalSets;
   final double totalVolume; // kg
 
+  /// Whether the partner is present, temporarily away, or gone for good.
+  ///
+  /// Away and left must never render alike: one stepped out and is coming back,
+  /// the other has finished. Showing a partner who took a phone call as though
+  /// they had quit is its own kind of wrong.
+  final ParticipantStanding standing;
+
   const ParallelPartnerData({
     required this.name,
     this.photoUrl,
     required this.workoutType,
+    this.standing = ParticipantStanding.active,
     this.totalDistance = 0,
     this.averagePace,
     this.elapsedTime = Duration.zero,
@@ -392,24 +401,10 @@ class _PartnerCard extends StatelessWidget {
             const SizedBox(height: 10),
             Row(
               children: [
-                CircleAvatar(
-                  radius: 18,
-                  backgroundColor: AppColors.surfaceV2,
-                  backgroundImage:
-                      partner.photoUrl != null && partner.photoUrl!.isNotEmpty
-                      ? CachedNetworkImageProvider(partner.photoUrl!)
-                      : null,
-                  child: partner.photoUrl == null || partner.photoUrl!.isEmpty
-                      ? Text(
-                          partner.name.isNotEmpty
-                              ? partner.name[0].toUpperCase()
-                              : '?',
-                          style: TextStyle(
-                            color: AppColors.textV2Primary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        )
-                      : null,
+                ParticipantAvatar(
+                  name: partner.name,
+                  photoUrl: partner.photoUrl,
+                  standing: partner.standing,
                 ),
                 const SizedBox(width: 10),
                 Expanded(

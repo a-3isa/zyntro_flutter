@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,7 +7,12 @@ import 'package:go_router/go_router.dart';
 
 import 'app_route_locations.dart';
 import '../app_runtime_config.dart';
+import '../launch_intent.dart';
 import '../../core/constants/constants.dart';
+import '../../core/constants/feature_flags.dart';
+import '../../features/session/domain/resume_decision.dart';
+import '../../services/session_analytics_service.dart';
+import '../../services/session_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../features/auth/presentation/splash_page.dart';
 import '../../features/auth/presentation/login_page.dart';
@@ -193,6 +200,89 @@ CustomTransitionPage<void> _slidePage(GoRouterState state, Widget child) {
   );
 }
 
+/// Resolves, once per cold start, what to do about a session the member may
+/// still be in.
+///
+/// One-shot on purpose. The router re-evaluates its redirect on every auth
+/// event via [authChangeNotifier]; if this were recomputed each time, an
+/// ordinary token refresh would re-fire the redirect and yank a member back
+/// into a session they had already moved on from. Resolved during the splash
+/// hold the router already performs, so it costs no extra frame.
+final resumeDecisionProvider = FutureProvider<ResumeDecision>((ref) async {
+  final user = ref.watch(authSessionProvider).value;
+  if (user == null) return const ResumeNone();
+
+  // A launch that already has a destination outranks resuming — see
+  // LaunchIntent for why this is read rather than synchronised.
+  final launchIntent = ref.watch(launchIntentProvider);
+
+  // Kill switch. Reading it must never block start-up, so a failure degrades to
+  // the compile-time default rather than propagating.
+  final resumeEnabled = await ref
+      .watch(resumeActiveSessionEnabledProvider.future)
+      .catchError((_) => FeatureFlags.isResumeActiveSessionEnabledByDefault);
+
+  final candidate = await ref
+      .read(sessionServiceProvider)
+      .findResumableSession(user.id);
+
+  final decision = resolveResumeDecision(
+    candidate: candidate,
+    now: DateTime.now().toUtc(),
+    hasExplicitLaunchDestination: launchIntent.hasExplicitDestination,
+    resumeEnabled: resumeEnabled,
+    // The landing screen owns the notice, and marks it seen when it shows it.
+    expiryAlreadyNotified: false,
+  );
+
+  if (decision is ResumeRedirect) {
+    unawaited(
+      ref
+          .read(sessionAnalyticsServiceProvider)
+          .trackResumeEvent(
+            ResumeSessionAnalyticsEvent.redirect,
+            sessionId: decision.sessionId,
+          ),
+    );
+  }
+
+  return decision;
+});
+
+/// Where an authenticated, onboarded member should land at start-up, given the
+/// resume decision.
+///
+/// Extracted from the redirect closure so it can be tested against the real
+/// implementation. The rest of this file's redirect logic is covered by a test
+/// that re-implements it, which cannot catch drift between the copy and the
+/// original; this branch does not have that problem.
+///
+/// Only called once auth and onboarding have already settled, so it never has
+/// to reason about either.
+String? resumeStartupLocation({
+  required ResumeDecision? decision,
+  required bool decisionResolved,
+  required String currentLocation,
+}) {
+  // Hold on splash until the decision is in. Returning `main` here and
+  // navigating afterwards would show the member the home screen for a frame
+  // before yanking them into their session.
+  if (!decisionResolved) {
+    return currentLocation == AppRoutes.splash ? null : AppRoutes.splash;
+  }
+
+  if (decision is ResumeRedirect) {
+    return AppRouteLocations.sessionRoom(
+      decision.sessionId,
+      type: decision.workoutType,
+    );
+  }
+
+  // A prompt or an expiry notice is not a navigation — the landing screen
+  // surfaces both, so the member still lands on main.
+  return AppRoutes.main;
+}
+
 /// GoRouter provider with auth-based redirects and premium transitions.
 /// The router is created once and re-evaluates its redirect via [refreshListenable]
 /// when auth state changes, preventing the GoRouter rebuild that caused a
@@ -207,6 +297,26 @@ final routerProvider = Provider<GoRouter>((ref) {
   // Validate restored sessions before allowing startup navigation.
   var startupProfileCheckDone = false;
   var signingOut = false;
+
+  // Latched once per process start, exactly like startupProfileCheckDone below.
+  // Recomputing it on refreshListenable ticks would re-fire the redirect on
+  // ordinary auth events.
+  ResumeDecision? resumeDecision;
+  var resumeDecisionDone = false;
+
+  ref.listen<AsyncValue<ResumeDecision>>(resumeDecisionProvider, (_, next) {
+    if (resumeDecisionDone) return;
+    if (next.hasValue) {
+      resumeDecision = next.value;
+      resumeDecisionDone = true;
+    } else if (next.hasError) {
+      // Never block start-up on this. Falling through to the landing screen is
+      // the correct failure mode (FR-016).
+      resumeDecision = const ResumeNone();
+      resumeDecisionDone = true;
+    }
+    authChangeNotifier.trigger();
+  });
 
   ref.listen<AsyncValue<AuthUserEntity?>>(authSessionProvider, (_, next) {
     authState = next;
@@ -300,8 +410,17 @@ final routerProvider = Provider<GoRouter>((ref) {
           !hasCompletionError && (profileComplete.value ?? false);
 
       if (isProfileComplete) {
-        // Returning, set-up users go straight to the app (home/feed).
-        if (isOnAuthEntry || isOnSetup) return AppRoutes.main;
+        // Returning, set-up users go straight to the app (home/feed) — unless
+        // they left a workout running. Placed here so authentication and
+        // onboarding are already settled: a member is never pulled into a
+        // session ahead of signing in or finishing setup.
+        if (isOnAuthEntry || isOnSetup) {
+          return resumeStartupLocation(
+            decision: resumeDecision,
+            decisionResolved: resumeDecisionDone,
+            currentLocation: loc,
+          );
+        }
         return null;
       }
 

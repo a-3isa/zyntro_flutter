@@ -691,9 +691,17 @@ void main() {
       await sessionService.switchTurn(sessionId, currentUserId);
 
       // Assert
-      verify(
-        () => mockSessionDoc.update({'activeUserId': otherUserId}),
-      ).called(1);
+      // Passing the turn is session activity, so the write also carries the
+      // activity stamp that keeps the session from expiring mid-workout.
+      // Match on the field under test rather than the whole payload.
+      final turnWrite =
+          (verify(() => mockSessionDoc.update(captureAny())).captured.single
+              as Map)
+              .map((key, value) => MapEntry(key.toString(), value));
+
+      expect(turnWrite['activeUserId'], otherUserId);
+      expect(turnWrite['lastActivityAt'], isNotNull);
+      expect(turnWrite['expiresAt'], isNotNull);
     });
 
     test('endSession only updates caller user stats from the client', () async {
