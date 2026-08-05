@@ -1,0 +1,346 @@
+openapi: 3.0.3
+info:
+  title: Friend Workout Sessions Contract
+  version: 0.1.0
+  description: >
+    Descriptive service contract for one-to-one friend workout sessions in the
+    Flutter app. These operations may be implemented as app service methods
+    rather than public HTTP endpoints.
+paths:
+  /sessions/paired:
+    post:
+      summary: Create a one-to-one paired session
+      operationId: createPairedSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePairedSessionRequest'
+      responses:
+        '201':
+          description: Paired session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SharedSession'
+        '400':
+          description: Invalid participant count or workout type
+        '403':
+          description: Invitee is not an eligible mutual follow or block relationship exists
+        '409':
+          description: Host or invitee is already in an incompatible active session
+  /sessions/{sessionId}/bot/start:
+    post:
+      summary: Start or prepare a bot friend session
+      operationId: startBotFriendSession
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Bot partner attached and ready for simulation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SharedSession'
+        '409':
+          description: Session already has a real friend or bot partner
+  /sessions/{sessionId}/invite/respond:
+    post:
+      summary: Accept or decline a session invitation
+      operationId: respondToSessionInvite
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InviteResponseRequest'
+      responses:
+        '200':
+          description: Invite response accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkoutInvitation'
+        '403':
+          description: User is not the invitee or eligibility no longer holds
+        '410':
+          description: Invitation expired or cancelled
+  /sessions/{sessionId}/plans/{userId}:
+    put:
+      summary: Submit or update a participant-owned plan
+      operationId: submitParticipantPlan
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ParticipantPlan'
+      responses:
+        '200':
+          description: Plan saved for the owner only
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParticipantPlan'
+        '403':
+          description: User cannot edit another participant's plan
+        '409':
+          description: Plan conflicts with selected workout type or session state
+  /sessions/{sessionId}/start:
+    post:
+      summary: Start active workout after readiness checks
+      operationId: startPairedWorkout
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Session started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SharedSession'
+        '409':
+          description: Invite, participant count, or plan readiness is incomplete
+  /sessions/{sessionId}/progress:
+    get:
+      summary: Read current participant progress snapshot
+      operationId: getSessionProgress
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Progress by participant
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  $ref: '#/components/schemas/ParticipantProgress'
+  /sessions/{sessionId}/complete:
+    post:
+      summary: Complete paired session and create per-user history
+      operationId: completePairedSession
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Session completed and completion records written
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  records:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SessionCompletionRecord'
+        '409':
+          description: Session cannot be completed from current state
+components:
+  parameters:
+    SessionId:
+      name: sessionId
+      in: path
+      required: true
+      schema:
+        type: string
+  schemas:
+    CreatePairedSessionRequest:
+      type: object
+      required: [hostId, hostWorkoutType, partnerKind]
+      properties:
+        hostId:
+          type: string
+        hostWorkoutType:
+          $ref: '#/components/schemas/WorkoutType'
+        partnerKind:
+          type: string
+          enum: [realFriend, bot]
+        inviteeId:
+          type: string
+          description: Required when partnerKind is realFriend.
+    SharedSession:
+      type: object
+      required: [id, hostId, partnerKind, participants, status, mode]
+      properties:
+        id:
+          type: string
+        hostId:
+          type: string
+        partnerId:
+          type: string
+        partnerKind:
+          type: string
+          enum: [realFriend, bot]
+        participants:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items:
+            type: string
+        participantTypes:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/WorkoutType'
+        status:
+          type: string
+          enum: [draft, inviting, setup, active, completed, cancelled, abandoned]
+        mode:
+          type: string
+          enum: [turnBased, parallel]
+        activeUserId:
+          type: string
+          nullable: true
+    WorkoutInvitation:
+      type: object
+      required: [id, sessionId, hostId, inviteeId, status, createdAt, expiresAt]
+      properties:
+        id:
+          type: string
+        sessionId:
+          type: string
+        hostId:
+          type: string
+        inviteeId:
+          type: string
+        status:
+          type: string
+          enum: [pending, accepted, declined, expired, cancelled]
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+          description: Always 30 seconds after createdAt.
+        deliveryStatus:
+          type: string
+          enum: [queued, shown, failed, unavailable]
+    InviteResponseRequest:
+      type: object
+      required: [inviteeId, response, chosenWorkoutType]
+      properties:
+        inviteeId:
+          type: string
+        response:
+          type: string
+          enum: [accepted, declined]
+        chosenWorkoutType:
+          $ref: '#/components/schemas/WorkoutType'
+    ParticipantPlan:
+      type: object
+      required: [sessionId, userId, workoutType, source, isReady]
+      properties:
+        sessionId:
+          type: string
+        userId:
+          type: string
+        workoutType:
+          $ref: '#/components/schemas/WorkoutType'
+        source:
+          type: string
+          enum: [hostTemplate, personalCopy, personal]
+        isReady:
+          type: boolean
+        exercises:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanExercise'
+        stages:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanStage'
+    PlanExercise:
+      type: object
+      required: [id, name, plannedSets, order]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        plannedSets:
+          type: integer
+          minimum: 1
+        order:
+          type: integer
+          minimum: 0
+    PlanStage:
+      type: object
+      required: [id, label, targetKind]
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        targetKind:
+          type: string
+          enum: [duration, distance, rounds, stageCompletion]
+        targetValue:
+          type: number
+    ParticipantProgress:
+      type: object
+      required: [sessionId, userId, workoutType, status, sharedElapsedSeconds, updatedAt]
+      properties:
+        sessionId:
+          type: string
+        userId:
+          type: string
+        workoutType:
+          $ref: '#/components/schemas/WorkoutType'
+        status:
+          type: string
+          enum: [waiting, active, resting, paused, disconnected, completed]
+        turnStatus:
+          type: string
+          enum: [activeTurn, waitingTurn]
+          nullable: true
+        sharedElapsedSeconds:
+          type: integer
+          minimum: 0
+        gymMetrics:
+          type: object
+          additionalProperties: true
+        timeMetrics:
+          type: object
+          additionalProperties: true
+        distanceMetrics:
+          type: object
+          additionalProperties: true
+        roundMetrics:
+          type: object
+          additionalProperties: true
+        mobilityMetrics:
+          type: object
+          additionalProperties: true
+        updatedAt:
+          type: string
+          format: date-time
+    SessionCompletionRecord:
+      type: object
+      required: [sessionId, userId, workoutType, progressSummary]
+      properties:
+        sessionId:
+          type: string
+        userId:
+          type: string
+        partnerId:
+          type: string
+        workoutType:
+          $ref: '#/components/schemas/WorkoutType'
+        progressSummary:
+          type: object
+          additionalProperties: true
+    WorkoutType:
+      type: string
+      enum: [gym, running, cycling, swimming, yoga, hiit, walking, sports, other]
+

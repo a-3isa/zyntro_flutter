@@ -79,10 +79,12 @@ codemagic.secrets
 .superpowers/
 .claude/skills/
 .specify/
-specs/
 .agents/
 Thumbs.db
 *.tmp
+
+# Kotlin incremental-build cache (regenerated on every build)
+android/.kotlin/
 keytool_report.txt
 android/android_keys.txt
 android_keys.txt
