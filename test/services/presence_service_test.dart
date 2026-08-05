@@ -230,18 +230,30 @@ void main() {
       );
     });
 
-    test('tolerates exactly one missed heartbeat', () {
+    test('tolerates several missed heartbeats', () {
+      // Used in gyms, where patchy reception is normal. Calling a signal drop a
+      // departure would swap the member into solo mode while their partner is
+      // standing next to them.
       expect(
-        PresenceService.heartbeatInterval,
-        lessThan(PresenceService.presenceTimeout),
-        reason: 'the timeout must outlast a single dropped beat',
+        PresenceService.presenceTimeout,
+        greaterThanOrEqualTo(PresenceService.heartbeatInterval * 3),
+        reason: 'a couple of dropped beats must not read as leaving',
       );
       expect(
         PresenceService.isPresenceLive(
-          aged(PresenceStatus.online, PresenceService.heartbeatInterval),
+          aged(PresenceStatus.online, PresenceService.heartbeatInterval * 2),
           now,
         ),
         isTrue,
+      );
+    });
+
+    test('still notices a departure quickly', () {
+      // The whole cost of a slow timeout is paid by the member who stayed, as
+      // time spent looking at a partner who has actually gone.
+      expect(
+        PresenceService.presenceTimeout,
+        lessThanOrEqualTo(const Duration(seconds: 45)),
       );
     });
 
@@ -328,6 +340,16 @@ void main() {
           (await firestore.collection('sessions').doc(sessionId).get()).data();
       expect(session?['lastOccupiedAt'], isNotNull);
       expect(session?['expiresAt'], isNotNull);
+    });
+
+    test('refreshes occupancy less often than presence', () async {
+      // Presence decides what the member sees and wants to be quick; occupancy
+      // only has to keep a three-hour expiry from firing. Tying them together
+      // would multiply writes to the session document for no benefit.
+      expect(
+        PresenceService.occupancyRefreshInterval,
+        greaterThan(PresenceService.heartbeatInterval),
+      );
     });
 
     test('does not stamp the activity clock — occupancy is not activity',

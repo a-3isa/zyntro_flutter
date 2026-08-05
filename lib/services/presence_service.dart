@@ -68,13 +68,29 @@ class PresenceService {
   PresenceService(this._firestore);
 
   /// How often a member in the session room re-asserts their presence.
-  static const heartbeatInterval = Duration(seconds: 60);
+  ///
+  /// Fast, because this is what decides how long the member who stayed is left
+  /// looking at a partner who has actually gone. Presence docs are tiny and a
+  /// session is bounded, so the write volume is not worth optimising against
+  /// the wait it removes.
+  static const heartbeatInterval = Duration(seconds: 15);
 
   /// How long a presence record stays trustworthy without a refresh.
   ///
-  /// Deliberately longer than [heartbeatInterval] so one missed beat — a brief
-  /// network blip — does not read as the member having left.
-  static const presenceTimeout = Duration(seconds: 90);
+  /// Three beats of tolerance. A stricter timeout would detect a departure
+  /// sooner but start calling a brief signal drop a departure, and this feature
+  /// is used in gyms — patchy reception is the normal case, not the edge one.
+  static const presenceTimeout = Duration(seconds: 45);
+
+  /// How often the heartbeat also pushes the session's own occupancy and expiry
+  /// forward.
+  ///
+  /// Deliberately slower than [heartbeatInterval]: presence drives what the
+  /// member sees and wants to be quick, whereas occupancy only has to keep a
+  /// session from expiring under someone — three hours away. Keeping them
+  /// separate makes presence fast without multiplying writes to the session
+  /// document.
+  static const occupancyRefreshInterval = Duration(seconds: 60);
 
   /// Whether [presence] means the member is actually in the room right now.
   ///
@@ -90,22 +106,35 @@ class PresenceService {
 
   /// Starts refreshing presence for as long as the member has the room open.
   ///
-  /// Each beat also pushes the session's occupancy and expiry forward, so a
-  /// session with someone sitting in it never expires underneath them. Callers
-  /// own the returned timer and must cancel it on dispose.
+  /// Every beat refreshes presence; occupancy and expiry are pushed forward on
+  /// the slower [occupancyRefreshInterval], so a session with someone sitting
+  /// in it never expires underneath them without paying for a session-document
+  /// write on every beat. Callers own the returned timer and must cancel it on
+  /// dispose.
   Timer startHeartbeat(String sessionId, String userId) {
     // Beat immediately so a member who just arrived is not invisible for the
     // first interval.
-    unawaited(_beat(sessionId, userId));
-    return Timer.periodic(
-      heartbeatInterval,
-      (_) => unawaited(_beat(sessionId, userId)),
-    );
+    var lastOccupancyRefresh = DateTime.fromMillisecondsSinceEpoch(0);
+    Future<void> beat() async {
+      final now = DateTime.now().toUtc();
+      final refreshOccupancy =
+          now.difference(lastOccupancyRefresh) >= occupancyRefreshInterval;
+      if (refreshOccupancy) lastOccupancyRefresh = now;
+      await _beat(sessionId, userId, refreshOccupancy: refreshOccupancy);
+    }
+
+    unawaited(beat());
+    return Timer.periodic(heartbeatInterval, (_) => unawaited(beat()));
   }
 
-  Future<void> _beat(String sessionId, String userId) async {
+  Future<void> _beat(
+    String sessionId,
+    String userId, {
+    required bool refreshOccupancy,
+  }) async {
     try {
       await updateSessionPresence(sessionId, userId, PresenceStatus.online);
+      if (!refreshOccupancy) return;
       await _firestore.collection('sessions').doc(sessionId).update({
         'lastOccupiedAt': FieldValue.serverTimestamp(),
         'expiresAt': Timestamp.fromDate(
@@ -113,7 +142,7 @@ class PresenceService {
         ),
       });
     } catch (e) {
-      // A dropped beat is survivable — presenceTimeout tolerates one, and the
+      // A dropped beat is survivable — presenceTimeout tolerates three, and the
       // next beat repairs it. Never let this surface to the member mid-workout.
       debugPrint('[PresenceService] Heartbeat failed for $sessionId: $e');
     }

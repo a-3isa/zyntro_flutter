@@ -200,10 +200,49 @@ periodic tick so a genuinely present member is never misread as stale. 60 second
 threshold gives one missed beat of tolerance.
 
 **Alternatives considered**:
-- *Firebase Realtime Database `onDisconnect`* — the standard answer to exactly this problem and
-  strictly more reliable, but rejected for this slice: the project has no RTDB instance configured
-  (`firebase.json` declares firestore, storage and functions only), so it would mean provisioning a
-  second database for one flag. Recorded as a follow-up if heartbeat accuracy proves insufficient.
+- *Firebase Realtime Database `onDisconnect`* — the standard answer to exactly this problem. Settled
+  against; see R12.
+
+---
+
+## R12 — RTDB `onDisconnect`, resolved (2026-08-05)
+
+R6 left this open as "the follow-up if heartbeat accuracy proves insufficient". Closing it, because
+leaving it open invites someone to reach for it without doing the arithmetic.
+
+**What it would buy.** `onDisconnect` fires server-side within seconds of a socket dropping, rather
+than waiting for a heartbeat to go stale. The only place that delay is *felt* is the member who
+stayed: how long they look at a partner who has actually gone before the view drops to solo.
+
+**What it would cost.**
+
+- A second presence store, and therefore a second source of truth. `expiresAt` is derived from
+  `lastOccupiedAt` **in Firestore**; moving presence to RTDB means either keeping the Firestore
+  heartbeat anyway (both systems) or adding a Function to mirror RTDB → Firestore (more moving
+  parts, and a new failure mode where the two disagree).
+- A new Firebase product provisioned on the production project — the RTDB Management API is
+  currently disabled on `zynrto` — plus a second security-rules language and file to maintain.
+- A new Flutter dependency (`firebase_database`).
+
+**Decision: no RTDB. Tighten the heartbeat instead.**
+
+| | Before | After |
+|---|---|---|
+| Heartbeat | 60s | **15s** |
+| Presence timeout | 90s (1.5 beats) | **45s (3 beats)** |
+| Worst case before solo view | 90s + 30s grace = **120s** | 45s + 30s grace = **75s** |
+| Blip tolerance | 1 dropped beat | **3 dropped beats** |
+
+This halves the wait *and* makes the system more forgiving of the patchy gym reception it actually
+runs in — the opposite trade to the one a shorter timeout alone would have made. Session-document
+occupancy is refreshed on a separate 60s interval, so faster presence does not multiply writes to
+the session document; only the tiny presence subcollection gets the extra traffic, and a session is
+bounded.
+
+**When to revisit.** If sub-10-second detection is ever genuinely required — a feature where two
+members must stay in lockstep, say — RTDB becomes the right tool and this analysis should be redone.
+Nothing in resume needs it: the member who stayed keeps training either way, and the returning member
+was gone for minutes, not seconds.
 
 ---
 
