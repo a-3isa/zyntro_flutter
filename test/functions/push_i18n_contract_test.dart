@@ -10,6 +10,9 @@ void main() {
     expect(source, contains('دعوة جلسة'));
     expect(source, contains('دورك!'));
     expect(source, contains('دعوة صديق تمارين'));
+    expect(source, contains('منشور مشترك؟'));
+    expect(source, contains('رسالة صوتية'));
+    expect(source, contains('انتهت صلاحية المنشور المشترك'));
 
     final locale = File('lib/core/l10n/locale_provider.dart').readAsStringSync();
     expect(locale, contains("'locale':"));
