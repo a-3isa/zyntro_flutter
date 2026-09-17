@@ -1,5 +1,8 @@
 # Clean Architecture Feature Workflow
 
+> **Paused for non-auth features.** See [`ARCHITECTURE_MIGRATION.md`](./ARCHITECTURE_MIGRATION.md) (Z-ARCH-001).
+> Auth remains the layered reference; this workflow applies when a feature migration is explicitly revived.
+
 This workflow standardizes how new feature slices are planned and delivered after the auth migration slice.
 
 ## 1. Scope the Migration Slice

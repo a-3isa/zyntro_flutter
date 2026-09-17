@@ -1,3 +1,5 @@
+# Advisory only — see docs/ARCHITECTURE_MIGRATION.md (Z-ARCH-001).
+# Not a required CI gate while the multi-feature migration is paused.
 param(
     [Parameter(Mandatory = $false)]
     [string]$FeaturePath = "D:/zyntro_flutter/lib/features",
