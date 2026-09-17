@@ -60,7 +60,8 @@ void main() {
         rules.indexOf('match /events/{eventId}', idx),
       );
 
-      expect(section, contains('allow get: if isAuthenticated();'));
+      expect(section, contains('isEmailVerifiedForSocial()'));
+      expect(section, contains("inviteCode.matches('^[A-Z0-9]{8}\$')"));
       expect(section, contains('allow list: if false;'));
       expect(section, contains('isBuddyInviteCodeRedeemUpdate()'));
       expect(

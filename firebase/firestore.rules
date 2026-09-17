@@ -693,12 +693,21 @@ service cloud.firestore {
     }
 
     match /inviteCodes/{inviteCode} {
-      allow get: if isAuthenticated();
+      // Z-JOURNEY-001: get-by-code only (no list). Require verified email for
+      // password accounts so unverified sessions cannot probe codes at will.
+      // Codes are 8-char A-Z0-9 (~2.8e12 space); create enforces shape.
+      allow get: if isAuthenticated() &&
+        isNotBanned() &&
+        isEmailVerifiedForSocial() &&
+        inviteCode.matches('^[A-Z0-9]{8}$');
       allow list: if false;
       allow create: if isAuthenticated() &&
+        isNotBanned() &&
+        isEmailVerifiedForSocial() &&
         request.resource.data.creatorId == request.auth.uid &&
         request.resource.data.keys().hasOnly(['code', 'creatorId', 'buddyPairId', 'expiresAt']) &&
         request.resource.data.code == inviteCode &&
+        inviteCode.matches('^[A-Z0-9]{8}$') &&
         request.resource.data.expiresAt is timestamp;
       allow update: if isBuddyInviteCodeRedeemUpdate();
       allow delete: if false;
