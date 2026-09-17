@@ -10,6 +10,7 @@ import 'package:zyntro_flutter/services/user_cache_service.dart';
 import 'package:zyntro_flutter/services/notification_service.dart';
 import 'package:zyntro_flutter/services/session_analytics_service.dart';
 import 'package:zyntro_flutter/services/follow_service.dart';
+import 'package:zyntro_flutter/services/buddy_review_prompt_service.dart';
 
 // Mocks
 class MockFirebaseFirestore extends Mock implements FirebaseFirestore {}
@@ -42,6 +43,9 @@ class MockSessionAnalyticsService extends Mock
     implements SessionAnalyticsService {}
 
 class MockFollowService extends Mock implements FollowService {}
+
+class MockBuddyReviewPromptService extends Mock
+    implements BuddyReviewPromptService {}
 
 class MockBatch extends Mock implements WriteBatch {}
 
@@ -115,6 +119,7 @@ void main() {
   late MockNotificationService mockNotificationService;
   late MockSessionAnalyticsService mockSessionAnalyticsService;
   late MockFollowService mockFollowService;
+  late MockBuddyReviewPromptService mockBuddyReviewPromptService;
   late MockCollectionReference mockSessionsCollection;
   late MockDocumentReference mockSessionDoc;
   late MockBatch mockBatch;
@@ -135,6 +140,7 @@ void main() {
     mockNotificationService = MockNotificationService();
     mockSessionAnalyticsService = MockSessionAnalyticsService();
     mockFollowService = MockFollowService();
+    mockBuddyReviewPromptService = MockBuddyReviewPromptService();
     mockSessionsCollection = MockCollectionReference();
     mockSessionDoc = MockDocumentReference();
     mockBatch = MockBatch();
@@ -144,6 +150,10 @@ void main() {
     mockUserPrsDoc = MockDocumentReference();
     mockUserPrsSnapshot = MockDocumentSnapshot();
 
+    when(
+      () => mockBuddyReviewPromptService.onBuddySessionCompleted(),
+    ).thenAnswer((_) async {});
+
     final container = ProviderContainer(
       overrides: [
         userCacheServiceProvider.overrideWithValue(mockUserCacheService),
@@ -152,6 +162,9 @@ void main() {
           mockSessionAnalyticsService,
         ),
         followServiceProvider.overrideWithValue(mockFollowService),
+        buddyReviewPromptServiceProvider.overrideWithValue(
+          mockBuddyReviewPromptService,
+        ),
       ],
     );
     addTearDown(container.dispose);

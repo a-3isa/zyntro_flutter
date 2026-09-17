@@ -20,6 +20,7 @@ import 'user_cache_service.dart';
 import 'session_analytics_service.dart';
 import 'follow_service.dart';
 import 'session_lobby_gate.dart';
+import 'buddy_review_prompt_service.dart';
 
 /// Session service for managing workout sessions.
 /// Matches React Native sessionService.ts behavior.
@@ -1236,6 +1237,17 @@ class SessionService {
       ResumeSessionAnalyticsEvent.sessionCompleted,
       sessionId,
     );
+
+    if (hasRealHumanBuddy) {
+      unawaited(
+        _ref
+            .read(buddyReviewPromptServiceProvider)
+            .onBuddySessionCompleted()
+            .catchError(
+              (e) => debugPrint('[SessionService] review prompt skipped: $e'),
+            ),
+      );
+    }
 
     return scoreResult.score;
   }
