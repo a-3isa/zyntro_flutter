@@ -9,7 +9,8 @@ import 'app_theme.dart';
 /// `.copyWith(color: AppColors.textV2Primary)` or let [AppTheme.textTheme]
 /// provide it through the Material theme.
 ///
-/// Text scaling is capped at 1.3× app-wide via [MediaQuery.withClampedTextScaling]
+/// Text scaling is clamped at 2.0× app-wide via [MediaQuery.withClampedTextScaling]
+/// so OS accessibility text size up to 200% (WCAG 1.4.4) is honored (Z-A11Y-003).
 /// in [ZyntroApp.builder] — individual styles do not need to handle it.
 class AppTextStyles {
   AppTextStyles._();

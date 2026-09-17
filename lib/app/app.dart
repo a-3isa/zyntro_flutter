@@ -51,17 +51,10 @@ class ZyntroApp extends ConsumerWidget {
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       routerConfig: router,
-      // The ceiling caps what a user who sets 200% system text actually gets,
-      // which is a real accessibility limit, not a free choice. It stays at 1.3
-      // because the large screens (session room, profile) are not yet verified
-      // above it — raising it blind would ship overflow to exactly the users
-      // who need the setting.
-      //
-      // test/app/text_scaling_test.dart is the mechanism for lifting it: shared
-      // widgets are proven to 2.0x there. Extend that coverage to a screen, and
-      // this ceiling can go up.
+      // WCAG 1.4.4 requires content remain usable at 200% text size. Shared
+      // widgets are covered to 2.0x in test/app/text_scaling_test.dart (Z-A11Y-003).
       builder: (context, child) => MediaQuery.withClampedTextScaling(
-        maxScaleFactor: 1.3,
+        maxScaleFactor: 2.0,
         child: child!,
       ),
     );

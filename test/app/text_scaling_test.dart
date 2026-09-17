@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -30,6 +32,12 @@ Future<void> _pumpAtScale(
 
 void main() {
   const scales = [1.0, 1.3, 1.5, 2.0];
+
+  test('app clamps text scale at 2.0x (Z-A11Y-003)', () {
+    final source = File('lib/app/app.dart').readAsStringSync();
+    expect(source, contains('maxScaleFactor: 2.0'));
+    expect(source, isNot(contains('maxScaleFactor: 1.3')));
+  });
 
   group('AppEmptyState survives large text', () {
     for (final scale in scales) {
