@@ -2847,8 +2847,10 @@
       "standards": [
         "Ops"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Device docs write locale + appVersion on savePushToken; god-file split still optional."
     },
     {
       "id": "Z-AND-004",

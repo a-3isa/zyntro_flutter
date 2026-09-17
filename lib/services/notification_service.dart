@@ -14,6 +14,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
@@ -609,6 +610,15 @@ class NotificationService {
     String deviceId,
   ) async {
     try {
+      String appVersion = 'unknown';
+      try {
+        final info = await PackageInfo.fromPlatform();
+        appVersion = '${info.version}+${info.buildNumber}';
+      } catch (_) {}
+
+      final locale =
+          WidgetsBinding.instance.platformDispatcher.locale.languageCode;
+
       await _firestore
           .collection('users')
           .doc(userId)
@@ -617,8 +627,11 @@ class NotificationService {
           .set({
             'token': token,
             'platform': Platform.operatingSystem,
+            // Ops targeting / push localization (Z-NOTIF-003).
+            'locale': locale,
+            'appVersion': appVersion,
             'updatedAt': FieldValue.serverTimestamp(),
-          });
+          }, SetOptions(merge: true));
     } catch (e) {
       debugPrint('[NotificationService] Error saving token: $e');
     }
