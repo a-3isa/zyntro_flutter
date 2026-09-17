@@ -29,6 +29,7 @@
 | 101 | Profile follow button |
 | 102 | Profile action row (edit + weekly goal) |
 | 103 | Profile buddies sheet (was dead private class) |
+| 104 | Session duration input section |
 
 ## Next slices (suggested)
 

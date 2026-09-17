@@ -928,7 +928,7 @@
       ],
       "status": "deferred",
       "firstSeen": "2026-09-17",
-      "closureNote": "XL campaign through 103. profile_page ~61KB (budget 60). See docs/ARCH_002_SLICES.md.",
+      "closureNote": "XL campaign through 104. session_room ~109KB, profile ~61KB. See docs/ARCH_002_SLICES.md.",
       "closedAt": "2026-09-17"
     },
     {

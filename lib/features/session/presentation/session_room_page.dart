@@ -42,6 +42,7 @@ import '../domain/turn_eligibility.dart';
 import 'widgets/partner_left_dialog.dart';
 import 'widgets/session_header_chips.dart';
 import 'widgets/session_set_column.dart';
+import 'widgets/session_duration_input.dart';
 import '../domain/turn_plan_progress.dart';
 import '../domain/workout_score.dart';
 
@@ -2171,69 +2172,11 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
 
   /// Build duration-based input section for yoga, flexibility workouts.
   Widget _buildDurationInputSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // Workout type badge
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: AppColors.success.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(AppBorderRadius.md),
-            border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.self_improvement,
-                size: 16,
-                color: AppColors.successDark,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                _workoutType.displayName,
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.successDark,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: AppSpacing.md),
-
-        // Duration input
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _durationController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Duration (min)',
-                  hintText: '30',
-                  prefixIcon: Icon(Icons.timer),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.md),
-
-        // Log button
-        ElevatedButton.icon(
-          onPressed: _isLogging ? null : _handleLogDuration,
-          icon: _isLogging
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.check),
-          label: Text(_isLogging ? 'Logging...' : 'Log Session'),
-        ),
-      ],
+    return SessionDurationInputSection(
+      workoutType: _workoutType,
+      durationController: _durationController,
+      isLogging: _isLogging,
+      onLog: _handleLogDuration,
     );
   }
 
