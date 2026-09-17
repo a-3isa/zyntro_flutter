@@ -214,4 +214,50 @@ void main() {
       expect(result, AppRoutes.login);
     });
   });
+
+  group('moderationQueueRedirect (Z-SOC-002)', () {
+    test('non-moderator is sent home once the claim resolves', () {
+      expect(
+        moderationQueueRedirect(
+          location: AppRoutes.moderationQueue,
+          moderatorResolved: true,
+          isModerator: false,
+        ),
+        AppRoutes.main,
+      );
+    });
+
+    test('moderator may stay on the queue', () {
+      expect(
+        moderationQueueRedirect(
+          location: AppRoutes.moderationQueue,
+          moderatorResolved: true,
+          isModerator: true,
+        ),
+        isNull,
+      );
+    });
+
+    test('unresolved claim does not bounce yet', () {
+      expect(
+        moderationQueueRedirect(
+          location: AppRoutes.moderationQueue,
+          moderatorResolved: false,
+          isModerator: false,
+        ),
+        isNull,
+      );
+    });
+
+    test('other routes are untouched', () {
+      expect(
+        moderationQueueRedirect(
+          location: AppRoutes.settings,
+          moderatorResolved: true,
+          isModerator: false,
+        ),
+        isNull,
+      );
+    });
+  });
 }

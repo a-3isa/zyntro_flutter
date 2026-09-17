@@ -840,14 +840,15 @@ class NotificationService {
       preferences = await getNotificationPreferences(userId);
     } catch (error) {
       // users/{id}/settings is owner-only, so a cross-user read (e.g. the host
-      // checking the recipient before a turn_change) is denied by rules. The
-      // Cloud Function re-checks the recipient's preferences server-side
-      // (recipientAllowsPush) before sending, so fail open here.
+      // checking the recipient before a turn_change) is denied by rules.
+      // Fail closed (Z-NOTIF-002): do not create client-side inbox noise when
+      // preferences are unknown. Trusted Cloud Functions re-check with Admin
+      // SDK before push delivery.
       debugPrint(
-        '[NotificationService] Preference read denied for $userId '
-        '(server-side check still applies): $error',
+        '[NotificationService] Preference read failed for $userId; '
+        'suppressing client notification (fail-closed): $error',
       );
-      return true;
+      return false;
     }
 
     if (!preferences.pushEnabled) return false;

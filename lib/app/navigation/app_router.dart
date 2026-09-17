@@ -249,6 +249,22 @@ final resumeDecisionProvider = FutureProvider<ResumeDecision>((ref) async {
   return decision;
 });
 
+/// Redirect non-moderators away from the moderation queue (Z-SOC-002).
+///
+/// While the moderator flag is still loading, stay on the route (null) so we
+/// do not bounce a real moderator to home before their claim resolves.
+String? moderationQueueRedirect({
+  required String location,
+  required bool moderatorResolved,
+  required bool isModerator,
+  String fallback = AppRoutes.main,
+}) {
+  if (location != AppRoutes.moderationQueue) return null;
+  if (!moderatorResolved) return null;
+  if (!isModerator) return fallback;
+  return null;
+}
+
 /// Where an authenticated, onboarded member should land at start-up, given the
 /// resume decision.
 ///
@@ -293,6 +309,8 @@ final routerProvider = Provider<GoRouter>((ref) {
   var authState = const AsyncValue<AuthUserEntity?>.loading();
   var profileComplete = const AsyncValue<bool>.loading();
   var rollbackActive = const AsyncValue<bool>.data(false);
+  var isModerator = false;
+  var moderatorResolved = false;
 
   // Validate restored sessions before allowing startup navigation.
   var startupProfileCheckDone = false;
@@ -328,6 +346,16 @@ final routerProvider = Provider<GoRouter>((ref) {
   });
   ref.listen<AsyncValue<bool>>(authMigrationRollbackActiveProvider, (_, next) {
     rollbackActive = next;
+    authChangeNotifier.trigger();
+  });
+  ref.listen<AsyncValue<bool>>(isModeratorProvider, (_, next) {
+    if (next.hasValue) {
+      isModerator = next.value ?? false;
+      moderatorResolved = true;
+    } else if (next.hasError) {
+      isModerator = false;
+      moderatorResolved = true;
+    }
     authChangeNotifier.trigger();
   });
   ref.listen<AsyncValue<bool?>>(authStartupProfileCompletionProvider, (
@@ -410,6 +438,13 @@ final routerProvider = Provider<GoRouter>((ref) {
           !hasCompletionError && (profileComplete.value ?? false);
 
       if (isProfileComplete) {
+        final moderationRedirect = moderationQueueRedirect(
+          location: loc,
+          moderatorResolved: moderatorResolved,
+          isModerator: isModerator,
+        );
+        if (moderationRedirect != null) return moderationRedirect;
+
         // Returning, set-up users go straight to the app (home/feed) — unless
         // they left a workout running. Placed here so authentication and
         // onboarding are already settled: a member is never pulled into a

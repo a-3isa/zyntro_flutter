@@ -1,36 +1,39 @@
 ﻿# zyntro_flutter Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-03-09
+Auto-generated from all feature plans. Last updated: 2026-09-17
 
 ## Active Technologies
-- Dart SDK `^3.10.4` with Flutter 3.10+ + `flutter_riverpod`, `go_router`, `firebase_auth`, `cloud_firestore`, `shared_preferences`, `mocktail`, `flutter_test`, `integration_test`, existing session/follow/notification/user-cache services (001-friend-workout-sessions)
-- Cloud Firestore collections already used by the app: `sessions`, session `plans` subcollection, session `events` subcollection, `workouts`, user follow/block data, notification data (001-friend-workout-sessions)
-- Dart SDK `^3.10.4` with Flutter 3.10+ + `flutter_riverpod`, `go_router`, `firebase_auth`, `cloud_firestore`, `shared_preferences`, `mocktail`, `flutter_test`, `integration_test`, existing session service and gym plan domain models (004-database-exercise-picker)
-- Cloud Firestore: new shared exercise catalog collection, user-owned personal exercise collection/subcollection, exercise review submissions, existing `sessions/{sessionId}/plans/{userId}` and session events (004-database-exercise-picker)
-- Dart SDK ^3.10.4 (Flutter 3.10+), Node.js 22 (rules unit tests / Functions already on 22) + `cloud_firestore`, Firebase Security Rules, `@firebase/rules-unit-testing`, existing `UserService` (008-firestore-trust-boundaries)
-- Cloud Firestore — `users/{userId}`, `usernames/{username}`, `follows/{id}` (008-firestore-trust-boundaries)
-
-- Dart SDK `^3.10.4` with Flutter 3.10+ + `flutter_riverpod`, `go_router`, `firebase_auth`, `cloud_firestore`, `shared_preferences`, `mocktail`, `flutter_test`, `integration_test` (001-clean-architecture-migration)
+- Dart SDK `^3.10.4` with Flutter 3.38.9 (CI pin) + `flutter_riverpod`, `go_router`, `firebase_auth`, `cloud_firestore`, `shared_preferences`, `mocktail`, `flutter_test`, `integration_test`
+- Cloud Firestore: `sessions` (+ `plans`/`events`), `workouts`, `users`/`usernames`/`follows`, exercise catalog, notifications
+- Node.js 22 for Firestore rules unit tests and Cloud Functions
 
 ## Project Structure
 
 ```text
-src/
-tests/
+lib/
+test/
+firebase/
+functions/
+specs/
 ```
 
 ## Commands
 
-# Add commands for Dart SDK `^3.10.4` with Flutter 3.10+
+```bash
+flutter analyze
+flutter test
+cd test/rules && npm test   # Firestore rules emulator suite
+```
 
 ## Code Style
 
 Dart SDK `^3.10.4` with Flutter 3.10+: Follow standard conventions
 
 ## Recent Changes
-- 008-firestore-trust-boundaries: Added Dart SDK ^3.10.4 (Flutter 3.10+), Node.js 22 (rules unit tests / Functions already on 22) + `cloud_firestore`, Firebase Security Rules, `@firebase/rules-unit-testing`, existing `UserService`
-- 008-firestore-trust-boundaries: Added Dart SDK ^3.10.4 (Flutter 3.10+), Node.js 22 (rules unit tests / Functions already on 22) + `cloud_firestore`, Firebase Security Rules, `@firebase/rules-unit-testing`, existing `UserService`
-- 008-firestore-trust-boundaries: Added Dart SDK ^3.10.4 (Flutter 3.10+), Node.js 22 (rules unit tests / Functions already on 22) + `cloud_firestore`, Firebase Security Rules, `@firebase/rules-unit-testing`, existing `UserService`
+- 011-audit-quick-wins: moderation route guard, FCM icon, notif prefs fail-closed, CI rules gate
+- 010-score-integrity: deny client score/streak writes (Z-DATA-001 phase 1)
+- 009-mode-derivation: gym+gym turn-based; stop persisting sessions.mode
+- 008-firestore-trust-boundaries: users list privacy (Z-SEC-001)
 
 
 <!-- MANUAL ADDITIONS START -->
@@ -39,5 +42,5 @@ Dart SDK `^3.10.4` with Flutter 3.10+: Follow standard conventions
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-`specs/008-firestore-trust-boundaries/plan.md`
+`specs/011-audit-quick-wins/spec.md`
 <!-- SPECKIT END -->
