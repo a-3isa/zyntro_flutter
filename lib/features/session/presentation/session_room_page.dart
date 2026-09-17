@@ -147,9 +147,12 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   Timer? _queueCountTimer;
   StreamSubscription<SyncProgress>? _syncProgressSubscription;
 
-  // Shared session timer
+  // Shared session timer — tick updates a ValueNotifier so the clock
+  // rebuilds without setState-storming the whole session room (Z-PERF-001).
   Timer? _timerUpdateTimer;
   Duration _elapsedTime = Duration.zero;
+  final ValueNotifier<Duration> _elapsedNotifier =
+      ValueNotifier<Duration>(Duration.zero);
   DateTime? _sessionStartTime;
   final bool _isPaused = false;
 
@@ -276,23 +279,22 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   void _initSessionTimer() {
     _timerUpdateTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (_sessionStartTime != null && !_isPaused && mounted) {
-        setState(() {
-          // In real app, we might sync with server time
-          _elapsedTime = DateTime.now().difference(_sessionStartTime!);
+        final elapsed = DateTime.now().difference(_sessionStartTime!);
+        _elapsedTime = elapsed;
+        _elapsedNotifier.value = elapsed;
 
-          // Milestone check
-          if (_elapsedTime.inMinutes > 0 &&
-              _elapsedTime.inMinutes % 30 == 0 &&
-              _elapsedTime.inSeconds == 0) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  '${_elapsedTime.inMinutes} minutes completed! ðŸ’ª',
-                ),
+        // Milestone check — snackbar only; do not rebuild the page.
+        if (elapsed.inMinutes > 0 &&
+            elapsed.inMinutes % 30 == 0 &&
+            elapsed.inSeconds == 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '${elapsed.inMinutes} minutes completed! 💪',
               ),
-            );
-          }
-        });
+            ),
+          );
+        }
       }
     });
   }
@@ -302,10 +304,12 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     if (_sessionStartTime?.isAtSameMomentAs(startedAt) ?? false) return;
 
     final elapsed = DateTime.now().difference(startedAt);
+    final safe = elapsed.isNegative ? Duration.zero : elapsed;
     setState(() {
       _sessionStartTime = startedAt;
-      _elapsedTime = elapsed.isNegative ? Duration.zero : elapsed;
+      _elapsedTime = safe;
     });
+    _elapsedNotifier.value = safe;
   }
 
   Future<void> _ensureSharedClockStarted(Session session) async {
@@ -318,6 +322,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         _sessionStartTime = DateTime.now();
         _elapsedTime = Duration.zero;
       });
+      _elapsedNotifier.value = Duration.zero;
     }
 
     try {
@@ -650,6 +655,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     _audioPlayer.dispose();
     _turnCuePlayer.dispose();
     _timerUpdateTimer?.cancel();
+    _elapsedNotifier.dispose();
     _durationSubscription?.cancel();
     _queueCountTimer?.cancel();
     _syncProgressSubscription?.cancel();
@@ -3043,40 +3049,47 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         : null;
 
     Widget buildCompactTimer() {
-      final h = _elapsedTime.inHours;
-      final m = _elapsedTime.inMinutes.remainder(60).toString().padLeft(2, '0');
-      final s = _elapsedTime.inSeconds.remainder(60).toString().padLeft(2, '0');
-      final timeStr = h > 0 ? '$h:$m:$s' : '$m:$s';
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.1),
-            width: 1,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.timer_outlined,
-              size: 11,
-              color: AppColors.signal.withValues(alpha: 0.85),
-            ),
-            const SizedBox(width: 5),
-            Text(
-              timeStr,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 1,
+      return ValueListenableBuilder<Duration>(
+        valueListenable: _elapsedNotifier,
+        builder: (context, elapsed, _) {
+          final h = elapsed.inHours;
+          final m = elapsed.inMinutes.remainder(60).toString().padLeft(2, '0');
+          final s = elapsed.inSeconds.remainder(60).toString().padLeft(2, '0');
+          final timeStr = h > 0 ? '$h:$m:$s' : '$m:$s';
+          return RepaintBoundary(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.1),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.timer_outlined,
+                    size: 11,
+                    color: AppColors.signal.withValues(alpha: 0.85),
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    timeStr,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
+          );
+        },
       );
     }
 
