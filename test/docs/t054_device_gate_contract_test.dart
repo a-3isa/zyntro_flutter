@@ -7,7 +7,7 @@ void main() {
     final text = File('docs/T054_DEVICE_GATE.md').readAsStringSync();
     expect(text, contains('Z-REPO-004'));
     expect(text, contains('US1'));
-    expect(text, contains('force-close'));
+    expect(text, contains('Force-close'));
     expect(text, contains('docs/evidence/t054-'));
   });
 
