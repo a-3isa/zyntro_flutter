@@ -677,6 +677,8 @@ async function buildPushPayload(type, callerId, recipientId, data) {
 
 function getStatusCode(error) {
   switch (error.code) {
+    case "resource-exhausted":
+      return 429;
     case "unauthenticated":
       return 401;
     case "permission-denied":
@@ -728,6 +730,75 @@ function getPayloadData(body) {
   return {};
 }
 
+// Z-FN-001: authenticated callers can otherwise spam FCM cost and inboxes.
+const PUSH_RATE_LIMIT_MAX = 30;
+const PUSH_RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const PUSH_DEDUP_WINDOW_MS = 15 * 1000;
+
+async function enforcePushRateLimit(callerId) {
+  const ref = db.collection("rateLimits").doc(`push_${callerId}`);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const now = Date.now();
+    let windowStartMs = now;
+    let count = 0;
+    if (snap.exists) {
+      const data = snap.data() || {};
+      windowStartMs = typeof data.windowStartMs === "number" ? data.windowStartMs : now;
+      count = typeof data.count === "number" ? data.count : 0;
+      if (now - windowStartMs > PUSH_RATE_LIMIT_WINDOW_MS) {
+        windowStartMs = now;
+        count = 0;
+      }
+    }
+    if (count >= PUSH_RATE_LIMIT_MAX) {
+      throw new HttpsError(
+        "resource-exhausted",
+        "Too many notification requests. Try again shortly.",
+      );
+    }
+    tx.set(
+      ref,
+      {
+        windowStartMs,
+        count: count + 1,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+  });
+}
+
+async function enforcePushDedup(callerId, type, recipientId, payloadData) {
+  const sessionPart =
+    payloadData && typeof payloadData.sessionId === "string"
+      ? payloadData.sessionId
+      : "";
+  const key = `${callerId}_${type}_${recipientId}_${sessionPart}`;
+  // Keep doc ids short / safe for Firestore.
+  const docId = `dedup_${Buffer.from(key).toString("base64url").slice(0, 100)}`;
+  const ref = db.collection("rateLimits").doc(docId);
+  const now = Date.now();
+  const snap = await ref.get();
+  if (snap.exists) {
+    const lastAt = snap.data()?.lastAtMs;
+    if (typeof lastAt === "number" && now - lastAt < PUSH_DEDUP_WINDOW_MS) {
+      throw new HttpsError(
+        "resource-exhausted",
+        "Duplicate notification suppressed.",
+      );
+    }
+  }
+  await ref.set(
+    {
+      lastAtMs: now,
+      key,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    },
+    { merge: true },
+  );
+}
+
 exports.deliverNotificationPush = onRequest({ invoker: "public" }, async (req, res) => {
   setCorsHeaders(req, res);
 
@@ -753,9 +824,11 @@ exports.deliverNotificationPush = onRequest({ invoker: "public" }, async (req, r
   try {
     await requireHttpAppCheck(req);
     const callerId = await requireHttpAuth(req);
+    await enforcePushRateLimit(callerId);
     const type = requireString(req.body && req.body.type, "type");
     const recipientId = requireString(req.body && req.body.recipientId, "recipientId");
     const payloadData = getPayloadData(req.body);
+    await enforcePushDedup(callerId, type, recipientId, payloadData);
 
     if (await isBlockedPair(callerId, recipientId)) {
       logger.info("Skipping push for blocked pair.", { callerId, recipientId, type });

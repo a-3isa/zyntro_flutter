@@ -802,5 +802,10 @@ service cloud.firestore {
       allow update: if isModerator();
       allow delete: if false;
     }
+
+    // Server-only push rate/dedup counters (Z-FN-001). Admin SDK writes only.
+    match /rateLimits/{docId} {
+      allow read, write: if false;
+    }
   }
 }
