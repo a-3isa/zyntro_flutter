@@ -48,6 +48,7 @@ import '../../features/moderation/presentation/moderation_queue_page.dart';
 import '../../features/feed/presentation/post_detail_page.dart';
 import '../../features/session/presentation/joint_post_page.dart';
 import '../../features/auth/auth_providers.dart';
+import '../../features/auth/presentation/providers/auth_controller.dart';
 import '../../features/auth/domain/entities/auth_user_entity.dart';
 
 /// Route names for type-safe navigation.
@@ -372,7 +373,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         isProfileComplete: next.value,
       )) {
         signingOut = true;
-        ref.read(authenticationUseCaseProvider).signOut().whenComplete(() {
+        ref.read(authControllerProvider).signOut().whenComplete(() {
           signingOut = false;
           authChangeNotifier.trigger();
         });

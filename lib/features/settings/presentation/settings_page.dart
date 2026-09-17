@@ -9,16 +9,13 @@ import '../../../core/theme/app_theme.dart';
 import '../../../app/navigation/app_router.dart';
 import '../../../services/exercise_catalog_seed.dart';
 import '../../../services/facebook_link_service.dart';
+import '../../../services/leaderboard_service.dart';
 import '../../../widgets/circuit_breaker_status_widget.dart';
 import '../../../widgets/fluttermoji_avatar.dart';
 import '../../../widgets/zyntro_back_button.dart';
 import '../../auth/presentation/providers/auth_controller.dart';
 import '../../auth/auth_providers.dart';
 import '../../social/presentation/providers/facebook_friends_provider.dart';
-import '../../../services/feed_cache_service.dart';
-import '../../../services/leaderboard_service.dart';
-import '../../../services/profile_cache_service.dart';
-import '../../../utils/offline_manager.dart';
 
 /// Settings page — concrete charcoal + signal orange.
 class SettingsPage extends ConsumerStatefulWidget {
@@ -782,15 +779,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
     if (confirmed == true && mounted) {
       HapticFeedback.heavyImpact();
-      // T040: clear offline caches before signing out.
-      final userId = ref.read(authSessionProvider).value?.id;
-      if (userId != null) {
-        await ref.read(feedCacheServiceProvider).clearCache();
-        await ref.read(profileCacheServiceProvider).clearCache(userId);
-      }
-      try {
-        await ref.read(offlineManagerProvider).clearQueue();
-      } catch (_) {}
       await ref.read(authControllerProvider).signOut();
       if (mounted) {
         router.go(AppRoutes.login);
