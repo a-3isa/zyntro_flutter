@@ -3194,8 +3194,10 @@
       "standards": [
         "Constitution"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "deferred",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Requires physical-device T054 quickstart evidence — cannot automate in this agent loop. Owner device gate remains."
     },
     {
       "id": "Z-REPO-005",
@@ -3256,8 +3258,10 @@
       "standards": [
         "Release hygiene"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Audit-closure stack uses intentional stacked feature branches (064+); not accidental dirty WT vs main. Merge via PR when ready."
     },
     {
       "id": "Z-REPO-007",
