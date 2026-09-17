@@ -32,6 +32,7 @@
 | 104 | Session duration input section |
 | 105 | Session strength input section |
 | 106 | Session cardio input section |
+| 107 | Session header avatar |
 
 ## Next slices (suggested)
 

@@ -43,6 +43,7 @@ import 'widgets/session_set_column.dart';
 import 'widgets/session_duration_input.dart';
 import 'widgets/session_strength_input.dart';
 import 'widgets/session_cardio_input.dart';
+import 'widgets/session_header_avatar.dart';
 import '../domain/turn_plan_progress.dart';
 import '../domain/workout_score.dart';
 
@@ -2652,44 +2653,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         : ((cachedUser?.displayName ?? '?').trim().isNotEmpty
               ? cachedUser!.displayName.trim()[0].toUpperCase()
               : '?');
-    return Container(
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: active ? Border.all(color: AppColors.signal, width: 2) : null,
-      ),
-      padding: const EdgeInsets.all(2),
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          CircleAvatar(
-            radius: 15,
-            backgroundColor: AppColors.surfaceV2Active,
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textV2Primary,
-              ),
-            ),
-          ),
-          if (active)
-            Positioned(
-              right: -1,
-              bottom: -1,
-              child: Container(
-                width: 9,
-                height: 9,
-                decoration: BoxDecoration(
-                  color: AppColors.accentEmerald,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.backgroundV2, width: 2),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
+    return SessionHeaderAvatar(label: label, active: active);
   }
 
   /// Small per-set panel shown directly under the C-style top bar: for the
