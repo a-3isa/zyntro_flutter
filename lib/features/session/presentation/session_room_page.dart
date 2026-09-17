@@ -29,6 +29,7 @@ import '../../../services/storage_service.dart';
 import '../../../widgets/session_error_banner.dart';
 import 'session_summary_builder.dart';
 import 'session_wakelock.dart';
+import 'waiting_turn_partner.dart';
 import 'widgets/active_turn_screen.dart';
 import 'widgets/waiting_turn_screen.dart';
 import 'widgets/parallel_gym_view.dart';
@@ -38,12 +39,12 @@ import '../domain/gym_session_plan.dart';
 import '../domain/turn_eligibility.dart';
 import 'widgets/partner_left_dialog.dart';
 import 'widgets/session_header_chips.dart';
-import 'widgets/session_set_column.dart';
 import 'widgets/session_duration_input.dart';
 import 'widgets/session_strength_input.dart';
 import 'widgets/session_cardio_input.dart';
 import 'widgets/session_header_avatar.dart';
 import 'widgets/session_progress_row.dart';
+import 'widgets/session_set_column_builder.dart';
 import 'widgets/session_end_confirm_dialog.dart';
 import 'widgets/session_sync_status_dialog.dart';
 import 'widgets/session_plan_complete_view.dart';
@@ -1818,41 +1819,19 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     Map<String, GymSessionPlan> plans,
     Map<String, Map<String, int>> counts,
   ) {
-    final partnerId = session.activeUserId;
-    final partnerProgress = partnerId != null
-        ? _participantProgress[partnerId]
-        : null;
-    final partnerPlan = partnerId != null ? plans[partnerId] : null;
-    final partnerState = partnerPlan != null
-        ? TurnPlanProgress.participantState(
-            partnerPlan,
-            counts[partnerId] ?? const {},
-          )
-        : null;
-    final partnerCurrentExercise =
-        partnerState?.currentExercise?.name ??
-        partnerProgress?.currentExercise ??
-        '';
-    final partnerSetNumber =
-        partnerState?.currentSetNumber ?? (partnerProgress?.totalSets ?? 0) + 1;
-
     // Per-set timer: while the partner is mid-set (activeSetStartedAt stamped)
     // count up live from that instant; between sets freeze on their last
     // completed set. The parent's 1s ticker rebuilds this view so it advances.
-    final Duration partnerSetElapsed;
-    final activeSetStart = session.activeSetStartedAt;
-    if (activeSetStart != null) {
-      final d = DateTime.now().difference(activeSetStart);
-      partnerSetElapsed = d.isNegative ? Duration.zero : d;
-    } else {
-      partnerSetElapsed = Duration(
-        seconds: partnerProgress?.lastSetSeconds ?? 0,
-      );
-    }
+    final partner = resolveWaitingTurnPartner(
+      session: session,
+      plans: plans,
+      counts: counts,
+      participantProgress: _participantProgress,
+    );
 
     return FutureBuilder<User?>(
-      future: partnerId != null
-          ? ref.read(userCacheServiceProvider).getUser(partnerId)
+      future: partner.partnerId != null
+          ? ref.read(userCacheServiceProvider).getUser(partner.partnerId!)
           : Future<User?>.value(null),
       builder: (context, snapshot) {
         final partnerUser = snapshot.data;
@@ -1862,9 +1841,9 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         return WaitingTurnScreen(
           partnerName: partnerName,
           partnerPhotoUrl: partnerPhotoUrl,
-          partnerCurrentExercise: partnerCurrentExercise,
-          partnerSetNumber: partnerSetNumber,
-          partnerElapsedTime: partnerSetElapsed,
+          partnerCurrentExercise: partner.currentExercise,
+          partnerSetNumber: partner.setNumber,
+          partnerElapsedTime: partner.setElapsed,
           isPartnerVoicePlaying: _playingAudioUrl != null,
           onRecordVoice: _toggleRecording,
           isRecording: _isRecording,
@@ -2466,45 +2445,15 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         if (mounted) setState(() {});
       });
     }
-    final name = isSelf
-        ? 'You'
-        : isBot
-        ? 'Bot'
-        : (cachedUser?.displayName.split(' ').first ?? 'Buddy');
-    final active =
-        session.activeUserId == userId ||
-        (_participantProgress[userId]?.isActive ?? false);
-
-    // Logged sets for this exercise, oldest first.
-    final sets =
-        events
-            .where(
-              (e) =>
-                  e.type == SessionEventType.setLogged &&
-                  e.userId == userId &&
-                  (e.data?['exercise'] as String?) == exerciseName,
-            )
-            .toList()
-          ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
-
-    String rowText(int i) {
-      if (i >= sets.length) return '—';
-      final d = sets[i].data ?? const {};
-      final w = (d['weight'] as num?)?.toStringAsFixed(0) ?? '0';
-      final r = (d['reps'] as num?)?.toInt() ?? 0;
-      final secs = (d['durationSeconds'] as num?)?.toInt() ?? 0;
-      final t = secs >= 60
-          ? '${secs ~/ 60}:${(secs % 60).toString().padLeft(2, '0')}'
-          : '${secs}s';
-      return '${w}kg × $r · $t';
-    }
-
-    return SessionSetColumn(
-      name: name,
-      active: active,
+    return buildSessionSetColumn(
+      userId: userId,
+      currentUid: currentUid,
+      exerciseName: exerciseName,
       plannedSets: plannedSets,
-      loggedCount: sets.length,
-      rowTexts: [for (var i = 0; i < plannedSets; i++) rowText(i)],
+      events: events,
+      session: session,
+      isActiveFromProgress: _participantProgress[userId]?.isActive ?? false,
+      displayName: cachedUser?.displayName,
     );
   }
 
