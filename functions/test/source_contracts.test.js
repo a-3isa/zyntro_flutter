@@ -47,4 +47,14 @@ describe("Cloud Functions source contracts", () => {
       /Deleted fully-removed joint post/,
     );
   });
+
+  it("localizes remaining push templates with Arabic copy (Z-I18N-003)", () => {
+    assert.match(source, /function getUserLocale/);
+    assert.match(source, /function pushCopy/);
+    assert.match(source, /Post It Together\?/);
+    assert.match(source, /منشور مشترك؟/);
+    assert.match(source, /رسالة صوتية/);
+    assert.match(source, /طلب متابعة جديد/);
+    assert.match(source, /انتهت صلاحية المنشور المشترك/);
+  });
 });

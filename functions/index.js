@@ -359,10 +359,15 @@ async function buildJointPostInvitePayload(callerId, recipientId, data) {
   }
 
   const inviterName = await getUserDisplayName(callerId);
+  const locale = await getUserLocale(recipientId);
 
   return {
-    title: "Post It Together?",
-    body: `${inviterName} wants to post your session together!`,
+    title: pushCopy(locale, "Post It Together?", "منشور مشترك؟"),
+    body: pushCopy(
+      locale,
+      `${inviterName} wants to post your session together!`,
+      `${inviterName} يريد نشر جلستكما معاً!`,
+    ),
     data: {
       type: "joint_post_invite",
       postId,
@@ -431,9 +436,14 @@ async function buildVoiceNotePayload(callerId, recipientId, data) {
   }
 
   const senderName = await getUserDisplayName(callerId);
+  const locale = await getUserLocale(recipientId);
   return {
-    title: "Voice Note",
-    body: `${senderName} sent you a voice note`,
+    title: pushCopy(locale, "Voice Note", "رسالة صوتية"),
+    body: pushCopy(
+      locale,
+      `${senderName} sent you a voice note`,
+      `${senderName} أرسل لك رسالة صوتية`,
+    ),
     data: {
       type: "voice_note",
       sessionId,
@@ -451,9 +461,14 @@ async function buildFollowRequestPayload(callerId, recipientId) {
   }
 
   const requesterName = await getUserDisplayName(callerId);
+  const locale = await getUserLocale(recipientId);
   return {
-    title: "New Follow Request",
-    body: `${requesterName} wants to follow you`,
+    title: pushCopy(locale, "New Follow Request", "طلب متابعة جديد"),
+    body: pushCopy(
+      locale,
+      `${requesterName} wants to follow you`,
+      `${requesterName} يريد متابعتك`,
+    ),
     data: {
       type: "follow_request",
       fromUserId: callerId,
@@ -470,9 +485,14 @@ async function buildNewFollowerPayload(callerId, recipientId) {
   }
 
   const followerName = await getUserDisplayName(callerId);
+  const locale = await getUserLocale(recipientId);
   return {
-    title: "New Follower",
-    body: `${followerName} started following you`,
+    title: pushCopy(locale, "New Follower", "متابع جديد"),
+    body: pushCopy(
+      locale,
+      `${followerName} started following you`,
+      `${followerName} بدأ بمتابعتك`,
+    ),
     data: {
       type: "new_follower",
       fromUserId: callerId,
@@ -489,9 +509,14 @@ async function buildFollowAcceptedPayload(callerId, recipientId) {
   }
 
   const acceptorName = await getUserDisplayName(callerId);
+  const locale = await getUserLocale(recipientId);
   return {
-    title: "Follow Request Accepted",
-    body: `${acceptorName} accepted your follow request`,
+    title: pushCopy(locale, "Follow Request Accepted", "تم قبول طلب المتابعة"),
+    body: pushCopy(
+      locale,
+      `${acceptorName} accepted your follow request`,
+      `${acceptorName} قبل طلب متابعتك`,
+    ),
     data: {
       type: "follow_accepted",
       byUserId: callerId,
@@ -527,9 +552,14 @@ async function buildPostLikePayload(callerId, recipientId, data) {
         ? data.reactionType
         : "fire";
 
+  const locale = await getUserLocale(recipientId);
   return {
-    title: "New Reaction",
-    body: `${likerName} reacted to your post`,
+    title: pushCopy(locale, "New Reaction", "تفاعل جديد"),
+    body: pushCopy(
+      locale,
+      `${likerName} reacted to your post`,
+      `${likerName} تفاعل مع منشورك`,
+    ),
     data: {
       type: "post_like",
       postId,
@@ -564,9 +594,14 @@ async function buildPostCommentPayload(callerId, recipientId, data) {
       ? commentDoc.data().authorName.trim()
       : await getUserDisplayName(callerId);
 
+  const locale = await getUserLocale(recipientId);
   return {
-    title: "New Comment",
-    body: `${commenterName} commented on your post`,
+    title: pushCopy(locale, "New Comment", "تعليق جديد"),
+    body: pushCopy(
+      locale,
+      `${commenterName} commented on your post`,
+      `${commenterName} علّق على منشورك`,
+    ),
     data: {
       type: "post_comment",
       postId,
@@ -658,9 +693,14 @@ async function buildBuddyAcceptedPayload(callerId, recipientId, data) {
     throw new HttpsError("permission-denied", "Caller is not allowed to send this buddy update.");
   }
   const acceptorName = await getUserDisplayName(callerId);
+  const locale = await getUserLocale(recipientId);
   return {
-    title: "Buddy Accepted",
-    body: `${acceptorName} accepted your buddy invite!`,
+    title: pushCopy(locale, "Buddy Accepted", "تم قبول دعوة الصديق"),
+    body: pushCopy(
+      locale,
+      `${acceptorName} accepted your buddy invite!`,
+      `${acceptorName} قبل دعوة رفيق التمارين!`,
+    ),
     data: {
       type: "buddy_accepted",
       buddyPairId,
@@ -682,9 +722,14 @@ async function buildBuddySessionPayload(callerId, recipientId, data) {
     throw new HttpsError("permission-denied", "Caller is not a session participant.");
   }
   const hostName = await getUserDisplayName(callerId);
+  const locale = await getUserLocale(recipientId);
   return {
-    title: "Buddy Session",
-    body: `${hostName} started a buddy workout — jump in!`,
+    title: pushCopy(locale, "Buddy Session", "جلسة رفيق"),
+    body: pushCopy(
+      locale,
+      `${hostName} started a buddy workout — jump in!`,
+      `${hostName} بدأ تمرين رفيق — انضم الآن!`,
+    ),
     data: {
       type: "buddy_session",
       sessionId,
@@ -1084,9 +1129,14 @@ exports.publishJointPostWhenBothConfirm = onDocumentUpdated("posts/{postId}", as
 // itself — otherwise it would only ever appear in the in-app notifications tab
 // and the author would never learn the draft expired.
 async function sendSoloRepostOffer(userId, postId, sessionId) {
+  const locale = await getUserLocale(userId);
   const payload = {
-    title: "Joint Post Expired",
-    body: "Your co-author didn't confirm in time. Want to post it solo instead?",
+    title: pushCopy(locale, "Joint Post Expired", "انتهت صلاحية المنشور المشترك"),
+    body: pushCopy(
+      locale,
+      "Your co-author didn't confirm in time. Want to post it solo instead?",
+      "لم يؤكد شريكك في الوقت. هل تريد نشره بمفردك؟",
+    ),
     data: {
       type: "joint_post_expired",
       postId,
