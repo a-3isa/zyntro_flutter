@@ -14,6 +14,7 @@ import '../features/session/domain/workout_score.dart';
 import '../features/session/domain/workout_streak.dart';
 import '../utils/retry_helper.dart';
 import '../utils/offline_manager.dart';
+import '../utils/field_trace.dart';
 import '../features/auth/auth_providers.dart';
 import 'notification_service.dart';
 import 'presence_service.dart';
@@ -247,41 +248,43 @@ class SessionService {
   /// Never throws. This runs during start-up, so a failure here must degrade to
   /// "no session to resume" rather than block the member from opening the app.
   Future<ResumeCandidate?> findResumableSession(String userId) async {
-    try {
-      final snapshot = await _firestore
-          .collection('sessions')
-          .where('participants', arrayContains: userId)
-          .where('status', isEqualTo: SessionStatus.active.value)
-          .where('phase', isEqualTo: SessionPhase.live.value)
-          .orderBy('lastActivityAt', descending: true)
-          .limit(5)
-          .get();
+    return FieldTrace.measure('session_resume_lookup', () async {
+      try {
+        final snapshot = await _firestore
+            .collection('sessions')
+            .where('participants', arrayContains: userId)
+            .where('status', isEqualTo: SessionStatus.active.value)
+            .where('phase', isEqualTo: SessionPhase.live.value)
+            .orderBy('lastActivityAt', descending: true)
+            .limit(5)
+            .get();
 
-      // Ordering happens server-side, but a member who already terminated is
-      // filtered client-side: `endedParticipants` cannot be an inequality
-      // filter alongside the ordering above.
-      Session? session;
-      for (final doc in snapshot.docs) {
-        final candidate = Session.fromFirestore(doc);
-        if (!candidate.hasTerminated(userId)) {
-          session = candidate;
-          break;
+        // Ordering happens server-side, but a member who already terminated is
+        // filtered client-side: `endedParticipants` cannot be an inequality
+        // filter alongside the ordering above.
+        Session? session;
+        for (final doc in snapshot.docs) {
+          final candidate = Session.fromFirestore(doc);
+          if (!candidate.hasTerminated(userId)) {
+            session = candidate;
+            break;
+          }
         }
-      }
-      if (session == null) return null;
+        if (session == null) return null;
 
-      return ResumeCandidate.fromSession(
-        session,
-        userId,
-        otherParticipantPresent: await _isAnyOtherParticipantPresent(
+        return ResumeCandidate.fromSession(
           session,
           userId,
-        ),
-      );
-    } catch (e) {
-      debugPrint('[SessionService] findResumableSession failed: $e');
-      return null;
-    }
+          otherParticipantPresent: await _isAnyOtherParticipantPresent(
+            session,
+            userId,
+          ),
+        );
+      } catch (e) {
+        debugPrint('[SessionService] findResumableSession failed: $e');
+        return null;
+      }
+    });
   }
 
   /// Current presence for every participant, keyed by user id.
@@ -716,31 +719,33 @@ class SessionService {
   /// Join an existing session.
   /// Matches RN joinSession.
   Future<void> joinSession(String sessionId, String userId) async {
-    // Get user display name
-    final user = await _ref.read(userCacheServiceProvider).getUser(userId);
-    final userName = user?.displayName ?? 'User';
+    await FieldTrace.measure('session_join', () async {
+      // Get user display name
+      final user = await _ref.read(userCacheServiceProvider).getUser(userId);
+      final userName = user?.displayName ?? 'User';
 
-    // Add user to participants with circuit breaker
-    await withRetryCircuitBreakerVoid(
-      () => _firestore.collection('sessions').doc(sessionId).update({
-        'participants': FieldValue.arrayUnion([userId]),
-        ...activityStamp(),
-      }),
-      operationType: 'session_join',
-      maxFailures: 5,
-      cooldownDuration: const Duration(seconds: 30),
-    );
+      // Add user to participants with circuit breaker
+      await withRetryCircuitBreakerVoid(
+        () => _firestore.collection('sessions').doc(sessionId).update({
+          'participants': FieldValue.arrayUnion([userId]),
+          ...activityStamp(),
+        }),
+        operationType: 'session_join',
+        maxFailures: 5,
+        cooldownDuration: const Duration(seconds: 30),
+      );
 
-    // Create join event
-    await addSessionEvent(
-      sessionId: sessionId,
-      type: SessionEventType.join,
-      userId: userId,
-      text: '$userName joined the session',
-    );
+      // Create join event
+      await addSessionEvent(
+        sessionId: sessionId,
+        type: SessionEventType.join,
+        userId: userId,
+        text: '$userName joined the session',
+      );
 
-    // Warm cache with new participants
-    _ref.read(userCacheServiceProvider).warmSessionParticipants(sessionId);
+      // Warm cache with new participants
+      _ref.read(userCacheServiceProvider).warmSessionParticipants(sessionId);
+    }, extras: {'session_id': sessionId});
   }
 
   /// Friend joins a paired session's setup phase. Validates invite eligibility

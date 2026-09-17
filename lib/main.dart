@@ -20,6 +20,7 @@ import 'services/storage_service.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 import 'utils/global_error_handler.dart';
+import 'utils/field_trace.dart';
 import 'widgets/error_boundary_widget.dart';
 import 'services/feed_cache_service.dart';
 import 'services/privacy_consent_service.dart';
@@ -31,6 +32,7 @@ const _logAppCheckDebugSecret = bool.fromEnvironment(
 );
 
 void main() async {
+  final startupTrace = FieldTrace('startup_to_first_frame');
   WidgetsFlutterBinding.ensureInitialized();
   debugPaintSizeEnabled = false;
   debugPaintBaselinesEnabled = false;
@@ -115,6 +117,7 @@ void main() async {
       child: const ErrorBoundaryWidget(child: ZyntroApp()),
     ),
   );
+  unawaited(startupTrace.stop());
 
   // Deliberately after runApp: none of these gate the first frame, and awaiting
   // them serially beforehand held the splash screen for the duration of a
