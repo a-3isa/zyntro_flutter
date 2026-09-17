@@ -97,8 +97,10 @@ class PrivacyPolicyPage extends StatelessWidget {
                         '• Deleting your account and associated data',
                   ),
                   _buildSection(
-                    '6. Data Retention',
-                    'We retain your information as long as your account is active or as needed to provide services. You can request deletion of your data by contacting us.',
+                    '6. Data Retention & Deletion',
+                    'We retain your information as long as your account is active or as needed to provide services. '
+                        'You can delete your account in Settings → Delete account, or follow the instructions at '
+                        'the Data Deletion page (/legal/data-deletion). Email privacy@zyntro.app for assistance.',
                   ),
                   _buildSection(
                     '7. Children\'s Privacy',
@@ -106,7 +108,9 @@ class PrivacyPolicyPage extends StatelessWidget {
                   ),
                   _buildSection(
                     '8. Third-Party Services',
-                    'The App may contain links to third-party services. We are not responsible for the privacy practices of these services. We encourage you to review their privacy policies.',
+                    'The App uses third-party services including Firebase (Google) and Facebook Login (Meta). '
+                        'We are not responsible for their privacy practices. Review their policies and use '
+                        '/legal/data-deletion for Meta data-deletion instructions.',
                   ),
                   _buildSection(
                     '9. Changes to This Policy',

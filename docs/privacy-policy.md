@@ -35,7 +35,11 @@ We do not sell your personal information. We may share data with:
 
 ## Data Retention
 
-We retain your data while your account is active. You can request deletion by contacting support.
+We retain your data while your account is active. Delete your account in the app (**Settings → Delete account**) or follow [Data Deletion Instructions](./data-deletion.md). Email privacy@zyntro.app for help.
+
+## Meta / Facebook Login
+
+If you use Facebook Login, Meta requires a published data-deletion URL. Use the in-app route `/legal/data-deletion` or host `docs/data-deletion.md` at your public site and paste that URL into the Meta App Dashboard.
 
 ## Your Rights
 

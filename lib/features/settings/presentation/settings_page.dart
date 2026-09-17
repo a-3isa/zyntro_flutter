@@ -185,6 +185,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       },
                     ),
                     _divider(),
+                    _chevronRow(
+                      label: 'Data deletion instructions',
+                      sub: 'How to erase your account and Meta data',
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        context.push(AppRoutes.dataDeletion);
+                      },
+                    ),
+                    _divider(),
                     _dangerRow(
                       label: 'Sign out',
                       onTap: () => _confirmSignOut(context),

@@ -35,6 +35,7 @@ import '../../features/settings/presentation/blocked_users_page.dart';
 import '../../features/settings/presentation/community_guidelines_page.dart';
 import '../../features/settings/presentation/terms_of_service_page.dart';
 import '../../features/settings/presentation/privacy_policy_page.dart';
+import '../../features/settings/presentation/data_deletion_page.dart';
 import '../../features/settings/presentation/change_password_page.dart';
 import '../../features/settings/presentation/change_email_page.dart';
 import '../../features/settings/presentation/delete_account_page.dart';
@@ -80,6 +81,8 @@ class AppRoutes {
   static const communityGuidelines = '/settings/guidelines';
   static const termsOfService = '/settings/terms';
   static const privacyPolicy = '/settings/privacy-policy';
+  /// Public Meta data-deletion instructions (Z-AUTH-004). No auth required.
+  static const dataDeletion = '/legal/data-deletion';
 
   // Account management routes
   static const changePassword = '/settings/change-password';
@@ -443,6 +446,12 @@ final routerProvider = Provider<GoRouter>((ref) {
           loc == AppRoutes.signUp ||
           loc == AppRoutes.splash ||
           loc == AppRoutes.forgotPassword;
+      // Legal pages Meta / App Store reviewers open without an account.
+      final isOnPublicLegal =
+          loc == AppRoutes.privacyPolicy ||
+          loc == AppRoutes.termsOfService ||
+          loc == AppRoutes.communityGuidelines ||
+          loc == AppRoutes.dataDeletion;
       final isOnSetup =
           loc == AppRoutes.onboarding || loc == AppRoutes.profileSetup;
 
@@ -455,10 +464,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         return loc == AppRoutes.splash ? null : AppRoutes.splash;
       }
 
-      // Not logged in: only auth-entry pages are reachable. Preserve the
-      // intended deep link so login can restore it (Z-AUTH-007).
+      // Not logged in: only auth-entry + public legal pages are reachable.
+      // Preserve the intended deep link so login can restore it (Z-AUTH-007).
       if (!isLoggedIn) {
-        if (isOnAuthEntry) return null;
+        if (isOnAuthEntry || isOnPublicLegal) return null;
         return loginWithReturnTo(state.uri.toString());
       }
 
@@ -731,6 +740,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           context: context,
           state: state,
           child: const PrivacyPolicyPage(),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.dataDeletion,
+        pageBuilder: (context, state) => buildPremiumPageTransition(
+          context: context,
+          state: state,
+          child: const DataDeletionPage(),
         ),
       ),
 
