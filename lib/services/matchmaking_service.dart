@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/constants/constants.dart';
+import '../core/auth/email_verification_gate.dart';
 import '../features/auth/auth_providers.dart';
 import 'session_service.dart';
 
@@ -25,8 +26,9 @@ class WaitingForMatch extends MatchmakingOutcome {
 class MatchmakingService {
   final FirebaseFirestore _firestore;
   final SessionService _sessionService;
+  final Ref _ref;
 
-  MatchmakingService(this._firestore, this._sessionService);
+  MatchmakingService(this._firestore, this._sessionService, this._ref);
 
   /// Enter the matchmaking queue for a given workout type.
   ///
@@ -37,6 +39,7 @@ class MatchmakingService {
     required String userId,
     required WorkoutType workoutType,
   }) async {
+    ensureEmailVerifiedForSocial(_ref.read(authSessionProvider).value);
     // Write our own entry first so we're discoverable to others.
     final myDocRef = _firestore.collection('matchmaking_queue').doc();
     await myDocRef.set({
@@ -163,5 +166,6 @@ final matchmakingServiceProvider = Provider<MatchmakingService>((ref) {
   return MatchmakingService(
     ref.watch(authFirestoreProvider),
     ref.watch(sessionServiceProvider),
+    ref,
   );
 });

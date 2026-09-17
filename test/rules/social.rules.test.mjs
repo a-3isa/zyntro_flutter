@@ -308,6 +308,54 @@ describe('follows/{followId}', () => {
     );
   });
 
+  it('stops an unverified password user creating a follow edge (Z-AUTH-002)', async () => {
+    const unverified = (uid) =>
+      testEnv.authenticatedContext(uid, {
+        email_verified: false,
+        firebase: { sign_in_provider: 'password' },
+      }).firestore();
+
+    await assertFails(
+      setDoc(doc(unverified(ALICE), 'follows', edge(ALICE, BOB)), {
+        followerId: ALICE,
+        followeeId: BOB,
+        status: 'pending',
+      }),
+    );
+  });
+
+  it('lets a verified password user create a follow edge (Z-AUTH-002)', async () => {
+    const verified = (uid) =>
+      testEnv.authenticatedContext(uid, {
+        email_verified: true,
+        firebase: { sign_in_provider: 'password' },
+      }).firestore();
+
+    await assertSucceeds(
+      setDoc(doc(verified(ALICE), 'follows', edge(ALICE, BOB)), {
+        followerId: ALICE,
+        followeeId: BOB,
+        status: 'pending',
+      }),
+    );
+  });
+
+  it('lets a federated user create a follow without email_verified claim (Z-AUTH-002)', async () => {
+    const google = (uid) =>
+      testEnv.authenticatedContext(uid, {
+        email_verified: false,
+        firebase: { sign_in_provider: 'google.com' },
+      }).firestore();
+
+    await assertSucceeds(
+      setDoc(doc(google(ALICE), 'follows', edge(ALICE, BOB)), {
+        followerId: ALICE,
+        followeeId: BOB,
+        status: 'pending',
+      }),
+    );
+  });
+
   it('lets a follower create an approved edge only when the followee is public', async () => {
     await assertSucceeds(
       setDoc(doc(as(ALICE), 'follows', edge(ALICE, BOB)), {

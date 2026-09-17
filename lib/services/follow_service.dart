@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import '../core/models/models.dart';
 import '../core/constants/constants.dart';
+import '../core/auth/email_verification_gate.dart';
 import '../features/auth/auth_providers.dart';
 import 'notification_service.dart';
 
@@ -127,6 +128,7 @@ class FollowService {
     required bool isPrivate,
     String? followerName,
   }) async {
+    ensureEmailVerifiedForSocial(_ref.read(authSessionProvider).value);
     final followId = _getFollowId(followerId, followeeId);
     final status = isPrivate ? FollowStatus.pending : FollowStatus.approved;
 
@@ -164,6 +166,7 @@ class FollowService {
     required List<String> followeeIds,
     String? followerName,
   }) async {
+    ensureEmailVerifiedForSocial(_ref.read(authSessionProvider).value);
     final batch = _firestore.batch();
 
     for (final followeeId in followeeIds) {

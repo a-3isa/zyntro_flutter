@@ -19,6 +19,7 @@ void main() {
     service = MatchmakingService(
       firestore,
       SessionService(firestore, container.read(_testRefProvider)),
+      container.read(_testRefProvider),
     );
   });
 

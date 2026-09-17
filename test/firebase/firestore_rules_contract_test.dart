@@ -397,6 +397,15 @@ void main() {
       );
     });
 
+    test('password social writes require email verification (Z-AUTH-002)', () {
+      expect(rules, contains('function isPasswordProvider'));
+      expect(rules, contains('function isEmailVerifiedForSocial'));
+      expect(rules, contains('function isEmailVerifiedForInviteCreate'));
+      expect(rules, contains("sign_in_provider == 'password'"));
+      expect(rules, contains('isEmailVerifiedForSocial()'));
+      expect(rules, contains('isEmailVerifiedForInviteCreate()'));
+    });
+
     test('invite accept is scoped to an active session still in setup', () {
       final idx = rules.indexOf('function isInviteAcceptUpdate()');
       expect(idx, isNonNegative);

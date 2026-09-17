@@ -4,14 +4,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/models/models.dart';
 import '../core/constants/constants.dart';
+import '../core/auth/email_verification_gate.dart';
 import '../features/auth/auth_providers.dart';
 
 /// Buddy service for managing buddy pairs and invite codes.
 /// Matches React Native buddyService.ts behavior.
 class BuddyService {
   final FirebaseFirestore _firestore;
+  final Ref _ref;
 
-  BuddyService(this._firestore);
+  BuddyService(this._firestore, this._ref);
 
   /// Generate 8-character alphanumeric invite code.
   /// Matches RN generateInviteCode.
@@ -44,6 +46,7 @@ class BuddyService {
   Future<({String inviteCode, String pairId})> createBuddyInvite(
     String creatorId,
   ) async {
+    ensureEmailVerifiedForSocial(_ref.read(authSessionProvider).value);
     final inviteCode = await generateUniqueInviteCode();
 
     // Create pending buddy pair
@@ -179,7 +182,7 @@ class BuddyService {
 
 /// Buddy service provider.
 final buddyServiceProvider = Provider<BuddyService>((ref) {
-  return BuddyService(ref.watch(authFirestoreProvider));
+  return BuddyService(ref.watch(authFirestoreProvider), ref);
 });
 
 /// Current buddy pair provider.

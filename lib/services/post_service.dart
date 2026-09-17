@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/models/models.dart';
 import '../core/constants/feature_flags.dart';
+import '../core/auth/email_verification_gate.dart';
 import '../utils/retry_helper.dart';
 import '../utils/offline_manager.dart';
 import '../features/auth/auth_providers.dart';
@@ -136,6 +137,7 @@ class PostService {
     CreatePostParams params, {
     void Function(double)? onProgress,
   }) async {
+    ensureEmailVerifiedForSocial(_ref.read(authSessionProvider).value);
     // Validate post title for profanity
     final contentFilter = _ref.read(contentFilterServiceProvider);
     contentFilter.validateText(params.title, 'post title');
@@ -233,6 +235,7 @@ class PostService {
     required Map<String, SessionSummary> summaries,
     Duration ttl = const Duration(hours: 24),
   }) async {
+    ensureEmailVerifiedForSocial(_ref.read(authSessionProvider).value);
     final ref = _firestore
         .collection('posts')
         .doc(jointDraftIdForSession(sessionId));

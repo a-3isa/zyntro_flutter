@@ -1,20 +1,27 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zyntro_flutter/core/constants/constants.dart';
 import 'package:zyntro_flutter/services/buddy_service.dart';
 
+final _testRefProvider = Provider<Ref>((ref) => ref);
+
 void main() {
   late FakeFirebaseFirestore firestore;
   late BuddyService service;
+  late ProviderContainer container;
   const creator = 'alice';
   const acceptor = 'bob';
 
   setUp(() {
     firestore = FakeFirebaseFirestore();
-    service = BuddyService(firestore);
+    container = ProviderContainer(overrides: [_testRefProvider]);
+    service = BuddyService(firestore, container.read(_testRefProvider));
   });
+
+  tearDown(() => container.dispose());
 
   Future<Map<String, dynamic>> readPair(String pairId) async {
     final doc = await firestore.collection('buddyPairs').doc(pairId).get();

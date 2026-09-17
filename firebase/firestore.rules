@@ -13,6 +13,18 @@ service cloud.firestore {
       return !exists(path) || get(path).data.get('isBanned', false) != true;
     }
 
+    // Z-AUTH-002: password-provider accounts must verify email before
+    // social/abuse-prone writes. Federated IdPs are treated as verified.
+    // Missing sign_in_provider (emulator defaults) is not treated as password.
+    function isPasswordProvider() {
+      return request.auth.token.firebase.sign_in_provider == 'password';
+    }
+
+    function isEmailVerifiedForSocial() {
+      return !isPasswordProvider() ||
+        request.auth.token.email_verified == true;
+    }
+
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
@@ -215,6 +227,14 @@ service cloud.firestore {
         );
     }
 
+    // Solo sessions (no invitees) stay available to unverified password users;
+    // inviting another person is a social write and needs email verification.
+    function isEmailVerifiedForInviteCreate() {
+      return !request.resource.data.keys().hasAny(['invitedUserIds']) ||
+        request.resource.data.invitedUserIds.size() == 0 ||
+        isEmailVerifiedForSocial();
+    }
+
     // A profile is public unless its owner set isPrivate. A missing user
     // document is treated as NOT public, so a deleted or unreadable owner
     // fails closed rather than exposing their data.
@@ -410,6 +430,7 @@ service cloud.firestore {
         isPendingSessionInvitee(resource.data, request.auth.uid));
       allow create: if isAuthenticated() &&
         isNotBanned() &&
+        isEmailVerifiedForInviteCreate() &&
         request.resource.data.hostId == request.auth.uid &&
         hasParticipant(request.resource.data.participants, request.auth.uid) &&
         hasValidPairedInviteEligibility();
@@ -531,6 +552,7 @@ service cloud.firestore {
       }
       allow create: if isAuthenticated() &&
         isNotBanned() &&
+        isEmailVerifiedForSocial() &&
         (isSoloCreate() || isJointDraftCreate());
 
       // The ONLY top-level field a client may change on a co-authored post is
@@ -618,6 +640,7 @@ service cloud.firestore {
       );
       allow create: if isAuthenticated() &&
         isNotBanned() &&
+        isEmailVerifiedForSocial() &&
         request.resource.data.followerId == request.auth.uid &&
         request.resource.data.keys().hasAll(['followerId', 'followeeId', 'status']) &&
         (
@@ -658,6 +681,7 @@ service cloud.firestore {
       allow read: if isAuthenticated() &&
         hasParticipant(resource.data.participants, request.auth.uid);
       allow create: if isAuthenticated() &&
+        isEmailVerifiedForSocial() &&
         request.resource.data.initiatorId == request.auth.uid &&
         request.resource.data.participants.size() == 1 &&
         request.resource.data.participants[0] == request.auth.uid;
@@ -730,6 +754,7 @@ service cloud.firestore {
       );
       allow create: if isAuthenticated() &&
         isNotBanned() &&
+        isEmailVerifiedForSocial() &&
         request.resource.data.userId == request.auth.uid &&
         request.resource.data.status == 'waiting';
       // Owner may finalize/cancel their own entry. Claimers may only touch the

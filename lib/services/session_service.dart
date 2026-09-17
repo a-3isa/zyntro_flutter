@@ -6,6 +6,7 @@ import 'package:rxdart/rxdart.dart';
 
 import '../core/models/models.dart';
 import '../core/constants/constants.dart';
+import '../core/auth/email_verification_gate.dart';
 import '../features/session/domain/gym_session_plan.dart';
 import '../features/session/domain/resume_decision.dart';
 import '../features/session/domain/turn_eligibility.dart';
@@ -348,6 +349,9 @@ class SessionService {
     SessionPhase phase = SessionPhase.live,
   }) async {
     validateOneToOneInvitees(invitedUserIds);
+    if (invitedUserIds != null && invitedUserIds.isNotEmpty) {
+      ensureEmailVerifiedForSocial(_ref.read(authSessionProvider).value);
+    }
     // Check for existing active session
     final existingSessionId = await checkActiveSession(hostId);
     if (existingSessionId != null) {
