@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -524,9 +525,15 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       final leaver = await ref.read(userCacheServiceProvider).getUser(leaverId);
       if (!mounted) return;
 
+      final partnerName = leaver?.displayName ?? 'Your partner';
+      SemanticsService.announce(
+        '$partnerName left the session',
+        TextDirection.ltr,
+      );
+
       final choice = await PartnerLeftDialog.show(
         context,
-        partnerName: leaver?.displayName ?? 'Your partner',
+        partnerName: partnerName,
       );
 
       if (choice == PartnerLeftChoice.finishToo && mounted) {
@@ -1562,9 +1569,11 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   }
 
   /// "It's your turn" cue — physical, not a banner: a distinct double buzz plus
-  /// a short weight-plate clank. The sound is skipped while a partner voice note
-  /// is playing so it never cuts one off; the haptic always fires.
+  /// a short weight-plate clank. Also announces for screen readers (Z-A11Y-004).
+  /// The sound is skipped while a partner voice note is playing so it never
+  /// cuts one off; the haptic and announcement always fire.
   Future<void> _signalMyTurn() async {
+    SemanticsService.announce("It's your turn", TextDirection.ltr);
     await HapticFeedback.heavyImpact();
     await Future<void>.delayed(const Duration(milliseconds: 130));
     await HapticFeedback.heavyImpact();
