@@ -54,3 +54,10 @@
 None required for soft budgets. Only **Z-REPO-004** remains deferred (owner T054 device gate).
 
 Z-ARCH-002 soft budgets are **met** for session_room, profile, social, start_session, and recap.
+
+## Campaign close
+
+Audit findings: **115 closed**, **1 deferred** (`Z-REPO-004` T054 physical device — owner only).  
+XS/S enhancements from the audit pack: **closed** (007, 013, 017, 029, 040, 042, 045).  
+M/L/XL enhancements remain product backlog, not audit blockers.
+
