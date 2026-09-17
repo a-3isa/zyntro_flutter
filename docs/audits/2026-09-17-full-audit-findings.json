@@ -3100,8 +3100,10 @@
       "standards": [
         "Process"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "CHANGELOG Unreleased filled; ADRs/runbooks added in 047–067 stack."
     },
     {
       "id": "Z-REPO-003",
