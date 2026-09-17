@@ -9,6 +9,7 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/workout_type_visuals.dart';
 import '../../../core/constants/feature_flags.dart';
+import '../../../core/ui/image_decode_budget.dart';
 import '../../../app/navigation/app_router.dart';
 import '../../../app/navigation/app_route_locations.dart';
 import '../../../core/models/models.dart';
@@ -771,6 +772,10 @@ class _FeedTabState extends ConsumerState<_FeedTab>
                         cacheManager: ZyntroImageCacheManager(),
                         imageUrl: post.mediaURLs!.first,
                         fit: BoxFit.cover,
+                        memCacheWidth: ImageDecodeBudget.memCacheWidthFor(
+                          context,
+                          MediaQuery.sizeOf(context).width,
+                        ),
                       ),
                     )
                   else

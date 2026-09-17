@@ -6,6 +6,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../core/theme/app_theme.dart';
 import '../core/constants/feature_flags.dart';
 import '../core/l10n/locale_format.dart';
+import '../core/ui/image_decode_budget.dart';
 
 import '../core/models/models.dart';
 import '../features/auth/auth_providers.dart';
@@ -304,6 +305,11 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
                                   cacheManager: ZyntroImageCacheManager(),
                                   imageUrl: widget.post.mediaURLs!.first,
                                   fit: BoxFit.cover,
+                                  memCacheWidth:
+                                      ImageDecodeBudget.memCacheWidthFor(
+                                    context,
+                                    MediaQuery.sizeOf(context).width,
+                                  ),
                                   placeholder: (context, url) => Container(
                                     decoration: BoxDecoration(
                                       color: AppColors.surfaceV2,

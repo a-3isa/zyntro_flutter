@@ -2787,8 +2787,10 @@
       "standards": [
         "Startup"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "ImageDecodeBudget + memCacheWidth on feed/post cards; Firebase-before-runApp deferral left as larger follow-up."
     },
     {
       "id": "Z-OFF-003",
