@@ -24,7 +24,7 @@
         "Z-REPO-004"
       ],
       "arch002": "soft budgets met (session/profile/social/start_session/recap)",
-      "stackHead": "125-enh-repo-hygiene",
+      "stackHead": "126-enh-recap-copy-stats",
       "updatedAt": "2026-09-17",
       "enhancementsClosed": [
         "Z-ENH-007",
@@ -4174,7 +4174,9 @@
         "score": 9600
       },
       "dependsOn": [],
-      "slice": "008-recap-share"
+      "slice": "008-recap-share",
+      "status": "partial",
+      "closureNote": "Share card preview + copy-stats clipboard (126). Image/story export still open."
     },
     {
       "id": "Z-ENH-014",

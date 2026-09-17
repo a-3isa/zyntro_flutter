@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_text_styles.dart';
@@ -386,6 +387,37 @@ class RecapShareCardSection extends StatelessWidget {
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 14),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: () async {
+                      final volume = totalVolume > 0
+                          ? '${totalVolume.toStringAsFixed(1)} kg'
+                          : '—';
+                      final text =
+                          'zyntro · DONE.\n'
+                          '$durationStr · ${WorkoutType.fromString(session.type).displayName}\n'
+                          'Exercises $totalExercises · Sets $totalSets · Volume $volume\n'
+                          '@$username · +$points pts';
+                      await Clipboard.setData(ClipboardData(text: text));
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Recap stats copied'),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.copy_rounded, size: 16),
+                    label: const Text('Copy stats'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.signal,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
                 ),
               ],
             ),
