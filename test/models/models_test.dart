@@ -191,6 +191,27 @@ void main() {
       expect(session.hasExactlyTwoParticipants, isTrue);
     });
 
+    test('Session.derivedMode is turn-based only for gym+gym', () {
+      expect(
+        Session.modeFromParticipantTypes(const {
+          'a': 'gym',
+          'b': 'gym',
+        }),
+        SessionMode.turnBased,
+      );
+      expect(
+        Session.modeFromParticipantTypes(const {
+          'a': 'running',
+          'b': 'running',
+        }),
+        SessionMode.parallel,
+      );
+      expect(
+        Session.modeFromParticipantTypes(const {}),
+        SessionMode.parallel,
+      );
+    });
+
     test('participant progress serializes type-specific metrics', () {
       final progress = ParticipantProgress(
         sessionId: 'session-1',

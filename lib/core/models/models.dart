@@ -177,14 +177,20 @@ class Session {
   });
 
   /// Derive session mode from participant workout types.
-  /// Same type for all → turn-based; mixed types → parallel.
-  SessionMode get derivedMode {
-    if (participantTypes.isEmpty ||
-        participantTypes.values.toSet().length == 1) {
+  ///
+  /// Turn-based only when every participant is on gym. Same-type cardio
+  /// (e.g. running+running) and mixed types are parallel (Z-RT-001).
+  static SessionMode modeFromParticipantTypes(
+    Map<String, String> participantTypes,
+  ) {
+    final types = participantTypes.values.toSet();
+    if (types.length == 1 && types.single == WorkoutType.gym.value) {
       return SessionMode.turnBased;
     }
     return SessionMode.parallel;
   }
+
+  SessionMode get derivedMode => modeFromParticipantTypes(participantTypes);
 
   bool get hasExactlyTwoParticipants => participants.length == 2;
 

@@ -353,6 +353,23 @@ void main() {
       expect(rules, contains('function isLastLiveMemberCompleting'));
       expect(rules, contains('function isNotBanned'));
       expect(rules, contains("request.resource.data.status != 'completed'"));
+      final liveIdx = rules.indexOf('function participantLiveKeys');
+      final liveBody = rules.substring(liveIdx, liveIdx + 500);
+      expect(liveBody, isNot(contains("'mode'")));
+    });
+
+    test('invite accept cannot write mode', () {
+      final idx = rules.indexOf('function isInviteAcceptUpdate()');
+      expect(idx, isNonNegative);
+      final nextFn = rules.indexOf('function activityStampKeys()', idx);
+      final body = rules.substring(idx, nextFn > idx ? nextFn : idx + 2000);
+      expect(
+        body,
+        contains(
+          "['participants', 'participantTypes', 'invitationStatus'].concat(activityStampKeys())",
+        ),
+      );
+      expect(body, isNot(contains("'mode'")));
     });
 
     test('participant updates can only change their own participantTypes', () {

@@ -45,18 +45,15 @@ class SessionService {
   static SessionMode derivePairedSessionMode(
     Map<String, String> participantTypes,
   ) {
-    final types = participantTypes.values.toSet();
-    if (types.length == 1 && types.single == WorkoutType.gym.value) {
-      return SessionMode.turnBased;
-    }
-    return SessionMode.parallel;
+    return Session.modeFromParticipantTypes(participantTypes);
   }
 
   static Map<String, dynamic> sharedClockStartFields({
     required Map<String, String> participantTypes,
   }) {
+    // Mode is derived client-side from participantTypes — never persisted
+    // (Z-DATA-002 / Z-RT-001).
     return {
-      'mode': derivePairedSessionMode(participantTypes).value,
       'participantTypes': Map<String, String>.from(participantTypes),
     };
   }
@@ -610,7 +607,6 @@ class SessionService {
       'partnerId': pairedBotFriendId,
       'invitationStatus': WorkoutInvitationStatus.accepted.value,
       'participantTypes': {hostId: type, pairedBotFriendId: type},
-      'mode': SessionMode.turnBased.value,
       'createdAt': FieldValue.serverTimestamp(),
       'startedAt': FieldValue.serverTimestamp(),
       'activeUserId': hostId,
@@ -1483,9 +1479,9 @@ class SessionService {
       );
 
       if (currentPhase == SessionPhase.setup && allParticipantsReady) {
+        // Mode is derived from participantTypes — do not persist (Z-DATA-002).
         final liveUpdate = <String, dynamic>{
           'phase': SessionPhase.live.value,
-          'mode': mode, // derivePairedSessionMode(participantTypes) above
           ...activityStamp(),
         };
         if (sessionData['sharedClockStartedAt'] == null) {

@@ -225,7 +225,7 @@ void main() {
       ]);
     });
 
-    test('matching gym is turn-based and mixed types are parallel', () {
+    test('matching gym is turn-based; same-type cardio and mixed are parallel', () {
       expect(
         SessionService.derivePairedSessionMode(const {
           'host': 'gym',
@@ -235,14 +235,31 @@ void main() {
       );
       expect(
         SessionService.derivePairedSessionMode(const {
+          'host': 'running',
+          'friend': 'running',
+        }),
+        SessionMode.parallel,
+      );
+      expect(
+        SessionService.derivePairedSessionMode(const {
           'host': 'gym',
           'friend': 'running',
         }),
         SessionMode.parallel,
       );
+      expect(
+        Session.modeFromParticipantTypes(const {
+          'host': 'running',
+          'friend': 'running',
+        }),
+        SessionService.derivePairedSessionMode(const {
+          'host': 'running',
+          'friend': 'running',
+        }),
+      );
     });
 
-    test('mixed workout type sessions derive mode without starting clock', () {
+    test('sharedClockStartFields omit mode and do not start the clock', () {
       final fields = SessionService.sharedClockStartFields(
         participantTypes: const {
           kPairedHostId: 'gym',
@@ -250,7 +267,7 @@ void main() {
         },
       );
 
-      expect(fields['mode'], SessionMode.parallel.value);
+      expect(fields.containsKey('mode'), isFalse);
       expect(fields, isNot(contains('sharedClockStartedAt')));
       expect(fields['participantTypes'], {
         kPairedHostId: 'gym',
@@ -436,7 +453,7 @@ void main() {
       expect(sessionData['partnerKind'], 'bot');
       expect(sessionData['partnerId'], pairedBotFriendId);
       expect(sessionData['participants'], [kPairedHostId, pairedBotFriendId]);
-      expect(sessionData['mode'], SessionMode.turnBased.value);
+      expect(sessionData.containsKey('mode'), isFalse);
       expect(hostPlanData['exercises'].single['plannedSets'], 2);
       expect(botPlanData['exercises'].single['name'], 'Bench Press');
       expect(botPlanData['exercises'].single['plannedSets'], 2);

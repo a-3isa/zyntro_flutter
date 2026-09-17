@@ -56,7 +56,7 @@ service cloud.firestore {
         resource.data.inviteExpiresAt is timestamp &&
         resource.data.inviteExpiresAt > request.time &&
         request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['participants', 'participantTypes', 'invitationStatus', 'mode'].concat(activityStampKeys()));
+          .hasOnly(['participants', 'participantTypes', 'invitationStatus'].concat(activityStampKeys()));
     }
 
     // Accepting an invite, joining, or any other state change also refreshes
@@ -73,10 +73,11 @@ service cloud.firestore {
     // frozen. Completing the session is last-live-member only so one client
     // cannot end a partner's workout by writing status: completed.
     function participantLiveKeys() {
+      // `mode` is derived client-side from participantTypes — never writable
+      // (Z-DATA-002 / Z-RT-001).
       return [
         'status',
         'phase',
-        'mode',
         'activeUserId',
         'sharedClockStartedAt',
         'activeSetStartedAt',
