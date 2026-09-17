@@ -104,9 +104,24 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
         _startCooldownTimer();
       }
     } catch (e) {
-      HapticFeedback.heavyImpact();
-      if (mounted) {
-        setState(() => _errorMessage = _getErrorMessage(e.toString()));
+      // Always show the same success path for unknown emails (Z-AUTH-001).
+      final message = e.toString();
+      final looksLikeMissingUser =
+          message.contains('user-not-found') ||
+          message.contains('invalid-credential');
+      if (looksLikeMissingUser) {
+        await _saveCooldownTimestamp();
+        if (mounted) {
+          setState(() {
+            _emailSent = true;
+            _cooldownSeconds = _cooldownDuration;
+            _errorMessage = null;
+          });
+          _startCooldownTimer();
+        }
+      } else if (mounted) {
+        HapticFeedback.heavyImpact();
+        setState(() => _errorMessage = _getErrorMessage(message));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -114,9 +129,6 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
   }
 
   String _getErrorMessage(String error) {
-    if (error.contains('user-not-found')) {
-      return 'No account found with this email address.';
-    }
     if (error.contains('invalid-email')) {
       return 'Please enter a valid email address.';
     }
@@ -126,7 +138,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
     if (error.contains('too-many-requests')) {
       return 'Too many attempts. Please try again later.';
     }
-    return 'Failed to send reset email. Please try again.';
+    return 'If an account exists for that email, we sent a reset link.';
   }
 
   InputDecoration _buildInputDecoration({

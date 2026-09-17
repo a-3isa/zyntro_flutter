@@ -383,6 +383,10 @@ class AuthRemoteDataSource {
     try {
       await _auth.sendPasswordResetEmail(email: email);
     } on fb.FirebaseAuthException catch (e) {
+      // Do not reveal whether the email is registered (Z-AUTH-001).
+      if (e.code == 'user-not-found' || e.code == 'invalid-credential') {
+        return;
+      }
       throw _mapFirebaseAuthException(e);
     } catch (_) {
       throw AuthDataException.unknown(
@@ -773,8 +777,10 @@ class AuthRemoteDataSource {
         );
       case 'wrong-password':
       case 'invalid-credential':
+      case 'user-not-found':
+        // Same copy for missing user and bad password (Z-AUTH-001).
         return AuthDataException.auth(
-          code: error.code,
+          code: 'invalid-credential',
           message: 'Invalid email or password. Please try again.',
         );
       case 'weak-password':
@@ -786,7 +792,8 @@ class AuthRemoteDataSource {
       case 'email-already-in-use':
         return AuthDataException.auth(
           code: error.code,
-          message: 'An account with this email already exists.',
+          message:
+              'Unable to create an account with this email. Try signing in or use a different email.',
         );
       case 'user-disabled':
         return AuthDataException.auth(
@@ -799,11 +806,6 @@ class AuthRemoteDataSource {
         return AuthDataException.auth(
           code: error.code,
           message: 'Too many attempts. Please try again later.',
-        );
-      case 'user-not-found':
-        return AuthDataException.auth(
-          code: error.code,
-          message: 'No account found with this email. Please sign up first.',
         );
       case 'operation-not-allowed':
         // Email/password provider is disabled in the Firebase console.

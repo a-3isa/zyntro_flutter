@@ -242,7 +242,8 @@ void main() {
       final controller = MockAuthController();
       when(() => controller.signUpWithEmail(any(), any())).thenThrow(
         const AuthFlowException(
-          message: 'An account with this email already exists.',
+          message:
+              'Unable to create an account with this email. Try signing in or use a different email.',
           code: 'email-already-in-use',
         ),
       );
@@ -259,11 +260,13 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-        find.text('An account with this email already exists.'),
+        find.text(
+          'Unable to create an account with this email. Try signing in or use a different email.',
+        ),
         findsOneWidget,
       );
       expect(
-        find.text('Sign in instead, or reset your password.'),
+        find.text('Try signing in or resetting your password.'),
         findsOneWidget,
       );
     });

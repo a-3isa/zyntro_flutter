@@ -89,7 +89,7 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
         setState(() {
           _errorMessage = e.message;
           _errorSuggestion = e.code == 'email-already-in-use'
-              ? 'Sign in instead, or reset your password.'
+              ? 'Try signing in or resetting your password.'
               : null;
         });
       }

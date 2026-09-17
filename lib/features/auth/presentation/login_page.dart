@@ -75,9 +75,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         HapticFeedback.heavyImpact();
         setState(() {
           _errorMessage = e.message;
-          _errorSuggestion = e.code == 'user-not-found'
-              ? 'Create an account to get started.'
-              : null;
+          _errorSuggestion = null;
         });
       }
     } catch (_) {
