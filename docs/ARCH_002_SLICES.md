@@ -10,8 +10,8 @@
 | `session_room_page.dart` | ≤ 80 KB / ≤ 2.5k LOC | **Met** (~78 KB as of 118) |
 | `profile_page.dart` | ≤ 60 KB | **Met** (~52 KB as of 109) |
 | `social_page.dart` | ≤ 40 KB | **Met** (~18 KB as of 119) |
-| `start_session_page.dart` | ≤ 45 KB | Type/section/avatar extracted |
-| `recap_page.dart` | ≤ 40 KB | Presentation widgets extracted |
+| `start_session_page.dart` | ≤ 45 KB | **Met** (~45 KB as of 120) |
+| `recap_page.dart` | ≤ 40 KB | **Met** (~39 KB) |
 
 ## Shipped slices (audit stack)
 
@@ -44,10 +44,11 @@
 | 116 | Session V2 header shell |
 | 117 | Set-column builder + waiting-turn partner resolver |
 | 118 | Voice upload, live progress map, late-add plan, time format, active prefill |
-| 119 | Social board/search widgets (social ≤40KB — Z-ARCH-002 budgets met) |
+| 119 | Social board/search widgets (social ≤40KB — core god files met) |
+| 120 | Start-session plan row / ring / past-workouts sheet (≤45KB) |
 
 ## Next slices (suggested)
 
 None required for soft budgets. Optional polish only.
 
-Z-ARCH-002 soft budgets are **met** for session_room, profile, and social.
+Z-ARCH-002 soft budgets are **met** for session_room, profile, social, start_session, and recap.
