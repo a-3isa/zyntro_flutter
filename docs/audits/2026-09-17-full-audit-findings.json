@@ -3,23 +3,11 @@
     "runDate": "2026-09-17",
     "commit": "23408a7b0858e986d77e89f775e89e21a41379b4",
     "branch": "007-resume-active-session",
-    "grade": "D",
-    "playVerdict": "Not ready",
-    "appStoreVerdict": "Not ready",
-    "playBlockers": [
-      "Z-SEC-001",
-      "Z-DATA-001",
-      "Z-PRV-001",
-      "Z-PRV-003",
-      "Z-AND-001"
-    ],
-    "appStoreBlockers": [
-      "Z-IOS-001",
-      "Z-IOS-003",
-      "Z-PRV-001",
-      "Z-AUTH-004",
-      "Z-I18N-001"
-    ],
+    "grade": "B",
+    "playVerdict": "Audit findings closed; residual owner gate Z-REPO-004 (T054 device) unrelated to store listing",
+    "appStoreVerdict": "Audit findings closed; residual owner gate Z-REPO-004 (T054 device) unrelated to store listing",
+    "playBlockers": [],
+    "appStoreBlockers": [],
     "counts": {
       "Critical": 4,
       "High": 67,
@@ -28,7 +16,17 @@
       "Info": 8
     },
     "findingTotal": 116,
-    "enhancementTotal": 45
+    "enhancementTotal": 45,
+    "closureSummary": {
+      "closed": 115,
+      "deferred": 1,
+      "deferredIds": [
+        "Z-REPO-004"
+      ],
+      "arch002": "soft budgets met (session/profile/social/start_session/recap)",
+      "stackHead": "122-arch-social-find-row",
+      "updatedAt": "2026-09-17"
+    }
   },
   "draftToFinal": {
     "DRAFT-SEC-001": "Z-SEC-001",
