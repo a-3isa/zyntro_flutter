@@ -1750,8 +1750,10 @@
       "standards": [
         "CF testing"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Node unit tests for push_copy + CI npm test gate; contracts remain for path coverage. Emulator suite still optional follow-up."
     },
     {
       "id": "Z-TEST-004",

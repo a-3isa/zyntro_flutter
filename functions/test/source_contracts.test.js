@@ -49,8 +49,8 @@ describe("Cloud Functions source contracts", () => {
   });
 
   it("localizes remaining push templates with Arabic copy (Z-I18N-003)", () => {
-    assert.match(source, /function getUserLocale/);
-    assert.match(source, /function pushCopy/);
+    assert.match(source, /function getUserLocale|normalizeUserLocale/);
+    assert.match(source, /require\("\.\/lib\/push_copy"\)/);
     assert.match(source, /Post It Together\?/);
     assert.match(source, /منشور مشترك؟/);
     assert.match(source, /رسالة صوتية/);

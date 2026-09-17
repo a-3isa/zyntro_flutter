@@ -4,6 +4,7 @@ const { getAuth } = require("firebase-admin/auth");
 const { FieldValue, getFirestore, Timestamp } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
 const { getStorage } = require("firebase-admin/storage");
+const { normalizeUserLocale, pushCopy } = require("./lib/push_copy");
 const logger = require("firebase-functions/logger");
 const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const { onRequest, HttpsError } = require("firebase-functions/v2/https");
@@ -101,14 +102,10 @@ async function getUserLocale(userId) {
       userDoc.exists && typeof userDoc.data()?.locale === "string"
         ? userDoc.data().locale.trim().toLowerCase()
         : "en";
-    return raw.startsWith("ar") ? "ar" : "en";
+    return normalizeUserLocale(raw);
   } catch (_) {
     return "en";
   }
-}
-
-function pushCopy(locale, en, ar) {
-  return locale === "ar" ? ar : en;
 }
 
 async function getRecipientDevices(recipientId) {
