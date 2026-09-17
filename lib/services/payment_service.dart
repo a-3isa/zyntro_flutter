@@ -52,17 +52,11 @@ class PaymentService {
   }
 
   /// Grant global leaderboard access to a user.
+  /// Client path removed (Z-DATA-001 / Z-PAY-001) — privileged field; Admin only.
   Future<void> grantGlobalLeaderboardAccess(String userId) async {
-    try {
-      await _firestore.collection('users').doc(userId).update({
-        'hasGlobalLeaderboardAccess': true,
-        'globalAccessGrantedAt': FieldValue.serverTimestamp(),
-      });
-      debugPrint('Granted global leaderboard access to user: $userId');
-    } catch (e) {
-      debugPrint('Error granting global leaderboard access: $e');
-      rethrow;
-    }
+    throw UnsupportedError(
+      'grantGlobalLeaderboardAccess requires a trusted Cloud Function',
+    );
   }
 
   /// Check if user has global leaderboard access.

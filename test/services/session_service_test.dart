@@ -721,7 +721,7 @@ void main() {
       expect(turnWrite['expiresAt'], isNotNull);
     });
 
-    test('endSession only updates caller user stats from the client', () async {
+    test('endSession does not persist caller score or partner user docs', () async {
       final mockDocSnapshot = MockDocumentSnapshot();
       when(() => mockSessionDoc.get()).thenAnswer((_) async => mockDocSnapshot);
       when(() => mockDocSnapshot.exists).thenReturn(true);
@@ -730,10 +730,10 @@ void main() {
 
       await sessionService.endSession(kPairedSessionId, kPairedHostId, null);
 
-      // Called once to build the PRs doc ref, once to read the streak counters,
-      // once to build the stats-update ref.
-      verify(() => mockUsersCollection.doc(kPairedHostId)).called(3);
+      // PRs doc ref + streak read only — no third write ref (Z-DATA-001).
+      verify(() => mockUsersCollection.doc(kPairedHostId)).called(2);
       verifyNever(() => mockUsersCollection.doc(kPairedFriendId));
+      verifyNever(() => mockBatch.update(mockUserDoc, any()));
       verify(() => mockBatch.commit()).called(1);
     });
 
@@ -746,12 +746,6 @@ void main() {
         ...buildPairedSessionData(),
         'type': 'strength',
         'startedAt': Timestamp.fromDate(DateTime.now().subtract(const Duration(minutes: 20))),
-      });
-
-      Map<Object, Object?>? capturedScoreUpdate;
-      when(() => mockBatch.update(mockUserDoc, any())).thenAnswer((invocation) {
-        capturedScoreUpdate =
-            invocation.positionalArguments[1] as Map<Object, Object?>;
       });
 
       final summary = SessionSummary(
@@ -769,18 +763,19 @@ void main() {
         ],
       );
 
-      await sessionService.endSession(kPairedSessionId, kPairedHostId, summary);
-
-      expect(capturedScoreUpdate, isNotNull);
-      // 20 min time + 0 buddy (bot/solo) + 6 effort (3 sets * 2) + 40 progress
-      // (first-time 5% * 800) = 66.
-      expect(
-        capturedScoreUpdate!['workoutScore'],
-        FieldValue.increment(66),
+      final localScore = await sessionService.endSession(
+        kPairedSessionId,
+        kPairedHostId,
+        summary,
       );
-      verify(
+
+      // 20 min time + 0 buddy (bot/solo) + 6 effort (3 sets * 2) + 40 progress
+      // (first-time 5% * 800) = 66. Returned for recap; not persisted (Z-DATA-001).
+      expect(localScore, 66);
+      verifyNever(() => mockBatch.update(mockUserDoc, any()));
+      verifyNever(
         () => mockBatch.set<Map<String, dynamic>>(mockUserPrsDoc, any(), any()),
-      ).called(1);
+      );
     });
 
     test(
@@ -804,14 +799,6 @@ void main() {
           ),
         });
 
-        Map<Object, Object?>? capturedScoreUpdate;
-        when(() => mockBatch.update(mockUserDoc, any())).thenAnswer((
-          invocation,
-        ) {
-          capturedScoreUpdate =
-              invocation.positionalArguments[1] as Map<Object, Object?>;
-        });
-
         final summary = SessionSummary(
           totalSets: 3,
           exercises: [
@@ -827,28 +814,23 @@ void main() {
           ],
         );
 
-        await sessionService.endSession(
+        final localScore = await sessionService.endSession(
           kPairedSessionId,
           kPairedHostId,
           summary,
         );
 
-        expect(capturedScoreUpdate, isNotNull);
         // 20 time + 0 buddy + 6 effort (3 sets * 2) + 40 progress (first-time
         // 5% * 800) = 66. The effort+progress contribution (46) is exactly what
         // the type-matching bug silently dropped — a time-only score of 20 here
         // means the scorer fell through both branches again.
-        expect(capturedScoreUpdate!['workoutScore'], FieldValue.increment(66));
-        // Non-zero effort/progress actually landed, not just time points.
-        expect(
-          capturedScoreUpdate!['workoutScore'],
-          isNot(FieldValue.increment(20)),
-        );
-        // A PR row was written for the exercise, proving the strength branch ran.
-        verify(
+        expect(localScore, 66);
+        expect(localScore, isNot(20));
+        verifyNever(() => mockBatch.update(mockUserDoc, any()));
+        verifyNever(
           () =>
               mockBatch.set<Map<String, dynamic>>(mockUserPrsDoc, any(), any()),
-        ).called(1);
+        );
       },
     );
 
@@ -868,23 +850,15 @@ void main() {
           ),
         });
 
-        Map<Object, Object?>? capturedScoreUpdate;
-        when(() => mockBatch.update(mockUserDoc, any())).thenAnswer((
-          invocation,
-        ) {
-          capturedScoreUpdate =
-              invocation.positionalArguments[1] as Map<Object, Object?>;
-        });
-
-        await sessionService.endSession(
+        final localScore = await sessionService.endSession(
           kPairedSessionId,
           kPairedHostId,
           SessionSummary(activityType: 'running', averageSpeed: 11.0),
         );
 
-        expect(capturedScoreUpdate, isNotNull);
         // 20 time + 0 effort (cardio) + 40 progress (first-time 5% * 800) = 60.
-        expect(capturedScoreUpdate!['workoutScore'], FieldValue.increment(60));
+        expect(localScore, 60);
+        verifyNever(() => mockBatch.update(mockUserDoc, any()));
       },
     );
 
@@ -904,23 +878,15 @@ void main() {
           ),
         });
 
-        Map<Object, Object?>? capturedScoreUpdate;
-        when(() => mockBatch.update(mockUserDoc, any())).thenAnswer((
-          invocation,
-        ) {
-          capturedScoreUpdate =
-              invocation.positionalArguments[1] as Map<Object, Object?>;
-        });
-
-        await sessionService.endSession(
+        final localScore = await sessionService.endSession(
           kPairedSessionId,
           kPairedHostId,
           SessionSummary(totalSets: 5),
         );
 
-        expect(capturedScoreUpdate, isNotNull);
         // By design: flexibility scores time only (no effort, no progress).
-        expect(capturedScoreUpdate!['workoutScore'], FieldValue.increment(20));
+        expect(localScore, 20);
+        verifyNever(() => mockBatch.update(mockUserDoc, any()));
         verifyNever(
           () =>
               mockBatch.set<Map<String, dynamic>>(mockUserPrsDoc, any(), any()),
@@ -929,7 +895,7 @@ void main() {
     );
 
     group('endSession buddy bonus', () {
-      Future<Object?> scoreForInvite({
+      Future<int> scoreForInvite({
         required String partnerKind,
         String? invitationStatus,
       }) async {
@@ -950,20 +916,11 @@ void main() {
           ),
         });
 
-        Map<Object, Object?>? capturedScoreUpdate;
-        when(() => mockBatch.update(mockUserDoc, any())).thenAnswer((
-          invocation,
-        ) {
-          capturedScoreUpdate =
-              invocation.positionalArguments[1] as Map<Object, Object?>;
-        });
-
-        await sessionService.endSession(
+        return sessionService.endSession(
           kPairedSessionId,
           kPairedHostId,
           null,
         );
-        return capturedScoreUpdate?['workoutScore'];
       }
 
       test('an accepted real-friend invite earns the +15 bonus', () async {
@@ -973,7 +930,7 @@ void main() {
             partnerKind: PairedPartnerKind.realFriend.value,
             invitationStatus: WorkoutInvitationStatus.accepted.value,
           ),
-          FieldValue.increment(35),
+          35,
         );
       });
 
@@ -984,7 +941,7 @@ void main() {
             partnerKind: PairedPartnerKind.realFriend.value,
             invitationStatus: WorkoutInvitationStatus.pending.value,
           ),
-          FieldValue.increment(20),
+          20,
         );
       });
 
@@ -994,7 +951,7 @@ void main() {
             partnerKind: PairedPartnerKind.realFriend.value,
             invitationStatus: WorkoutInvitationStatus.declined.value,
           ),
-          FieldValue.increment(20),
+          20,
         );
       });
 
@@ -1004,14 +961,14 @@ void main() {
             partnerKind: PairedPartnerKind.realFriend.value,
             invitationStatus: WorkoutInvitationStatus.expired.value,
           ),
-          FieldValue.increment(20),
+          20,
         );
         expect(
           await scoreForInvite(
             partnerKind: PairedPartnerKind.realFriend.value,
             invitationStatus: WorkoutInvitationStatus.cancelled.value,
           ),
-          FieldValue.increment(20),
+          20,
         );
       });
 
@@ -1020,7 +977,7 @@ void main() {
           await scoreForInvite(
             partnerKind: PairedPartnerKind.realFriend.value,
           ),
-          FieldValue.increment(20),
+          20,
         );
       });
 
@@ -1030,7 +987,7 @@ void main() {
             partnerKind: PairedPartnerKind.bot.value,
             invitationStatus: WorkoutInvitationStatus.accepted.value,
           ),
-          FieldValue.increment(20),
+          20,
         );
       });
     });
@@ -1097,14 +1054,6 @@ void main() {
           'cardio': 'corrupted',
         });
 
-        Map<Object, Object?>? capturedScoreUpdate;
-        when(() => mockBatch.update(mockUserDoc, any())).thenAnswer((
-          invocation,
-        ) {
-          capturedScoreUpdate =
-              invocation.positionalArguments[1] as Map<Object, Object?>;
-        });
-
         await sessionService.endSession(
           kPairedSessionId,
           kPairedHostId,
@@ -1122,11 +1071,13 @@ void main() {
           ),
         );
 
-        // Did not throw; the session still completed and a score was written.
+        // Did not throw; the session still completed without persisting score.
         verify(() => mockBatch.commit()).called(1);
-        expect(capturedScoreUpdate, isNotNull);
-        // Unreadable entries are treated as "no record", i.e. first-time bonus.
-        expect(capturedScoreUpdate!['workoutScore'], FieldValue.increment(66));
+        verifyNever(() => mockBatch.update(mockUserDoc, any()));
+        verifyNever(
+          () =>
+              mockBatch.set<Map<String, dynamic>>(mockUserPrsDoc, any(), any()),
+        );
       },
     );
 
@@ -1151,15 +1102,7 @@ void main() {
           () => mockUserPrsDoc.get(),
         ).thenThrow(FirebaseException(plugin: 'cloud_firestore', code: 'unavailable'));
 
-        Map<Object, Object?>? capturedScoreUpdate;
-        when(() => mockBatch.update(mockUserDoc, any())).thenAnswer((
-          invocation,
-        ) {
-          capturedScoreUpdate =
-              invocation.positionalArguments[1] as Map<Object, Object?>;
-        });
-
-        await sessionService.endSession(
+        final localScore = await sessionService.endSession(
           kPairedSessionId,
           kPairedHostId,
           SessionSummary(
@@ -1176,13 +1119,10 @@ void main() {
           ),
         );
 
-        // The user is not blocked from finishing: score still written.
+        // The user is not blocked from finishing; score is local-only.
         verify(() => mockBatch.commit()).called(1);
-        expect(capturedScoreUpdate, isNotNull);
-        expect(capturedScoreUpdate!['workoutScore'], FieldValue.increment(66));
-
-        // But no PR write — today's number must not overwrite a real stored PR
-        // that merely failed to load.
+        expect(localScore, 66);
+        verifyNever(() => mockBatch.update(mockUserDoc, any()));
         verifyNever(
           () =>
               mockBatch.set<Map<String, dynamic>>(mockUserPrsDoc, any(), any()),

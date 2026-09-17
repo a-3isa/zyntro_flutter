@@ -84,11 +84,9 @@ describe('users/{userId}', () => {
     );
   });
 
-  it('lets an owner write their own maintained workout counters', async () => {
-    // These are the streak/score counters session end writes. They are
-    // deliberately NOT privileged — the client-trust model for scoring is
-    // pre-existing and documented in the leaderboard scoring spec.
-    await assertSucceeds(
+  it('stops an owner inflating workoutScore or streak counters', async () => {
+    // Z-DATA-001: integrity fields are Admin/CF only.
+    await assertFails(
       updateDoc(doc(as(ALICE), 'users', ALICE), {
         workoutScore: 120,
         totalWorkouts: 4,
@@ -99,6 +97,15 @@ describe('users/{userId}', () => {
         weeklyWorkouts: 2,
         weekStartDate: '2026-08-03',
       }),
+    );
+  });
+
+  it('stops an owner writing a single integrity field', async () => {
+    await assertFails(
+      updateDoc(doc(as(ALICE), 'users', ALICE), { workoutScore: 99999 }),
+    );
+    await assertFails(
+      updateDoc(doc(as(ALICE), 'users', ALICE), { currentStreak: 99 }),
     );
   });
 
@@ -683,8 +690,8 @@ describe('users/{userId} private subcollections', () => {
     await assertFails(getDoc(doc(as(MALLORY), 'users', ALICE, 'devices', 'd1')));
   });
 
-  it('lets an owner read and write their own stats', async () => {
-    await assertSucceeds(
+  it('stops an owner writing their own stats (server-owned)', async () => {
+    await assertFails(
       setDoc(doc(as(ALICE), 'users', ALICE, 'stats', 'prs'), {
         strength: { bench: { bestEstimate: 100 } },
       }),

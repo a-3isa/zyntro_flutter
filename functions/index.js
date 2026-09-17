@@ -1030,3 +1030,37 @@ exports.cleanupDeletedUser = onUserDeleted(async (event) => {
 
   logger.info("Deleted-user cleanup finished.", { uid });
 });
+
+/**
+ * Z-DATA-001 phase 1 stub — server-authoritative score/streak grant.
+ * Clients no longer write workoutScore / streaks / stats/prs. Phase 2 will
+ * port computeWorkoutScore + advanceStreak here (or on session complete) and
+ * use Admin SDK to update users/{uid}. Until then this endpoint refuses work.
+ */
+exports.applySessionScore = onRequest({ invoker: "public" }, async (req, res) => {
+  setCorsHeaders(req, res);
+  if (req.method === "OPTIONS") {
+    res.status(204).send("");
+    return;
+  }
+  if (req.method !== "POST") {
+    res.status(405).json({ error: "Method not allowed." });
+    return;
+  }
+  try {
+    await requireHttpAppCheck(req);
+    await requireHttpAuth(req);
+  } catch (e) {
+    const code = e instanceof HttpsError ? e.code : "unauthenticated";
+    const status = code === "unauthenticated" || code === "permission-denied" ? 401 : 400;
+    res.status(status).json({ error: e.message || String(e) });
+    return;
+  }
+  logger.info("applySessionScore stub invoked — not implemented yet.", {
+    sessionId: req.body && req.body.sessionId,
+  });
+  res.status(501).json({
+    error: "applySessionScore not implemented",
+    hint: "Scores are frozen client-side until server grant ships (Z-DATA-001).",
+  });
+});

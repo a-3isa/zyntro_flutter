@@ -92,15 +92,8 @@ class User {
       if (avatarConfig != null) 'avatarConfig': avatarConfig,
       'updatedAt': FieldValue.serverTimestamp(),
       if (lastActive != null) 'lastActive': Timestamp.fromDate(lastActive!),
-      'workoutScore': workoutScore,
-      'totalWorkouts': totalWorkouts,
-      'hasGlobalLeaderboardAccess': hasGlobalLeaderboardAccess,
-      if (globalAccessGrantedAt != null)
-        'globalAccessGrantedAt': Timestamp.fromDate(globalAccessGrantedAt!),
-      'isModerator': isModerator,
-      'isBanned': isBanned,
-      if (bannedUntil != null) 'bannedUntil': Timestamp.fromDate(bannedUntil!),
-      if (banReason != null) 'banReason': banReason,
+      // workoutScore / streaks / moderation / leaderboard entitlements are
+      // server-owned (Z-DATA-001) — never included in client writes.
     };
   }
 }

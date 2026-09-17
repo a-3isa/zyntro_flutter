@@ -256,6 +256,8 @@ service cloud.firestore {
     }
 
     function privilegedUserFields() {
+      // Identity/moderation + score integrity (Z-DATA-001). Clients may read
+      // these; only Admin SDK / Cloud Functions may write them.
       return [
         'isModerator',
         'isBanned',
@@ -265,7 +267,15 @@ service cloud.firestore {
         'globalAccessGrantedAt',
         'globalLeaderboardAccessGrantedAt',
         'globalLeaderboardPaymentId',
-        'transactions'
+        'transactions',
+        'workoutScore',
+        'totalWorkouts',
+        'buddyWorkouts',
+        'currentStreak',
+        'longestStreak',
+        'lastWorkoutDate',
+        'weeklyWorkouts',
+        'weekStartDate'
       ];
     }
 
@@ -365,7 +375,8 @@ service cloud.firestore {
           isPublicProfile(userId) ||
           isApprovedFollowerOf(userId)
         );
-        allow create, update, delete: if isOwner(userId);
+        // Score/PR integrity — Admin SDK / Cloud Functions only (Z-DATA-001).
+        allow create, update, delete: if false;
       }
 
       match /joinedEvents/{eventId} {
@@ -691,6 +702,7 @@ service cloud.firestore {
       // session document is also updated in the same batched write.
       allow create: if isAuthenticated() &&
         request.resource.data.sessionId is string &&
+        request.resource.data.userId == request.auth.uid &&
         request.resource.data.participants != null &&
         request.resource.data.participants.hasAny([request.auth.uid]);
       allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;

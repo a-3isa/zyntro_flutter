@@ -415,38 +415,12 @@ class UserService {
     return results;
   }
 
-  /// Update user's streak in their profile.
+  /// Streak display is read from the user doc (server-owned, Z-DATA-001).
+  /// Client recalculation no longer writes — kept as a no-op so call sites
+  /// that refresh UI caches stay safe.
   Future<void> updateUserStreak(String userId) async {
-    invalidateStreakCache(userId); // Clear cache before recalculating
-    final stats = await calculateUserStreak(userId);
-
-    final statsData = {
-      'currentStreak': stats.currentStreak,
-      'longestStreak': stats.longestStreak,
-      'totalWorkouts': stats.totalWorkouts,
-      'lastWorkoutDate': stats.lastWorkoutDate,
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
-
-    final batch = _firestore.batch();
-
-    // Update basic stats field on user document (legacy/quick access)
-    batch.update(_firestore.collection('users').doc(userId), {
-      'stats': statsData,
-    });
-
-    // Update stats/current subcollection (used by leaderboard service)
-    batch.set(
-      _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('stats')
-          .doc('current'),
-      statsData,
-      SetOptions(merge: true),
-    );
-
-    await batch.commit();
+    invalidateStreakCache(userId);
+    await calculateUserStreak(userId);
   }
 
   /// Search for users by unique username (case-insensitive prefix match).

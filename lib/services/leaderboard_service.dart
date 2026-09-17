@@ -5,7 +5,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../features/auth/auth_providers.dart';
 import 'follow_service.dart';
 
-/// Leaderboard entry for display.
+/// Flip to true only after Cloud Function `applySessionScore` is live and
+/// historical client-written scores are trusted or backfilled (Z-DATA-001).
+const bool kServerScoresLive = false;
+
+/// Thrown / returned as empty when leaderboards are gated off.
+class LeaderboardUnavailableException implements Exception {
+  @override
+  String toString() =>
+      'Leaderboards are temporarily unavailable while scores move server-side.';
+}
 class LeaderboardEntry {
   final String userId;
   final String displayName;
@@ -71,6 +80,12 @@ class LeaderboardService {
     String currentUserId,
     List<String> followingIds,
   ) async {
+    if (!kServerScoresLive) {
+      debugPrint(
+        'LeaderboardService: friends board gated (kServerScoresLive=false)',
+      );
+      return const [];
+    }
     try {
       final userIds = [...followingIds, currentUserId];
       final List<LeaderboardEntry> entries = [];
@@ -162,6 +177,12 @@ class LeaderboardService {
     String currentUserId, {
     int limit = 50,
   }) async {
+    if (!kServerScoresLive) {
+      debugPrint(
+        'LeaderboardService: global board gated (kServerScoresLive=false)',
+      );
+      return const [];
+    }
     try {
       final querySnapshot = await _firestore
           .collection('users')
@@ -206,16 +227,11 @@ class LeaderboardService {
   }
 
   /// Grant global leaderboard access to a user.
+  /// Client path removed (Z-DATA-001) — privileged field; Admin only.
   Future<void> grantGlobalLeaderboardAccess(String userId) async {
-    try {
-      await _firestore.collection('users').doc(userId).update({
-        'hasGlobalLeaderboardAccess': true,
-        'globalAccessGrantedAt': FieldValue.serverTimestamp(),
-      });
-    } catch (e) {
-      debugPrint('Error granting global leaderboard access: $e');
-      rethrow;
-    }
+    throw UnsupportedError(
+      'grantGlobalLeaderboardAccess requires a trusted Cloud Function',
+    );
   }
 
   /// Get community events.

@@ -844,6 +844,40 @@ class _FriendsLeaderboard extends ConsumerWidget {
 
     final leaderboardAsync = ref.watch(friendsLeaderboardProvider(userId));
 
+    if (!kServerScoresLive) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.emoji_events_outlined,
+                size: 56,
+                color: AppColors.textV2Tertiary,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Leaderboard pausing',
+                style: AppTextStyles.h4.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textV2Primary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Rankings will return once workout scores are verified on the server.',
+                style: AppTextStyles.body.copyWith(
+                  color: AppColors.textV2Secondary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return leaderboardAsync.when(
       data: (entries) {
         if (entries.isEmpty) {
@@ -1298,7 +1332,7 @@ class _GlobalUpsell extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               Text(
-                'Compete with athletes worldwide and see where you rank globally.',
+                'Global rankings are paused while we move scoring to the server. Check back soon.',
                 style: AppTextStyles.body.copyWith(
                   color: AppColors.textV2Secondary,
                 ),

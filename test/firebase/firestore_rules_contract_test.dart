@@ -120,6 +120,8 @@ void main() {
       expect(rules, contains('hasGlobalLeaderboardAccess'));
       expect(rules, contains('globalAccessGrantedAt'));
       expect(rules, contains('isModerator'));
+      expect(rules, contains("'workoutScore'"));
+      expect(rules, contains("'currentStreak'"));
     });
 
     test('restrict cross-user notification creation to the owner', () {

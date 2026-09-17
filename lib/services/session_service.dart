@@ -1086,14 +1086,17 @@ class SessionService {
     }
   }
 
-  Future<void> endSession(
+  /// Ends the session for [userId]. Returns the locally computed workout score
+  /// for recap UX. Aggregate score/streak/PR persistence is server-owned
+  /// (Z-DATA-001) and is not written from the client.
+  Future<int> endSession(
     String sessionId,
     String userId,
     SessionSummary? summary,
   ) async {
     // Get session data for workout logging
     final session = await getSession(sessionId);
-    if (session == null) return;
+    if (session == null) return 0;
 
     final sessionDuration = DateTime.now().difference(session.startedAt);
     // `partnerKind` is stamped at session creation, before the invited friend
@@ -1196,66 +1199,28 @@ class SessionService {
       'timestamp': FieldValue.serverTimestamp(),
     });
 
-    // 3. Log workouts for all participants
-    for (final participantId in session.participants) {
-      final workoutRef = _firestore.collection('workouts').doc();
-      batch.set(workoutRef, {
-        'userId': participantId,
-        'sessionId': sessionId,
-        'type': session.type,
-        'title': session.title,
-        'summary': summary?.toMap(),
-        'participants': session.participants,
-        'endedAt': FieldValue.serverTimestamp(),
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+    // 3. Log workout for the caller only — partners write their own row when
+    // they end. userId must match auth (Z-DATA-001 / Z-SEC-002).
+    final workoutRef = _firestore.collection('workouts').doc();
+    batch.set(workoutRef, {
+      'userId': userId,
+      'sessionId': sessionId,
+      'type': session.type,
+      'title': session.title,
+      'summary': summary?.toMap(),
+      'participants': session.participants,
+      'endedAt': FieldValue.serverTimestamp(),
+      'createdAt': FieldValue.serverTimestamp(),
+    });
 
-      if (participantId == userId) {
-        // Client rules only permit users to update their own aggregate stats.
-        batch.update(_firestore.collection('users').doc(participantId), {
-          'workoutScore': FieldValue.increment(scoreResult.score),
-          'totalWorkouts': FieldValue.increment(1),
-          if (session.participants.length > 1)
-            'buddyWorkouts': FieldValue.increment(1),
-          if (nextStreak != null) ...{
-            'currentStreak': nextStreak.currentStreak,
-            'longestStreak': nextStreak.longestStreak,
-            'lastWorkoutDate': nextStreak.lastWorkoutDate,
-            'weeklyWorkouts': nextStreak.weeklyWorkouts,
-            'weekStartDate': nextStreak.weekStartDate,
-          },
-        });
-
-        if (canWritePrs &&
-            (scoreResult.updatedStrengthPrs.isNotEmpty ||
-                scoreResult.updatedCardioPrs.isNotEmpty)) {
-          batch.set(
-            prsRef,
-            {
-              if (scoreResult.updatedStrengthPrs.isNotEmpty)
-                'strength': {
-                  for (final entry in scoreResult.updatedStrengthPrs.entries)
-                    entry.key: {
-                      'bestEstimate': entry.value,
-                      'achievedAt': FieldValue.serverTimestamp(),
-                      'sourceSessionId': sessionId,
-                    },
-                },
-              if (scoreResult.updatedCardioPrs.isNotEmpty)
-                'cardio': {
-                  for (final entry in scoreResult.updatedCardioPrs.entries)
-                    entry.key: {
-                      'bestEstimate': entry.value,
-                      'achievedAt': FieldValue.serverTimestamp(),
-                      'sourceSessionId': sessionId,
-                    },
-                },
-            },
-            SetOptions(merge: true),
-          );
-        }
-      }
-    }
+    // Score / streak / PR persistence is server-owned (Z-DATA-001). Local
+    // scoreResult is returned for recap UX; do not write it here.
+    // Cloud Function applySessionScore (stub) will grant aggregates later.
+    debugPrint(
+      '[SessionService] endSession local score=${scoreResult.score} '
+      '(not persisted; nextStreak=${nextStreak?.currentStreak}; '
+      'canWritePrs=$canWritePrs)',
+    );
 
     await withRetryCircuitBreakerVoid(
       () => batch.commit(),
@@ -1271,6 +1236,8 @@ class SessionService {
       ResumeSessionAnalyticsEvent.sessionCompleted,
       sessionId,
     );
+
+    return scoreResult.score;
   }
 
   /// Records a funnel event without ever letting it affect the caller.
