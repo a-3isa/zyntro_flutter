@@ -308,7 +308,9 @@ void main() {
         rules,
         contains('allow get: if isAuthenticated() && canReadUserProfile(userId);'),
       );
-      expect(rules, contains('allow list: if isAuthenticated();'));
+      expect(rules, contains('function canListUserProfile'));
+      expect(rules, isNot(contains('allow list: if isAuthenticated();')));
+      expect(rules, contains('canListUserProfile()'));
       expect(rules, contains("request.auth.token.get('moderator', false) == true"));
     });
 

@@ -127,6 +127,7 @@ jobs:
     name: Deploy Firebase Rules
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
+    needs: []
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -136,8 +137,22 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Setup Java (rules emulator)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
+      - name: Install rules test deps
+        working-directory: test/rules
+        run: npm ci
+
+      - name: Run Firestore rules emulator tests
+        working-directory: test/rules
+        run: npm test
+
       - name: Deploy Firestore and Storage rules
-        run: firebase deploy --only firestore:rules,firestore:indexes,storage --token ${{ secrets.FIREBASE_TOKEN }} --project ${{ secrets.FIREBASE_PROJECT_ID }}
+        run: firebase deploy --only "firestore:rules,firestore:indexes,storage" --token ${{ secrets.FIREBASE_TOKEN }} --project ${{ secrets.FIREBASE_PROJECT_ID }}

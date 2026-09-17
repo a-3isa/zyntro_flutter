@@ -243,6 +243,17 @@ service cloud.firestore {
         isApprovedFollowerOf(userId);
     }
 
+    // List/query ACL for users. Strangers may only list public profiles.
+    // Approved followers still use get-by-id (canReadUserProfile). Avoid
+    // isApprovedFollowerOf here — per-result get()/exists() blows the
+    // query rules budget on chunked friend lookups.
+    function canListUserProfile() {
+      // Require an explicit false — Map.get/!= true was not denying boolean true
+      // in emulator list evaluation for this project.
+      return resource.data.keys().hasAll(['isPrivate']) &&
+        resource.data.isPrivate == false;
+    }
+
     function privilegedUserFields() {
       return [
         'isModerator',
@@ -316,7 +327,12 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow get: if isAuthenticated() && canReadUserProfile(userId);
-      allow list: if isAuthenticated();
+      // Z-SEC-001: list must not be auth-blanket. Owner may list self; strangers
+      // only see profiles with isPrivate == false (explicit).
+      allow list: if isAuthenticated() && (
+        request.auth.uid == userId ||
+        canListUserProfile()
+      );
       allow create: if isOwner(userId) && !isPrivilegedUserCreate();
       allow update: if (isOwner(userId) && !isPrivilegedUserFieldChange()) || isModerator();
       allow delete: if false;

@@ -112,15 +112,16 @@ class UserCacheService {
       final chunk = missingIds.sublist(i, end);
 
       try {
-        final snapshot = await _firestore
-            .collection('users')
-            .where(FieldPath.documentId, whereIn: chunk)
-            .get();
+        final docs = await Future.wait(
+          chunk.map((id) => _firestore.collection('users').doc(id).get()),
+        );
 
-        for (final doc in snapshot.docs) {
-          final user = User.fromFirestore(doc);
-          result[doc.id] = user;
-          _addToCache(doc.id, user);
+        for (final doc in docs) {
+          if (doc.exists) {
+            final user = User.fromFirestore(doc);
+            result[doc.id] = user;
+            _addToCache(doc.id, user);
+          }
         }
       } catch (e) {
         debugPrint('[UserCache] Error fetching users: $e');

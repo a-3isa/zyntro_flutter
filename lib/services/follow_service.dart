@@ -285,13 +285,14 @@ class FollowService {
         i,
         (i + _userLookupChunkSize).clamp(0, uniqueIds.length),
       );
-      final snapshot = await _firestore
-          .collection('users')
-          .where(FieldPath.documentId, whereIn: chunk)
-          .get();
+      final docs = await Future.wait(
+        chunk.map((id) => _firestore.collection('users').doc(id).get()),
+      );
 
-      for (final doc in snapshot.docs) {
-        usersById[doc.id] = User.fromFirestore(doc);
+      for (final doc in docs) {
+        if (doc.exists) {
+          usersById[doc.id] = User.fromFirestore(doc);
+        }
       }
     }
 
@@ -514,9 +515,10 @@ class FollowService {
       final followingIds = await getFollowingIds(currentUserId);
       final allExcludedIds = {...followingIds, currentUserId};
 
-      // Fetch recent users
+      // Fetch recent public users only (Z-SEC-001 list ACL).
       final snapshot = await _firestore
           .collection('users')
+          .where('isPrivate', isEqualTo: false)
           .orderBy('createdAt', descending: true)
           .limit(limit * 2) // Fetch more to allow for client-side filtering
           .get();

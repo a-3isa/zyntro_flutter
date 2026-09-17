@@ -79,16 +79,19 @@ class LeaderboardService {
       const chunkSize = 10;
       for (var i = 0; i < userIds.length; i += chunkSize) {
         final chunk = userIds.skip(i).take(chunkSize).toList();
-        final querySnapshot = await _firestore
-            .collection('users')
-            .where(FieldPath.documentId, whereIn: chunk)
-            .get();
+        final querySnapshot = await Future.wait(
+          chunk.map(
+            (id) => _firestore.collection('users').doc(id).get(),
+          ),
+        );
 
         entries.addAll(
           await Future.wait(
-            querySnapshot.docs.map(
-              (doc) => _buildFriendLeaderboardEntry(doc, currentUserId),
-            ),
+            querySnapshot
+                .where((doc) => doc.exists)
+                .map(
+                  (doc) => _buildFriendLeaderboardEntry(doc, currentUserId),
+                ),
           ),
         );
       }
@@ -121,10 +124,10 @@ class LeaderboardService {
   }
 
   Future<LeaderboardEntry> _buildFriendLeaderboardEntry(
-    QueryDocumentSnapshot<Map<String, dynamic>> doc,
+    DocumentSnapshot<Map<String, dynamic>> doc,
     String currentUserId,
   ) async {
-    final data = doc.data();
+    final data = doc.data()!;
 
     // Fetch streak from user's stats subcollection.
     int streak = 0;

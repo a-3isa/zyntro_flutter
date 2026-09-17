@@ -183,6 +183,99 @@ describe('users/{userId}', () => {
       updateDoc(doc(as(MOD), 'users', ALICE), { isBanned: true }),
     );
   });
+
+  // Z-SEC-001 — list must not bypass private get ACL.
+  // Queries that *could* return a private doc for a stranger fail entirely
+  // (rules are not filters). Constrained public queries succeed without them.
+  it('denies a stranger collection list that could include a private profile', async () => {
+    await assertSucceeds(
+      updateDoc(doc(as(ALICE), 'users', ALICE), {
+        isPrivate: true,
+        usernameLower: 'alice',
+      }),
+    );
+
+    // Emulator may filter unauthorized docs rather than fail the query.
+    // Either outcome is acceptable if private Alice is not returned.
+    let ids = [];
+    try {
+      const snap = await getDocs(collection(as(MALLORY), 'users'));
+      ids = snap.docs.map((d) => d.id);
+    } catch {
+      return; // hard deny — also fine
+    }
+    if (ids.includes(ALICE)) {
+      throw new Error(`private Alice leaked via list: ${ids.join(',')}`);
+    }
+  });
+
+  it('denies a username prefix query that could return a private profile', async () => {
+    await assertSucceeds(
+      updateDoc(doc(as(ALICE), 'users', ALICE), {
+        isPrivate: true,
+        usernameLower: 'alice',
+      }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(as(BOB), 'users', BOB), {
+        isPrivate: false,
+        usernameLower: 'bob',
+      }),
+    );
+
+    const privatePrefix = query(
+      collection(as(MALLORY), 'users'),
+      where('usernameLower', '>=', 'ali'),
+      where('usernameLower', '<=', 'ali\uf8ff'),
+    );
+    let ids = [];
+    try {
+      const snap = await getDocs(privatePrefix);
+      ids = snap.docs.map((d) => d.id);
+    } catch {
+      return;
+    }
+    if (ids.includes(ALICE)) {
+      throw new Error(`private Alice leaked via prefix query: ${ids.join(',')}`);
+    }
+  });
+
+  it('lets a stranger search public profiles with isPrivate == false', async () => {
+    await assertSucceeds(
+      updateDoc(doc(as(ALICE), 'users', ALICE), {
+        isPrivate: true,
+        usernameLower: 'alice',
+      }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(as(BOB), 'users', BOB), {
+        isPrivate: false,
+        usernameLower: 'bobby',
+      }),
+    );
+
+    const publicSearch = query(
+      collection(as(MALLORY), 'users'),
+      where('isPrivate', '==', false),
+      where('usernameLower', '>=', 'bob'),
+      where('usernameLower', '<=', 'bob\uf8ff'),
+    );
+    const snap = await assertSucceeds(getDocs(publicSearch));
+    const ids = snap.docs.map((d) => d.id);
+    if (!ids.includes(BOB)) {
+      throw new Error(`expected public Bob in results, got ${ids.join(',')}`);
+    }
+    if (ids.includes(ALICE)) {
+      throw new Error('private Alice must not appear in public search');
+    }
+  });
+
+  it('lets a moderator get a private profile', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users', ALICE), { isPrivate: true }, { merge: true });
+    });
+    await assertSucceeds(getDoc(doc(as(MOD), 'users', ALICE)));
+  });
 });
 
 describe('follows/{followId}', () => {

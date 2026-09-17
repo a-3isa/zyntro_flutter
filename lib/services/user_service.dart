@@ -458,8 +458,10 @@ class UserService {
     );
     if (normalized.isEmpty) return [];
 
+    // isPrivate == false keeps the query inside public list ACL (Z-SEC-001).
     final snapshot = await _firestore
         .collection('users')
+        .where('isPrivate', isEqualTo: false)
         .where('usernameLower', isGreaterThanOrEqualTo: normalized)
         .where('usernameLower', isLessThanOrEqualTo: '$normalized\uf8ff')
         .limit(10)
@@ -727,13 +729,14 @@ class UserService {
       if (chunk.isEmpty) continue;
 
       try {
-        final snapshot = await _firestore
-            .collection('users')
-            .where(FieldPath.documentId, whereIn: chunk)
-            .get();
+        final docs = await Future.wait(
+          chunk.map((id) => _firestore.collection('users').doc(id).get()),
+        );
 
-        for (final doc in snapshot.docs) {
-          userProfiles[doc.id] = doc.data();
+        for (final doc in docs) {
+          if (doc.exists) {
+            userProfiles[doc.id] = doc.data()!;
+          }
         }
       } catch (e) {
         debugPrint('Error fetching user profiles: $e');
