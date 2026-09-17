@@ -23,6 +23,7 @@ import 'widgets/profile_history_widgets.dart';
 import 'widgets/profile_empty_states.dart';
 import 'widgets/profile_header_widgets.dart';
 import 'widgets/profile_award_card.dart';
+import 'widgets/profile_follow_button.dart';
 import '../../../services/leaderboard_service.dart';
 import '../../../services/profile_cache_service.dart';
 import '../../../utils/offline_manager.dart';
@@ -1076,7 +1077,7 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
             ),
           ],
           const SizedBox(height: 18),
-          _FollowButton(
+          ProfileFollowButton(
             targetUserId: targetUserId,
             isTargetPrivate: user.isPrivate,
             followsMe: followsMe,
@@ -1328,7 +1329,7 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
           const SizedBox(height: 12),
 
           // Follow button
-          _FollowButton(
+          ProfileFollowButton(
             targetUserId: targetUserId,
             isTargetPrivate: user.isPrivate,
             isLoading: widget.isFollowLoading,
@@ -1739,130 +1740,6 @@ class _ActionRow extends ConsumerWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Follow Button
-// ---------------------------------------------------------------------------
-
-class _FollowButton extends ConsumerWidget {
-  final String targetUserId;
-  final bool isTargetPrivate;
-  final bool isLoading;
-  final bool followsMe;
-  final void Function(String, bool) onFollow;
-  final void Function(String) onUnfollow;
-
-  const _FollowButton({
-    required this.targetUserId,
-    required this.isTargetPrivate,
-    required this.isLoading,
-    this.followsMe = false,
-    required this.onFollow,
-    required this.onUnfollow,
-  });
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final followStatusAsync = ref.watch(followStatusProvider(targetUserId));
-    final authState = ref.watch(authSessionProvider);
-    final currentUserId = authState.value?.id;
-
-    return followStatusAsync.when(
-      data: (status) {
-        final bool isPrimary =
-            status == null || status == FollowStatus.declined;
-        final String buttonText = switch (status) {
-          FollowStatus.pending => 'REQUESTED',
-          FollowStatus.approved => 'FOLLOWING',
-          _ => followsMe ? 'Follow back' : 'FOLLOW',
-        };
-        final VoidCallback? onPressed = switch (status) {
-          FollowStatus.pending =>
-            currentUserId == null
-                ? null
-                : () async {
-                    await ref
-                        .read(followServiceProvider)
-                        .withdrawFollowRequest(currentUserId, targetUserId);
-                    ref.invalidate(followStatusProvider(targetUserId));
-                  },
-          FollowStatus.approved => () => onUnfollow(targetUserId),
-          _ => () => onFollow(targetUserId, isTargetPrivate),
-        };
-
-        return GestureDetector(
-          onTap: isLoading ? null : onPressed,
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            decoration: BoxDecoration(
-              color: isPrimary ? AppColors.signal : AppColors.surfaceV2,
-              borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-              border: isPrimary
-                  ? null
-                  : Border.all(color: AppColors.surfaceV2Active),
-            ),
-            child: Center(
-              child: isLoading
-                  ? SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: isPrimary
-                            ? AppColors.backgroundV2
-                            : AppColors.signal,
-                      ),
-                    )
-                  : Text(
-                      buttonText,
-                      style: AppTextStyles.label.copyWith(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: isPrimary
-                            ? AppColors.backgroundV2
-                            : AppColors.textV2Primary,
-                        letterSpacing: 0.5,
-                        decoration: TextDecoration.none,
-                      ),
-                    ),
-            ),
-          ),
-        );
-      },
-      loading: () => SizedBox(
-        height: 50,
-        child: Center(
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: AppColors.signal,
-          ),
-        ),
-      ),
-      error: (_, _) => GestureDetector(
-        onTap: () => onFollow(targetUserId, isTargetPrivate),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          decoration: BoxDecoration(
-            color: AppColors.signal,
-            borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-          ),
-          child: Center(
-            child: Text(
-              'FOLLOW',
-              style: AppTextStyles.label.copyWith(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: AppColors.backgroundV2,
-              ),
-            ),
-          ),
-        ),
       ),
     );
   }

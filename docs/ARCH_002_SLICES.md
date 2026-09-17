@@ -26,6 +26,7 @@
 | 098 | Profile award card + this roadmap |
 | 099 | Session header invite/setup chips |
 | 100 | Session set column widget |
+| 101 | Profile follow button |
 
 ## Next slices (suggested)
 
