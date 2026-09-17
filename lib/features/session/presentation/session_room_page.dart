@@ -22,7 +22,6 @@ import '../../../services/session_analytics_service.dart';
 import '../../../services/user_cache_service.dart';
 import '../../../utils/offline_manager.dart';
 import '../../../utils/retry_helper.dart';
-import 'widgets/session_room_animations.dart';
 import 'widgets/session_room_background.dart';
 import '../../../widgets/shimmer_widgets.dart';
 import '../../../widgets/connection_status_widget.dart';
