@@ -266,6 +266,42 @@ String? moderationQueueRedirect({
   return null;
 }
 
+/// Query key carrying the pre-auth deep link for restore after login
+/// (Z-AUTH-007).
+const kPostAuthRedirectFrom = 'from';
+
+/// Login location that remembers [intendedPath] for post-auth restore.
+String loginWithReturnTo(String intendedPath) {
+  final encoded = Uri.encodeComponent(intendedPath);
+  return '${AppRoutes.login}?$kPostAuthRedirectFrom=$encoded';
+}
+
+/// Validates a `from` query value into a same-app relative location, or null.
+///
+/// Rejects absolute URLs, scheme-relative `//` hosts, and auth-entry pages so
+/// an attacker cannot open-redirect after sign-in.
+String? safePostAuthReturnTo(String? fromRaw) {
+  if (fromRaw == null || fromRaw.isEmpty) return null;
+
+  final decoded = Uri.decodeComponent(fromRaw);
+  if (!decoded.startsWith('/') || decoded.startsWith('//')) return null;
+
+  final uri = Uri.tryParse(decoded);
+  if (uri == null || uri.hasScheme) return null;
+
+  const blocked = <String>{
+    AppRoutes.login,
+    AppRoutes.signUp,
+    AppRoutes.splash,
+    AppRoutes.forgotPassword,
+    AppRoutes.onboarding,
+    AppRoutes.profileSetup,
+  };
+  if (blocked.contains(uri.path)) return null;
+
+  return uri.toString();
+}
+
 /// Where an authenticated, onboarded member should land at start-up, given the
 /// resume decision.
 ///
@@ -419,14 +455,17 @@ final routerProvider = Provider<GoRouter>((ref) {
         return loc == AppRoutes.splash ? null : AppRoutes.splash;
       }
 
-      // Not logged in: only auth-entry pages are reachable.
+      // Not logged in: only auth-entry pages are reachable. Preserve the
+      // intended deep link so login can restore it (Z-AUTH-007).
       if (!isLoggedIn) {
-        return isOnAuthEntry ? null : AppRoutes.login;
+        if (isOnAuthEntry) return null;
+        return loginWithReturnTo(state.uri.toString());
       }
 
       // Guardrail: if a migration rollback is active, keep on auth-entry routes.
       if (isRollbackActive) {
-        return isOnAuthEntry ? null : AppRoutes.login;
+        if (isOnAuthEntry) return null;
+        return loginWithReturnTo(state.uri.toString());
       }
 
       // Logged in. Resolve profile completeness (treat an error as incomplete).
@@ -447,10 +486,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         if (moderationRedirect != null) return moderationRedirect;
 
         // Returning, set-up users go straight to the app (home/feed) — unless
-        // they left a workout running. Placed here so authentication and
-        // onboarding are already settled: a member is never pulled into a
-        // session ahead of signing in or finishing setup.
+        // they left a workout running, or arrived via a deep link that was
+        // stashed on the login URL (Z-AUTH-007).
         if (isOnAuthEntry || isOnSetup) {
+          final returnTo = safePostAuthReturnTo(
+            state.uri.queryParameters[kPostAuthRedirectFrom],
+          );
+          if (returnTo != null) return returnTo;
+
           return resumeStartupLocation(
             decision: resumeDecision,
             decisionResolved: resumeDecisionDone,

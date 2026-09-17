@@ -10,6 +10,7 @@ String? _computeRedirect({
   required bool profileHasError,
   required bool rollbackActive,
   required String currentLocation,
+  String? fromQuery,
 }) {
   final isOnAuthPage = currentLocation == AppRoutes.login ||
       currentLocation == AppRoutes.signUp ||
@@ -21,7 +22,9 @@ String? _computeRedirect({
     return currentLocation == AppRoutes.splash ? null : AppRoutes.splash;
   }
 
-  if (!isLoggedIn && !isOnAuthPage) return AppRoutes.login;
+  if (!isLoggedIn && !isOnAuthPage) {
+    return loginWithReturnTo(currentLocation);
+  }
 
   if (rollbackActive && !isOnAuthPage) return AppRoutes.login;
 
@@ -44,12 +47,15 @@ String? _computeRedirect({
       return null;
     }
 
-    // Profile complete — redirect off auth/onboarding pages to main
+    // Profile complete — redirect off auth/onboarding pages to main,
+    // or to a safe stashed deep link (Z-AUTH-007).
     if (currentLocation == AppRoutes.login ||
         currentLocation == AppRoutes.signUp ||
         currentLocation == AppRoutes.splash ||
         currentLocation == AppRoutes.onboarding ||
         currentLocation == AppRoutes.profileSetup) {
+      final returnTo = safePostAuthReturnTo(fromQuery);
+      if (returnTo != null) return returnTo;
       return AppRoutes.main;
     }
   }
@@ -201,7 +207,7 @@ void main() {
       expect(result, isNull);
     });
 
-    test('unauthenticated user on main redirects to login', () {
+    test('unauthenticated user on main redirects to login with from', () {
       final result = _computeRedirect(
         isLoggedIn: false,
         isLoading: false,
@@ -211,7 +217,49 @@ void main() {
         currentLocation: AppRoutes.main,
       );
 
-      expect(result, AppRoutes.login);
+      expect(result, loginWithReturnTo(AppRoutes.main));
+      expect(result, contains(kPostAuthRedirectFrom));
+    });
+  });
+
+  group('safePostAuthReturnTo (Z-AUTH-007)', () {
+    test('restores a session deep link', () {
+      expect(
+        safePostAuthReturnTo(
+          Uri.encodeComponent('/session/room/abc?type=gym'),
+        ),
+        '/session/room/abc?type=gym',
+      );
+    });
+
+    test('rejects absolute and scheme-relative URLs', () {
+      expect(safePostAuthReturnTo('https://evil.test/phish'), isNull);
+      expect(safePostAuthReturnTo('//evil.test/phish'), isNull);
+      expect(
+        safePostAuthReturnTo(Uri.encodeComponent('https://evil.test')),
+        isNull,
+      );
+    });
+
+    test('rejects auth-entry pages', () {
+      expect(safePostAuthReturnTo(Uri.encodeComponent(AppRoutes.login)), isNull);
+      expect(
+        safePostAuthReturnTo(Uri.encodeComponent(AppRoutes.onboarding)),
+        isNull,
+      );
+    });
+
+    test('post-login restore prefers from over main', () {
+      final result = _computeRedirect(
+        isLoggedIn: true,
+        isLoading: false,
+        isProfileComplete: true,
+        profileHasError: false,
+        rollbackActive: false,
+        currentLocation: AppRoutes.login,
+        fromQuery: Uri.encodeComponent('/session/room/xyz'),
+      );
+      expect(result, '/session/room/xyz');
     });
   });
 
