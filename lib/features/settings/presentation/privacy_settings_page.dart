@@ -6,6 +6,7 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../app/navigation/app_router.dart';
 import '../../../services/follow_service.dart';
+import '../../../services/privacy_consent_service.dart';
 import '../../auth/auth_providers.dart';
 import '../../auth/presentation/providers/auth_controller.dart';
 import '../../../widgets/zyntro_back_button.dart';
@@ -176,6 +177,63 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
                                 color: AppColors.signal,
                               ),
                       ),
+                    ),
+
+                    const SizedBox(height: AppSpacing.lg),
+
+                    // Analytics / crash consent (Z-PRV-002)
+                    Builder(
+                      builder: (context) {
+                        final consent = ref.watch(privacyConsentServiceProvider);
+                        return Container(
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceV2,
+                            borderRadius:
+                                BorderRadius.circular(AppBorderRadius.md),
+                          ),
+                          child: Column(
+                            children: [
+                              SwitchListTile(
+                                title: const Text(
+                                  'Usage analytics',
+                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                                subtitle: const Text(
+                                  'Help improve Zyntro with anonymous product analytics',
+                                ),
+                                value: consent.analyticsEnabled,
+                                onChanged: (value) async {
+                                  await consent.setAnalyticsEnabled(value);
+                                  setState(() {});
+                                },
+                                secondary: Icon(
+                                  Icons.insights_outlined,
+                                  color: AppColors.signal,
+                                ),
+                              ),
+                              const Divider(height: 1),
+                              SwitchListTile(
+                                title: const Text(
+                                  'Crash reports',
+                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                                subtitle: const Text(
+                                  'Send crash diagnostics so we can fix bugs faster',
+                                ),
+                                value: consent.crashlyticsEnabled,
+                                onChanged: (value) async {
+                                  await consent.setCrashlyticsEnabled(value);
+                                  setState(() {});
+                                },
+                                secondary: Icon(
+                                  Icons.bug_report_outlined,
+                                  color: AppColors.signal,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
                     ),
 
                     const SizedBox(height: AppSpacing.lg),

@@ -22,6 +22,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'utils/global_error_handler.dart';
 import 'widgets/error_boundary_widget.dart';
 import 'services/feed_cache_service.dart';
+import 'services/privacy_consent_service.dart';
 
 const _appCheckDebugChannelName = 'zyntro/debug';
 const _appCheckDebugSecretMethodName = 'getAppCheckDebugSecret';
@@ -62,9 +63,8 @@ void main() async {
 
   await _loadLocalEnvironment(envFile);
 
-  // Crash reporting stays off in debug so development crashes never land in
-  // production crash data. GlobalErrorHandler also skips reporting in debug;
-  // this covers native crashes, which never reach the Dart handler.
+  // Crash reporting defaults off in debug. User consent (Z-PRV-002) is applied
+  // after SharedPreferences loads so opt-outs survive restarts.
   try {
     await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(
       !kDebugMode,
@@ -135,6 +135,10 @@ Future<void> _initDeferredServices(ProviderContainer container) async {
       () => container.read(storageServiceProvider).init(),
     ),
     _guarded('OfflineHandlers', () => registerOfflineHandlers(container)),
+    _guarded(
+      'PrivacyConsent',
+      () => container.read(privacyConsentServiceProvider).applyToSdks(),
+    ),
   ]);
 }
 
