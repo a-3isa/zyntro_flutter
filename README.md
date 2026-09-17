@@ -148,9 +148,11 @@ flutter build ios --dart-define=ENV=prod --dart-define=STRIPE_PUBLISHABLE_KEY="$
 
 ### CI/CD
 
-The project includes:
-- **GitHub Actions** (`.github/workflows/flutter-ci.yml`) - Analyze, test, build
-- **Codemagic** (`codemagic.yaml`) - Full CI/CD with App Store deployment
+**Source of truth:** see `docs/CI.md` (Z-CI-002 / Z-DOC-003).
+
+- **GitHub Actions** (`.github/workflows/flutter-ci.yml`) — PR gate: analyze, unit/widget tests, a11y smoke, Android debug APK
+- **Codemagic** (`codemagic.yaml`) — release builds + store signing (not the PR gate)
+- **Dependabot** (`.github/dependabot.yml`) — weekly pub/npm + monthly Actions updates (Z-CI-006)
 
 ### App Icons & Splash
 

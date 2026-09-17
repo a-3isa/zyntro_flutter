@@ -73,7 +73,9 @@ class PresenceService {
   /// looking at a partner who has actually gone. Presence docs are tiny and a
   /// session is bounded, so the write volume is not worth optimising against
   /// the wait it removes.
-  static const heartbeatInterval = Duration(seconds: 15);
+  /// Presence heartbeat while the room is open (Z-PERF-004: 30s balances
+  /// freshness vs write cost; solo damper still absorbs flaky peers).
+  static const heartbeatInterval = Duration(seconds: 30);
 
   /// How long a presence record stays trustworthy without a refresh.
   ///

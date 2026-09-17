@@ -690,12 +690,12 @@ class UserService {
 
     // Fetch user profiles for display info
     // Only fetch if not current user (current user info usually available, but for simplicity fetch all or use cache if available)
-    // Firestore whereIn limit is 10
+    // Firestore whereIn limit is 30 (Z-DATA-005).
     final userProfiles = <String, Map<String, dynamic>>{};
 
     final chunks = <List<String>>[];
-    for (var i = 0; i < allIds.length; i += 10) {
-      chunks.add(allIds.skip(i).take(10).toList());
+    for (var i = 0; i < allIds.length; i += 30) {
+      chunks.add(allIds.skip(i).take(30).toList());
     }
 
     for (final chunk in chunks) {

@@ -3356,8 +3356,11 @@
         "REC-12"
       ],
       "standards": [],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closed_in": "089-low-xs-batch",
+      "closed_at": "2026-09-17",
+      "resolution_note": "Closed in 089-low-xs-batch: whereIn=30, heartbeat 30s, Dependabot, PASSWORD_POLICY, README->docs/CI.md, CORS/FCM comments, rules Z-SEC-007 note; Info items verified as checked."
     },
     {
       "id": "Z-DATA-005",
@@ -3383,8 +3386,11 @@
         "DRAFT-DATA-007"
       ],
       "standards": [],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closed_in": "089-low-xs-batch",
+      "closed_at": "2026-09-17",
+      "resolution_note": "Closed in 089-low-xs-batch: whereIn=30, heartbeat 30s, Dependabot, PASSWORD_POLICY, README->docs/CI.md, CORS/FCM comments, rules Z-SEC-007 note; Info items verified as checked."
     },
     {
       "id": "Z-FN-006",
@@ -3410,8 +3416,11 @@
         "DRAFT-FN-010"
       ],
       "standards": [],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closed_in": "089-low-xs-batch",
+      "closed_at": "2026-09-17",
+      "resolution_note": "Closed in 089-low-xs-batch: whereIn=30, heartbeat 30s, Dependabot, PASSWORD_POLICY, README->docs/CI.md, CORS/FCM comments, rules Z-SEC-007 note; Info items verified as checked."
     },
     {
       "id": "Z-RT-006",
@@ -3469,8 +3478,11 @@
         "DRAFT-AUTH-010"
       ],
       "standards": [],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closed_in": "089-low-xs-batch",
+      "closed_at": "2026-09-17",
+      "resolution_note": "Closed in 089-low-xs-batch: whereIn=30, heartbeat 30s, Dependabot, PASSWORD_POLICY, README->docs/CI.md, CORS/FCM comments, rules Z-SEC-007 note; Info items verified as checked."
     },
     {
       "id": "Z-NOTIF-004",
@@ -3496,8 +3508,11 @@
         "DRAFT-NOTIF-008"
       ],
       "standards": [],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closed_in": "089-low-xs-batch",
+      "closed_at": "2026-09-17",
+      "resolution_note": "Closed in 089-low-xs-batch: whereIn=30, heartbeat 30s, Dependabot, PASSWORD_POLICY, README->docs/CI.md, CORS/FCM comments, rules Z-SEC-007 note; Info items verified as checked."
     },
     {
       "id": "Z-PERF-004",
@@ -3524,8 +3539,11 @@
         "DRAFT-DATA-006"
       ],
       "standards": [],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closed_in": "089-low-xs-batch",
+      "closed_at": "2026-09-17",
+      "resolution_note": "Closed in 089-low-xs-batch: whereIn=30, heartbeat 30s, Dependabot, PASSWORD_POLICY, README->docs/CI.md, CORS/FCM comments, rules Z-SEC-007 note; Info items verified as checked."
     },
     {
       "id": "Z-CI-006",
@@ -3551,8 +3569,11 @@
         "DRAFT-CI-009"
       ],
       "standards": [],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closed_in": "089-low-xs-batch",
+      "closed_at": "2026-09-17",
+      "resolution_note": "Closed in 089-low-xs-batch: whereIn=30, heartbeat 30s, Dependabot, PASSWORD_POLICY, README->docs/CI.md, CORS/FCM comments, rules Z-SEC-007 note; Info items verified as checked."
     },
     {
       "id": "Z-DOC-003",
@@ -3578,8 +3599,11 @@
         "DRAFT-DOC-008"
       ],
       "standards": [],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closed_in": "089-low-xs-batch",
+      "closed_at": "2026-09-17",
+      "resolution_note": "Closed in 089-low-xs-batch: whereIn=30, heartbeat 30s, Dependabot, PASSWORD_POLICY, README->docs/CI.md, CORS/FCM comments, rules Z-SEC-007 note; Info items verified as checked."
     },
     {
       "id": "Z-SEC-008",
@@ -3704,8 +3728,11 @@
         "DRAFT-DATA-009"
       ],
       "standards": [],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closed_in": "089-low-xs-batch",
+      "closed_at": "2026-09-17",
+      "resolution_note": "Closed in 089-low-xs-batch: whereIn=30, heartbeat 30s, Dependabot, PASSWORD_POLICY, README->docs/CI.md, CORS/FCM comments, rules Z-SEC-007 note; Info items verified as checked."
     },
     {
       "id": "Z-RT-007",
@@ -3733,8 +3760,11 @@
         "DRAFT-RT-014"
       ],
       "standards": [],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closed_in": "089-low-xs-batch",
+      "closed_at": "2026-09-17",
+      "resolution_note": "Closed in 089-low-xs-batch: whereIn=30, heartbeat 30s, Dependabot, PASSWORD_POLICY, README->docs/CI.md, CORS/FCM comments, rules Z-SEC-007 note; Info items verified as checked."
     },
     {
       "id": "Z-AUTH-008",
@@ -3761,8 +3791,11 @@
         "DRAFT-AUTH-012"
       ],
       "standards": [],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closed_in": "089-low-xs-batch",
+      "closed_at": "2026-09-17",
+      "resolution_note": "Closed in 089-low-xs-batch: whereIn=30, heartbeat 30s, Dependabot, PASSWORD_POLICY, README->docs/CI.md, CORS/FCM comments, rules Z-SEC-007 note; Info items verified as checked."
     },
     {
       "id": "Z-SOC-004",
@@ -3790,8 +3823,11 @@
         "F19"
       ],
       "standards": [],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closed_in": "089-low-xs-batch",
+      "closed_at": "2026-09-17",
+      "resolution_note": "Closed in 089-low-xs-batch: whereIn=30, heartbeat 30s, Dependabot, PASSWORD_POLICY, README->docs/CI.md, CORS/FCM comments, rules Z-SEC-007 note; Info items verified as checked."
     },
     {
       "id": "Z-TEST-006",
@@ -3818,8 +3854,11 @@
         "H1"
       ],
       "standards": [],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closed_in": "089-low-xs-batch",
+      "closed_at": "2026-09-17",
+      "resolution_note": "Closed in 089-low-xs-batch: whereIn=30, heartbeat 30s, Dependabot, PASSWORD_POLICY, README->docs/CI.md, CORS/FCM comments, rules Z-SEC-007 note; Info items verified as checked."
     },
     {
       "id": "Z-OBS-005",
@@ -3846,8 +3885,11 @@
         "REC-10"
       ],
       "standards": [],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closed_in": "089-low-xs-batch",
+      "closed_at": "2026-09-17",
+      "resolution_note": "Closed in 089-low-xs-batch: whereIn=30, heartbeat 30s, Dependabot, PASSWORD_POLICY, README->docs/CI.md, CORS/FCM comments, rules Z-SEC-007 note; Info items verified as checked."
     },
     {
       "id": "Z-AND-005",
@@ -3873,8 +3915,11 @@
         "DRAFT-AND-011"
       ],
       "standards": [],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closed_in": "089-low-xs-batch",
+      "closed_at": "2026-09-17",
+      "resolution_note": "Closed in 089-low-xs-batch: whereIn=30, heartbeat 30s, Dependabot, PASSWORD_POLICY, README->docs/CI.md, CORS/FCM comments, rules Z-SEC-007 note; Info items verified as checked."
     },
     {
       "id": "Z-REPO-008",
@@ -3900,8 +3945,11 @@
         "DRAFT-REPO-010"
       ],
       "standards": [],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closed_in": "089-low-xs-batch",
+      "closed_at": "2026-09-17",
+      "resolution_note": "Closed in 089-low-xs-batch: whereIn=30, heartbeat 30s, Dependabot, PASSWORD_POLICY, README->docs/CI.md, CORS/FCM comments, rules Z-SEC-007 note; Info items verified as checked."
     }
   ],
   "enhancements": [

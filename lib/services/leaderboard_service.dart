@@ -96,8 +96,8 @@ class LeaderboardService {
       ];
       final List<LeaderboardEntry> entries = [];
 
-      // Firestore 'whereIn' has a limit of 10 items, so chunk the queries
-      const chunkSize = 10;
+      // Firestore whereIn limit is 30 (Z-DATA-005).
+      const chunkSize = 30;
       for (var i = 0; i < userIds.length; i += chunkSize) {
         final chunk = userIds.skip(i).take(chunkSize).toList();
         final querySnapshot = await Future.wait(

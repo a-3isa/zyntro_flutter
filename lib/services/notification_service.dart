@@ -1426,11 +1426,9 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   debugPrint(
     '[FCM] Background message received: ${message.messageId} type=${message.data['type']}',
   );
-  // Data-only messages (no notification field) arrive here.
-  // Notification-field messages are shown automatically by the OS; we only
-  // need to handle side-effects here (e.g. badge counts, local DB updates).
-  // Nothing to do currently — the Firestore notification doc is already
-  // written by the Cloud Function before the push is dispatched.
+  // Z-NOTIF-004: intentional no-op beyond init. Notification-field messages are
+  // displayed by the OS; durable in-app docs are written by Cloud Functions
+  // before FCM dispatch. Do not duplicate UI work here.
 }
 
 /// Notification service provider.

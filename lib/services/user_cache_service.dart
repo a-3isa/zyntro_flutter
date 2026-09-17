@@ -103,8 +103,8 @@ class UserCacheService {
 
     if (missingIds.isEmpty) return result;
 
-    // Firestore 'whereIn' is limited to 10 values
-    const int batchSize = 10;
+    // Firestore whereIn is limited to 30 values (Z-DATA-005).
+    const int batchSize = 30;
     for (var i = 0; i < missingIds.length; i += batchSize) {
       final end = (i + batchSize < missingIds.length)
           ? i + batchSize

@@ -825,6 +825,9 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Legacy Admin-only collections. Clients never read/write these; the
+    // deny-all rules are intentional documentation of that boundary (Z-SEC-007).
+    // Prefer users/{uid}/devices for FCM tokens and HTTP deliverNotificationPush.
     match /pushQueue/{messageId} {
       allow read, create, update, delete: if false;
     }

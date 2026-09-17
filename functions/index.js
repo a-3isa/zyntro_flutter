@@ -36,6 +36,8 @@ async function writeScheduleHeartbeat(jobName, extra = {}) {
 }
 
 function allowedCorsOrigins() {
+  // Opt-in only. Native clients do not send Origin; leave ALLOWED_CORS_ORIGINS
+  // empty unless a web admin surface needs the HTTP push endpoint (Z-FN-006).
   return (process.env.ALLOWED_CORS_ORIGINS || "")
     .split(",")
     .map((origin) => origin.trim())

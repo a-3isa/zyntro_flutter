@@ -165,8 +165,8 @@ class FacebookLinkService {
 
       if (fbIds.isEmpty) return [];
 
-      // Firestore whereIn supports up to 30; chunk to 10 for safety
-      const chunkSize = 10;
+      // Firestore whereIn supports up to 30 (Z-DATA-005).
+      const chunkSize = 30;
       final results = <UserProfileEntity>[];
       for (var i = 0; i < fbIds.length; i += chunkSize) {
         final chunk = fbIds.sublist(
