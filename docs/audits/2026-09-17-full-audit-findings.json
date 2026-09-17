@@ -926,9 +926,10 @@
       "standards": [
         "Maintainability"
       ],
-      "status": "open",
+      "status": "deferred",
       "firstSeen": "2026-09-17",
-      "closureNote": "Partial: session_wakelock + SessionElapsedTimerChip extracted; god files still large — keep slicing."
+      "closureNote": "XL campaign ongoing: session timer/wakelock + profile empty states extracted. Continue per-PR slices; not blocking audit closure.",
+      "closedAt": "2026-09-17"
     },
     {
       "id": "Z-UI-001",

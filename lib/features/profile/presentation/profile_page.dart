@@ -20,6 +20,7 @@ import '../../moderation/presentation/report_dialog.dart';
 import '../../auth/auth_providers.dart';
 import 'profile_providers.dart';
 import 'widgets/profile_history_widgets.dart';
+import 'widgets/profile_empty_states.dart';
 import '../../../services/leaderboard_service.dart';
 import '../../../services/profile_cache_service.dart';
 import '../../../utils/offline_manager.dart';
@@ -2042,7 +2043,7 @@ class _PostsTab extends ConsumerWidget {
       final followStatusAsync = ref.watch(followStatusProvider(targetUserId));
       final isFollowing =
           followStatusAsync.value == FollowStatus.approved;
-      if (!isFollowing) return _buildLocked(context);
+      if (!isFollowing) return const ProfilePrivateLocked();
     }
 
     final postsAsync = ref.watch(userPostsProvider(targetUserId));
@@ -2053,7 +2054,7 @@ class _PostsTab extends ConsumerWidget {
         final posts = isCurrentUser
             ? allPosts
             : allPosts.where((p) => p.visibility != 'private').toList();
-        if (posts.isEmpty) return _buildEmpty(context);
+        if (posts.isEmpty) return const ProfileEmptyPosts();
 
         return GridView.builder(
           padding: const EdgeInsets.all(3),
@@ -2171,58 +2172,6 @@ class _PostsTab extends ConsumerWidget {
     );
   }
 
-  Widget _buildEmpty(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(
-            Icons.photo_library_outlined,
-            size: 48,
-            color: AppColors.textV2Tertiary,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'No posts yet',
-            style: AppTextStyles.h5.copyWith(
-              fontSize: 16,
-              color: AppColors.textV2Secondary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLocked(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(
-            Icons.lock_outline,
-            size: 48,
-            color: AppColors.textV2Tertiary,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'This account is private',
-            style: AppTextStyles.h5.copyWith(
-              fontSize: 16,
-              color: AppColors.textV2Secondary,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Follow to see posts',
-            style: AppTextStyles.caption.copyWith(
-              color: AppColors.textV2Tertiary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 // ---------------------------------------------------------------------------

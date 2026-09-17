@@ -21,6 +21,7 @@ Prefer thin extractions widgets/helpers over greenfield layered packages:
 | --- | --- |
 | Session wakelock | `session_wakelock.dart` |
 | Elapsed timer chip | `widgets/session_elapsed_timer_chip.dart` |
+| Profile empty / locked posts | `widgets/profile_empty_states.dart` |
 | Session room rebuild splits | Prior Z-PERF-001 work (ValueNotifier clock / RepaintBoundary) |
 
 Continue slicing `session_room_page.dart`, `profile_page.dart`, and `social_page.dart` by phase/view when touching those files.
