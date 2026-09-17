@@ -21,7 +21,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.38.9'
+          flutter-version: '3.44.4'
           channel: 'stable'
 
       - name: Get dependencies
@@ -30,8 +30,26 @@ jobs:
       - name: Analyze code
         run: flutter analyze
 
-      - name: Run tests
-        run: flutter test
+      - name: Run tests with coverage
+        run: flutter test --coverage
+
+      - name: Enforce coverage floor (Z-TEST-001)
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('coverage/lcov.info')
+          assert p.exists(), 'coverage/lcov.info missing'
+          lf = lh = 0
+          for line in p.read_text(encoding='utf-8', errors='ignore').splitlines():
+              if line.startswith('LF:'):
+                  lf += int(line[3:])
+              elif line.startswith('LH:'):
+                  lh += int(line[3:])
+          pct = (100.0 * lh / lf) if lf else 0.0
+          print(f'Line coverage: {pct:.2f}% ({lh}/{lf})')
+          # Floor matches the ~32% baseline from the audit; ratchet up later.
+          assert pct >= 30.0, f'coverage {pct:.2f}% below 30% floor'
+          PY
 
   functions-test:
     name: Cloud Functions Unit Tests
@@ -96,7 +114,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.38.9'
+          flutter-version: '3.44.4'
           channel: 'stable'
 
       - name: Setup Java
@@ -166,7 +184,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.38.9'
+          flutter-version: '3.44.4'
           channel: 'stable'
 
       - name: Install Apple Certificate
