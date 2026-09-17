@@ -27,6 +27,7 @@
 | 099 | Session header invite/setup chips |
 | 100 | Session set column widget |
 | 101 | Profile follow button |
+| 102 | Profile action row (edit + weekly goal) |
 
 ## Next slices (suggested)
 
