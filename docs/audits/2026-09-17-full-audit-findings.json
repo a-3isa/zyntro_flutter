@@ -3392,8 +3392,10 @@
       "standards": [
         "UX"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in 070 (wakelock / create-deny emulator)."
     },
     {
       "id": "Z-AUTH-006",
@@ -3558,8 +3560,10 @@
         "F01"
       ],
       "standards": [],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in 070 (wakelock / create-deny emulator)."
     },
     {
       "id": "Z-SEC-009",

@@ -115,6 +115,17 @@ describe('users/{userId}', () => {
     );
   });
 
+  it('stops a user creating their profile as moderator (Z-SEC-008)', async () => {
+    const newbie = 'user_newbie';
+    await assertFails(
+      setDoc(doc(as(newbie), 'users', newbie), {
+        displayName: 'Newbie',
+        isPrivate: false,
+        isModerator: true,
+      }),
+    );
+  });
+
   it('stops a user clearing their own ban', async () => {
     await testEnv.withSecurityRulesDisabled(async (ctx) => {
       await setDoc(

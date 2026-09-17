@@ -28,6 +28,7 @@ import '../../../widgets/shimmer_widgets.dart';
 import '../../../widgets/connection_status_widget.dart';
 import '../../../services/storage_service.dart';
 import '../../../widgets/session_error_banner.dart';
+import 'session_wakelock.dart';
 import '../../../utils/haptic_manager.dart';
 import 'widgets/active_turn_screen.dart';
 import 'widgets/waiting_turn_screen.dart';
@@ -194,6 +195,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Keep the screen on during active sets / rest (Z-RT-006).
+    SessionWakelock.enable();
 
     // Initialize workout type from widget.type
     _workoutType = WorkoutType.fromString(widget.type);
@@ -646,6 +649,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    SessionWakelock.disable();
     _exerciseController.dispose();
     _weightController.dispose();
     _repsController.dispose();
