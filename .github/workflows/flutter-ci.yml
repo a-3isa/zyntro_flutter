@@ -34,6 +34,9 @@ jobs:
       - name: Run tests with coverage
         run: flutter test --coverage
 
+      - name: Accessibility guideline smoke (Z-A11Y-005)
+        run: flutter test test/a11y/guideline_smoke_test.dart
+
       - name: Enforce coverage floor (Z-TEST-001)
         run: |
           python - <<'PY'

@@ -2722,8 +2722,10 @@
       "standards": [
         "WCAG"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "guideline_smoke_test + CI step; J1-J7 campaign remains incremental."
     },
     {
       "id": "Z-I18N-004",
