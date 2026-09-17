@@ -2884,8 +2884,10 @@
       "standards": [
         "Android"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "CLIENT_SECRETS.md + REPO_HYGIENE .codex policy; FB IDs remain public client config."
     },
     {
       "id": "Z-IOS-006",
@@ -3140,8 +3142,10 @@
       "standards": [
         "Git"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "CLIENT_SECRETS.md + REPO_HYGIENE .codex policy; FB IDs remain public client config."
     },
     {
       "id": "Z-JOURNEY-001",
@@ -3620,8 +3624,10 @@
         "Lead 1"
       ],
       "standards": [],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "CLIENT_SECRETS.md + REPO_HYGIENE .codex policy; FB IDs remain public client config."
     },
     {
       "id": "Z-AUTH-007",
