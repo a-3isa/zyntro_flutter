@@ -2917,8 +2917,10 @@
       "standards": [
         "App Review"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Removed UIBackgroundModes fetch; AppDelegate sets UNUserNotificationCenter delegate. ATT not required (no tracking)."
     },
     {
       "id": "Z-TEST-005",
