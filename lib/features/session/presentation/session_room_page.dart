@@ -1972,28 +1972,23 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     }
   }
 
-  Widget _buildParallelGymView(Session session, String currentUserId) {
+  ParallelPartnerData _parallelPartnerData(
+    Session session,
+    String currentUserId,
+  ) {
     final partnerId = session.participants.firstWhere(
       (p) => p != currentUserId,
       orElse: () => '',
     );
-    final partnerProgress = partnerId.isNotEmpty
-        ? _participantProgress[partnerId]
-        : null;
-    final partnerType = session.participantTypes[partnerId] ?? 'gym';
-
-    final partner = ParallelPartnerData(
-      name: 'Partner',
-      workoutType: partnerType,
-      totalDistance: partnerProgress?.totalDistance ?? 0,
-      averagePace: partnerProgress?.averagePace,
+    return ParallelPartnerData.fromProgress(
+      progress: partnerId.isNotEmpty ? _participantProgress[partnerId] : null,
+      workoutType: session.participantTypes[partnerId] ?? 'gym',
       elapsedTime: _elapsedTime,
-      currentExercise: partnerProgress?.currentExercise,
-      totalSets: partnerProgress?.totalSets ?? 0,
-      totalVolume: partnerProgress?.totalVolume ?? 0,
       standing: _partnerStanding(session, partnerId),
     );
+  }
 
+  Widget _buildParallelGymView(Session session, String currentUserId) {
     final exerciseName = _currentTurnExercise ?? 'Workout';
     return ParallelGymView(
       exerciseName: exerciseName,
@@ -2009,32 +2004,12 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
               setState(() => _currentSetNumber += 1);
             }
           },
-      partner: partner,
+      partner: _parallelPartnerData(session, currentUserId),
     );
   }
 
   Widget _buildParallelCardioView(Session session, String currentUserId) {
-    final partnerId = session.participants.firstWhere(
-      (p) => p != currentUserId,
-      orElse: () => '',
-    );
-    final partnerProgress = partnerId.isNotEmpty
-        ? _participantProgress[partnerId]
-        : null;
-    final partnerType = session.participantTypes[partnerId] ?? 'gym';
     final myType = session.participantTypes[currentUserId] ?? widget.type;
-
-    final partner = ParallelPartnerData(
-      name: 'Partner',
-      workoutType: partnerType,
-      totalDistance: partnerProgress?.totalDistance ?? 0,
-      averagePace: partnerProgress?.averagePace,
-      elapsedTime: _elapsedTime,
-      currentExercise: partnerProgress?.currentExercise,
-      totalSets: partnerProgress?.totalSets ?? 0,
-      totalVolume: partnerProgress?.totalVolume ?? 0,
-      standing: _partnerStanding(session, partnerId),
-    );
 
     return ParallelCardioView(
       activityType: myType,
@@ -2050,7 +2025,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
               activityType: activityType,
             );
           },
-      partner: partner,
+      partner: _parallelPartnerData(session, currentUserId),
     );
   }
 

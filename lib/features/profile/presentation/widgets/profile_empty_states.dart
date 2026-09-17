@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/theme/app_text_styles.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../../core/theme/app_text_styles.dart';
+import '../../../../core/theme/app_theme.dart';
 
 /// Empty posts grid state extracted from profile god file (Z-ARCH-002).
 class ProfileEmptyPosts extends StatelessWidget {

@@ -7,7 +7,7 @@
 
 | File | Soft budget | Notes |
 | --- | --- | --- |
-| `session_room_page.dart` | ≤ 80 KB / ≤ 2.5k LOC | ~94KB after 110; keep extracting orchestration |
+| `session_room_page.dart` | ≤ 80 KB / ≤ 2.5k LOC | ~90KB after 115; keep extracting orchestration |
 | `profile_page.dart` | ≤ 60 KB | **Met** (~55.5 KB as of 109) |
 | `social_page.dart` | ≤ 40 KB | **Met** (~43.5 KB — accept or trim 3.5KB later) |
 | `start_session_page.dart` | ≤ 45 KB | Type/section/avatar extracted |
@@ -40,12 +40,13 @@
 | 112 | Session summary builder |
 | 113 | Profile history + awards tabs |
 | 114 | Session plan-complete view |
+| 115 | Parallel partner `fromProgress` factory + shared builder |
 
 ## Next slices (suggested)
 
-1. Session room V2 header + progress row  
-2. Session strength/cardio input sections  
-3. Profile `_FollowButton` / `_ActionRow`  
-4. Social leaderboard list / people-you-may-know  
+1. Session room V2 header shell  
+2. Waiting/active turn wiring helpers  
+3. Finish-session orchestration extract  
+4. Social leaderboard list / people-you-may-know (optional trim)
 
 Do not mark Z-ARCH-002 closed until every row meets soft budget **or** product accepts a revised budget with remaining god files listed.

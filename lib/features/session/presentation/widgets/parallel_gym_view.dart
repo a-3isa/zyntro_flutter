@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../domain/turn_eligibility.dart';
+import '../live_participant_progress.dart';
 import 'participant_avatar.dart';
 import 'rep_counter_screen.dart';
 
@@ -48,6 +49,29 @@ class ParallelPartnerData {
     this.totalSets = 0,
     this.totalVolume = 0,
   });
+
+  /// Maps live progress into the parallel partner card model (Z-ARCH-002).
+  factory ParallelPartnerData.fromProgress({
+    required LiveParticipantProgress? progress,
+    required String workoutType,
+    required Duration elapsedTime,
+    required ParticipantStanding standing,
+    String name = 'Partner',
+    String? photoUrl,
+  }) {
+    return ParallelPartnerData(
+      name: name,
+      photoUrl: photoUrl,
+      workoutType: workoutType,
+      totalDistance: progress?.totalDistance ?? 0,
+      averagePace: progress?.averagePace,
+      elapsedTime: elapsedTime,
+      currentExercise: progress?.currentExercise,
+      totalSets: progress?.totalSets ?? 0,
+      totalVolume: progress?.totalVolume ?? 0,
+      standing: standing,
+    );
+  }
 
   bool get isCardioPartner =>
       workoutType == 'running' ||
