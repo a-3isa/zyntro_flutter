@@ -1381,7 +1381,10 @@ class WorkoutDetailSection extends StatelessWidget {
                           }()
                         : '';
                     return Padding(
-                      padding: const EdgeInsets.only(left: 18, bottom: 3),
+                      padding: const EdgeInsetsDirectional.only(
+                        start: 18,
+                        bottom: 3,
+                      ),
                       child: Row(
                         children: [
                           SizedBox(

@@ -533,7 +533,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       final partnerName = leaver?.displayName ?? 'Your partner';
       SemanticsService.announce(
         '$partnerName left the session',
-        TextDirection.ltr,
+        Directionality.of(context),
       );
 
       final choice = await PartnerLeftDialog.show(
@@ -1579,7 +1579,10 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   /// The sound is skipped while a partner voice note is playing so it never
   /// cuts one off; the haptic and announcement always fire.
   Future<void> _signalMyTurn() async {
-    SemanticsService.announce("It's your turn", TextDirection.ltr);
+    final direction = mounted
+        ? Directionality.of(context)
+        : TextDirection.ltr;
+    SemanticsService.announce("It's your turn", direction);
     await HapticFeedback.heavyImpact();
     await Future<void>.delayed(const Duration(milliseconds: 130));
     await HapticFeedback.heavyImpact();
