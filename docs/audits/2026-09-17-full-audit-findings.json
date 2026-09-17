@@ -97,8 +97,10 @@
         "OWASP MASVS privacy",
         "Firebase rules are not filters"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-DATA-001",
@@ -144,8 +146,10 @@
         "Never trust the client",
         "MASVS resilience"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-RT-001",
@@ -185,8 +189,10 @@
       "standards": [
         "Spec 001 mode rules"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-IOS-001",
@@ -252,8 +258,10 @@
       "standards": [
         "Ownership on create"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-SEC-003",
@@ -283,8 +291,10 @@
       "standards": [
         "Least privilege"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-DATA-002",
@@ -319,8 +329,10 @@
       "standards": [
         "Schema consistency"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-DATA-003",
@@ -351,8 +363,10 @@
       "standards": [
         "MASVS storage"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-FN-001",
@@ -384,8 +398,10 @@
       "standards": [
         "App Check + quotas"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-FN-002",
@@ -415,8 +431,10 @@
       "standards": [
         "Firebase App Check"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-FN-003",
@@ -451,8 +469,10 @@
         "Play data deletion",
         "GDPR"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-RT-002",
@@ -485,8 +505,10 @@
       "standards": [
         "Firestore transactions"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-RT-003",
@@ -516,8 +538,10 @@
       "standards": [
         "UGC safety"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-RT-004",
@@ -547,8 +571,10 @@
       "standards": [
         "Idempotency"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-AUTH-001",
@@ -581,8 +607,10 @@
       "standards": [
         "OWASP auth"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-AUTH-002",
@@ -616,8 +644,10 @@
       "standards": [
         "Firebase email verification"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-AUTH-003",
@@ -648,8 +678,10 @@
       "standards": [
         "Privacy"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-AUTH-004",
@@ -679,8 +711,10 @@
       "standards": [
         "Meta Platform Policy"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-SOC-001",
@@ -714,8 +748,10 @@
         "Play UGC",
         "App Store 1.2"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-SOC-002",
@@ -749,8 +785,10 @@
       "standards": [
         "Defense in depth"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-PAY-001",
@@ -787,8 +825,10 @@
         "Play Billing",
         "StoreKit"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-PAY-002",
@@ -818,8 +858,10 @@
         "Play Payments",
         "App Store 3.1.1"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-ARCH-001",
@@ -849,8 +891,10 @@
       "standards": [
         "Constitution"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-ARCH-002",
@@ -912,8 +956,10 @@
       "standards": [
         "WCAG 2.3.3"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-A11Y-001",
@@ -942,8 +988,10 @@
       "standards": [
         "WCAG 4.1.2"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-A11Y-002",
@@ -972,8 +1020,10 @@
       "standards": [
         "WCAG 2.5.1"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-A11Y-003",
@@ -1003,8 +1053,10 @@
       "standards": [
         "WCAG 1.4.4"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-A11Y-004",
@@ -1033,8 +1085,10 @@
       "standards": [
         "WCAG 4.1.3"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-I18N-001",
@@ -1064,8 +1118,10 @@
       "standards": [
         "Play localization"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-I18N-002",
@@ -1094,8 +1150,10 @@
       "standards": [
         "Material RTL"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-I18N-003",
@@ -1125,8 +1183,10 @@
       "standards": [
         "FCM localization"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-PERF-001",
@@ -1155,8 +1215,10 @@
       "standards": [
         "Flutter performance"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-PERF-002",
@@ -1186,8 +1248,10 @@
       "standards": [
         "Firestore cost"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-OFF-001",
@@ -1217,8 +1281,10 @@
       "standards": [
         "Data isolation"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-OFF-002",
@@ -1247,8 +1313,10 @@
       "standards": [
         "Firestore offline"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-NOTIF-001",
@@ -1280,8 +1348,10 @@
       "standards": [
         "Push catalog"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-NOTIF-002",
@@ -1309,8 +1379,10 @@
       "standards": [
         "User preference"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-AND-001",
@@ -1341,8 +1413,10 @@
       "standards": [
         "FCM Android"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-AND-002",
@@ -1372,8 +1446,10 @@
       "standards": [
         "Android backup"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-AND-003",
@@ -1403,8 +1479,10 @@
       "standards": [
         "Play signing"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-IOS-002",
@@ -1434,8 +1512,10 @@
         "Meta iOS",
         "App Store 4.8"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-IOS-003",
@@ -1465,8 +1545,10 @@
       "standards": [
         "Apple Privacy Manifest"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-IOS-004",
@@ -1496,8 +1578,10 @@
       "standards": [
         "CocoaPods"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-IOS-005",
@@ -1525,8 +1609,10 @@
       "standards": [
         "FlutterFire iOS"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-PLAT-001",
@@ -1560,8 +1646,10 @@
       "standards": [
         "Support matrix"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-TEST-001",
@@ -1591,8 +1679,10 @@
       "standards": [
         "Quality gates"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-TEST-002",
@@ -1624,8 +1714,10 @@
       "standards": [
         "Test pyramid"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-TEST-003",
@@ -1688,8 +1780,10 @@
       "standards": [
         "Firebase testing"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-CI-001",
@@ -1729,8 +1823,10 @@
       "standards": [
         "Reproducible builds"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-CI-002",
@@ -1763,8 +1859,10 @@
       "standards": [
         "CI hygiene"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-CI-003",
@@ -1795,8 +1893,10 @@
       "standards": [
         "Release hardening"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-CI-004",
@@ -1825,8 +1925,10 @@
       "standards": [
         "Safe deploy"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-OBS-001",
@@ -1855,8 +1957,10 @@
       "standards": [
         "Firebase Performance"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-OBS-002",
@@ -1886,8 +1990,10 @@
       "standards": [
         "SRE"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-OBS-003",
@@ -1916,8 +2022,10 @@
       "standards": [
         "Release safety"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-DEP-001",
@@ -1951,8 +2059,10 @@
       "standards": [
         "Store requirements"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-DEP-002",
@@ -1981,8 +2091,10 @@
       "standards": [
         "npm audit"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-PRV-001",
@@ -2016,8 +2128,10 @@
         "Play Data safety",
         "ASC"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-PRV-002",
@@ -2046,8 +2160,10 @@
       "standards": [
         "GDPR"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Consent toggles + DataExportService shipped earlier in audit-closure stack."
     },
     {
       "id": "Z-PRV-003",
@@ -2081,8 +2197,10 @@
       "standards": [
         "Transparency"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-PRV-004",
@@ -2112,8 +2230,10 @@
       "standards": [
         "Privacy"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-DOC-001",
@@ -2148,8 +2268,10 @@
       "standards": [
         "Agent DX"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-REPO-001",
@@ -2182,8 +2304,10 @@
       "standards": [
         "Repo hygiene"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-REPO-002",
@@ -2213,8 +2337,10 @@
       "standards": [
         "Git hygiene"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-SEC-004",
@@ -2243,8 +2369,10 @@
       "standards": [
         "Storage ACL"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-SEC-005",
@@ -2273,8 +2401,10 @@
       "standards": [
         "Cost abuse"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-SEC-006",
@@ -2302,8 +2432,10 @@
       "standards": [
         "Integrity"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-DATA-004",
@@ -2333,8 +2465,10 @@
       "standards": [
         "TTL"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-FN-004",
@@ -2363,8 +2497,10 @@
       "standards": [
         "Integration"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-FN-005",
@@ -2393,8 +2529,10 @@
       "standards": [
         "Storage lifecycle"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-RT-005",
@@ -2422,8 +2560,10 @@
       "standards": [
         "AuthZ"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-AUTH-005",
@@ -3009,8 +3149,10 @@
       "standards": [
         "Abuse"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-REPO-004",
@@ -3476,8 +3618,10 @@
       "standards": [
         "Deep linking"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
     },
     {
       "id": "Z-DATA-006",
