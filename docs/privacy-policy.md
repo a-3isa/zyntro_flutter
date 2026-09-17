@@ -6,6 +6,8 @@
 
 Zyntro ("we," "our," or "us") respects your privacy and is committed to protecting your personal data. This privacy policy explains how we collect, use, and share information about you when you use our mobile application.
 
+Engineering inventory for store declarations: [`DATA_INVENTORY.md`](./DATA_INVENTORY.md).
+
 ## Information We Collect
 
 ### Information You Provide
