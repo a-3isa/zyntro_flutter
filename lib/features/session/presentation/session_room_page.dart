@@ -29,8 +29,6 @@ import '../../../services/storage_service.dart';
 import '../../../widgets/session_error_banner.dart';
 import 'session_summary_builder.dart';
 import 'session_wakelock.dart';
-import 'widgets/session_elapsed_timer_chip.dart';
-import '../../../utils/haptic_manager.dart';
 import 'widgets/active_turn_screen.dart';
 import 'widgets/waiting_turn_screen.dart';
 import 'widgets/parallel_gym_view.dart';
@@ -49,6 +47,7 @@ import 'widgets/session_progress_row.dart';
 import 'widgets/session_end_confirm_dialog.dart';
 import 'widgets/session_sync_status_dialog.dart';
 import 'widgets/session_plan_complete_view.dart';
+import 'widgets/session_v2_header.dart';
 import '../domain/turn_plan_progress.dart';
 
 /// Session room page for active workout sessions.
@@ -2341,10 +2340,6 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         ? const SessionSetupWaitingChip()
         : null;
 
-    Widget buildCompactTimer() {
-      return SessionElapsedTimerChip(elapsedListenable: _elapsedNotifier);
-    }
-
     final isInviteUnanswered =
         inviteStatus == WorkoutInvitationStatus.declined ||
         inviteStatus == WorkoutInvitationStatus.expired;
@@ -2354,27 +2349,6 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
             inviteStatus != null
         ? SessionInviteAttentionChip(status: inviteStatus)
         : null;
-    final endButton = TextButton(
-      onPressed: () {
-        HapticManager.heavy();
-        _handleFinishSession();
-      },
-      style: TextButton.styleFrom(
-        backgroundColor: AppColors.error,
-        foregroundColor: Colors.white,
-        minimumSize: const Size(64, 44),
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      ),
-      child: const Text(
-        'End',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 13,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
 
     final participants = session?.participants ?? const <String>[];
     final avatars = Row(
@@ -2395,51 +2369,10 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       ],
     );
 
-    return Container(
-      padding: EdgeInsets.only(
-        top: MediaQuery.paddingOf(context).top + 12,
-        bottom: 12,
-        left: 16,
-        right: 16,
-      ),
-      color: AppColors.backgroundV2,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isCompactHeader = constraints.maxWidth < 420;
-          if (isCompactHeader) {
-            // Narrow: let the avatar/status cluster scroll horizontally rather
-            // than squeeze, so the timer and End button stay put.
-            return Row(
-              children: [
-                ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: constraints.maxWidth * 0.42,
-                  ),
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: avatars,
-                  ),
-                ),
-                const Spacer(),
-                buildCompactTimer(),
-                const Spacer(),
-                const SizedBox(width: 8),
-                endButton,
-              ],
-            );
-          }
-          return Row(
-            children: [
-              avatars,
-              const Spacer(),
-              buildCompactTimer(),
-              const Spacer(),
-              const SizedBox(width: 8),
-              endButton,
-            ],
-          );
-        },
-      ),
+    return SessionV2Header(
+      elapsedListenable: _elapsedNotifier,
+      avatars: avatars,
+      onEnd: _handleFinishSession,
     );
   }
 

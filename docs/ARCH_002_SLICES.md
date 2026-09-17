@@ -7,7 +7,7 @@
 
 | File | Soft budget | Notes |
 | --- | --- | --- |
-| `session_room_page.dart` | ≤ 80 KB / ≤ 2.5k LOC | ~90KB after 115; keep extracting orchestration |
+| `session_room_page.dart` | ≤ 80 KB / ≤ 2.5k LOC | ~88KB after 116; keep extracting orchestration |
 | `profile_page.dart` | ≤ 60 KB | **Met** (~55.5 KB as of 109) |
 | `social_page.dart` | ≤ 40 KB | **Met** (~43.5 KB — accept or trim 3.5KB later) |
 | `start_session_page.dart` | ≤ 45 KB | Type/section/avatar extracted |
@@ -41,11 +41,12 @@
 | 113 | Profile history + awards tabs |
 | 114 | Session plan-complete view |
 | 115 | Parallel partner `fromProgress` factory + shared builder |
+| 116 | Session V2 header shell |
 
 ## Next slices (suggested)
 
-1. Session room V2 header shell  
-2. Waiting/active turn wiring helpers  
+1. Waiting-turn partner state helper  
+2. Set-column row text / progress wiring  
 3. Finish-session orchestration extract  
 4. Social leaderboard list / people-you-may-know (optional trim)
 
