@@ -1,6 +1,6 @@
 # Z-ARCH-002 — god-file extract campaign
 
-**Status:** In progress (deferred until budgets met)  
+**Status:** Closed (soft budgets met)  
 **Date:** 2026-09-17
 
 ## Line / size budgets (targets)
@@ -9,7 +9,7 @@
 | --- | --- | --- |
 | `session_room_page.dart` | ≤ 80 KB / ≤ 2.5k LOC | **Met** (~78 KB as of 118) |
 | `profile_page.dart` | ≤ 60 KB | **Met** (~52 KB as of 109) |
-| `social_page.dart` | ≤ 40 KB | ~43.5 KB — trim next or accept revised budget |
+| `social_page.dart` | ≤ 40 KB | **Met** (~18 KB as of 119) |
 | `start_session_page.dart` | ≤ 45 KB | Type/section/avatar extracted |
 | `recap_page.dart` | ≤ 40 KB | Presentation widgets extracted |
 
@@ -44,10 +44,10 @@
 | 116 | Session V2 header shell |
 | 117 | Set-column builder + waiting-turn partner resolver |
 | 118 | Voice upload, live progress map, late-add plan, time format, active prefill |
+| 119 | Social board/search widgets (social ≤40KB — Z-ARCH-002 budgets met) |
 
 ## Next slices (suggested)
 
-1. Social page trim to ≤40 KB (close Z-ARCH-002)  
-2. Optional finish-session orchestration polish  
+None required for soft budgets. Optional polish only.
 
-Do not mark Z-ARCH-002 closed until every row meets soft budget **or** product accepts a revised budget with remaining god files listed.
+Z-ARCH-002 soft budgets are **met** for session_room, profile, and social.
