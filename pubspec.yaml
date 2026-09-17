@@ -119,3 +119,8 @@ flutter:
   # it would ship ~1.9 MB the app never loads.
   assets:
     - assets/sounds/turn_start.wav
+    # Canonical legal copy — in-app pages load these (Z-PRV-003).
+    - docs/privacy-policy.md
+    - docs/terms-of-service.md
+    - docs/data-deletion.md
+    - docs/community-guidelines.md
