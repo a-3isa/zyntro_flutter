@@ -98,6 +98,8 @@ class OfflineManager {
   static const String _legacyFailedOpsKey = 'zyntro_failed_operations';
   static const int _maxRetries = 3;
   static const int _batchSize = 10;
+  /// Hard cap so a flaky device cannot grow SharedPreferences unboundedly (Z-OFF-003).
+  static const int maxQueueSize = 100;
 
   /// Active Firebase Auth uid. Queues are keyed per user (Z-OFF-001).
   String? _userId;
@@ -268,6 +270,10 @@ class OfflineManager {
       }).toList();
     }
     queue.add(jsonEncode(operation.toJson()));
+    // Drop oldest when over cap (Z-OFF-003).
+    while (queue.length > maxQueueSize) {
+      queue.removeAt(0);
+    }
     await prefs.setStringList(_queueKey, queue);
     _queueCountController.add(queue.length);
 
@@ -343,6 +349,17 @@ class OfflineManager {
     };
 
     return Duration(seconds: (baseDelay * multiplier).round());
+  }
+
+  /// Errors that will never succeed on replay (Z-OFF-003).
+  static bool isNonRetryableError(Object error) {
+    final text = error.toString().toLowerCase();
+    return text.contains('permission-denied') ||
+        text.contains('not-found') ||
+        text.contains('invalid-argument') ||
+        text.contains('already-exists') ||
+        text.contains('failed-precondition') ||
+        text.contains('unauthenticated');
   }
 
   /// Process all queued operations with batch support.
@@ -464,15 +481,13 @@ class OfflineManager {
           debugPrint('[OfflineManager] Failed to process operation: $e');
 
           final operation = QueuedOperation.fromJson(jsonDecode(json));
-          operation.retryCount++;
           processedCount++;
           failureCount++;
 
-          if (operation.retryCount < _maxRetries) {
-            failedOperations.add(jsonEncode(operation.toJson()));
-          } else {
+          // Permanent failures must not burn retries (Z-OFF-003).
+          if (isNonRetryableError(e)) {
             debugPrint(
-              '[OfflineManager] Max retries exceeded for: ${operation.type}',
+              '[OfflineManager] Non-retryable error for: ${operation.type}',
             );
             _failureNotificationController.add(FailedSyncEvent(
               operationType: operation.type,
@@ -481,6 +496,22 @@ class OfflineManager {
               timestamp: DateTime.now(),
             ));
             permanentlyFailed.add(jsonEncode(operation.toJson()));
+          } else {
+            operation.retryCount++;
+            if (operation.retryCount < _maxRetries) {
+              failedOperations.add(jsonEncode(operation.toJson()));
+            } else {
+              debugPrint(
+                '[OfflineManager] Max retries exceeded for: ${operation.type}',
+              );
+              _failureNotificationController.add(FailedSyncEvent(
+                operationType: operation.type,
+                operationId: operation.id,
+                retryCount: operation.retryCount,
+                timestamp: DateTime.now(),
+              ));
+              permanentlyFailed.add(jsonEncode(operation.toJson()));
+            }
           }
         }
 

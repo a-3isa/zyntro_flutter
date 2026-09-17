@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/theme/app_theme.dart';
+import '../../../../core/theme/app_theme.dart';
 
 /// Compact elapsed-time chip for the session room header (Z-ARCH-002 /
 /// Z-PERF-001). Isolated so timer ticks do not rebuild the whole header tree

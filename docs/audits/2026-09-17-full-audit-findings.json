@@ -2810,8 +2810,10 @@
       "standards": [
         "Resilience"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in 073 (queue cap/non-retryable; resume_timing_test)."
     },
     {
       "id": "Z-NOTIF-003",
@@ -3219,8 +3221,10 @@
       "standards": [
         "Constitution II"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in 073 (queue cap/non-retryable; resume_timing_test)."
     },
     {
       "id": "Z-REPO-006",
