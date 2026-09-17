@@ -4,6 +4,9 @@ import 'package:profanity_filter/profanity_filter.dart';
 
 /// Content filter service for detecting and censoring inappropriate text.
 /// Wraps the profanity_filter package with validation methods.
+///
+/// Z-SOC-001: also normalizes leetspeak / separators and checks a small
+/// multi-locale blocklist so English-only package gaps are less trivial to bypass.
 class ContentFilterService {
   final ProfanityFilter _filter = ProfanityFilter();
 
@@ -23,18 +26,97 @@ class ContentFilterService {
     'crack', // as in "crack a PR"
   };
 
+  /// High-confidence English stems checked against the normalized string
+  /// (catches `sh1t`, `f.u.c.k`, etc.).
+  static const englishAbuseStems = <String>{
+    'shit',
+    'fuck',
+    'cunt',
+    'bitch',
+    'asshole',
+    'motherfuck',
+    'nigger',
+    'nigga',
+  };
+
+  /// Extra blocked tokens beyond the English package list (normalized form).
+  static const extraBlocklist = <String>{
+    'puta',
+    'puto',
+    'mierda',
+    'cabron',
+    'pendejo',
+    'sharmuta',
+    'sharmoota',
+    'kosomak',
+    'putain',
+    'salope',
+    'encule',
+  };
+
+  /// Collapse leetspeak and separators so `sh1t` / `f.u.c.k` match.
+  @visibleForTesting
+  static String normalizeForFilter(String input) {
+    final lower = input.toLowerCase();
+    final buf = StringBuffer();
+    for (final rune in lower.runes) {
+      final ch = String.fromCharCode(rune);
+      switch (ch) {
+        case '0':
+          buf.write('o');
+        case '1':
+          buf.write('i');
+        case '3':
+          buf.write('e');
+        case '4':
+          buf.write('a');
+        case '5':
+          buf.write('s');
+        case '7':
+          buf.write('t');
+        case '8':
+          buf.write('b');
+        case '@':
+          buf.write('a');
+        case '\$':
+          buf.write('s');
+        case '!':
+          buf.write('i');
+        default:
+          if (RegExp(r'[a-z\u0600-\u06ff]').hasMatch(ch)) {
+            buf.write(ch);
+          }
+      }
+    }
+    return buf.toString();
+  }
+
   /// Profane words in [text], excluding [gymTermAllowlist] entries.
   List<String> _offendingWords(String text) {
-    return _filter
-        .getAllProfanity(text)
-        .where((word) => !gymTermAllowlist.contains(word.toLowerCase()))
-        .toList();
+    final found = <String>{
+      ..._filter
+          .getAllProfanity(text)
+          .where((word) => !gymTermAllowlist.contains(word.toLowerCase())),
+    };
+
+    final normalized = normalizeForFilter(text);
+    for (final stem in englishAbuseStems) {
+      if (normalized.contains(stem) && !gymTermAllowlist.contains(stem)) {
+        found.add(stem);
+      }
+    }
+    for (final token in extraBlocklist) {
+      if (normalized.contains(token)) {
+        found.add(token);
+      }
+    }
+
+    return found.toList();
   }
 
   /// Check if text contains profanity.
   bool containsProfanity(String text) {
     if (text.isEmpty) return false;
-    if (!_filter.hasProfanity(text)) return false;
     return _offendingWords(text).isNotEmpty;
   }
 

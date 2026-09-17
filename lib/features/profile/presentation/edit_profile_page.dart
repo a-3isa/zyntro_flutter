@@ -11,6 +11,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/constants.dart';
 import '../../../core/models/models.dart';
 import '../../../services/media_service.dart';
+import '../../../services/content_filter_service.dart';
 import '../../../widgets/responsive_center.dart';
 import '../../../widgets/zyntro_back_button.dart';
 
@@ -173,6 +174,11 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
             _selectedAccentColor != _originalAccentColor)
           'avatarConfig': _colorToHex(_selectedAccentColor!),
       };
+
+      ref.read(contentFilterServiceProvider).validateText(
+            updates['displayName'] as String,
+            'display name',
+          );
 
       await ref
           .read(authControllerProvider)

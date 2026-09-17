@@ -141,14 +141,35 @@ void main() {
     });
 
     test('does not leak the offending word back to the user', () {
-      // The message is shown in the UI; echoing the profanity would print it
-      // straight back at them.
       try {
         service.validateText('this is shit', 'post title');
         fail('expected a ContentFilterException');
       } on ContentFilterException catch (e) {
         expect(e.message, isNot(contains('shit')));
       }
+    });
+  });
+
+  group('Z-SOC-001 hardened matching', () {
+    test('catches leetspeak English', () {
+      expect(service.containsProfanity('this is sh1t'), isTrue);
+      expect(service.containsProfanity('f.u.c.k off'), isTrue);
+    });
+
+    test('catches Spanish blocklist tokens', () {
+      expect(service.containsProfanity('que mierda'), isTrue);
+      expect(service.containsProfanity('pendejo'), isTrue);
+    });
+
+    test('normalize strips separators', () {
+      expect(
+        ContentFilterService.normalizeForFilter('f.u.c.k'),
+        contains('fuck'),
+      );
+    });
+
+    test('still allows gym vocabulary', () {
+      expect(service.containsProfanity('Clean and jerk'), isFalse);
     });
   });
 }

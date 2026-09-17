@@ -291,6 +291,9 @@ class PostService {
     String? photoUrl,
     String? visibility,
   }) async {
+    if (caption != null && caption.trim().isNotEmpty) {
+      _ref.read(contentFilterServiceProvider).validateText(caption, 'caption');
+    }
     final data = <String, dynamic>{};
     if (caption != null) data['authors.$userId.caption'] = caption;
     if (photoUrl != null) data['authors.$userId.photoUrl'] = photoUrl;
