@@ -43,6 +43,7 @@ import 'widgets/session_header_chips.dart';
 import 'widgets/session_set_column.dart';
 import 'widgets/session_duration_input.dart';
 import 'widgets/session_strength_input.dart';
+import 'widgets/session_cardio_input.dart';
 import '../domain/turn_plan_progress.dart';
 import '../domain/workout_score.dart';
 
@@ -2240,240 +2241,24 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     );
   }
 
-  /// Get available cardio activity options based on workout type.
   /// Build cardio input section (activity type, distance, duration, pace).
   Widget _buildCardioInputSection() {
-    // Get available activity options based on workout type
-    final activityOptions = cardioActivityOptions(_workoutType);
-
-    return FocusTraversalGroup(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Workout type badge
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            margin: const EdgeInsets.only(bottom: AppSpacing.md),
-            decoration: BoxDecoration(
-              color: AppColors.signal.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(AppBorderRadius.md),
-              border: Border.all(
-                color: AppColors.signal.withValues(alpha: 0.3),
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  cardioActivityIcon(_workoutType.value),
-                  size: 16,
-                  color: AppColors.signalDim,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  _workoutType.displayName,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.signalDim,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Activity type selector - only show if multiple options available
-          if (activityOptions.length > 1) ...[
-            Row(
-              children: activityOptions.asMap().entries.map((entry) {
-                final index = entry.key;
-                final option = entry.value;
-                final isFirst = index == 0;
-                final isLast = index == activityOptions.length - 1;
-                final isSelected = _cardioActivityType == option['value'];
-
-                return Expanded(
-                  child: GestureDetector(
-                    onTap: () => setState(
-                      () => _cardioActivityType = option['value'] as String,
-                    ),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: AppSpacing.md,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? AppColors.signal
-                            : AppColors.surfaceSecondaryLight,
-                        borderRadius: BorderRadius.horizontal(
-                          left: isFirst
-                              ? const Radius.circular(AppBorderRadius.md)
-                              : Radius.zero,
-                          right: isLast
-                              ? const Radius.circular(AppBorderRadius.md)
-                              : Radius.zero,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            option['icon'] as IconData,
-                            size: 18,
-                            color: isSelected
-                                ? Colors.white
-                                : AppColors.textSecondaryLight,
-                          ),
-                          const SizedBox(width: 4),
-                          Flexible(
-                            child: Text(
-                              option['label'] as String,
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 12,
-                                color: isSelected
-                                    ? Colors.white
-                                    : AppColors.textSecondaryLight,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-          ],
-
-          // Distance and Duration row
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _distanceController,
-                  focusNode: _distanceFocus,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: const InputDecoration(
-                    labelText: 'Distance (km)',
-                    prefixIcon: Icon(Icons.straighten),
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: TextField(
-                  controller: _durationController,
-                  focusNode: _durationFocus,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Duration (min)',
-                    prefixIcon: Icon(Icons.timer),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-
-          // Pace input (optional)
-          TextField(
-            controller: _paceController,
-            focusNode: _paceFocus,
-            decoration: const InputDecoration(
-              labelText: 'Pace (optional, e.g. 5:30/km)',
-              prefixIcon: Icon(Icons.speed),
-              hintText: 'Auto-calculated if empty',
-            ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-
-          // Log button row with voice (Elite Brutalist)
-          Row(
-            children: [
-              Expanded(
-                child: SessionBounce(
-                  onTap: (_cardioActivityType != null && !_isLogging)
-                      ? _handleLogCardioFromControllers
-                      : null,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    decoration: BoxDecoration(
-                      gradient: (_cardioActivityType != null && !_isLogging)
-                          ? LinearGradient(
-                              colors: [AppColors.signal, AppColors.signalDim],
-                            )
-                          : null,
-                      color: (_cardioActivityType != null && !_isLogging)
-                          ? null
-                          : Colors.white.withValues(alpha: 0.05),
-                      border: Border.all(
-                        color: (_cardioActivityType != null && !_isLogging)
-                            ? AppColors.signal
-                            : Colors.white.withValues(alpha: 0.1),
-                        width: 2,
-                      ),
-                    ),
-                    child: Center(
-                      child: _isLogging
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Text(
-                              'LOG ACTIVITY',
-                              style: TextStyle(
-                                fontFamily: AppFonts.primary,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 14,
-                                letterSpacing: 2,
-                                color: Colors.white,
-                              ),
-                            ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              SessionBounce(
-                onTap: _isUploadingVoice ? null : _toggleRecording,
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: _isRecording
-                        ? AppColors.error.withValues(alpha: 0.1)
-                        : AppColors.signal.withValues(alpha: 0.1),
-                    border: Border.all(
-                      color: _isRecording
-                          ? AppColors.error.withValues(alpha: 0.5)
-                          : AppColors.signal.withValues(alpha: 0.5),
-                      width: 2,
-                    ),
-                  ),
-                  child: Semantics(
-                    button: true,
-                    label: _isRecording
-                        ? 'Stop Recording'
-                        : 'Record Voice Note',
-                    child: Icon(
-                      _isRecording ? Icons.stop_rounded : Icons.mic_rounded,
-                      color: _isRecording ? AppColors.error : AppColors.signal,
-                      size: 22,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+    return SessionCardioInputSection(
+      workoutType: _workoutType,
+      cardioActivityType: _cardioActivityType,
+      distanceController: _distanceController,
+      durationController: _durationController,
+      paceController: _paceController,
+      distanceFocus: _distanceFocus,
+      durationFocus: _durationFocus,
+      paceFocus: _paceFocus,
+      isLogging: _isLogging,
+      isRecording: _isRecording,
+      isUploadingVoice: _isUploadingVoice,
+      onActivityTypeChanged: (value) =>
+          setState(() => _cardioActivityType = value),
+      onLogActivity: _handleLogCardioFromControllers,
+      onToggleRecording: _toggleRecording,
     );
   }
 

@@ -31,6 +31,7 @@
 | 103 | Profile buddies sheet (was dead private class) |
 | 104 | Session duration input section |
 | 105 | Session strength input section |
+| 106 | Session cardio input section |
 
 ## Next slices (suggested)
 
