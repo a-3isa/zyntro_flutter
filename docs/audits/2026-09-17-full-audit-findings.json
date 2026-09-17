@@ -927,7 +927,8 @@
         "Maintainability"
       ],
       "status": "open",
-      "firstSeen": "2026-09-17"
+      "firstSeen": "2026-09-17",
+      "closureNote": "Partial: session_wakelock + SessionElapsedTimerChip extracted; god files still large — keep slicing."
     },
     {
       "id": "Z-UI-001",

@@ -29,6 +29,7 @@ import '../../../widgets/connection_status_widget.dart';
 import '../../../services/storage_service.dart';
 import '../../../widgets/session_error_banner.dart';
 import 'session_wakelock.dart';
+import 'widgets/session_elapsed_timer_chip.dart';
 import '../../../utils/haptic_manager.dart';
 import 'widgets/active_turn_screen.dart';
 import 'widgets/waiting_turn_screen.dart';
@@ -3056,48 +3057,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         : null;
 
     Widget buildCompactTimer() {
-      return ValueListenableBuilder<Duration>(
-        valueListenable: _elapsedNotifier,
-        builder: (context, elapsed, _) {
-          final h = elapsed.inHours;
-          final m = elapsed.inMinutes.remainder(60).toString().padLeft(2, '0');
-          final s = elapsed.inSeconds.remainder(60).toString().padLeft(2, '0');
-          final timeStr = h > 0 ? '$h:$m:$s' : '$m:$s';
-          return RepaintBoundary(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.1),
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.timer_outlined,
-                    size: 11,
-                    color: AppColors.signal.withValues(alpha: 0.85),
-                  ),
-                  const SizedBox(width: 5),
-                  Text(
-                    timeStr,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      );
+      return SessionElapsedTimerChip(elapsedListenable: _elapsedNotifier);
     }
 
     final isInviteUnanswered =

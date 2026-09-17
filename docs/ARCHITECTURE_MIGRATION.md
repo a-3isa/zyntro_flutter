@@ -13,6 +13,18 @@ The full 9-feature clean-architecture migration is **paused**, not abandoned.
 | `auth` | Yes | Reference implementation — keep enforcing |
 | `session`, `feed`, `social`, `profile`, `settings`, `moderation`, `main`, others | Partial / presentation-heavy | **Do not block PRs** on `validate_feature_layers.ps1` until revived |
 
+## God-file extraction progress (Z-ARCH-002)
+
+Prefer thin extractions widgets/helpers over greenfield layered packages:
+
+| Extract | Location |
+| --- | --- |
+| Session wakelock | `session_wakelock.dart` |
+| Elapsed timer chip | `widgets/session_elapsed_timer_chip.dart` |
+| Session room rebuild splits | Prior Z-PERF-001 work (ValueNotifier clock / RepaintBoundary) |
+
+Continue slicing `session_room_page.dart`, `profile_page.dart`, and `social_page.dart` by phase/view when touching those files.
+
 ## Rationale
 
 Finishing a wholesale rewrite of god-file features (session/profile/social) while closing Critical/High product risks is slower and riskier than shipping targeted extractions. Auth remains the template; new code in other features should prefer thin services + presentation without requiring a full domain/data package split on every change.
