@@ -2,6 +2,8 @@
 
 A Flutter workout buddy app migrated from React Native.
 
+**Supported platforms:** Android and iOS only. See [`docs/SUPPORTED_PLATFORMS.md`](docs/SUPPORTED_PLATFORMS.md).
+
 ## Getting Started
 
 1. Clone the repository
