@@ -875,8 +875,9 @@ class SessionService {
         );
   }
 
-  /// Pause the session (host only).
+  /// Pause the session (host only — Z-RT-005).
   Future<void> pauseSession(String sessionId, String userId) async {
+    await _assertCallerIsSessionHost(sessionId, userId);
     await withRetry(
       () => _firestore.collection('sessions').doc(sessionId).update({
         'status': 'paused',
@@ -893,8 +894,9 @@ class SessionService {
     );
   }
 
-  /// Resume the session (host only).
+  /// Resume the session (host only — Z-RT-005).
   Future<void> resumeSession(String sessionId, String userId) async {
+    await _assertCallerIsSessionHost(sessionId, userId);
     await withRetry(
       () => _firestore.collection('sessions').doc(sessionId).update({
         'status': 'active',
@@ -908,6 +910,20 @@ class SessionService {
       userId: userId,
       text: 'Session resumed',
     );
+  }
+
+  Future<void> _assertCallerIsSessionHost(
+    String sessionId,
+    String userId,
+  ) async {
+    final snap = await _firestore.collection('sessions').doc(sessionId).get();
+    final data = snap.data();
+    if (data == null) {
+      throw StateError('Session $sessionId not found');
+    }
+    if ((data['hostId'] ?? '').toString() != userId) {
+      throw StateError('Only the session host may pause or resume');
+    }
   }
 
   /// Add a session event.

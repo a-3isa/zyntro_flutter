@@ -323,6 +323,15 @@ void main() {
       );
     });
 
+    test('host-only pause/resume status transitions (Z-RT-005)', () {
+      expect(rules, contains('function isHostPauseResumeUpdate()'));
+      expect(rules, contains('isHostPauseResumeUpdate()'));
+      expect(rules, contains("resource.data.status == 'paused'"));
+      expect(rules, contains("request.resource.data.status == 'paused'"));
+      expect(rules, contains("resource.data.status != 'paused'"));
+      expect(rules, contains("request.resource.data.status != 'paused'"));
+    });
+
     // -------------------------------------------------------------------------
     // Session lobby handshake hardening (Task 6)
     // -------------------------------------------------------------------------

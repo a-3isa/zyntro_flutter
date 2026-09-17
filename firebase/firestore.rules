@@ -109,9 +109,26 @@ service cloud.firestore {
         );
     }
 
+    // Host-only pause/resume (Z-RT-005). Partners must not freeze the room.
+    function isHostPauseResumeUpdate() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return resource.data.hostId == request.auth.uid &&
+        changed.hasOnly(['status'].concat(activityStampKeys())) &&
+        (
+          (resource.data.status == 'active' &&
+            request.resource.data.status == 'paused') ||
+          (resource.data.status == 'paused' &&
+            request.resource.data.status == 'active')
+        );
+    }
+
     function isParticipantSessionUpdate() {
       let changed = request.resource.data.diff(resource.data).affectedKeys();
+      // Freeze participant live writes while paused; only host resume may leave
+      // that state. Never allow a non-host to write status: paused.
       return hasParticipant(resource.data.participants, request.auth.uid) &&
+        resource.data.status != 'paused' &&
+        request.resource.data.status != 'paused' &&
         changed.hasOnly(participantLiveKeys()) &&
         request.resource.data.participantTypes.diff(resource.data.participantTypes)
           .affectedKeys().hasOnly([request.auth.uid]) &&
@@ -474,6 +491,7 @@ service cloud.firestore {
       allow update: if isAuthenticated() &&
         isNotBanned() && (
         isParticipantSessionUpdate() ||
+        isHostPauseResumeUpdate() ||
         isOwnTerminationUpdate() ||
         isInviteAcceptUpdate() ||
         isInviteDeclineUpdate() ||
