@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
-import '../features/auth/auth_providers.dart';
+import '../../features/auth/auth_providers.dart';
 import 'feature_flags.dart';
 
 /// Compare dotted numeric versions (`1.0.1`). Longer missing segments are 0.
