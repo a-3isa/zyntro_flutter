@@ -3001,7 +3001,14 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       });
     });
 
-    return Stack(
+    return PopScope(
+      // Live room must not silently pop on system back (Z-UI-002).
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        await _handleFinishSession();
+      },
+      child: Stack(
       children: [
         _buildAnimatedBackground(),
         Scaffold(
@@ -3030,6 +3037,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           ),
         ),
       ],
+      ),
     );
   }
 

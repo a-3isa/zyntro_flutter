@@ -2660,8 +2660,10 @@
       "standards": [
         "DX"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "deferred",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Large/process campaigns (Result adoption, goldens/integration gates) — schedule as dedicated PRs, not audit-closure slices."
     },
     {
       "id": "Z-UI-002",
@@ -2691,8 +2693,10 @@
       "standards": [
         "Design system"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "DEP runbook + no Dynamic Links; PopScope leave guard + THEME_TOKENS.md."
     },
     {
       "id": "Z-A11Y-005",
@@ -2952,8 +2956,10 @@
       "standards": [
         "QA"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "deferred",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Large/process campaigns (Result adoption, goldens/integration gates) — schedule as dedicated PRs, not audit-closure slices."
     },
     {
       "id": "Z-CI-005",
@@ -3052,8 +3058,10 @@
       "standards": [
         "Deps"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "DEP runbook + no Dynamic Links; PopScope leave guard + THEME_TOKENS.md."
     },
     {
       "id": "Z-PRV-005",
