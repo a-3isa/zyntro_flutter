@@ -38,6 +38,7 @@
 | 110 | Session end confirm dialog |
 | 111 | Session sync status dialog |
 | 112 | Session summary builder |
+| 113 | Profile history + awards tabs |
 
 ## Next slices (suggested)
 

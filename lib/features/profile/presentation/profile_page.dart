@@ -19,10 +19,9 @@ import '../../../widgets/widgets.dart';
 import '../../moderation/presentation/report_dialog.dart';
 import '../../auth/auth_providers.dart';
 import 'profile_providers.dart';
-import 'widgets/profile_history_widgets.dart';
 import 'widgets/profile_posts_tab.dart';
+import 'widgets/profile_tabs.dart';
 import 'widgets/profile_header_widgets.dart';
-import 'widgets/profile_award_card.dart';
 import 'widgets/profile_follow_button.dart';
 import 'widgets/profile_action_row.dart';
 import '../../../services/leaderboard_service.dart';
@@ -440,8 +439,8 @@ class _ProfileContent extends ConsumerWidget {
                 isCurrentUser: isCurrentUser,
                 isPrivate: user.isPrivate,
               ),
-              _HistoryTab(targetUserId: targetUserId),
-              _AwardsTab(targetUserId: targetUserId),
+              ProfileHistoryTab(targetUserId: targetUserId),
+              ProfileAwardsTab(targetUserId: targetUserId),
             ],
           ),
         ),
@@ -1493,93 +1492,3 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
   }
 
 }
-
-// ---------------------------------------------------------------------------
-// History Tab — real data
-// ---------------------------------------------------------------------------
-
-class _HistoryTab extends ConsumerWidget {
-  final String targetUserId;
-
-  const _HistoryTab({required this.targetUserId});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final sessionsAsync = ref.watch(userSessionsProvider(targetUserId));
-
-    return sessionsAsync.when(
-      data: (sessions) => ListView(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        children: [
-          WeeklyVolumeChart(sessions: sessions),
-          const SizedBox(height: AppSpacing.xl),
-          ActivityHeatmap(sessions: sessions),
-          const SizedBox(height: AppSpacing.xl),
-          RecentSessionsList(sessions: sessions),
-          const SizedBox(height: AppSpacing.xl),
-        ],
-      ),
-      loading: () => Center(
-        child: CircularProgressIndicator(
-          strokeWidth: 2,
-          color: AppColors.signal,
-          semanticsLabel: 'Loading workout history',
-        ),
-      ),
-      // Previously a bare "Failed to load history" line with no way forward —
-      // the only escape was leaving the tab and coming back.
-      error: (_, _) => AppErrorState(
-        title: 'Couldn\'t load history',
-        onRetry: () => ref.invalidate(userSessionsProvider(targetUserId)),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Weekly Volume Bar Chart — real data
-// ---------------------------------------------------------------------------
-
-class _AwardsTab extends ConsumerWidget {
-  final String targetUserId;
-
-  const _AwardsTab({required this.targetUserId});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final badgesAsync = ref.watch(userBadgesProvider(targetUserId));
-
-    return badgesAsync.when(
-      data: (earnedBadges) {
-        final earnedIds = earnedBadges.map((b) => b.id).toSet();
-
-        return GridView.builder(
-          padding: const EdgeInsets.all(16),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
-            childAspectRatio: 0.85,
-          ),
-          itemCount: availableBadges.length,
-          itemBuilder: (context, index) {
-            final badge = availableBadges[index];
-            final isEarned = earnedIds.contains(badge.id);
-            return ProfileAwardCard(badge: badge, isEarned: isEarned);
-          },
-        );
-      },
-      loading: () => Center(
-        child: CircularProgressIndicator(
-          strokeWidth: 2,
-          color: AppColors.signal,
-        ),
-      ),
-      error: (_, _) => const SizedBox(),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Pressable Row — press-scale animation
-// ---------------------------------------------------------------------------
