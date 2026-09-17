@@ -928,7 +928,7 @@
       ],
       "status": "deferred",
       "firstSeen": "2026-09-17",
-      "closureNote": "XL campaign ongoing: session timer/wakelock + profile empty + social buddy/FB + start-session type/section/avatar widgets (093). Continue per-PR slices; not blocking audit closure.",
+      "closureNote": "XL campaign ongoing: timer/wakelock + profile empty + social buddy + start-session widgets + recap presentation widgets (095). Continue slices; not blocking audit closure.",
       "closedAt": "2026-09-17"
     },
     {
