@@ -12,6 +12,8 @@ void main() {
     expect(doc, contains('**Yes**'));
     expect(doc, contains('writeScheduleHeartbeat'));
     expect(doc, contains('45 minutes'));
+    expect(doc, contains('Alert runbook (Z-OBS-004)'));
+    expect(doc, contains('Crashlytics scrub posture'));
 
     expect(functions, contains('function writeScheduleHeartbeat'));
     expect(rules, contains('match /ops/{document=**}'));

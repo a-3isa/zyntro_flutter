@@ -3010,8 +3010,10 @@
       "standards": [
         "SRE"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Heartbeat alert runbook + Crashlytics scrub posture in ANALYTICS.md; scrubForReport already live."
     },
     {
       "id": "Z-DEP-003",

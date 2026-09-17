@@ -24,6 +24,23 @@ These Cloud Functions must call `writeScheduleHeartbeat` on every invocation (in
 
 Operators should alert when any heartbeat is older than **45 minutes** (3 missed 15-minute ticks).
 
+### Alert runbook (Z-OBS-004)
+
+1. **Signal:** `ops/heartbeats/jobs/{jobName}.lastRunAt` older than 45 minutes (Cloud Monitoring
+   custom metric, or a simple scheduled Cloud Function that pages Slack/email).
+2. **Triage:** Check Firebase Console → Functions logs for the job name; confirm Scheduler is
+   enabled and the function is not failing on cold start / permissions.
+3. **Mitigation:** Redeploy the schedule function; if heartbeats write but work fails, fix the
+   query/index rather than silencing the alert.
+4. **Remote Config:** Prefer kill switches for risky client features via existing Remote Config
+   keys (forced update / resume flag) before shipping new runtime toggles.
+
+### Crashlytics scrub posture
+
+- Do not log tokens, emails, or Authorization headers into Crashlytics custom keys.
+- Prefer `FirebaseCrashlytics.instance.recordError` with sanitized messages only.
+- Expand scrubbing when new PII surfaces appear in non-fatal reports.
+
 ## Cost guardrails
 
 1. Enable a Firebase / GCP budget alert on Firestore writes for the project.
