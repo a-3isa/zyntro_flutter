@@ -33,9 +33,60 @@ jobs:
       - name: Run tests
         run: flutter test
 
+  functions-test:
+    name: Cloud Functions Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Install functions deps
+        working-directory: functions
+        run: npm ci
+
+      - name: Run functions unit tests
+        working-directory: functions
+        run: npm test
+
+  rules-test:
+    name: Firestore Rules Emulator Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Java (rules emulator)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Install rules test deps
+        working-directory: test/rules
+        run: npm ci
+
+      - name: Run Firestore rules emulator tests
+        working-directory: test/rules
+        run: npm test
+
   build-android:
     name: Build Android Release
-    needs: analyze
+    needs: [analyze, functions-test, rules-test]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     steps:
@@ -87,7 +138,7 @@ jobs:
 
   build-ios:
     name: Build iOS Release
-    needs: analyze
+    needs: [analyze, functions-test, rules-test]
     runs-on: macos-latest
     if: github.ref == 'refs/heads/main'
     steps:
@@ -127,7 +178,7 @@ jobs:
     name: Deploy Firebase Rules
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
-    needs: [analyze]
+    needs: [analyze, functions-test, rules-test]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -137,22 +188,8 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Setup Java (rules emulator)
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
-
-      - name: Install rules test deps
-        working-directory: test/rules
-        run: npm ci
-
-      - name: Run Firestore rules emulator tests
-        working-directory: test/rules
-        run: npm test
 
       - name: Deploy Firestore and Storage rules
         run: firebase deploy --only "firestore:rules,firestore:indexes,storage" --token ${{ secrets.FIREBASE_TOKEN }} --project ${{ secrets.FIREBASE_PROJECT_ID }}
