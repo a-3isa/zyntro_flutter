@@ -22,7 +22,6 @@ import '../../../services/session_analytics_service.dart';
 import '../../../services/user_cache_service.dart';
 import '../../../utils/offline_manager.dart';
 import '../../../utils/retry_helper.dart';
-import '../../../widgets/session_widgets.dart';
 import 'widgets/session_room_animations.dart';
 import 'widgets/session_room_background.dart';
 import '../../../widgets/shimmer_widgets.dart';
@@ -43,6 +42,7 @@ import 'widgets/partner_left_dialog.dart';
 import 'widgets/session_header_chips.dart';
 import 'widgets/session_set_column.dart';
 import 'widgets/session_duration_input.dart';
+import 'widgets/session_strength_input.dart';
 import '../domain/turn_plan_progress.dart';
 import '../domain/workout_score.dart';
 
@@ -2215,215 +2215,28 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
 
   /// Build strength training input section (exercise name, weight, reps).
   Widget _buildStrengthInputSection() {
-    return FocusTraversalGroup(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Autocomplete for Exercise name
-          Autocomplete<String>(
-            optionsBuilder: (TextEditingValue textEditingValue) {
-              if (textEditingValue.text == '') {
-                return const Iterable<String>.empty();
-              }
-              return _recentExercises.where((String option) {
-                return option.toLowerCase().contains(
-                  textEditingValue.text.toLowerCase(),
-                );
-              });
-            },
-            onSelected: (String selection) {
-              _exerciseController.text = selection;
-              setState(() => _currentExercise = selection);
-            },
-            fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-              // Sync controllers
-              if (controller.text != _exerciseController.text) {
-                controller.text = _exerciseController.text;
-              }
-
-              return TextField(
-                controller: controller,
-                focusNode:
-                    focusNode, // Autocomplete handles its own focus node internally usually, but we can try to use ours if exposed or just rely on it. Actually Autocomplete fieldViewBuilder gives a focusNode. We should use THAT one. But we wanted to use _exerciseNameFocus.
-                // Correction: Autocomplete gives a focusNode. We should probably stick with that or use ours if we can pass it.
-                // Let's use the one provided by builder but ensure next focus works.
-                // We'll leave this one alone as it uses the builder's focusNode.
-                decoration: const InputDecoration(
-                  labelText: 'Exercise Name',
-                  prefixIcon: Icon(Icons.fitness_center),
-                ),
-                onChanged: (value) {
-                  _exerciseController.text = value;
-                  setState(
-                    () => _currentExercise = value.isNotEmpty ? value : null,
-                  );
-                },
-              );
-            },
-          ),
-
-          const SizedBox(height: AppSpacing.md),
-
-          // Weight and Reps row
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _weightController,
-                  focusNode: _weightFocus,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Weight (kg)'),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: TextField(
-                  controller: _repsController,
-                  focusNode: _repsFocus,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Reps'),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-
-          // Log button row with voice (Elite Brutalist)
-          Row(
-            children: [
-              Expanded(
-                child: Semantics(
-                  button: true,
-                  label: 'Log Amount',
-                  hint: 'Adds this set to your workout',
-                  child: SessionBounce(
-                    onTap: (_currentExercise != null && !_isLogging)
-                        ? _handleLogSetFromControllers
-                        : null,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      constraints: const BoxConstraints(minHeight: 56),
-                      decoration: BoxDecoration(
-                        gradient: (_currentExercise != null && !_isLogging)
-                            ? LinearGradient(
-                                colors: [AppColors.signal, AppColors.signalDim],
-                              )
-                            : null,
-                        color: (_currentExercise != null && !_isLogging)
-                            ? null
-                            : Colors.white.withValues(alpha: 0.05),
-                        border: Border.all(
-                          color: (_currentExercise != null && !_isLogging)
-                              ? AppColors.signal
-                              : Colors.white.withValues(alpha: 0.1),
-                          width: 2,
-                        ),
-                      ),
-                      child: Center(
-                        child: _isLogging
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Text(
-                                'LOG SET',
-                                style: TextStyle(
-                                  fontFamily: AppFonts.primary,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 14,
-                                  letterSpacing: 2,
-                                  color: Colors.white,
-                                ),
-                              ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              // Voice recording button with states
-              if (_isUploadingVoice)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.warning.withValues(alpha: 0.1),
-                    border: Border.all(
-                      color: AppColors.warning.withValues(alpha: 0.4),
-                      width: 2,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          value: _voiceUploadProgress > 0
-                              ? _voiceUploadProgress
-                              : null,
-                          color: AppColors.warning,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        '${(_voiceUploadProgress * 100).toInt()}%',
-                        style: const TextStyle(
-                          fontFamily: AppFonts.primary,
-                          color: AppColors.warning,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1,
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              else if (_isRecording)
-                GestureDetector(
-                  onTap: _toggleRecording,
-                  child: RecordingWaveform(
-                    amplitudeStream: ref
-                        .read(voiceRecordingServiceProvider)
-                        .amplitudeStream,
-                    duration: _recordingDuration,
-                  ),
-                )
-              else
-                SessionBounce(
-                  onTap: _toggleRecording,
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppColors.signal.withValues(alpha: 0.1),
-                      border: Border.all(
-                        color: AppColors.signal.withValues(alpha: 0.5),
-                        width: 2,
-                      ),
-                    ),
-                    child: Semantics(
-                      button: true,
-                      label: 'Record Voice Note',
-                      child: Icon(
-                        Icons.mic_rounded,
-                        color: AppColors.signal,
-                        size: 22,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ],
-      ),
+    return SessionStrengthInputSection(
+      recentExercises: _recentExercises,
+      exerciseController: _exerciseController,
+      weightController: _weightController,
+      repsController: _repsController,
+      weightFocus: _weightFocus,
+      repsFocus: _repsFocus,
+      currentExercise: _currentExercise,
+      isLogging: _isLogging,
+      isRecording: _isRecording,
+      isUploadingVoice: _isUploadingVoice,
+      voiceUploadProgress: _voiceUploadProgress,
+      recordingDuration: _recordingDuration,
+      amplitudeStream:
+          ref.read(voiceRecordingServiceProvider).amplitudeStream,
+      onExerciseChanged: (value) => setState(() => _currentExercise = value),
+      onExerciseSelected: (selection) {
+        _exerciseController.text = selection;
+        setState(() => _currentExercise = selection);
+      },
+      onLogSet: _handleLogSetFromControllers,
+      onToggleRecording: _toggleRecording,
     );
   }
 
