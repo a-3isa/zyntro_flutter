@@ -3230,7 +3230,7 @@
       "status": "deferred",
       "firstSeen": "2026-09-17",
       "closedAt": "2026-09-17",
-      "closureNote": "Requires physical-device T054 quickstart evidence — cannot automate in this agent loop. Owner device gate remains."
+      "closureNote": "Still deferred pending physical T054. Owner runbook shipped in 094: docs/T054_DEVICE_GATE.md + tasks.md pointer. Close only with evidence packet."
     },
     {
       "id": "Z-REPO-005",
