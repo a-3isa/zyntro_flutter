@@ -64,6 +64,13 @@ class MatchmakingService {
       try {
         final partnerId = partnerDoc.data()['userId'] as String;
 
+        // Skip partners we have blocked (Z-RT-003). Reverse blocks are enforced
+        // by isNotBlockedPair on the claimer update rule.
+        if (await _callerBlocks(userId, partnerId)) {
+          debugPrint('[Matchmaking] Skipping blocked partner $partnerId');
+          continue;
+        }
+
         // Optimistic claim: mark partner as 'claiming' so no one else takes them.
         await _firestore.runTransaction<void>((tx) async {
           final snap = await tx.get(partnerDoc.reference);
@@ -135,6 +142,16 @@ class MatchmakingService {
         .doc(queueDocId)
         .snapshots()
         .map((doc) => doc.exists ? doc.data() : null);
+  }
+
+  /// True when [blockerId] has blocked [blockedId]. Callers can only read their
+  /// own outgoing block edges under current rules.
+  Future<bool> _callerBlocks(String blockerId, String blockedId) async {
+    final doc = await _firestore
+        .collection('blocks')
+        .doc('${blockerId}_$blockedId')
+        .get();
+    return doc.exists;
   }
 }
 

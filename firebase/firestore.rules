@@ -732,11 +732,20 @@ service cloud.firestore {
         isNotBanned() &&
         request.resource.data.userId == request.auth.uid &&
         request.resource.data.status == 'waiting';
+      // Owner may finalize/cancel their own entry. Claimers may only touch the
+      // status/claim/match fields and cannot pair with a blocked user (Z-SEC-003 / Z-RT-003).
       allow update: if isAuthenticated() && (
-        resource.data.userId == request.auth.uid ||
+        (
+          resource.data.userId == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['status', 'sessionId', 'matchedAt', 'matchedWithUserId', 'claimedBy'])
+        ) ||
         (
           resource.data.status in ['waiting', 'claiming'] &&
-          request.resource.data.status in ['claiming', 'matched', 'waiting']
+          request.resource.data.status in ['claiming', 'matched', 'waiting'] &&
+          isNotBlockedPair(request.auth.uid, resource.data.userId) &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['status', 'claimedBy', 'sessionId', 'matchedAt', 'matchedWithUserId'])
         )
       );
       allow delete: if isAuthenticated() && (

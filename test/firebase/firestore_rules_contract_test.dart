@@ -124,6 +124,16 @@ void main() {
       expect(rules, contains("'currentStreak'"));
     });
 
+    test('matchmaking claimer updates require block check and allowlist', () {
+      final idx = rules.indexOf('match /matchmaking_queue/{entryId}');
+      expect(idx, isNonNegative);
+      final section = rules.substring(idx, idx + 1200);
+      expect(section, contains('isNotBlockedPair(request.auth.uid, resource.data.userId)'));
+      expect(section, contains("'claimedBy'"));
+      expect(section, contains("'matchedWithUserId'"));
+      expect(section, contains('.hasOnly(['));
+    });
+
     test('restrict cross-user notification creation to the owner', () {
       expect(
         rules,

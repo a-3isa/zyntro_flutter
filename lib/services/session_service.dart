@@ -1539,6 +1539,9 @@ class SessionService {
   /// Switch turn to the next participant.
   /// Matches RN switchTurn (for turn_based mode only).
   /// Paired gym sessions switch turns only between exactly two gym participants.
+  ///
+  /// The `activeUserId` write is transactional (Z-RT-002): only the current
+  /// active holder may pass the turn, so concurrent clients cannot race.
   Future<void> switchTurn(String sessionId, String currentUserId) async {
     final session = await getSession(sessionId);
     if (session == null) return;
@@ -1552,49 +1555,67 @@ class SessionService {
     );
     if (!allGym) return;
 
-    // Find current participant's index
     final currentIndex = session.participants.indexOf(currentUserId);
     if (currentIndex == -1) {
-      // Current user not found in participants, default to first participant
       debugPrint('[SessionService] Current user not in participants list');
       return;
     }
 
-    // Round-robin, but skipping anyone who cannot actually take the turn — a
-    // partner who terminated, or whose app is closed. Handing the turn to an
-    // absent member would stall the session: the one still training would sit
-    // on a waiting screen for someone who is never going to act.
-    //
-    // When nobody qualifies — both apps closed, or presence could not be read
-    // at all — this falls back to plain round-robin, i.e. exactly the previous
-    // behaviour. Degrading to the old rule beats inventing an answer from
-    // presence data we do not actually have, and such a session is heading for
-    // expiry anyway. `activeUserId` is never cleared: a null would need
-    // handling on every read for no benefit.
-    final nextUserId = nextTurnHolder(
+    // Presence is advisory and read outside the transaction. Inside the txn we
+    // re-check that [currentUserId] is still activeUserId before writing.
+    final presence = await _presenceByUser(sessionId);
+    final preferredNext =
+        nextTurnHolder(
           currentUserId: currentUserId,
           session: session,
-          presence: await _presenceByUser(sessionId),
+          presence: presence,
           now: DateTime.now().toUtc(),
         ) ??
         session.participants[(currentIndex + 1) % session.participants.length];
 
-    // Get next participant's display name
+    final sessionRef = _firestore.collection('sessions').doc(sessionId);
+    String? committedNextId;
+
+    try {
+      await withRetry(() async {
+        await _firestore.runTransaction<void>((transaction) async {
+          final snap = await transaction.get(sessionRef);
+          final data = snap.data();
+          if (data == null) return;
+
+          final participants =
+              (data['participants'] as List<dynamic>?)?.cast<String>() ??
+              const <String>[];
+          if (participants.length != 2) return;
+          if (!participants.contains(currentUserId)) return;
+
+          final activeUserId = data['activeUserId'] as String?;
+          // Stale pass: another client already advanced the turn.
+          if (activeUserId != null && activeUserId != currentUserId) {
+            return;
+          }
+
+          final nextUserId = preferredNext;
+          transaction.update(sessionRef, {
+            'activeUserId': nextUserId,
+            ...activityStamp(),
+          });
+          committedNextId = nextUserId;
+        });
+      });
+    } catch (e) {
+      debugPrint('[SessionService] switchTurn transaction failed: $e');
+      return;
+    }
+
+    if (committedNextId == null) return;
+    final nextUserId = committedNextId!;
+
     final nextUser = await _ref
         .read(userCacheServiceProvider)
         .getUser(nextUserId);
     final nextUserName = nextUser?.displayName ?? 'User';
 
-    await withRetry(() async {
-      await _firestore.collection('sessions').doc(sessionId).update({
-        'activeUserId': nextUserId,
-        ...activityStamp(),
-      });
-    });
-
-    // Event is authored by the current user (required by security rules:
-    // request.resource.data.userId == request.auth.uid).
-    // The next participant is stored in data so UI can display correctly.
     await addSessionEvent(
       sessionId: sessionId,
       type: SessionEventType.turnSwitch,
@@ -1603,7 +1624,6 @@ class SessionService {
       data: {'nextUserId': nextUserId, 'nextUserName': nextUserName},
     );
 
-    // Notify the next participant that it's their turn
     unawaited(
       _ref
           .read(notificationServiceProvider)

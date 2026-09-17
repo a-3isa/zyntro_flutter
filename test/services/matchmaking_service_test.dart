@@ -115,6 +115,34 @@ void main() {
         reason: 'self-matching would create a session with one real person',
       );
     });
+
+    test('skips a partner the caller has blocked', () async {
+      await firestore.collection('matchmaking_queue').add({
+        'userId': 'bob',
+        'workoutType': WorkoutType.gym.value,
+        'status': 'waiting',
+      });
+      await firestore.collection('blocks').doc('alice_bob').set({
+        'blockerId': 'alice',
+        'blockedUserId': 'bob',
+      });
+
+      final outcome = await service.joinQueue(
+        userId: 'alice',
+        workoutType: WorkoutType.gym,
+      );
+
+      expect(
+        outcome,
+        isA<WaitingForMatch>(),
+        reason: 'blocked partners must not be claimed (Z-RT-003)',
+      );
+      final bob = await firestore
+          .collection('matchmaking_queue')
+          .where('userId', isEqualTo: 'bob')
+          .get();
+      expect(bob.docs.single.data()['status'], 'waiting');
+    });
   });
 
   group('cancelQueue', () {
