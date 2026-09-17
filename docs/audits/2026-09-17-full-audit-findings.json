@@ -224,8 +224,10 @@
       "standards": [
         "Apple Push Notification entitlement"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Release/Profile use RunnerRelease.entitlements (production); Debug keeps development."
     },
     {
       "id": "Z-SEC-002",
