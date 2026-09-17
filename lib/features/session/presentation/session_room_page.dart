@@ -40,6 +40,7 @@ import 'widgets/gym_exercise_picker_sheet.dart';
 import '../domain/gym_session_plan.dart';
 import '../domain/turn_eligibility.dart';
 import 'widgets/partner_left_dialog.dart';
+import 'widgets/session_header_chips.dart';
 import '../domain/turn_plan_progress.dart';
 import '../domain/workout_score.dart';
 
@@ -2978,23 +2979,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     final session = ref.watch(currentSessionProvider(widget.sessionId)).value;
     final inviteStatus = session?.invitationStatus;
     final setupStatusChip = session?.phase == SessionPhase.setup
-        ? Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceV2,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: AppColors.surfaceV2Active),
-            ),
-            child: const Text(
-              'Waiting for workout plans',
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: AppColors.textV2Secondary,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          )
+        ? const SessionSetupWaitingChip()
         : null;
 
     Widget buildCompactTimer() {
@@ -3004,69 +2989,11 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     final isInviteUnanswered =
         inviteStatus == WorkoutInvitationStatus.declined ||
         inviteStatus == WorkoutInvitationStatus.expired;
-    final inviteChipColor = switch (inviteStatus) {
-      WorkoutInvitationStatus.accepted => AppColors.signal,
-      WorkoutInvitationStatus.declined => AppColors.errorV2,
-      WorkoutInvitationStatus.expired => Colors.orange,
-      _ => AppColors.textV2Secondary,
-    };
-    final inviteChipLabel = switch (inviteStatus) {
-      WorkoutInvitationStatus.pending => 'Waiting for your friend…',
-      WorkoutInvitationStatus.accepted => 'Friend joined',
-      WorkoutInvitationStatus.declined =>
-        'Friend declined — train solo or invite someone else',
-      WorkoutInvitationStatus.expired =>
-        'Invite expired — train solo or invite someone else',
-      _ => 'Invite: ${inviteStatus?.value ?? ''}',
-    };
-    // Only surface invite state when it needs the user's attention (declined /
-    // expired). "Friend joined" and "pending" are redundant — the partner's
-    // presence is already shown by the participant row below.
     final inviteStatusChip =
         isInviteUnanswered &&
-            session?.partnerKind == PairedPartnerKind.realFriend
-        ? Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: isInviteUnanswered
-                  ? inviteChipColor.withValues(alpha: 0.12)
-                  : AppColors.surfaceV2,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: isInviteUnanswered
-                    ? inviteChipColor.withValues(alpha: 0.4)
-                    : AppColors.surfaceV2Active,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (isInviteUnanswered) ...[
-                  Icon(
-                    inviteStatus == WorkoutInvitationStatus.declined
-                        ? Icons.person_off_rounded
-                        : Icons.timer_off_rounded,
-                    size: 13,
-                    color: inviteChipColor,
-                  ),
-                  const SizedBox(width: 6),
-                ],
-                Flexible(
-                  child: Text(
-                    inviteChipLabel,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: isInviteUnanswered
-                          ? inviteChipColor
-                          : AppColors.textV2Secondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          )
+            session?.partnerKind == PairedPartnerKind.realFriend &&
+            inviteStatus != null
+        ? SessionInviteAttentionChip(status: inviteStatus)
         : null;
     final endButton = TextButton(
       onPressed: () {

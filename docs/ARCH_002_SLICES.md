@@ -24,6 +24,7 @@
 | 096 | Profile visitor chip + stats row |
 | 097 | Session room animated background |
 | 098 | Profile award card + this roadmap |
+| 099 | Session header invite/setup chips |
 
 ## Next slices (suggested)
 
