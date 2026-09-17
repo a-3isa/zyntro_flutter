@@ -758,7 +758,8 @@ service cloud.firestore {
         request.resource.data.userId == request.auth.uid &&
         request.resource.data.status == 'waiting';
       // Owner may finalize/cancel their own entry. Claimers may only touch the
-      // status/claim/match fields and cannot pair with a blocked user (Z-SEC-003 / Z-RT-003).
+      // status/claim/match fields, must stamp claimedBy as self, and cannot
+      // pair with a blocked user (Z-SEC-003 / Z-RT-003).
       allow update: if isAuthenticated() && (
         (
           resource.data.userId == request.auth.uid &&
@@ -770,7 +771,24 @@ service cloud.firestore {
           request.resource.data.status in ['claiming', 'matched', 'waiting'] &&
           isNotBlockedPair(request.auth.uid, resource.data.userId) &&
           request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['status', 'claimedBy', 'sessionId', 'matchedAt', 'matchedWithUserId'])
+            .hasOnly(['status', 'claimedBy', 'sessionId', 'matchedAt', 'matchedWithUserId']) &&
+          (
+            // Claim or finalize: claimer must be auth.uid, and only the current
+            // claimer may advance a 'claiming' entry.
+            (
+              request.resource.data.status in ['claiming', 'matched'] &&
+              request.resource.data.claimedBy == request.auth.uid &&
+              (
+                resource.data.status == 'waiting' ||
+                resource.data.claimedBy == request.auth.uid
+              )
+            ) ||
+            // Release back to waiting: only the current claimer.
+            (
+              request.resource.data.status == 'waiting' &&
+              resource.data.claimedBy == request.auth.uid
+            )
+          )
         )
       );
       allow delete: if isAuthenticated() && (

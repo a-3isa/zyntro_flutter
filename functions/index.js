@@ -716,7 +716,9 @@ async function requireHttpAppCheck(req) {
   }
 
   try {
-    await appCheck.verifyToken(token);
+    // Consume limited-use tokens so a captured token cannot be replayed
+    // against deliverNotificationPush / applySessionScore (Z-FN-002).
+    await appCheck.verifyToken(token, { consume: true });
   } catch (error) {
     logger.warn("Invalid App Check token for deliverNotificationPush.", error);
     throw new HttpsError("unauthenticated", "Invalid App Check token.");

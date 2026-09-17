@@ -14,7 +14,7 @@ void main() {
       expect(source, contains("package:http/http.dart"));
       expect(source, contains("deliverNotificationPush"));
       expect(source, contains("'Authorization': 'Bearer \$idToken'"));
-      expect(source, contains("FirebaseAppCheck.instance.getToken(false)"));
+      expect(source, contains("FirebaseAppCheck.instance.getLimitedUseToken()"));
       expect(source, contains("'X-Firebase-AppCheck': appCheckToken"));
       expect(source, contains('Future<void> notifyNewFollower'));
       expect(source, contains('NotificationType.newFollower'));

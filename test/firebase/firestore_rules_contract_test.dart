@@ -127,11 +127,20 @@ void main() {
     test('matchmaking claimer updates require block check and allowlist', () {
       final idx = rules.indexOf('match /matchmaking_queue/{entryId}');
       expect(idx, isNonNegative);
-      final section = rules.substring(idx, idx + 1200);
+      final section = rules.substring(idx, idx + 1800);
       expect(section, contains('isNotBlockedPair(request.auth.uid, resource.data.userId)'));
       expect(section, contains("'claimedBy'"));
       expect(section, contains("'matchedWithUserId'"));
       expect(section, contains('.hasOnly(['));
+      // Z-SEC-003: claimer must stamp self; cannot hijack another claim.
+      expect(
+        section,
+        contains('request.resource.data.claimedBy == request.auth.uid'),
+      );
+      expect(
+        section,
+        contains('resource.data.claimedBy == request.auth.uid'),
+      );
     });
 
     test('restrict cross-user notification creation to the owner', () {

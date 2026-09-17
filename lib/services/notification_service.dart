@@ -760,10 +760,11 @@ class NotificationService {
       }
 
       final idToken = await currentUser.getIdToken();
-      // false = use the cached App Check token, refreshing only if expired
-      // (the SDK default — avoids forcing a network refresh on every push).
-      final appCheckToken = await FirebaseAppCheck.instance.getToken(false);
-      if (appCheckToken == null || appCheckToken.isEmpty) {
+      // Limited-use token so the Cloud Function can consume it and block
+      // replay of captured App Check headers (Z-FN-002).
+      final appCheckToken =
+          await FirebaseAppCheck.instance.getLimitedUseToken();
+      if (appCheckToken.isEmpty) {
         const error =
             'No App Check token is available for notification delivery.';
         if (rethrowOnFailure) throw StateError(error);
