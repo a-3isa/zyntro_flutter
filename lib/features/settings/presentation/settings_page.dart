@@ -667,31 +667,35 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     String? sub,
     required VoidCallback onTap,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(label, style: _rowLabel()),
-                  if (sub != null) ...[
-                    const SizedBox(height: 2),
-                    Text(sub, style: _rowSub()),
+    return Semantics(
+      button: true,
+      label: sub == null ? label : '$label. $sub',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(label, style: _rowLabel()),
+                    if (sub != null) ...[
+                      const SizedBox(height: 2),
+                      Text(sub, style: _rowSub()),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
-            const Icon(
-              Icons.chevron_right,
-              color: AppColors.textV2Tertiary,
-              size: 18,
-            ),
-          ],
+              const Icon(
+                Icons.chevron_right,
+                color: AppColors.textV2Tertiary,
+                size: 18,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -702,25 +706,28 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     String? sub,
     required VoidCallback onTap,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(label, style: _rowLabel(danger: true)),
-                  if (sub != null) ...[
-                    const SizedBox(height: 2),
-                    Text(sub, style: _rowSub()),
+    return Semantics(
+      button: true,
+      label: sub == null ? label : '$label. $sub',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(label, style: _rowLabel(danger: true)),
+                    if (sub != null) ...[
+                      const SizedBox(height: 2),
+                      Text(sub, style: _rowSub()),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
             const Icon(Icons.chevron_right, color: AppColors.errorV2, size: 18),
           ],
         ),
