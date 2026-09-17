@@ -7,9 +7,9 @@
 
 | File | Soft budget | Notes |
 | --- | --- | --- |
-| `session_room_page.dart` | ≤ 80 KB / ≤ 2.5k LOC | ~86KB after 117; keep extracting orchestration |
-| `profile_page.dart` | ≤ 60 KB | **Met** (~55.5 KB as of 109) |
-| `social_page.dart` | ≤ 40 KB | **Met** (~43.5 KB — accept or trim 3.5KB later) |
+| `session_room_page.dart` | ≤ 80 KB / ≤ 2.5k LOC | **Met** (~78 KB as of 118) |
+| `profile_page.dart` | ≤ 60 KB | **Met** (~52 KB as of 109) |
+| `social_page.dart` | ≤ 40 KB | ~43.5 KB — trim next or accept revised budget |
 | `start_session_page.dart` | ≤ 45 KB | Type/section/avatar extracted |
 | `recap_page.dart` | ≤ 40 KB | Presentation widgets extracted |
 
@@ -43,12 +43,11 @@
 | 115 | Parallel partner `fromProgress` factory + shared builder |
 | 116 | Session V2 header shell |
 | 117 | Set-column builder + waiting-turn partner resolver |
+| 118 | Voice upload, live progress map, late-add plan, time format, active prefill |
 
 ## Next slices (suggested)
 
-1. Active-turn prefill / late-add plan append  
-2. Voice record/upload controller extract  
-3. Finish-session orchestration extract  
-4. Social leaderboard list / people-you-may-know (optional trim)
+1. Social page trim to ≤40 KB (close Z-ARCH-002)  
+2. Optional finish-session orchestration polish  
 
 Do not mark Z-ARCH-002 closed until every row meets soft budget **or** product accepts a revised budget with remaining god files listed.

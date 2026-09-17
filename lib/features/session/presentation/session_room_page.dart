@@ -29,6 +29,11 @@ import '../../../services/storage_service.dart';
 import '../../../widgets/session_error_banner.dart';
 import 'session_summary_builder.dart';
 import 'session_wakelock.dart';
+import 'session_voice_note_upload.dart';
+import 'live_progress_map.dart';
+import 'late_add_plan.dart';
+import 'session_time_format.dart';
+import 'active_turn_prefill.dart';
 import 'waiting_turn_partner.dart';
 import 'widgets/active_turn_screen.dart';
 import 'widgets/waiting_turn_screen.dart';
@@ -49,6 +54,7 @@ import 'widgets/session_end_confirm_dialog.dart';
 import 'widgets/session_sync_status_dialog.dart';
 import 'widgets/session_plan_complete_view.dart';
 import 'widgets/session_v2_header.dart';
+import 'widgets/microphone_permission_dialog.dart';
 import '../domain/turn_plan_progress.dart';
 
 /// Session room page for active workout sessions.
@@ -453,28 +459,12 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       context: context,
       queue: queue,
       failedOps: failedOps,
-      formatTimeAgo: _formatTimeAgo,
+      formatTimeAgo: formatSessionTimeAgo,
       onClearFailed: offlineManager.clearFailedOperations,
     );
   }
 
-  String _formatTimeAgo(DateTime time) {
-    final diff = DateTime.now().difference(time);
-    if (diff.inMinutes < 1) return 'just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    return '${diff.inDays}d ago';
-  }
-
-  /// Announces a partner leaving, once, to the member still in the room.
-  ///
-  /// Only for departures that happen while they are watching. A partner who
-  /// left before they opened the session is seeded as already-seen: the
-  /// avatar's "left" state tells them, and a dialog about something that
-  /// happened while they were away would be noise.
-  ///
-  /// Dismissing is equivalent to carrying on — this never ends the member's own
-  /// session for them.
+  /// Announces a partner leaving once while the member is watching (Z-ARCH-002).
   void _announceDeparturesIfNeeded(Session session, String currentUserId) {
     final departed = session.endedParticipants
         .where((id) => id != currentUserId)
@@ -489,7 +479,6 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     final fresh = _announcedDepartures.takeUnannounced(departed);
     if (fresh.isEmpty) return;
 
-    // Out of the build phase — showDialog cannot run during a rebuild.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       final leaverId = fresh.first;
@@ -513,8 +502,6 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     });
   }
 
-  /// How a partner should currently be rendered — present, temporarily away,
-  /// or gone for good.
   ParticipantStanding _partnerStanding(Session session, String partnerId) {
     if (partnerId.isEmpty) return ParticipantStanding.active;
 
@@ -692,38 +679,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   /// Update participant progress from service map.
   void _updateLiveParticipantProgressFromMap(Map<String, dynamic> data) {
     if (data.isEmpty) return;
-
-    final newProgress = <String, LiveParticipantProgress>{};
-
-    data.forEach((userId, stats) {
-      if (stats is Map<String, dynamic>) {
-        DateTime? lastActivity;
-        if (stats['lastActivity'] != null) {
-          try {
-            lastActivity = DateTime.parse(stats['lastActivity']);
-          } catch (_) {}
-        }
-
-        newProgress[userId] = LiveParticipantProgress(
-          // Strength metrics
-          currentExercise: stats['currentExercise'] as String? ?? '',
-          totalSets: stats['totalSets'] as int? ?? 0,
-          totalVolume: (stats['totalVolume'] as num?)?.toDouble() ?? 0.0,
-          lastWeight: (stats['lastWeight'] as num?)?.toDouble(),
-          lastReps: stats['lastReps'] as int?,
-          lastSetSeconds: stats['lastSetSeconds'] as int?,
-          // Cardio metrics
-          totalDistance: (stats['totalDistance'] as num?)?.toDouble() ?? 0.0,
-          totalDuration: stats['totalDuration'] as int? ?? 0,
-          averagePace: stats['averagePace'] as String?,
-          activityType: stats['activityType'] as String?,
-          // Shared
-          lastActivity: lastActivity,
-        );
-      }
-    });
-
-    // Only update if changed (basic check or rely on riverpod equality)
+    final newProgress = liveProgressFromServiceMap(data);
     setState(() {
       _participantProgress.clear();
       _participantProgress.addAll(newProgress);
@@ -1350,25 +1306,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     final hasPermission = await voiceService.requestPermissions();
     if (!hasPermission) {
       if (mounted) {
-        // Show permission dialog with option to open settings
-        final shouldOpenSettings = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Microphone Permission Required'),
-            content: const Text(
-              'Voice notes require microphone access. Would you like to open settings to grant permission?',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Open Settings'),
-              ),
-            ],
-          ),
+        final shouldOpenSettings = await showMicrophonePermissionDialog(
+          context,
         );
         if (shouldOpenSettings == true && mounted) {
           // Note: For production, you'd use a package like app_settings
@@ -1435,94 +1374,35 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       final uid = authState.value?.id;
       if (uid == null) return;
 
-      // Calculate duration in seconds for storage
       final durationSeconds = recordedDuration.inMilliseconds / 1000.0;
 
-      if (_isOffline) {
-        await ref
-            .read(offlineManagerProvider)
-            .queueOperation('voice_note_upload', {
-              'filePath': path,
-              'sessionId': widget.sessionId,
-              'userId': uid,
-              'duration': durationSeconds,
-            });
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Voice note queued (Offline)')),
-          );
-        }
-      } else {
-        final storageService = ref.read(storageServiceProvider);
-        final sessionService = ref.read(sessionServiceProvider);
-
-        final audioUrl = await storageService.uploadVoiceNote(
-          filePath: path,
-          sessionId: widget.sessionId,
-          onProgress: (progress) {
-            if (mounted) setState(() => _voiceUploadProgress = progress);
-          },
-        );
-
-        // Create Firestore session event with audio URL and duration
-        try {
-          await sessionService.addSessionEvent(
-            sessionId: widget.sessionId,
-            type: SessionEventType.voiceNote,
-            userId: uid,
-            text: 'sent a voice message',
-            data: {'audioUrl': audioUrl, 'duration': durationSeconds},
-          );
-        } catch (e) {
-          debugPrint('[SessionRoom] Error creating voice note event: $e');
-          // Queue for offline sync if event creation fails
-          await ref.read(offlineManagerProvider).queueOperation(
-            'session_event',
-            {
-              'sessionId': widget.sessionId,
-              'type': SessionEventType.voiceNote.value,
-              'userId': uid,
-              'text': 'sent a voice message',
-              'data': {'audioUrl': audioUrl, 'duration': durationSeconds},
-            },
-          );
-        }
-
-        // Notify partner
-        final session = await sessionService.getSession(widget.sessionId);
-        if (session != null) {
+      await uploadOrQueueSessionVoiceNote(
+        filePath: path,
+        sessionId: widget.sessionId,
+        userId: uid,
+        durationSeconds: durationSeconds,
+        isOffline: _isOffline,
+        offlineManager: ref.read(offlineManagerProvider),
+        storageService: ref.read(storageServiceProvider),
+        sessionService: ref.read(sessionServiceProvider),
+        notificationService: ref.read(notificationServiceProvider),
+        loadUserData: (userId) async {
           final userDoc = await ref
               .read(authFirestoreProvider)
               .collection('users')
-              .doc(uid)
+              .doc(userId)
               .get();
-          final currentUserName = userDoc.data()?['displayName'] ?? 'User';
+          return userDoc.data();
+        },
+        onUploadProgress: (progress) {
+          if (mounted) setState(() => _voiceUploadProgress = progress);
+        },
+      );
 
-          // Notify all other participants
-          final recipients = session.participants.where((id) => id != uid);
-
-          for (final recipientId in recipients) {
-            unawaited(
-              ref
-                  .read(notificationServiceProvider)
-                  .notifyVoiceNote(
-                    recipientId: recipientId,
-                    senderName: currentUserName,
-                    sessionId: widget.sessionId,
-                    audioUrl: audioUrl,
-                  )
-                  .catchError(
-                    (e) => debugPrint(
-                      '[SessionRoom] Notify error for $recipientId: $e',
-                    ),
-                  ),
-            );
-          }
-        }
-      }
-
-      if (mounted) {
-        // Optionally show sent confirmation
+      if (_isOffline && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Voice note queued (Offline)')),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -1748,28 +1628,21 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     Map<String, int> currentUserCounts,
     Map<String, Map<String, int>> allCounts,
   ) {
-    final plannedState = plan != null
-        ? TurnPlanProgress.participantState(plan, currentUserCounts)
-        : null;
-    final plannedExercise = plannedState?.currentExercise;
-    final exerciseName =
-        plannedExercise?.name ?? _currentTurnExercise ?? 'Workout';
-    final setNumber = plannedState?.currentSetNumber ?? _currentSetNumber;
-
-    // Pre-fill last reps/weight for this exercise so users don't re-enter if unchanged
-    final exerciseEntry = _exercises.firstWhere(
-      (e) => e.name == exerciseName,
-      orElse: () => Exercise(id: '', name: exerciseName, sets: const []),
+    final prefill = resolveActiveTurnPrefill(
+      plan: plan,
+      currentUserCounts: currentUserCounts,
+      exercises: _exercises,
+      fallbackExerciseName: _currentTurnExercise,
+      fallbackSetNumber: _currentSetNumber,
     );
-    final lastSet = exerciseEntry.sets.isNotEmpty
-        ? exerciseEntry.sets.last
-        : null;
+    final exerciseName = prefill.exerciseName;
+    final plannedExercise = prefill.plannedExercise;
 
     return ActiveTurnScreen(
       exerciseName: exerciseName,
-      setNumber: setNumber,
-      lastReps: lastSet?.reps ?? 0,
-      lastWeight: lastSet?.weight ?? 0.0,
+      setNumber: prefill.setNumber,
+      lastReps: prefill.lastReps,
+      lastWeight: prefill.lastWeight,
       onTimerStart: () {
         _ensureSharedClockStarted(session);
         // Stamp the per-set start so the waiting partner's timer counts this
@@ -1894,32 +1767,12 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     final currentPlan =
         plans[currentUserId] ??
         _localPlanFor(currentUserId, GymSessionPlanSource.personal);
-    var nextOrder = currentPlan.exercises.isEmpty
-        ? 0
-        : currentPlan.exercises
-                  .map((exercise) => exercise.order)
-                  .reduce((a, b) => a > b ? a : b) +
-              1;
-    final extraExercises = <PlannedExercise>[];
-    for (final picked in pickedExercises) {
-      extraExercises.add(
-        picked.copyWithPlanFields(
-          id: 'extra_${DateTime.now().microsecondsSinceEpoch}_$nextOrder',
-          order: nextOrder,
-        ),
-      );
-      nextOrder += 1;
-    }
-    final updatedPlan = GymSessionPlan(
-      userId: currentPlan.userId,
-      workoutType: currentPlan.workoutType,
-      source: currentPlan.source,
-      isReady: true,
-      exercises: [...currentPlan.exercises, ...extraExercises],
-      stages: currentPlan.stages,
-      targets: currentPlan.targets,
-      updatedAt: DateTime.now(),
+    final lateAdd = appendLateExercisesToPlan(
+      currentPlan: currentPlan,
+      pickedExercises: pickedExercises,
     );
+    final updatedPlan = lateAdd.updatedPlan;
+    final extraExercises = lateAdd.extraExercises;
 
     await ref
         .read(sessionServiceProvider)
@@ -2145,7 +1998,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       wallClockElapsed: elapsed,
       myProgress: myProgress,
       exercises: _exercises,
-      formatElapsed: _formatElapsedTime,
+      formatElapsed: formatSessionElapsed,
     );
 
     try {
@@ -2455,17 +2308,5 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       isActiveFromProgress: _participantProgress[userId]?.isActive ?? false,
       displayName: cachedUser?.displayName,
     );
-  }
-
-  /// Format elapsed duration as HH:MM:SS
-  String _formatElapsedTime(Duration duration) {
-    final hours = duration.inHours;
-    final minutes = duration.inMinutes.remainder(60);
-    final seconds = duration.inSeconds.remainder(60);
-
-    if (hours > 0) {
-      return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
-    }
-    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
 }
