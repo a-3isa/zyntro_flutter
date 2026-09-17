@@ -2,13 +2,17 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/constants/feature_flags.dart';
 import '../features/auth/auth_providers.dart';
 
 /// Price for global leaderboard access in cents ($5.00).
 const int globalLeaderboardPriceCents = 500;
 
 /// Payment service for Stripe integration.
-/// Matches React Native paymentService.ts behavior.
+///
+/// Z-PAY-001 / Z-PAY-002: [FeatureFlags.isPaymentsEnabled] is false until
+/// store-compliant IAP + server-side grant ships. Mock client grants are
+/// already blocked by Firestore rules.
 class PaymentService {
   final FirebaseFirestore _firestore;
 
@@ -20,6 +24,12 @@ class PaymentService {
   Future<Map<String, String>?> createGlobalLeaderboardPaymentIntent(
     String userId,
   ) async {
+    if (!FeatureFlags.isPaymentsEnabled) {
+      throw StateError(
+        'Payments are disabled until store-compliant billing ships '
+        '(Z-PAY-001 / Z-PAY-002).',
+      );
+    }
     try {
       // Check if user already has access
       final userDoc = await _firestore.collection('users').doc(userId).get();
