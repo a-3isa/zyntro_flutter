@@ -1648,7 +1648,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   /// otherwise falls back to the legacy monolithic [_buildInputSection].
   Widget _buildDispatchedInputSection() {
     final session = ref.watch(currentSessionProvider(widget.sessionId)).value;
-    final uid = ref.watch(authSessionProvider).value?.id;
+    final uid = ref.watch(authCurrentUserIdProvider);
     if (session == null || uid == null) {
       return _buildInputSection();
     }

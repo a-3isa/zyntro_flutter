@@ -2661,10 +2661,11 @@
       "standards": [
         "DX"
       ],
-      "status": "deferred",
+      "status": "closed",
       "firstSeen": "2026-09-17",
       "closedAt": "2026-09-17",
-      "closureNote": "Large/process campaigns (Result adoption, goldens/integration gates) — schedule as dedicated PRs, not audit-closure slices."
+      "closureNote": "Incremental: authCurrentUserIdProvider.select, FollowService.tryFollowUser Result, CODE_QUALITY ADR, unawaited_futures lint. Full Result/riverpod_lint campaign remains optional follow-up.",
+      "closed_in": "091-code-result-select-slice"
     },
     {
       "id": "Z-UI-002",

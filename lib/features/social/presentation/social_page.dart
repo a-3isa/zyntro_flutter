@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -234,7 +236,7 @@ class _SocialPageState extends ConsumerState<SocialPage>
   }
 
   Widget _buildBoardTab() {
-    final userId = ref.watch(authSessionProvider).value?.id ?? '';
+    final userId = ref.watch(authCurrentUserIdProvider) ?? '';
     return _BoardContent(userId: userId);
   }
 
@@ -243,7 +245,7 @@ class _SocialPageState extends ConsumerState<SocialPage>
   Widget _buildBuddiesTab() {
     return RefreshIndicator(
       onRefresh: () async {
-        HapticManager.medium();
+        unawaited(HapticManager.medium());
         await _loadBuddies(refresh: true);
       },
       color: AppColors.signal,
@@ -353,8 +355,7 @@ class _SocialPageState extends ConsumerState<SocialPage>
                   followedIds: _followedInFind,
                   onFollow: (userId) =>
                       setState(() => _followedInFind.add(userId)),
-                  currentUserId:
-                      ref.watch(authSessionProvider).value?.id,
+                  currentUserId: ref.watch(authCurrentUserIdProvider),
                 ),
         ),
       ],
@@ -463,7 +464,7 @@ class _SocialPageState extends ConsumerState<SocialPage>
   }
 
   Future<void> _followFacebookFriend(String targetUserId) async {
-    final currentUserId = ref.read(authSessionProvider).value?.id;
+    final currentUserId = ref.read(authCurrentUserIdProvider);
     if (currentUserId == null) return;
 
     final targetProfile = ref.read(facebookFriendsProvider).value
@@ -472,10 +473,27 @@ class _SocialPageState extends ConsumerState<SocialPage>
 
     setState(() => _followedInFind.add(targetUserId));
 
-    await ref.read(followServiceProvider).followUser(
+    final result = await ref.read(followServiceProvider).tryFollowUser(
       followerId: currentUserId,
       followeeId: targetUserId,
       isPrivate: targetProfile.isPrivate,
+    );
+    if (!mounted) return;
+    result.when(
+      success: (_) {},
+      failure: (message) {
+        setState(() => _followedInFind.remove(targetUserId));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: AppColors.surfaceV2Active,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -1272,7 +1290,7 @@ class _UserSearchRow extends ConsumerWidget {
               GestureDetector(
                 onTap: () async {
                   if (currentUserId == null) return;
-                  HapticManager.light();
+                  unawaited(HapticManager.light());
                   onFollow();
                   await ref.read(followServiceProvider).followUser(
                     followerId: currentUserId!,

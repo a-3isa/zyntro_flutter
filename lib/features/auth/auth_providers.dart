@@ -109,10 +109,18 @@ final authSessionProvider = StreamProvider<AuthUserEntity?>((ref) {
   return ref.watch(authenticationUseCaseProvider).observeAuthState();
 });
 
+/// Narrow watch of the signed-in uid only (Z-CODE-001 / Riverpod.select).
+/// Prefer this over `ref.watch(authSessionProvider).value?.id` in build methods
+/// so AsyncValue loading/error transitions that keep the same id do not rebuild.
+final authCurrentUserIdProvider = Provider<String?>((ref) {
+  return ref.watch(
+    authSessionProvider.select((async) => async.asData?.value?.id),
+  );
+});
+
 /// Profile completion state used by routing decisions.
 final authProfileCompletionProvider = FutureProvider<bool>((ref) async {
-  final authState = ref.watch(authSessionProvider);
-  final uid = authState.value?.id;
+  final uid = ref.watch(authCurrentUserIdProvider);
   if (uid == null) return false;
 
   final result = await ref
@@ -127,8 +135,7 @@ final authProfileCompletionProvider = FutureProvider<bool>((ref) async {
 
 /// Current authenticated user's profile in domain form.
 final authUserProfileProvider = FutureProvider<UserProfileEntity?>((ref) async {
-  final authState = ref.watch(authSessionProvider);
-  final uid = authState.value?.id;
+  final uid = ref.watch(authCurrentUserIdProvider);
   if (uid == null) return null;
 
   final result = await ref.read(authenticationUseCaseProvider).getUserProfile(

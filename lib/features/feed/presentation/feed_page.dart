@@ -130,7 +130,7 @@ class _V2FeedHeader extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final userId = ref.watch(authSessionProvider).value?.id;
+    final userId = ref.watch(authCurrentUserIdProvider);
     final hasUnread =
         userId != null &&
         (ref.watch(unreadCountProvider(userId)).value ?? 0) > 0;
@@ -372,7 +372,9 @@ class _FeedTabState extends ConsumerState<_FeedTab>
 
       // T021: write fresh posts to cache in the background (fire-and-forget).
       if (widget.useCache && result.posts.isNotEmpty) {
-        ref.read(feedCacheServiceProvider).writeCachePosts(result.posts);
+        unawaited(
+          ref.read(feedCacheServiceProvider).writeCachePosts(result.posts),
+        );
       }
 
       if (mounted) {
@@ -548,7 +550,7 @@ class _FeedTabState extends ConsumerState<_FeedTab>
       children: [
         RefreshIndicator(
           onRefresh: () async {
-            HapticManager.medium();
+            unawaited(HapticManager.medium());
             await _refresh();
           },
           color: AppColors.signal,
@@ -967,7 +969,7 @@ class _FeedTabState extends ConsumerState<_FeedTab>
   /// Handle reaction tap - toggle or change reaction type with haptic feedback.
   Future<void> _handleReaction(Post post, ReactionType type) async {
     // Haptic feedback on reaction
-    HapticManager.medium();
+    unawaited(HapticManager.medium());
 
     final authState = ref.read(authSessionProvider);
     final uid = authState.value?.id;
@@ -1017,7 +1019,7 @@ class _FeedTabState extends ConsumerState<_FeedTab>
       }
     } catch (e) {
       // Revert on error with error haptic
-      HapticManager.error();
+      unawaited(HapticManager.error());
       setState(() {
         _userReactions[post.id] = currentReaction;
         _reactionCounts[post.id] = oldCounts;

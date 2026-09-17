@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import '../core/models/models.dart';
 import '../core/constants/constants.dart';
 import '../core/auth/email_verification_gate.dart';
+import '../core/common/result.dart';
 import '../features/auth/auth_providers.dart';
 import 'notification_service.dart';
 
@@ -34,7 +35,7 @@ class FollowPage {
 class FollowService {
   final FirebaseFirestore _firestore;
   final Ref _ref;
-  static const _userLookupChunkSize = 10;
+  static const _userLookupChunkSize = 30;
 
   /// Rows fetched per page of a follower / following list.
   ///
@@ -157,6 +158,30 @@ class FollowService {
             followerId: followerId,
             followerName: followerName,
           );
+    }
+  }
+
+  /// Result-returning follow for non-auth call sites (Z-CODE-001).
+  Future<Result<FollowStatus, String>> tryFollowUser({
+    required String followerId,
+    required String followeeId,
+    required bool isPrivate,
+    String? followerName,
+  }) async {
+    try {
+      await followUser(
+        followerId: followerId,
+        followeeId: followeeId,
+        isPrivate: isPrivate,
+        followerName: followerName,
+      );
+      return Result.success(
+        isPrivate ? FollowStatus.pending : FollowStatus.approved,
+      );
+    } on EmailVerificationRequiredException catch (e) {
+      return Result.failure(e.message);
+    } catch (e) {
+      return Result.failure(e.toString());
     }
   }
 
