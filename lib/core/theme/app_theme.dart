@@ -794,6 +794,107 @@ class AppTheme {
     );
   }
 
+  /// WCAG-leaning dark theme: near-black surfaces, pure white body text,
+  /// brighter secondary copy, thicker focus rings (Z-ENH-029).
+  static ThemeData get highContrastDarkTheme {
+    const bg = Color(0xFF000000);
+    const surface = Color(0xFF121212);
+    const onSurface = Color(0xFFFFFFFF);
+    const secondary = Color(0xFFE8E4DC);
+    return darkTheme.copyWith(
+      scaffoldBackgroundColor: bg,
+      colorScheme: const ColorScheme.dark(
+        primary: AppColors.signal,
+        secondary: secondary,
+        tertiary: Color(0xFF5A5A5A),
+        surface: surface,
+        error: Color(0xFFFF6B6B),
+        onPrimary: bg,
+        onSecondary: bg,
+        onSurface: onSurface,
+        onError: bg,
+      ),
+      appBarTheme: darkTheme.appBarTheme.copyWith(
+        backgroundColor: bg,
+        foregroundColor: onSurface,
+      ),
+      cardTheme: CardThemeData(
+        color: surface,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppBorderRadius.lg),
+          side: const BorderSide(color: Color(0xFF6B665F), width: 1.5),
+        ),
+      ),
+      dividerTheme: const DividerThemeData(
+        color: Color(0xFF6B665F),
+        thickness: 1.5,
+      ),
+      textTheme: darkTheme.textTheme.apply(
+        bodyColor: onSurface,
+        displayColor: onSurface,
+      ),
+      inputDecorationTheme: darkTheme.inputDecorationTheme.copyWith(
+        fillColor: surface,
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppBorderRadius.md),
+          borderSide: const BorderSide(color: AppColors.signal, width: 3),
+        ),
+        hintStyle: AppTextStyles.body.copyWith(color: secondary),
+      ),
+    );
+  }
+
+  /// High-contrast light theme (Z-ENH-029).
+  static ThemeData get highContrastLightTheme {
+    const bg = Color(0xFFFFFFFF);
+    const surface = Color(0xFFF5F5F5);
+    const onSurface = Color(0xFF000000);
+    const secondary = Color(0xFF1A1A18);
+    return lightTheme.copyWith(
+      scaffoldBackgroundColor: bg,
+      colorScheme: const ColorScheme.light(
+        primary: AppColors.signal,
+        secondary: secondary,
+        tertiary: Color(0xFF5C574F),
+        surface: surface,
+        error: Color(0xFFB00020),
+        onPrimary: bg,
+        onSecondary: bg,
+        onSurface: onSurface,
+        onError: bg,
+      ),
+      appBarTheme: lightTheme.appBarTheme.copyWith(
+        backgroundColor: bg,
+        foregroundColor: onSurface,
+      ),
+      cardTheme: CardThemeData(
+        color: surface,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppBorderRadius.lg),
+          side: const BorderSide(color: Color(0xFF1A1A18), width: 1.5),
+        ),
+      ),
+      dividerTheme: const DividerThemeData(
+        color: Color(0xFF1A1A18),
+        thickness: 1.5,
+      ),
+      textTheme: lightTheme.textTheme.apply(
+        bodyColor: onSurface,
+        displayColor: onSurface,
+      ),
+      inputDecorationTheme: lightTheme.inputDecorationTheme.copyWith(
+        fillColor: surface,
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppBorderRadius.md),
+          borderSide: const BorderSide(color: AppColors.signal, width: 3),
+        ),
+        hintStyle: AppTextStyles.body.copyWith(color: secondary),
+      ),
+    );
+  }
+
   /// Generate a dynamic theme from a seed color using Material 3.
   static ThemeData dynamicTheme(
     Color seedColor, {

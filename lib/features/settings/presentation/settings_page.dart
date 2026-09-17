@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/theme_provider.dart';
 import '../../../app/navigation/app_router.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../services/exercise_catalog_seed.dart';
@@ -140,6 +141,20 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       options: const ['kg', 'lbs'],
                       selected: _weightUnit,
                       onSelected: (v) => setState(() => _weightUnit = v),
+                    ),
+                  ]),
+
+                  // ── Appearance ───────────────────────────────────────────
+                  _sectionLabel('APPEARANCE'),
+                  _buildSectionCard([
+                    _toggleRow(
+                      label: 'High contrast',
+                      sub: 'Stronger borders and text for readability',
+                      value: ref.watch(highContrastProvider).value ?? false,
+                      onChanged: (v) {
+                        HapticFeedback.selectionClick();
+                        ref.read(highContrastProvider.notifier).setEnabled(v);
+                      },
                     ),
                   ]),
 

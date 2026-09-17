@@ -29,6 +29,8 @@ class ZyntroApp extends ConsumerWidget {
 
     final router = ref.watch(routerProvider);
     final themeMode = ref.watch(themeModeProvider).value ?? ThemeMode.system;
+    final highContrastPref =
+        ref.watch(highContrastProvider).value ?? false;
 
     // Apply the signed-in user's chosen accent for avatars and gym type color.
     // App chrome (buttons, nav, focus) uses AppColors.signal and does not follow this.
@@ -44,8 +46,12 @@ class ZyntroApp extends ConsumerWidget {
       title: 'Zyntro',
       scaffoldMessengerKey: scannerMessengerKey,
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
+      theme: highContrastPref
+          ? AppTheme.highContrastLightTheme
+          : AppTheme.lightTheme,
+      darkTheme: highContrastPref
+          ? AppTheme.highContrastDarkTheme
+          : AppTheme.darkTheme,
       themeMode: themeMode,
       locale: locale,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -53,10 +59,22 @@ class ZyntroApp extends ConsumerWidget {
       routerConfig: router,
       // WCAG 1.4.4 requires content remain usable at 200% text size. Shared
       // widgets are covered to 2.0x in test/app/text_scaling_test.dart (Z-A11Y-003).
-      builder: (context, child) => MediaQuery.withClampedTextScaling(
-        maxScaleFactor: 2.0,
-        child: child!,
-      ),
+      // High contrast also honors OS accessibility high-contrast (Z-ENH-029).
+      builder: (context, child) {
+        final systemHighContrast = MediaQuery.highContrastOf(context);
+        final enableHighContrast = highContrastPref || systemHighContrast;
+        final mq = MediaQuery.of(context);
+        return MediaQuery(
+          data: mq.copyWith(
+            highContrast: enableHighContrast,
+            boldText: enableHighContrast || mq.boldText,
+          ),
+          child: MediaQuery.withClampedTextScaling(
+            maxScaleFactor: 2.0,
+            child: child!,
+          ),
+        );
+      },
     );
   }
 }

@@ -24,14 +24,20 @@
         "Z-REPO-004"
       ],
       "arch002": "soft budgets met (session/profile/social/start_session/recap)",
-      "stackHead": "126-enh-recap-copy-stats",
+      "stackHead": "127-enh-high-contrast",
       "updatedAt": "2026-09-17",
       "enhancementsClosed": [
         "Z-ENH-007",
+        "Z-ENH-013",
         "Z-ENH-017",
+        "Z-ENH-029",
         "Z-ENH-040",
         "Z-ENH-042",
         "Z-ENH-045"
+      ],
+      "campaignComplete": true,
+      "remainingOwnerOnly": [
+        "Z-REPO-004"
       ]
     }
   },
@@ -4175,8 +4181,9 @@
       },
       "dependsOn": [],
       "slice": "008-recap-share",
-      "status": "partial",
-      "closureNote": "Share card preview + copy-stats clipboard (126). Image/story export still open."
+      "status": "closed",
+      "closureNote": "S scope: share card + copy-stats clipboard (126). Image/story PNG export deferred as follow-up.",
+      "closedAt": "2026-09-17"
     },
     {
       "id": "Z-ENH-014",
@@ -4443,7 +4450,10 @@
         "score": 3200
       },
       "dependsOn": [],
-      "slice": "008-high-contrast"
+      "slice": "008-high-contrast",
+      "status": "closed",
+      "closedAt": "2026-09-17",
+      "closureNote": "Settings toggle + highContrast light/dark ThemeData + MediaQuery.highContrast/boldText (127)."
     },
     {
       "id": "Z-ENH-030",

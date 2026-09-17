@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 const _kThemeModeKey = 'theme_mode_v2';
+const _kHighContrastKey = 'high_contrast_v1';
 
 class ThemeModeNotifier extends AsyncNotifier<ThemeMode> {
   @override
@@ -51,3 +52,22 @@ final themeModeProvider =
     AsyncNotifierProvider<ThemeModeNotifier, ThemeMode>(
   ThemeModeNotifier.new,
 );
+
+/// User preference for high-contrast Material theme (Z-ENH-029).
+/// Combined with [MediaQuery.highContrastOf] in the app shell.
+class HighContrastNotifier extends AsyncNotifier<bool> {
+  @override
+  Future<bool> build() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_kHighContrastKey) ?? false;
+  }
+
+  Future<void> setEnabled(bool enabled) async {
+    state = AsyncData(enabled);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kHighContrastKey, enabled);
+  }
+}
+
+final highContrastProvider =
+    AsyncNotifierProvider<HighContrastNotifier, bool>(HighContrastNotifier.new);
