@@ -1,0 +1,18 @@
+# Repository hygiene — worktrees
+
+**Status:** Accepted  
+**Date:** 2026-09-17  
+**Related:** Z-REPO-002
+
+## Decision
+
+Agent / Claude worktrees must **never** be committed as gitlinks (`mode 160000`).
+
+- `.claude/` is gitignored (entire tree).
+- `.worktrees/` is gitignored.
+- Contributors must not `git add` worktree directories or submodule-style links under those paths.
+
+## Verification
+
+- `git ls-files -s` must not list any `160000` entries for worktrees.
+- Contract test asserts `.gitignore` covers `.claude/` and `.worktrees/`.
