@@ -30,6 +30,19 @@ Release jobs (`build-android`, `build-ios`, `deploy-firebase-rules`) are post-ga
 2. Changing coverage floor, rules, or functions test commands requires updating **GitHub Actions** first; Codemagic should not invent divergent gate scripts.
 3. Signing secrets and store credentials live only in Codemagic / GitHub secrets — never in the repo.
 
+## Action pinning & Windows (Z-CI-005)
+
+1. Prefer pinning third-party Actions to a full commit SHA when tightening supply-chain
+   posture (keep the version comment). Tag pins (`@v4`) are acceptable for first-party
+   Flutter tooling until SecOps requires SHA pins.
+2. Coverage floor is enforced in GHA (`Z-TEST-001`); do not disable it on Codemagic.
+3. Windows contributors: prefer PowerShell for local scripts; GHA runs on `ubuntu-latest`
+   so bash in workflow files is intentional.
+4. Codemagic **publish** stays restrained: Play uses `submit_as_draft: true` on the
+   internal track; App Store uses `submit_to_app_store: false` (TestFlight only unless
+   manually promoted). Never auto-publish production from every commit.
+
 ## Verification
 
 - Contract test asserts this ownership split and the shared Flutter pin.
+- CI.md mentions SHA-pin guidance and Codemagic publish restraint (Z-CI-005).

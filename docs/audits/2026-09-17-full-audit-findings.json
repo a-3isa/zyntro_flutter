@@ -2982,8 +2982,10 @@
       "standards": [
         "CI"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "CI.md documents SHA-pin guidance, Windows/PowerShell note, Codemagic draft/TestFlight publish restraint."
     },
     {
       "id": "Z-OBS-004",
