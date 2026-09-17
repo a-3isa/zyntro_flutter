@@ -60,5 +60,28 @@
 		<true/>
 		<key>UIStatusBarHidden</key>
 		<false/>
+		<!-- Facebook Login (Z-IOS-002). Must match Android strings.xml app id. -->
+		<key>FacebookAppID</key>
+		<string>1231492372238127</string>
+		<key>FacebookClientToken</key>
+		<string>c862432f66efa524c8eefa6c2c0ad48d</string>
+		<key>FacebookDisplayName</key>
+		<string>Zyntro</string>
+		<key>CFBundleURLTypes</key>
+		<array>
+			<dict>
+				<key>CFBundleURLSchemes</key>
+				<array>
+					<string>fb1231492372238127</string>
+				</array>
+			</dict>
+		</array>
+		<key>LSApplicationQueriesSchemes</key>
+		<array>
+			<string>fbapi</string>
+			<string>fb-messenger-share-api</string>
+			<string>fbauth2</string>
+			<string>fbshareextension</string>
+		</array>
 	</dict>
 </plist>
