@@ -16,6 +16,20 @@ enum ConnectionQuality {
 }
 
 /// Queued operation for offline retry.
+///
+/// ## Why a custom queue exists beside Firestore persistence (Z-OFF-002)
+///
+/// Mobile Firestore already caches writes, but Zyntro still needs this queue for:
+/// 1. **Stable `clientEventId`s** — session events must survive app kills and
+///    reconnect without duplicating sets (see session room offline path).
+/// 2. **Circuit-breaker / latency gating** — we pause writes when the network
+///    is bad and surface sync progress in the UI.
+/// 3. **Non-Firestore work** — some queued ops are HTTP (push delivery) or
+///    composite multi-doc flows that are not a single SDK write.
+///
+/// Do not remove this queue "because Firestore has offline support" without
+/// replacing those three guarantees. Prefer extending `clientEventId` dedupe
+/// over inventing a second write path.
 class QueuedOperation {
   final String id;
   final String type;
