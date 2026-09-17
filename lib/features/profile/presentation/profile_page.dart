@@ -25,7 +25,6 @@ import 'widgets/profile_header_widgets.dart';
 import 'widgets/profile_award_card.dart';
 import 'widgets/profile_follow_button.dart';
 import 'widgets/profile_action_row.dart';
-import 'widgets/profile_buddies_sheet.dart';
 import '../../../services/leaderboard_service.dart';
 import '../../../services/profile_cache_service.dart';
 import '../../../utils/offline_manager.dart';
