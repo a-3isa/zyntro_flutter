@@ -119,10 +119,22 @@ jobs:
         run: flutter pub get
 
       - name: Build APK
-        run: flutter build apk --dart-define=ENV=prod --dart-define=STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }} --release
+        run: >
+          flutter build apk
+          --dart-define=ENV=prod
+          --dart-define=STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+          --release
+          --obfuscate
+          --split-debug-info=build/app/outputs/symbols
 
       - name: Build App Bundle
-        run: flutter build appbundle --dart-define=ENV=prod --dart-define=STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }} --release
+        run: >
+          flutter build appbundle
+          --dart-define=ENV=prod
+          --dart-define=STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+          --release
+          --obfuscate
+          --split-debug-info=build/app/outputs/symbols
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -135,6 +147,12 @@ jobs:
         with:
           name: android-aab-release
           path: build/app/outputs/bundle/release/app-release.aab
+
+      - name: Upload Android debug symbols
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-debug-symbols
+          path: build/app/outputs/symbols
 
   build-ios:
     name: Build iOS Release
@@ -166,13 +184,26 @@ jobs:
         run: flutter pub get
 
       - name: Build iOS (no codesign)
-        run: flutter build ios --dart-define=ENV=prod --dart-define=STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }} --release --no-codesign
+        run: >
+          flutter build ios
+          --dart-define=ENV=prod
+          --dart-define=STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+          --release
+          --no-codesign
+          --obfuscate
+          --split-debug-info=build/ios/symbols
 
       - name: Upload iOS artifact
         uses: actions/upload-artifact@v4
         with:
           name: ios-release
           path: build/ios/iphoneos/Runner.app
+
+      - name: Upload iOS debug symbols
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-debug-symbols
+          path: build/ios/symbols
 
   deploy-firebase-rules:
     name: Deploy Firebase Rules
