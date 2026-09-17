@@ -37,6 +37,7 @@
 | 109 | Profile posts tab (profile under 60KB budget) |
 | 110 | Session end confirm dialog |
 | 111 | Session sync status dialog |
+| 112 | Session summary builder |
 
 ## Next slices (suggested)
 

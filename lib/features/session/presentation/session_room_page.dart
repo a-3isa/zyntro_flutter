@@ -27,6 +27,7 @@ import '../../../widgets/shimmer_widgets.dart';
 import '../../../widgets/connection_status_widget.dart';
 import '../../../services/storage_service.dart';
 import '../../../widgets/session_error_banner.dart';
+import 'session_summary_builder.dart';
 import 'session_wakelock.dart';
 import 'widgets/session_elapsed_timer_chip.dart';
 import '../../../utils/haptic_manager.dart';
@@ -48,7 +49,6 @@ import 'widgets/session_progress_row.dart';
 import 'widgets/session_end_confirm_dialog.dart';
 import 'widgets/session_sync_status_dialog.dart';
 import '../domain/turn_plan_progress.dart';
-import '../domain/workout_score.dart';
 
 /// Session room page for active workout sessions.
 class SessionRoomPage extends ConsumerStatefulWidget {
@@ -2226,67 +2226,20 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     // Stop timer
     _timerUpdateTimer?.cancel();
 
-    // Calculate summary stats
-    int totalSets = 0;
-    double totalVolume = 0.0;
-    double totalDistance = 0.0;
-
     final authState = ref.read(authSessionProvider);
     final uid = authState.value?.id;
     if (uid == null) return;
 
     final myProgress = _participantProgress[uid];
-
-    if (myProgress != null) {
-      totalSets = myProgress.totalSets;
-      totalVolume = myProgress.totalVolume;
-      totalDistance = myProgress.totalDistance;
-    }
-
-    // Create summary object matching the model definition
     final elapsed = _sessionStartTime != null
         ? DateTime.now().difference(_sessionStartTime!)
         : _elapsedTime;
-    // Cardio speed must be computed from time actually spent doing the
-    // activity, not from how long the session room happened to stay open.
-    // myProgress.totalDuration (minutes) accumulates from logged cardio
-    // entries, so it can't be inflated by lingering in — or rushing out of —
-    // the room after the activity is done. Fall back to the wall-clock
-    // `elapsed` only when there's no progress record to read from.
-    final activityElapsed = myProgress != null
-        ? Duration(minutes: myProgress.totalDuration)
-        : elapsed;
-    final summary = SessionSummary(
-      activityType: _cardioActivityType,
-      duration: _formatElapsedTime(elapsed),
-      totalSets: totalSets,
-      totalExercises: _exercises.length,
-      totalVolume: totalVolume,
-      distance: totalDistance,
-      // Cardio progress scores speed-vs-own-best, so the summary must carry it.
-      // Null when there is no distance or no elapsed clock (e.g. gym sessions).
-      averageSpeed: averageSpeedKmh(
-        distanceKm: totalDistance,
-        elapsed: activityElapsed,
-      ),
-      exercises: _exercises
-          .map(
-            (e) => ExerciseSummary(
-              name: e.name,
-              sets: e.sets.length,
-              setDetails: e.sets
-                  .map(
-                    (s) => SetSummary(
-                      reps: s.reps,
-                      weight: s.weight,
-                      durationSeconds: s.durationSeconds,
-                    ),
-                  )
-                  .toList(),
-            ),
-          )
-          .toList(),
-      activeCalories: null, // Could estimate if needed
+    final summary = buildSessionSummary(
+      cardioActivityType: _cardioActivityType,
+      wallClockElapsed: elapsed,
+      myProgress: myProgress,
+      exercises: _exercises,
+      formatElapsed: _formatElapsedTime,
     );
 
     try {
