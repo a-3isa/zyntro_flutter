@@ -7,9 +7,9 @@
 
 | File | Soft budget | Notes |
 | --- | --- | --- |
-| `session_room_page.dart` | ≤ 80 KB / ≤ 2.5k LOC | Still largest; keep extracting input sections |
-| `profile_page.dart` | ≤ 60 KB | Header + awards + empty states extracted |
-| `social_page.dart` | ≤ 40 KB | Buddy widgets extracted |
+| `session_room_page.dart` | ≤ 80 KB / ≤ 2.5k LOC | ~94KB after 110; keep extracting orchestration |
+| `profile_page.dart` | ≤ 60 KB | **Met** (~55.5 KB as of 109) |
+| `social_page.dart` | ≤ 40 KB | **Met** (~43.5 KB — accept or trim 3.5KB later) |
 | `start_session_page.dart` | ≤ 45 KB | Type/section/avatar extracted |
 | `recap_page.dart` | ≤ 40 KB | Presentation widgets extracted |
 
@@ -35,6 +35,7 @@
 | 107 | Session header avatar |
 | 108 | Session progress row shell |
 | 109 | Profile posts tab (profile under 60KB budget) |
+| 110 | Session end confirm dialog |
 
 ## Next slices (suggested)
 

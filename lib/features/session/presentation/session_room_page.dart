@@ -45,6 +45,7 @@ import 'widgets/session_strength_input.dart';
 import 'widgets/session_cardio_input.dart';
 import 'widgets/session_header_avatar.dart';
 import 'widgets/session_progress_row.dart';
+import 'widgets/session_end_confirm_dialog.dart';
 import '../domain/turn_plan_progress.dart';
 import '../domain/workout_score.dart';
 
@@ -2264,27 +2265,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   }
 
   Future<void> _handleFinishSession() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('End Session?'),
-        content: const Text('Are you sure you want to finish this workout?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.signal,
-              foregroundColor: Colors.black,
-            ),
-            child: const Text('Finish'),
-          ),
-        ],
-      ),
-    );
+    final confirm = await SessionEndConfirmDialog.show(context);
 
     if (confirm != true) return;
 
