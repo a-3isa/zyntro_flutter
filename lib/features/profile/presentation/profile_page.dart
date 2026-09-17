@@ -21,6 +21,7 @@ import '../../auth/auth_providers.dart';
 import 'profile_providers.dart';
 import 'widgets/profile_history_widgets.dart';
 import 'widgets/profile_empty_states.dart';
+import 'widgets/profile_header_widgets.dart';
 import '../../../services/leaderboard_service.dart';
 import '../../../services/profile_cache_service.dart';
 import '../../../utils/offline_manager.dart';
@@ -924,7 +925,7 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
             ],
           ),
           const SizedBox(height: 20),
-          _StatsRow(
+          ProfileStatsRow(
             workouts: workouts,
             streak: streak,
             followers: followers,
@@ -1030,12 +1031,12 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
                       runSpacing: 6,
                       children: [
                         if (isBuddy)
-                          const _VisitorChip(
+                          const ProfileVisitorChip(
                             icon: Icons.people_alt_rounded,
                             label: 'BUDDY',
                             color: AppColors.accentLime,
                           ),
-                        _VisitorChip(
+                        ProfileVisitorChip(
                           icon: typeIcon,
                           label: user.workoutPreference.displayName
                               .toUpperCase(),
@@ -1083,7 +1084,7 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
             onUnfollow: widget.onUnfollow,
           ),
           const SizedBox(height: 14),
-          _StatsRow(
+          ProfileStatsRow(
             workouts: workouts,
             streak: streak,
             followers: followers,
@@ -1315,7 +1316,7 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
           const SizedBox(height: 24),
 
           // Stats row
-          _StatsRow(
+          ProfileStatsRow(
             workouts: workouts,
             streak: streak,
             followers: followers,
@@ -1488,162 +1489,6 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
     );
   }
 
-}
-
-// ---------------------------------------------------------------------------
-// Stats Row
-// ---------------------------------------------------------------------------
-
-class _VisitorChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-
-  const _VisitorChip({
-    required this.icon,
-    required this.label,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.09),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.25)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: color),
-          const SizedBox(width: 5),
-          Text(
-            label,
-            style: AppTextStyles.caption.copyWith(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              color: color,
-              letterSpacing: 0.7,
-              decoration: TextDecoration.none,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatsRow extends StatelessWidget {
-  final int workouts;
-  final int streak;
-  final int followers;
-  final int following;
-  final VoidCallback? onFollowersTap;
-  final VoidCallback? onFollowingTap;
-
-  const _StatsRow({
-    required this.workouts,
-    required this.streak,
-    required this.followers,
-    required this.following,
-    this.onFollowersTap,
-    this.onFollowingTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final stats =
-        <({String label, String value, String? emoji, VoidCallback? onTap})>[
-          (
-            label: 'Workouts',
-            value: workouts.toString(),
-            emoji: null,
-            onTap: null,
-          ),
-          (label: 'Streak', value: streak.toString(), emoji: '🔥', onTap: null),
-          (
-            label: 'Followers',
-            value: followers.toString(),
-            emoji: null,
-            onTap: onFollowersTap,
-          ),
-          (
-            label: 'Following',
-            value: following.toString(),
-            emoji: null,
-            onTap: onFollowingTap,
-          ),
-        ];
-
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surfaceV2,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.surfaceV2Active),
-      ),
-      child: IntrinsicHeight(
-        child: Row(
-          children: List.generate(stats.length * 2 - 1, (i) {
-            if (i.isOdd) {
-              return VerticalDivider(
-                color: AppColors.surfaceV2,
-                width: 1,
-                thickness: 1,
-              );
-            }
-            final s = stats[i ~/ 2];
-            final tappable = s.onTap != null;
-            final cellContent = Padding(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        s.value,
-                        style: AppTextStyles.h2.copyWith(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.textV2Primary,
-                          letterSpacing: -0.5,
-                        ),
-                      ),
-                      if (s.emoji != null) ...[
-                        const SizedBox(width: 2),
-                        Text(s.emoji!, style: const TextStyle(fontSize: 14)),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    s.label,
-                    style: AppTextStyles.caption.copyWith(
-                      fontSize: 10,
-                      color: AppColors.textV2Tertiary,
-                    ),
-                  ),
-                ],
-              ),
-            );
-            return Expanded(
-              child: tappable
-                  ? GestureDetector(
-                      onTap: s.onTap,
-                      behavior: HitTestBehavior.opaque,
-                      child: cellContent,
-                    )
-                  : cellContent,
-            );
-          }),
-        ),
-      ),
-    );
-  }
 }
 
 // ---------------------------------------------------------------------------

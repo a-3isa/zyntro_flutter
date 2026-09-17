@@ -928,7 +928,7 @@
       ],
       "status": "deferred",
       "firstSeen": "2026-09-17",
-      "closureNote": "XL campaign ongoing: timer/wakelock + profile empty + social buddy + start-session widgets + recap presentation widgets (095). Continue slices; not blocking audit closure.",
+      "closureNote": "XL campaign ongoing through 096: session/social/start/recap/profile header extracts. Remains deferred until god-file budgets met; not blocking other audit closure.",
       "closedAt": "2026-09-17"
     },
     {
