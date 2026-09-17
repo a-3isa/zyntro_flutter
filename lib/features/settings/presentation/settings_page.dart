@@ -9,6 +9,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../app/navigation/app_router.dart';
 import '../../../services/exercise_catalog_seed.dart';
 import '../../../services/facebook_link_service.dart';
+import '../../../services/data_export_service.dart';
 import '../../../services/leaderboard_service.dart';
 import '../../../widgets/circuit_breaker_status_widget.dart';
 import '../../../widgets/fluttermoji_avatar.dart';
@@ -182,6 +183,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       sub: 'Download your workout history',
                       onTap: () {
                         HapticFeedback.lightImpact();
+                        _exportMyData(context);
                       },
                     ),
                     _divider(),
@@ -792,6 +794,38 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       if (mounted) {
         router.go(AppRoutes.login);
       }
+    }
+  }
+
+  Future<void> _exportMyData(BuildContext context) async {
+    final uid = ref.read(authSessionProvider).value?.id;
+    if (uid == null) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Preparing your data export…')),
+    );
+
+    try {
+      final file = await ref.read(dataExportServiceProvider).exportUserData(uid);
+      await Clipboard.setData(ClipboardData(text: file.path));
+      if (!context.mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            'Export saved. Path copied to clipboard:\n${file.path}',
+          ),
+          duration: const Duration(seconds: 6),
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Export failed: $e'),
+          backgroundColor: AppColors.error,
+        ),
+      );
     }
   }
 
