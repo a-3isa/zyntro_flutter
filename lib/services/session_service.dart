@@ -1912,6 +1912,25 @@ class SessionService {
 }
 
 /// Session service provider.
+/// ---------------------------------------------------------------------------
+/// Session live-snapshot lifetime map (Z-PERF-002)
+///
+/// | Provider | Scope | Dispose |
+/// |---|---|---|
+/// | currentSessionProvider | sessionId | autoDispose + 2m keepAlive grace |
+/// | gymSessionPlanProvider | sessionId+userId | autoDispose |
+/// | sessionEventsProvider | sessionId | autoDispose |
+/// | debouncedSessionEventsProvider | sessionId | autoDispose |
+/// | recentSessionEventsProvider | sessionId+limit | autoDispose |
+/// | sessionProgressProvider | sessionId | autoDispose |
+/// | throttledSessionEventsProvider | sessionId | autoDispose |
+/// | adaptiveDebouncedSessionEventsProvider | sessionId | autoDispose (cancels sub) |
+/// | configurableDebouncedSessionEventsProvider | sessionId+debounce | autoDispose |
+///
+/// Room UI should prefer the autoDispose providers above. Non-session global
+/// streams (auth, connectivity) live in their own modules and stay warm.
+/// ---------------------------------------------------------------------------
+
 final sessionServiceProvider = Provider<SessionService>((ref) {
   return SessionService(ref.watch(authFirestoreProvider), ref);
 });
@@ -1999,7 +2018,7 @@ final throttledSessionEventsProvider =
 /// Adjusts debounce duration based on event frequency.
 /// For high-frequency updates (>10/sec), uses 500ms debounce; otherwise 300ms.
 final adaptiveDebouncedSessionEventsProvider =
-    StreamProvider.family<List<TimelineEvent>, String>((ref, sessionId) {
+    StreamProvider.autoDispose.family<List<TimelineEvent>, String>((ref, sessionId) {
       // Track recent event timestamps to detect frequency
       final timestamps = <DateTime>[];
       const maxTracked = 10;
@@ -2066,7 +2085,7 @@ final adaptiveDebouncedSessionEventsProvider =
 /// Configurable debounced session events provider.
 /// Allows specifying custom debounce duration.
 final configurableDebouncedSessionEventsProvider =
-    StreamProvider.family<
+    StreamProvider.autoDispose.family<
       List<TimelineEvent>,
       ({String sessionId, Duration debounce})
     >((ref, params) {
