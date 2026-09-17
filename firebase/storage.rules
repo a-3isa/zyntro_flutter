@@ -76,13 +76,32 @@ service firebase.storage {
         );
     }
 
+    // Mirror Firestore canReadUserProfile for avatars (Z-SEC-004).
+    function canReadProfilePhoto(userId) {
+      let userPath = /databases/(default)/documents/users/$(userId);
+      let followPath = /databases/(default)/documents/follows/$(
+        request.auth.uid + '_' + userId);
+      return isOwner(userId) ||
+        (
+          isAuthenticated() &&
+          firestore.exists(userPath) &&
+          (
+            firestore.get(userPath).data.isPrivate != true ||
+            (
+              firestore.exists(followPath) &&
+              firestore.get(followPath).data.status == 'approved'
+            )
+          )
+        );
+    }
+
     match /posts/{postId}/{fileName} {
       allow read: if isPostMediaReadable(postId);
       allow write: if isPostOwner(postId) && isImageContent() && isUnder5Mb();
     }
 
     match /profilePhotos/{userId}/{fileName} {
-      allow read: if isAuthenticated();
+      allow read: if canReadProfilePhoto(userId);
       allow write: if isOwner(userId) && isImageContent() && isUnder5Mb();
     }
 

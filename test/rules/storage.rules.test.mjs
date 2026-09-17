@@ -151,4 +151,64 @@ describe('storage rules', () => {
     const mallory = testEnv.authenticatedContext('mallory');
     await assertFails(getBytes(ref(mallory.storage(), 'voiceNotes/session1/note.m4a')));
   });
+
+  it('lets authenticated users read public profile photos (Z-SEC-004)', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await uploadBytes(
+        ref(ctx.storage(), `profilePhotos/${ALICE}/avatar.jpg`),
+        tinyJpeg(),
+        { contentType: 'image/jpeg' },
+      );
+    });
+
+    const bob = testEnv.authenticatedContext(BOB);
+    await assertSucceeds(
+      getBytes(ref(bob.storage(), `profilePhotos/${ALICE}/avatar.jpg`)),
+    );
+  });
+
+  it('blocks strangers from reading private profile photos (Z-SEC-004)', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'users', ALICE), {
+        displayName: 'Alice',
+        isPrivate: true,
+      });
+      await uploadBytes(
+        ref(ctx.storage(), `profilePhotos/${ALICE}/avatar.jpg`),
+        tinyJpeg(),
+        { contentType: 'image/jpeg' },
+      );
+    });
+
+    const bob = testEnv.authenticatedContext(BOB);
+    await assertFails(
+      getBytes(ref(bob.storage(), `profilePhotos/${ALICE}/avatar.jpg`)),
+    );
+  });
+
+  it('lets approved followers read private profile photos (Z-SEC-004)', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'users', ALICE), {
+        displayName: 'Alice',
+        isPrivate: true,
+      });
+      await setDoc(doc(db, 'follows', `${BOB}_${ALICE}`), {
+        followerId: BOB,
+        followeeId: ALICE,
+        status: 'approved',
+      });
+      await uploadBytes(
+        ref(ctx.storage(), `profilePhotos/${ALICE}/avatar.jpg`),
+        tinyJpeg(),
+        { contentType: 'image/jpeg' },
+      );
+    });
+
+    const bob = testEnv.authenticatedContext(BOB);
+    await assertSucceeds(
+      getBytes(ref(bob.storage(), `profilePhotos/${ALICE}/avatar.jpg`)),
+    );
+  });
 });
