@@ -99,14 +99,14 @@ class ModerationService {
   // Block Methods
   // ============================================================
 
-  /// Generate block document ID.
-  String _getBlockId(String blockerId, String blockedUserId) {
+  /// Generate block document ID (`blockerId_blockedUserId`).
+  static String blockDocId(String blockerId, String blockedUserId) {
     return '${blockerId}_$blockedUserId';
   }
 
   /// Block a user.
   Future<void> blockUser(String blockerId, String blockedUserId) async {
-    final blockId = _getBlockId(blockerId, blockedUserId);
+    final blockId = blockDocId(blockerId, blockedUserId);
 
     await _firestore.collection('blocks').doc(blockId).set({
       'blockerId': blockerId,
@@ -128,7 +128,7 @@ class ModerationService {
 
   /// Unblock a user.
   Future<void> unblockUser(String blockerId, String blockedUserId) async {
-    final blockId = _getBlockId(blockerId, blockedUserId);
+    final blockId = blockDocId(blockerId, blockedUserId);
     await _firestore.collection('blocks').doc(blockId).delete();
     debugPrint('[ModerationService] User unblocked: $blockedUserId');
   }
@@ -189,7 +189,7 @@ class ModerationService {
 
   /// Check if a user is blocked.
   Future<bool> isUserBlocked(String blockerId, String blockedUserId) async {
-    final blockId = _getBlockId(blockerId, blockedUserId);
+    final blockId = blockDocId(blockerId, blockedUserId);
     final doc = await _firestore.collection('blocks').doc(blockId).get();
     return doc.exists;
   }

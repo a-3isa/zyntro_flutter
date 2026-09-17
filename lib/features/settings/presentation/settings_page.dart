@@ -728,8 +728,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   ],
                 ),
               ),
-            const Icon(Icons.chevron_right, color: AppColors.errorV2, size: 18),
-          ],
+              const Icon(Icons.chevron_right, color: AppColors.errorV2, size: 18),
+            ],
+          ),
         ),
       ),
     );

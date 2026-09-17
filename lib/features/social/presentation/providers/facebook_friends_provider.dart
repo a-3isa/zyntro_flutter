@@ -5,6 +5,16 @@ import '../../../../features/auth/domain/entities/user_profile_entity.dart';
 import '../../../../services/facebook_link_service.dart';
 import '../../../../services/follow_service.dart';
 
+/// Drop self and already-followed users from Facebook friend suggestions.
+List<UserProfileEntity> filterUnfollowedFacebookFriends({
+  required List<UserProfileEntity> friends,
+  required Set<String> followingIds,
+  required String selfId,
+}) {
+  final exclude = {...followingIds, selfId};
+  return friends.where((u) => !exclude.contains(u.id)).toList();
+}
+
 /// Fetches Facebook friends who are on Zyntro, filtered to exclude
 /// users the current user already follows.
 ///
@@ -21,9 +31,10 @@ final facebookFriendsProvider =
   if (friends.isEmpty) return [];
 
   final followingIds = await followService.getFollowingIds(profile.id);
-  final followingSet = followingIds.toSet()..add(profile.id);
 
-  return friends
-      .where((u) => !followingSet.contains(u.id))
-      .toList();
+  return filterUnfollowedFacebookFriends(
+    friends: friends,
+    followingIds: followingIds.toSet(),
+    selfId: profile.id,
+  );
 });
