@@ -150,6 +150,20 @@ async function recipientAllowsPush(recipientId, type) {
       return enabled("postLikes");
     case "post_comment":
       return enabled("postComments");
+    case "buddy_invite":
+    case "buddy_accepted":
+    case "buddy_session":
+      return enabled("buddyInvites");
+    case "session_milestone":
+      return enabled("sessionMilestones");
+    case "streak_milestone":
+    case "friend_streak_broken":
+    case "friend_streak_extended":
+      return enabled("streakNotifications");
+    case "joint_post_invite":
+    case "joint_post_expired":
+    case "partner_left":
+      return true;
     default:
       return true;
   }
@@ -556,6 +570,78 @@ async function buildPartnerLeftPayload(callerId, recipientId, data) {
   };
 }
 
+async function buildBuddyInvitePayload(callerId, recipientId, data) {
+  const buddyPairId = requireString(data.buddyPairId, "data.buddyPairId");
+  const pairDoc = await db.collection("buddyPairs").doc(buddyPairId).get();
+  if (!pairDoc.exists) {
+    throw new HttpsError("not-found", "Buddy pair not found.");
+  }
+  const pair = pairDoc.data() || {};
+  const participants = Array.isArray(pair.participants) ? pair.participants : [];
+  if (pair.initiatorId !== callerId || !participants.includes(callerId)) {
+    throw new HttpsError("permission-denied", "Caller is not allowed to send this buddy invite.");
+  }
+  const inviterName = await getUserDisplayName(callerId);
+  return {
+    title: "Buddy Invite",
+    body: `${inviterName} wants to be your workout buddy!`,
+    data: {
+      type: "buddy_invite",
+      buddyPairId,
+      fromUserId: callerId,
+      byUserName: inviterName,
+    },
+  };
+}
+
+async function buildBuddyAcceptedPayload(callerId, recipientId, data) {
+  const buddyPairId = requireString(data.buddyPairId, "data.buddyPairId");
+  const pairDoc = await db.collection("buddyPairs").doc(buddyPairId).get();
+  if (!pairDoc.exists) {
+    throw new HttpsError("not-found", "Buddy pair not found.");
+  }
+  const pair = pairDoc.data() || {};
+  const participants = Array.isArray(pair.participants) ? pair.participants : [];
+  if (!participants.includes(callerId) || !participants.includes(recipientId)) {
+    throw new HttpsError("permission-denied", "Caller is not allowed to send this buddy update.");
+  }
+  const acceptorName = await getUserDisplayName(callerId);
+  return {
+    title: "Buddy Accepted",
+    body: `${acceptorName} accepted your buddy invite!`,
+    data: {
+      type: "buddy_accepted",
+      buddyPairId,
+      fromUserId: callerId,
+      byUserName: acceptorName,
+    },
+  };
+}
+
+async function buildBuddySessionPayload(callerId, recipientId, data) {
+  const sessionId = requireString(data.sessionId, "data.sessionId");
+  const sessionDoc = await db.collection("sessions").doc(sessionId).get();
+  if (!sessionDoc.exists) {
+    throw new HttpsError("not-found", "Session not found.");
+  }
+  const session = sessionDoc.data() || {};
+  const participants = Array.isArray(session.participants) ? session.participants : [];
+  if (!participants.includes(callerId)) {
+    throw new HttpsError("permission-denied", "Caller is not a session participant.");
+  }
+  const hostName = await getUserDisplayName(callerId);
+  return {
+    title: "Buddy Session",
+    body: `${hostName} started a buddy workout — jump in!`,
+    data: {
+      type: "buddy_session",
+      sessionId,
+      fromUserId: callerId,
+      byUserName: hostName,
+    },
+  };
+}
+
 async function buildPushPayload(type, callerId, recipientId, data) {
   switch (type) {
     case "session_invite":
@@ -578,6 +664,12 @@ async function buildPushPayload(type, callerId, recipientId, data) {
       return buildPostCommentPayload(callerId, recipientId, data);
     case "partner_left":
       return buildPartnerLeftPayload(callerId, recipientId, data);
+    case "buddy_invite":
+      return buildBuddyInvitePayload(callerId, recipientId, data);
+    case "buddy_accepted":
+      return buildBuddyAcceptedPayload(callerId, recipientId, data);
+    case "buddy_session":
+      return buildBuddySessionPayload(callerId, recipientId, data);
     default:
       throw new HttpsError("failed-precondition", `Push delivery is not supported for ${type}.`);
   }

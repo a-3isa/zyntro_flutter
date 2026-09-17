@@ -1123,38 +1123,25 @@ class NotificationService {
   }
 
   /// Notify user of buddy invite.
+  ///
+  /// CF-authoritative (Z-NOTIF-001): clients cannot write another user's inbox.
   Future<void> notifyBuddyInvite({
     required String recipientId,
     required String inviterId,
     required String inviterName,
     required String buddyPairId,
   }) async {
-    final shouldSend = await shouldSendNotification(
-      recipientId,
-      NotificationType.buddyInvite,
-    );
-    if (!shouldSend) return;
-
     final data = {
       'buddyPairId': buddyPairId,
       'fromUserId': inviterId,
       'byUserName': inviterName,
     };
 
-    await Future.wait([
-      createNotification(
-        userId: recipientId,
-        type: NotificationType.buddyInvite,
-        title: 'Buddy Invite',
-        message: '$inviterName wants to be your workout buddy!',
-        data: data,
-      ),
-      _deliverPushNotification(
-        type: NotificationType.buddyInvite,
-        recipientId: recipientId,
-        data: data,
-      ),
-    ]);
+    await _deliverPushNotification(
+      type: NotificationType.buddyInvite,
+      recipientId: recipientId,
+      data: data,
+    );
   }
 
   Future<void> notifyBuddyAccepted({
@@ -1163,33 +1150,17 @@ class NotificationService {
     required String acceptorName,
     required String buddyPairId,
   }) async {
-    // Implementation similar to original
-    final shouldSend = await shouldSendNotification(
-      recipientId,
-      NotificationType.buddyAccepted,
-    );
-    if (!shouldSend) return;
-
     final data = {
       'buddyPairId': buddyPairId,
       'byUserId': acceptorId,
       'byUserName': acceptorName,
     };
 
-    await Future.wait([
-      createNotification(
-        userId: recipientId,
-        type: NotificationType.buddyAccepted,
-        title: 'Buddy Request Accepted',
-        message: '$acceptorName is now your workout buddy!',
-        data: data,
-      ),
-      _deliverPushNotification(
-        type: NotificationType.buddyAccepted,
-        recipientId: recipientId,
-        data: data,
-      ),
-    ]);
+    await _deliverPushNotification(
+      type: NotificationType.buddyAccepted,
+      recipientId: recipientId,
+      data: data,
+    );
   }
 
   Future<void> notifyBuddySession({
@@ -1198,32 +1169,17 @@ class NotificationService {
     required String sessionId,
     required String sessionType,
   }) async {
-    final shouldSend = await shouldSendNotification(
-      recipientId,
-      NotificationType.buddySession,
-    );
-    if (!shouldSend) return;
-
     final data = {
       'sessionId': sessionId,
       'sessionType': sessionType,
       'byUserName': buddyName,
     };
 
-    await Future.wait([
-      createNotification(
-        userId: recipientId,
-        type: NotificationType.buddySession,
-        title: 'Buddy Session',
-        message: '$buddyName started a $sessionType session with you!',
-        data: data,
-      ),
-      _deliverPushNotification(
-        type: NotificationType.buddySession,
-        recipientId: recipientId,
-        data: data,
-      ),
-    ]);
+    await _deliverPushNotification(
+      type: NotificationType.buddySession,
+      recipientId: recipientId,
+      data: data,
+    );
   }
 
   /// Notify user that someone liked/reacted to their post.
