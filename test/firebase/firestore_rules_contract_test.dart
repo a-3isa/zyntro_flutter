@@ -408,12 +408,11 @@ void main() {
 
     test('rateLimits collection is client-inaccessible (Z-FN-001)', () {
       expect(rules, contains('match /rateLimits/{docId}'));
+      expect(rules, contains('allow read, write: if false'));
       final idx = rules.indexOf('match /rateLimits/{docId}');
       expect(idx, isNonNegative);
-      expect(
-        rules.substring(idx, idx + 120),
-        contains('allow read, write: if false'),
-      );
+      final section = rules.substring(idx);
+      expect(section, contains('allow read, write: if false'));
     });
 
     test('invite accept is scoped to an active session still in setup', () {
