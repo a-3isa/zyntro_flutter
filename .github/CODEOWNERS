@@ -1,0 +1,9 @@
+# CODEOWNERS — default review routing for zyntro_flutter (Z-ENH-040)
+
+* @a-3isa
+
+/.github/ @a-3isa
+/firebase/ @a-3isa
+/functions/ @a-3isa
+/lib/services/ @a-3isa
+/specs/ @a-3isa

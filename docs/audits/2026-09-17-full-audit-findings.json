@@ -24,8 +24,15 @@
         "Z-REPO-004"
       ],
       "arch002": "soft budgets met (session/profile/social/start_session/recap)",
-      "stackHead": "124-enh-pr-celebration",
-      "updatedAt": "2026-09-17"
+      "stackHead": "125-enh-repo-hygiene",
+      "updatedAt": "2026-09-17",
+      "enhancementsClosed": [
+        "Z-ENH-007",
+        "Z-ENH-017",
+        "Z-ENH-040",
+        "Z-ENH-042",
+        "Z-ENH-045"
+      ]
     }
   },
   "draftToFinal": {
@@ -3985,7 +3992,9 @@
       "dependsOn": [
         "Z-RT-006"
       ],
-      "slice": "008-session-presence-chrome"
+      "slice": "008-session-presence-chrome",
+      "status": "partial",
+      "closureNote": "Session wakelock shipped (070); Live Activity still open."
     },
     {
       "id": "Z-ENH-003",
@@ -4621,7 +4630,10 @@
       "dependsOn": [
         "Z-DOC-002"
       ],
-      "slice": "008-process-docs"
+      "slice": "008-process-docs",
+      "status": "closed",
+      "closedAt": "2026-09-17",
+      "closureNote": "CODEOWNERS + PR template + starter data dictionary (125). ADRs remain incremental."
     },
     {
       "id": "Z-ENH-041",
@@ -4655,7 +4667,10 @@
       "dependsOn": [
         "Z-OBS-003"
       ],
-      "slice": "008-forced-update"
+      "slice": "008-forced-update",
+      "status": "closed",
+      "closedAt": "2026-09-17",
+      "closureNote": "Forced-update path on stack (014)."
     },
     {
       "id": "Z-ENH-043",
