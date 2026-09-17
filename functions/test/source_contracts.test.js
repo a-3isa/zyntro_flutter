@@ -35,4 +35,16 @@ describe("Cloud Functions source contracts", () => {
     assert.match(source, /deleteByQuery\(doc\.ref\.collection\("plans"\)\)/);
     assert.match(source, /Expired stale sessions/);
   });
+
+  it("deletes Storage media when joint posts are fully removed (Z-FN-005)", () => {
+    assert.match(source, /cleanupFullyRemovedJointPosts/);
+    assert.match(
+      source,
+      /deleteStoragePrefix\(`posts\/\$\{postId\}\/`\)/,
+    );
+    assert.match(
+      source,
+      /Deleted fully-removed joint post/,
+    );
+  });
 });

@@ -1185,7 +1185,8 @@ exports.expireStaleJointPostDrafts = onSchedule("every 15 minutes", async () => 
 
 // Deletes a joint post once every author slot has soft-left (removed). A
 // joint post with no remaining authors has nothing left to show, so it's
-// cleaned up rather than left as an orphaned doc.
+// cleaned up rather than left as an orphaned doc — including Storage media
+// under posts/{postId}/ (Z-FN-005).
 exports.cleanupFullyRemovedJointPosts = onDocumentUpdated("posts/{postId}", async (event) => {
   const after = event.data.after.data();
   if (!after || after.coAuthored !== true) {
@@ -1197,8 +1198,13 @@ exports.cleanupFullyRemovedJointPosts = onDocumentUpdated("posts/{postId}", asyn
     return;
   }
 
-  await event.data.after.ref.delete();
-  logger.info("Deleted fully-removed joint post.", { postId: event.params.postId });
+  const postId = event.params.postId;
+  const postRef = event.data.after.ref;
+  await deleteByQuery(postRef.collection("comments"));
+  await deleteByQuery(postRef.collection("reactions"));
+  await deleteStoragePrefix(`posts/${postId}/`);
+  await postRef.delete();
+  logger.info("Deleted fully-removed joint post.", { postId });
 });
 
 async function deleteByQuery(query) {
