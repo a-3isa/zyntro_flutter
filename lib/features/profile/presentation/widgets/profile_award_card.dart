@@ -1,8 +1,8 @@
-import 'package:flutter/material.dart' hide Badge;
+import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/theme/app_theme.dart';
-import '../../../../services/user_service.dart';
+import '../../../../services/user_service.dart' as users;
 
 /// Single badge tile on the profile awards grid (Z-ARCH-002).
 class ProfileAwardCard extends StatelessWidget {
@@ -12,7 +12,7 @@ class ProfileAwardCard extends StatelessWidget {
     required this.isEarned,
   });
 
-  final Badge badge;
+  final users.Badge badge;
   final bool isEarned;
 
   @override
