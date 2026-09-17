@@ -86,7 +86,11 @@ class _RepCounterScreenState extends State<RepCounterScreen>
               behavior: HitTestBehavior.opaque,
               onTap: _handleTap,
               child: Center(
-                child: Column(
+                child: Semantics(
+                  liveRegion: true,
+                  label: 'Rep count',
+                  value: '$_repCount reps',
+                  child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
                     AnimatedBuilder(
@@ -116,7 +120,7 @@ class _RepCounterScreenState extends State<RepCounterScreen>
                     if (_repCount == 0) ...<Widget>[
                       const SizedBox(height: 12),
                       Text(
-                        'tap to enter reps',
+                        'tap to enter reps, or use +1',
                         style: TextStyle(
                           color: AppColors.textV2Tertiary,
                           fontSize: 14,
@@ -144,6 +148,7 @@ class _RepCounterScreenState extends State<RepCounterScreen>
                       ),
                     ],
                   ],
+                ),
                 ),
               ),
             ),
@@ -202,23 +207,54 @@ class _RepCounterScreenState extends State<RepCounterScreen>
                   SizedBox(
                     width: 64,
                     height: 56,
-                    child: FilledButton(
-                      onPressed: _repCount > 0 ? _undo : null,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.surfaceV2Elevated,
-                        disabledBackgroundColor:
-                            AppColors.surfaceV2Elevated.withValues(alpha: 0.4),
-                        foregroundColor: AppColors.textV2Primary,
-                        disabledForegroundColor: AppColors.textV2Tertiary,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                    child: Semantics(
+                      button: true,
+                      label: 'Decrease reps by one',
+                      enabled: _repCount > 0,
+                      child: FilledButton(
+                        onPressed: _repCount > 0 ? _undo : null,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.surfaceV2Elevated,
+                          disabledBackgroundColor:
+                              AppColors.surfaceV2Elevated.withValues(alpha: 0.4),
+                          foregroundColor: AppColors.textV2Primary,
+                          disabledForegroundColor: AppColors.textV2Tertiary,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: const Text(
+                          '-1',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
-                      child: const Text(
-                        '-1',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  SizedBox(
+                    width: 64,
+                    height: 56,
+                    child: Semantics(
+                      button: true,
+                      label: 'Increase reps by one',
+                      child: FilledButton(
+                        onPressed: _handleTap,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.surfaceV2Elevated,
+                          foregroundColor: AppColors.textV2Primary,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: const Text(
+                          '+1',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ),
@@ -227,24 +263,32 @@ class _RepCounterScreenState extends State<RepCounterScreen>
                   Expanded(
                     child: SizedBox(
                       height: 56,
-                      child: FilledButton(
-                        onPressed: canFinish ? () => widget.onDone(_repCount) : null,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.signal,
-                          disabledBackgroundColor: AppColors.surfaceV2Elevated,
-                          foregroundColor: AppColors.backgroundV2,
-                          disabledForegroundColor: AppColors.textV2Tertiary,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                      child: Semantics(
+                        button: true,
+                        label: canFinish
+                            ? 'Save $_repCount reps'
+                            : 'Save reps disabled until count is at least one',
+                        enabled: canFinish,
+                        child: FilledButton(
+                          onPressed:
+                              canFinish ? () => widget.onDone(_repCount) : null,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.signal,
+                            disabledBackgroundColor: AppColors.surfaceV2Elevated,
+                            foregroundColor: AppColors.backgroundV2,
+                            disabledForegroundColor: AppColors.textV2Tertiary,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
                           ),
-                        ),
-                        child: Text(
-                          canFinish
-                              ? 'Save $_repCount ${_repCount == 1 ? "rep" : "reps"}'
-                              : 'Save reps',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
+                          child: Text(
+                            canFinish
+                                ? 'Save $_repCount ${_repCount == 1 ? "rep" : "reps"}'
+                                : 'Save reps',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
                       ),

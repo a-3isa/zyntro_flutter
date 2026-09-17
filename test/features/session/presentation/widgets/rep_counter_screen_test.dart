@@ -98,6 +98,39 @@ void main() {
     expect(find.text('TAP'), findsOneWidget);
   });
 
+  testWidgets('+1 button increments without relying on full-screen tap (Z-A11Y-002)', (
+    tester,
+  ) async {
+    await tester.pumpWidget(buildSubject(onDone: (_) {}));
+
+    expect(find.text('+1'), findsOneWidget);
+    await tester.tap(find.text('+1'));
+    await tester.pump();
+    expect(find.text('1'), findsOneWidget);
+
+    await tester.tap(find.text('+1'));
+    await tester.pump();
+    expect(find.text('2'), findsOneWidget);
+
+    await tester.tap(find.text('-1'));
+    await tester.pump();
+    expect(find.text('1'), findsOneWidget);
+  });
+
+  testWidgets('rep counter exposes semantic labels for discrete controls', (
+    tester,
+  ) async {
+    await tester.pumpWidget(buildSubject(onDone: (_) {}));
+    expect(
+      find.bySemanticsLabel('Increase reps by one'),
+      findsOneWidget,
+    );
+    expect(
+      find.bySemanticsLabel('Decrease reps by one'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('bot mode shows fixed rep and weight feedback', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
