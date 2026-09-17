@@ -8,24 +8,6 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../widgets/zyntro_button.dart';
 import '../../domain/gym_session_plan.dart';
 
-class SectionHeader extends StatelessWidget {
-  final String title;
-  const SectionHeader({super.key, required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      title.toUpperCase(),
-      style: AppTextStyles.caption.copyWith(
-        fontSize: 10,
-        fontWeight: FontWeight.w700,
-        color: AppColors.textV2Tertiary,
-        letterSpacing: 2,
-      ),
-    );
-  }
-}
-
 class StartSessionExercisePlanRow extends StatelessWidget {
   final PlannedExercise item;
   final int index;
