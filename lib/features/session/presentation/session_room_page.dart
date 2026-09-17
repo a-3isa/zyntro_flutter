@@ -46,6 +46,7 @@ import 'widgets/session_cardio_input.dart';
 import 'widgets/session_header_avatar.dart';
 import 'widgets/session_progress_row.dart';
 import 'widgets/session_end_confirm_dialog.dart';
+import 'widgets/session_sync_status_dialog.dart';
 import '../domain/turn_plan_progress.dart';
 import '../domain/workout_score.dart';
 
@@ -447,59 +448,12 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
 
     if (!mounted) return;
 
-    showDialog(
+    await SessionSyncStatusDialog.show(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Sync Status'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Pending operations: ${queue.length}'),
-              const SizedBox(height: 8),
-              if (queue.isNotEmpty) ...[
-                const Text(
-                  'Recent pending:',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                ...queue
-                    .take(5)
-                    .map(
-                      (op) => Padding(
-                        padding: const EdgeInsets.only(left: 8, top: 4),
-                        child: Text(
-                          'â€¢ ${op.type} (${_formatTimeAgo(op.timestamp)})',
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                      ),
-                    ),
-              ],
-              if (failedOps.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Text(
-                  'Failed operations: ${failedOps.length}',
-                  style: const TextStyle(color: AppColors.error),
-                ),
-              ],
-            ],
-          ),
-        ),
-        actions: [
-          if (failedOps.isNotEmpty)
-            TextButton(
-              onPressed: () async {
-                await offlineManager.clearFailedOperations();
-                if (context.mounted) Navigator.pop(context);
-              },
-              child: const Text('Clear Failed'),
-            ),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
+      queue: queue,
+      failedOps: failedOps,
+      formatTimeAgo: _formatTimeAgo,
+      onClearFailed: offlineManager.clearFailedOperations,
     );
   }
 
