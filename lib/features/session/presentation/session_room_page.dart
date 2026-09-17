@@ -24,6 +24,7 @@ import '../../../utils/offline_manager.dart';
 import '../../../utils/retry_helper.dart';
 import '../../../widgets/session_widgets.dart';
 import 'widgets/session_room_animations.dart';
+import 'widgets/session_room_background.dart';
 import '../../../widgets/shimmer_widgets.dart';
 import '../../../widgets/connection_status_widget.dart';
 import '../../../services/storage_service.dart';
@@ -2843,74 +2844,6 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     }
   }
 
-  Widget _buildAnimatedBackground() {
-    return Stack(
-      children: [
-        // Deep obsidian base
-        Container(color: const Color(0xFF020617)),
-
-        // Base gradient for depth
-        Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                AppColors.signal.withValues(alpha: 0.05),
-                Colors.transparent,
-                AppColors.secondary.withValues(alpha: 0.03),
-              ],
-            ),
-          ),
-        ),
-
-        // Primary glowing orb (top-right)
-        Positioned(
-          top: -150,
-          right: -150,
-          child: SessionPulse(
-            duration: const Duration(seconds: 8),
-            child: Container(
-              width: 500,
-              height: 500,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    AppColors.signal.withValues(alpha: 0.15),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-
-        // Secondary accent orb (bottom-left)
-        Positioned(
-          bottom: -200,
-          left: -200,
-          child: SessionPulse(
-            duration: const Duration(seconds: 12),
-            child: Container(
-              width: 600,
-              height: 600,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    AppColors.secondary.withValues(alpha: 0.08),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     // Check combined loading state
@@ -3010,7 +2943,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       },
       child: Stack(
       children: [
-        _buildAnimatedBackground(),
+        const SessionRoomAnimatedBackground(),
         Scaffold(
           backgroundColor: Colors.transparent, // Transparent to show background
           body: Column(
