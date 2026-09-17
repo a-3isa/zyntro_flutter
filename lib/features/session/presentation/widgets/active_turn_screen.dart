@@ -55,6 +55,7 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen>
 
   double _weight = 0.0;
   final FocusNode _weightFocus = FocusNode();
+  bool _submitting = false;
 
   // Pulse state for TIMING phase (toggled by the same ticking [_timer]).
   bool _pulseOn = false;
@@ -147,6 +148,7 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen>
   }
 
   Future<void> _submitSet() async {
+    if (_submitting) return;
     if (_weight <= 0) {
       HapticFeedback.heavyImpact();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -154,12 +156,19 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen>
       );
       return;
     }
+    setState(() => _submitting = true);
     HapticFeedback.mediumImpact();
-    await widget.onSetSubmit(
-      reps: _reps,
-      weight: _weight,
-      durationSeconds: _elapsed.inSeconds,
-    );
+    try {
+      await widget.onSetSubmit(
+        reps: _reps,
+        weight: _weight,
+        durationSeconds: _elapsed.inSeconds,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
+    }
     if (!mounted) return;
     // Start rest timer between sets.
     _restTimer?.cancel();
@@ -617,11 +626,13 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen>
                     const Spacer(),
                     // Submit button
                     GestureDetector(
-                      onTap: _submitSet,
+                      onTap: _submitting ? null : _submitSet,
                       child: Container(
                         height: 60,
                         decoration: BoxDecoration(
-                          color: AppColors.signal,
+                          color: _submitting
+                              ? AppColors.signal.withValues(alpha: 0.5)
+                              : AppColors.signal,
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [
                             BoxShadow(
@@ -635,7 +646,7 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen>
                         ),
                         child: Center(
                           child: Text(
-                            'Submit Set',
+                            _submitting ? 'Saving…' : 'Submit Set',
                             style: AppTextStyles.h5.copyWith(
                               fontSize: 17,
                               fontWeight: FontWeight.w700,

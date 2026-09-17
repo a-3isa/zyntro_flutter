@@ -98,6 +98,8 @@ Future<void> registerOfflineHandlers(ProviderContainer container) async {
             'userId': payload['userId'] as String,
             'text': payload['text'] as String,
             'data': payload['data'] as Map<String, dynamic>?,
+            if (payload['clientEventId'] != null)
+              'clientEventId': payload['clientEventId'],
           };
         }).toList();
 
@@ -157,6 +159,7 @@ Future<void> registerOfflineHandlers(ProviderContainer container) async {
             userId: userId,
             text: text,
             data: payload['data'] as Map<String, dynamic>?,
+            clientEventId: payload['clientEventId'] as String? ?? op.id,
           );
     } catch (e, stack) {
       final errorCategory = categorizeError(e);

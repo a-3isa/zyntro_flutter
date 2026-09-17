@@ -914,9 +914,11 @@ class SessionService {
     required String userId,
     required String text,
     Map<String, dynamic>? data,
+    String? clientEventId,
   }) async {
     final startTime = DateTime.now();
     final eventId =
+        clientEventId ??
         '${type.value}_${userId}_${DateTime.now().millisecondsSinceEpoch}';
 
     try {
@@ -955,13 +957,18 @@ class SessionService {
     } on CircuitOpenException {
       // Circuit is open - queue the operation for later sync
       debugPrint('[SessionService] Circuit open, queuing session event');
-      await _ref.read(offlineManagerProvider).queueOperation('session_event', {
-        'sessionId': sessionId,
-        'type': type.value,
-        'userId': userId,
-        'text': text,
-        'data': ?data,
-      });
+      await _ref.read(offlineManagerProvider).queueOperation(
+        'session_event',
+        {
+          'sessionId': sessionId,
+          'type': type.value,
+          'userId': userId,
+          'text': text,
+          'clientEventId': eventId,
+          'data': ?data,
+        },
+        id: 'session_event_$eventId',
+      );
       // Re-throw to notify caller that operation was queued
       rethrow;
     }
@@ -978,7 +985,9 @@ class SessionService {
       final userId = event['userId'] as String;
       final type = event['type'] as String;
       final timestamp = event['timestamp'] as DateTime? ?? DateTime.now();
-      final eventId = '${type}_${userId}_${timestamp.millisecondsSinceEpoch}';
+      final eventId =
+          event['clientEventId'] as String? ??
+          '${type}_${userId}_${timestamp.millisecondsSinceEpoch}';
 
       final docRef = _firestore
           .collection('sessions')
@@ -989,7 +998,7 @@ class SessionService {
       batch.set(docRef, {
         ...event,
         'timestamp': event['timestamp'] ?? FieldValue.serverTimestamp(),
-      });
+      }..remove('clientEventId'));
     }
 
     await withRetry(() => batch.commit());

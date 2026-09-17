@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:uuid/uuid.dart';
 import '../../../app/navigation/app_route_locations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/models/models.dart';
@@ -789,6 +790,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   }
 
   Future<bool> _handleLogSetFromControllers() async {
+    if (_isLogging) return false;
     if (_currentExercise == null) return false;
 
     final weight = double.tryParse(_weightController.text);
@@ -829,6 +831,10 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       final uid = authState.value?.id;
       if (uid == null) return false;
 
+      // Stable id shared by optimistic UI, Firestore doc, and offline queue
+      // so retries cannot duplicate the event (Z-RT-004).
+      final clientEventId = const Uuid().v4();
+
       // Add to local exercises
       final existingIndex = _exercises.indexWhere(
         (e) => e.name == _currentExercise,
@@ -865,7 +871,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       final newTotalSets = (currentProgress?.totalSets ?? 0) + 1;
       final newVolume = (currentProgress?.totalVolume ?? 0) + (weight * reps);
       final localEvent = TimelineEvent(
-        id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
+        id: clientEventId,
         type: SessionEventType.setLogged,
         userId: uid,
         text: '$_currentExercise: ${weight}kg x $reps reps',
@@ -893,19 +899,24 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
 
       // Sync to backend.
       if (_isOffline) {
-        await ref.read(offlineManagerProvider).queueOperation('session_event', {
-          'sessionId': widget.sessionId,
-          'type': SessionEventType.setLogged.value,
-          'userId': uid,
-          'text': '$_currentExercise: ${weight}kg x $reps reps',
-          'data': {
-            'exercise': _currentExercise,
-            if (_currentExerciseId != null) 'exerciseId': _currentExerciseId,
-            'weight': weight,
-            'reps': reps,
-            'durationSeconds': _currentSetDuration,
+        await ref.read(offlineManagerProvider).queueOperation(
+          'session_event',
+          {
+            'sessionId': widget.sessionId,
+            'type': SessionEventType.setLogged.value,
+            'userId': uid,
+            'text': '$_currentExercise: ${weight}kg x $reps reps',
+            'clientEventId': clientEventId,
+            'data': {
+              'exercise': _currentExercise,
+              if (_currentExerciseId != null) 'exerciseId': _currentExerciseId,
+              'weight': weight,
+              'reps': reps,
+              'durationSeconds': _currentSetDuration,
+            },
           },
-        });
+          id: 'session_event_$clientEventId',
+        );
       } else {
         try {
           await ref
@@ -915,6 +926,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                 type: SessionEventType.setLogged,
                 userId: uid,
                 text: '$_currentExercise: ${weight}kg x $reps reps',
+                clientEventId: clientEventId,
                 data: {
                   'exercise': _currentExercise,
                   if (_currentExerciseId != null)
@@ -937,6 +949,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
               'type': SessionEventType.setLogged.value,
               'userId': uid,
               'text': '$_currentExercise: ${weight}kg x $reps reps',
+              'clientEventId': clientEventId,
               'data': {
                 'exercise': _currentExercise,
                 if (_currentExerciseId != null)
@@ -946,6 +959,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                 'durationSeconds': _currentSetDuration,
               },
             },
+            id: 'session_event_$clientEventId',
           );
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -1159,6 +1173,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
 
   /// Handle logging a cardio activity entry.
   Future<void> _handleLogCardioFromControllers() async {
+    if (_isLogging) return;
     if (_cardioActivityType == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select an activity type')),
@@ -1204,6 +1219,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     try {
       if (uid == null) return;
 
+      final clientEventId = const Uuid().v4();
+
       // Calculate pace if not provided
       String calculatedPace = pace;
       if (pace.isEmpty && distance > 0) {
@@ -1223,7 +1240,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       final newDistance = (currentProgress?.totalDistance ?? 0) + distance;
       final newDuration = (currentProgress?.totalDuration ?? 0) + duration;
       final localEvent = TimelineEvent(
-        id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
+        id: clientEventId,
         type: SessionEventType.cardioEntry,
         userId: uid,
         text: eventText,
@@ -1248,18 +1265,23 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
 
       // Sync to backend.
       if (_isOffline) {
-        await ref.read(offlineManagerProvider).queueOperation('session_event', {
-          'sessionId': widget.sessionId,
-          'type': SessionEventType.cardioEntry.value,
-          'userId': uid,
-          'text': eventText,
-          'data': {
-            'activityType': _cardioActivityType,
-            'distance': distance,
-            'duration': duration,
-            'pace': calculatedPace,
+        await ref.read(offlineManagerProvider).queueOperation(
+          'session_event',
+          {
+            'sessionId': widget.sessionId,
+            'type': SessionEventType.cardioEntry.value,
+            'userId': uid,
+            'text': eventText,
+            'clientEventId': clientEventId,
+            'data': {
+              'activityType': _cardioActivityType,
+              'distance': distance,
+              'duration': duration,
+              'pace': calculatedPace,
+            },
           },
-        });
+          id: 'session_event_$clientEventId',
+        );
       } else {
         try {
           await ref
@@ -1269,6 +1291,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                 type: SessionEventType.cardioEntry,
                 userId: uid,
                 text: eventText,
+                clientEventId: clientEventId,
                 data: {
                   'activityType': _cardioActivityType,
                   'distance': distance,
@@ -1288,6 +1311,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
               'type': SessionEventType.cardioEntry.value,
               'userId': uid,
               'text': eventText,
+              'clientEventId': clientEventId,
               'data': {
                 'activityType': _cardioActivityType,
                 'distance': distance,
@@ -1295,6 +1319,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                 'pace': calculatedPace,
               },
             },
+            id: 'session_event_$clientEventId',
           );
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(

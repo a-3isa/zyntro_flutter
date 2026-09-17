@@ -101,6 +101,7 @@ class _ParallelGymViewState extends State<ParallelGymView> {
   // Captured results as the user moves through the flow.
   int _reps = 0;
   int _capturedDuration = 0;
+  bool _submitting = false;
 
   // Weight entry.
   final TextEditingController _weightController = TextEditingController();
@@ -140,7 +141,9 @@ class _ParallelGymViewState extends State<ParallelGymView> {
   }
 
   void _submit() {
+    if (_submitting) return;
     final double weight = double.tryParse(_weightController.text.trim()) ?? 0;
+    _submitting = true;
     widget.onSetSubmit(
       reps: _reps,
       weight: weight,
@@ -148,6 +151,7 @@ class _ParallelGymViewState extends State<ParallelGymView> {
     );
     // Reset for next set.
     setState(() {
+      _submitting = false;
       _phase = _GymPhase.idle;
       _elapsedSeconds = 0;
       _reps = 0;

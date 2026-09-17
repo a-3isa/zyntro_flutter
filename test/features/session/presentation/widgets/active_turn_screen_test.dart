@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -146,6 +147,43 @@ void main() {
 
     expect(receivedReps, 5);
     expect(receivedWeight, 80.0);
+  });
+
+  testWidgets('double-tap Submit Set only fires onSetSubmit once (Z-RT-004)', (
+    tester,
+  ) async {
+    var submitCount = 0;
+    final completer = Completer<void>();
+
+    await tester.pumpWidget(
+      buildSubject(
+        onSetSubmit:
+            ({required reps, required weight, required durationSeconds}) async {
+          submitCount += 1;
+          await completer.future;
+        },
+      ),
+    );
+
+    await tester.tap(find.text('START'));
+    await tester.pump();
+    await tester.tap(find.text('tap anywhere to stop'));
+    await tester.pump();
+    await tester.tapAt(const Offset(200, 160));
+    await tester.pump();
+    await tester.tap(find.textContaining('Save'));
+    await tester.pump();
+    await tester.tap(find.text('80'));
+    await tester.pump();
+
+    await tester.tap(find.text('Submit Set'));
+    await tester.pump();
+    await tester.tap(find.text('Saving…'));
+    await tester.pump();
+
+    expect(submitCount, 1);
+    completer.complete();
+    await tester.pump();
   });
 
   testWidgets(
