@@ -1,3 +1,4 @@
+# Store signing / publish owner — quality gates live in GitHub Actions (docs/CI.md).
 workflows:
   # Android Production Build Workflow
   android-workflow:
@@ -5,7 +6,7 @@ workflows:
     max_build_duration: 60
     instance_type: mac_mini_m1
     environment:
-      flutter: 3.38.9
+      flutter: 3.44.4
       java: 17
       groups:
         - firebase_credentials
@@ -51,7 +52,7 @@ workflows:
     integrations:
       app_store_connect: Zyntro App Store Connect
     environment:
-      flutter: 3.38.9
+      flutter: 3.44.4
       xcode: latest
       cocoapods: default
       groups:
@@ -94,7 +95,7 @@ workflows:
     max_build_duration: 30
     instance_type: mac_mini_m1
     environment:
-      flutter: 3.38.9
+      flutter: 3.44.4
       java: 17
     triggering:
       events:

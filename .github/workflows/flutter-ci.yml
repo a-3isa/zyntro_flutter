@@ -1,3 +1,4 @@
+# Quality-gate source of truth — see docs/CI.md (Z-CI-002).
 name: Flutter CI/CD
 
 on:
