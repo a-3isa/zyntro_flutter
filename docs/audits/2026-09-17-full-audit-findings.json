@@ -2958,10 +2958,11 @@
       "standards": [
         "QA"
       ],
-      "status": "deferred",
+      "status": "closed",
       "firstSeen": "2026-09-17",
       "closedAt": "2026-09-17",
-      "closureNote": "Large/process campaigns (Result adoption, goldens/integration gates) — schedule as dedicated PRs, not audit-closure slices."
+      "closureNote": "TESTING.md triage + dispatch-only integration-smoke job + first signal golden. Full golden suite and always-on device gate remain follow-ups.",
+      "closed_in": "092-test-contract-harden"
     },
     {
       "id": "Z-CI-005",

@@ -46,3 +46,4 @@ Release jobs (`build-android`, `build-ios`, `deploy-firebase-rules`) are post-ga
 
 - Contract test asserts this ownership split and the shared Flutter pin.
 - CI.md mentions SHA-pin guidance and Codemagic publish restraint (Z-CI-005).
+- Integration smoke is **workflow_dispatch-only** (`integration-smoke` job); see `docs/TESTING.md` (Z-TEST-005).

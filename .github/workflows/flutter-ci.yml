@@ -10,6 +10,7 @@ on:
       - "001-clean-architecture-migration"
       - "007-resume-active-session"
   pull_request:
+  workflow_dispatch:
 
 jobs:
   analyze:
@@ -105,6 +106,39 @@ jobs:
       - name: Run Firestore rules emulator tests
         working-directory: test/rules
         run: npm test
+
+  # Z-TEST-005: device/emulator smoke — not a PR gate (see docs/TESTING.md).
+  integration-smoke:
+    name: Integration Smoke (manual)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.4'
+          channel: 'stable'
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger
+          sudo apt-get update
+          sudo apt-get install -y bridge-utils
+
+      - name: Run integration smoke on Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          arch: x86_64
+          script: flutter test integration_test/smoke_test.dart
 
   build-android:
     name: Build Android Release
