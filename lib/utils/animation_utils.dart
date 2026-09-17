@@ -54,16 +54,14 @@ class PerformanceMonitor {
   }
 
   /// Check system accessibility setting for reduced motion.
+  ///
+  /// Always reads [MediaQuery] so OS "reduce motion" flips apply immediately
+  /// (Z-UI-001). Do not cache this flag across frames.
   static bool shouldReduceMotion(BuildContext context) {
-    if (_shouldReduceMotion != null) return _shouldReduceMotion!;
-
-    final mediaQuery = MediaQuery.of(context);
-    _shouldReduceMotion = mediaQuery.disableAnimations;
-
-    return _shouldReduceMotion!;
+    return MediaQuery.maybeOf(context)?.disableAnimations ?? false;
   }
 
-  /// Reset cached values (call when device settings change).
+  /// Reset cached device heuristics (call when device settings change).
   static void reset() {
     _isLowEndDevice = null;
     _shouldReduceMotion = null;
