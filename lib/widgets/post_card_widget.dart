@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:timeago/timeago.dart' as timeago;
 
 import '../core/theme/app_theme.dart';
 import '../core/constants/feature_flags.dart';
+import '../core/l10n/locale_format.dart';
 
 import '../core/models/models.dart';
 import '../features/auth/auth_providers.dart';
@@ -181,7 +181,7 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
                                   ),
                                 ),
                                 Text(
-                                  timeago.format(widget.post.createdAt),
+                                  LocaleFormat.relative(widget.post.createdAt),
                                   style: TextStyle(
                                     fontSize: AppFontSize.sm,
                                     color: Theme.of(context)
@@ -619,7 +619,7 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
                               ),
                             ),
                             Text(
-                              timeago.format(widget.post.createdAt),
+                              LocaleFormat.relative(widget.post.createdAt),
                               style: TextStyle(
                                 fontSize: AppFontSize.sm,
                                 color: Theme.of(context)

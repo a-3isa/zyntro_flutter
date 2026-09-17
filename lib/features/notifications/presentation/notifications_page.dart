@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:timeago/timeago.dart' as timeago;
 import '../../../app/navigation/app_route_locations.dart';
 import '../../../core/constants/constants.dart';
+import '../../../core/l10n/locale_format.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../widgets/widgets.dart';
@@ -400,7 +400,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    timeago.format(notification.createdAt),
+                    LocaleFormat.relative(notification.createdAt),
                     style: const TextStyle(
                       fontSize: 11,
                       color: AppColors.textV2Tertiary,

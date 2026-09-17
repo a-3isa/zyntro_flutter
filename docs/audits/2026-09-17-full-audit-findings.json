@@ -2752,8 +2752,10 @@
       "standards": [
         "intl"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "LocaleFormat + Ar timeago registered; feed/notifications use relative helper."
     },
     {
       "id": "Z-PERF-003",

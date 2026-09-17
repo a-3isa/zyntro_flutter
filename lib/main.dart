@@ -24,6 +24,7 @@ import 'utils/field_trace.dart';
 import 'widgets/error_boundary_widget.dart';
 import 'services/feed_cache_service.dart';
 import 'services/privacy_consent_service.dart';
+import 'core/l10n/locale_format.dart';
 
 const _appCheckDebugChannelName = 'zyntro/debug';
 const _appCheckDebugSecretMethodName = 'getAppCheckDebugSecret';
@@ -36,6 +37,9 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   debugPaintSizeEnabled = false;
   debugPaintBaselinesEnabled = false;
+
+  // Arabic/English relative-time messages for feed & notifications (Z-I18N-004).
+  LocaleFormat.registerTimeagoLocales();
 
   // Flutter's debugPrint is NOT stripped from release builds — it writes to the
   // platform log (logcat on Android), where any app on the device with log
