@@ -25,6 +25,7 @@ import '../../../utils/haptic_manager.dart';
 import '../../../utils/offline_manager.dart';
 import '../domain/gym_session_plan.dart';
 import 'widgets/gym_exercise_picker_sheet.dart';
+import 'widgets/start_session_widgets.dart';
 
 /// Signals the train screen to reset to its home view.
 /// Increment this value whenever the session FAB is tapped.
@@ -477,30 +478,6 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
     return 'Failed to start session. Please try again.';
   }
 
-  IconData _getIconData(String iconName) {
-    switch (iconName) {
-      case 'fitness_center':
-        return Icons.fitness_center_rounded;
-      case 'directions_run':
-        return Icons.directions_run_rounded;
-      case 'directions_bike':
-        return Icons.directions_bike_rounded;
-      case 'pool':
-        return Icons.pool_rounded;
-      case 'self_improvement':
-        return Icons.self_improvement_rounded;
-      case 'timer':
-        return Icons.timer_rounded;
-      case 'directions_walk':
-        return Icons.directions_walk_rounded;
-      case 'sports_soccer':
-        return Icons.sports_soccer_rounded;
-      case 'category':
-      default:
-        return Icons.category_rounded;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     // Reset to home view when the session FAB is tapped from another tab.
@@ -605,24 +582,6 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
       _plan = [];
       _hasShownWorkoutsPopup = false;
     });
-  }
-
-  Color _getTypeColor(WorkoutType type) => AppColors.typeColor(type.value);
-
-  Widget _buildAvatarPlaceholder(User user) {
-    return Container(
-      color: AppColors.surfaceV2,
-      child: Center(
-        child: Text(
-          user.displayName.isNotEmpty ? user.displayName[0].toUpperCase() : '?',
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-            fontSize: 18,
-          ),
-        ),
-      ),
-    );
   }
 
   // ─── Live friends strip ─────────────────────────────────────────────────────
@@ -754,11 +713,11 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                     const SizedBox(height: 20),
                     _buildLiveStrip(),
                     const SizedBox(height: 8),
-                    _buildSectionLabel('WORKOUT TYPE'),
+                    const StartSessionSectionLabel('WORKOUT TYPE'),
                     const SizedBox(height: 12),
                     _buildTypeSelectionGrid(),
                     const SizedBox(height: 28),
-                    _buildSectionLabel('TRAIN WITH'),
+                    const StartSessionSectionLabel('TRAIN WITH'),
                     const SizedBox(height: 12),
                     _buildPartnerModeRow(),
                     if (!(ref.watch(connectivityProvider).value ?? true))
@@ -819,119 +778,21 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       children: _quickStartTypes
-          .map((item) => _buildTypeCard(item.type, item.label))
+          .map(
+            (item) => StartSessionTypeCard(
+              type: item.type,
+              label: item.label,
+              isSelected: _selectedType == item.type,
+              onTap: () {
+                setState(
+                  () => _selectedType =
+                      _selectedType == item.type ? null : item.type,
+                );
+                _savePreferences();
+              },
+            ),
+          )
           .toList(),
-    );
-  }
-
-  Widget _buildTypeCard(WorkoutType type, String label) {
-    final isSelected = _selectedType == type;
-    final typeColor = _getTypeColor(type);
-    final icon = _getIconData(type.icon);
-
-    return GestureDetector(
-      onTap: () {
-        HapticManager.selection();
-        setState(() => _selectedType = _selectedType == type ? null : type);
-        _savePreferences();
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: AppCurves.press,
-        decoration: BoxDecoration(
-          color: isSelected
-              ? typeColor.withValues(alpha: 0.15)
-              : AppColors.surfaceV2.withValues(alpha: 0.8),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected ? typeColor : AppColors.surfaceV2Active,
-            width: isSelected ? 1.5 : 1,
-          ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: typeColor.withValues(alpha: 0.2),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : [],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: Stack(
-            children: [
-              // Diagonal shimmer accent
-              Positioned(
-                top: -20,
-                right: -10,
-                child: Transform.rotate(
-                  angle: 0.6,
-                  child: Container(
-                    width: 40,
-                    height: 120,
-                    color: typeColor.withValues(alpha: 0.04),
-                  ),
-                ),
-              ),
-              // Left accent bar
-              Positioned(
-                left: 0,
-                top: 0,
-                bottom: 0,
-                child: Container(width: 3, color: typeColor),
-              ),
-              // Content
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 10, 10, 10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(icon, color: typeColor, size: 18),
-                        const SizedBox(width: 5),
-                        Flexible(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 5,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: typeColor.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              label.toUpperCase(),
-                              style: AppTextStyles.caption.copyWith(
-                                fontSize: 8,
-                                fontWeight: FontWeight.w700,
-                                color: typeColor,
-                                letterSpacing: 0.08,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      label,
-                      style: AppTextStyles.label.copyWith(
-                        fontSize: 13,
-                        color: AppColors.textV2Primary,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 
@@ -1029,7 +890,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 22),
-        _buildSectionLabel('YOUR BUDDIES'),
+        const StartSessionSectionLabel('YOUR BUDDIES'),
         const SizedBox(height: 12),
         SizedBox(
           height: 92,
@@ -1081,9 +942,9 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                                   imageUrl: u.photoURL!,
                                   fit: BoxFit.cover,
                                   errorWidget: (_, _, _) =>
-                                      _buildAvatarPlaceholder(u),
+                                      StartSessionAvatarPlaceholder(user: u),
                                 )
-                              : _buildAvatarPlaceholder(u),
+                              : StartSessionAvatarPlaceholder(user: u),
                         ),
                       ),
                       const SizedBox(height: 6),
@@ -1223,18 +1084,6 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildSectionLabel(String label) {
-    return Text(
-      label,
-      style: TextStyle(
-        color: AppColors.textV2Tertiary,
-        fontSize: 12,
-        fontWeight: FontWeight.w700,
-        letterSpacing: 1.6,
       ),
     );
   }
