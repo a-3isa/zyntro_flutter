@@ -82,6 +82,24 @@ async function getUserDisplayName(userId) {
     : "Someone";
 }
 
+/** Recipient UI language for push copy (Z-I18N-003). Defaults to English. */
+async function getUserLocale(userId) {
+  try {
+    const userDoc = await db.collection("users").doc(userId).get();
+    const raw =
+      userDoc.exists && typeof userDoc.data()?.locale === "string"
+        ? userDoc.data().locale.trim().toLowerCase()
+        : "en";
+    return raw.startsWith("ar") ? "ar" : "en";
+  } catch (_) {
+    return "en";
+  }
+}
+
+function pushCopy(locale, en, ar) {
+  return locale === "ar" ? ar : en;
+}
+
 async function getRecipientDevices(recipientId) {
   const snapshot = await db
     .collection("users")
@@ -274,6 +292,7 @@ async function buildSessionInvitePayload(callerId, recipientId, data) {
   }
 
   const inviterName = await getUserDisplayName(callerId);
+  const locale = await getUserLocale(recipientId);
   const sessionType =
     typeof data.sessionType === "string" && data.sessionType.trim().length > 0
       ? data.sessionType.trim()
@@ -282,8 +301,12 @@ async function buildSessionInvitePayload(callerId, recipientId, data) {
         : "strength";
 
   return {
-    title: "Session Invite",
-    body: `${inviterName} invited you to a ${sessionType} session!`,
+    title: pushCopy(locale, "Session Invite", "دعوة جلسة"),
+    body: pushCopy(
+      locale,
+      `${inviterName} invited you to a ${sessionType} session!`,
+      `${inviterName} دعاك إلى جلسة ${sessionType}!`,
+    ),
     data: {
       type: "session_invite",
       sessionId,
@@ -363,9 +386,15 @@ async function buildTurnChangePayload(callerId, recipientId, data) {
         ? session.type
         : "strength";
 
+  const locale = await getUserLocale(recipientId);
+
   return {
-    title: "Your Turn!",
-    body: `It's your turn to log a set in the ${sessionType} session`,
+    title: pushCopy(locale, "Your Turn!", "دورك!"),
+    body: pushCopy(
+      locale,
+      `It's your turn to log a set in the ${sessionType} session`,
+      `حان دورك لتسجيل مجموعة في جلسة ${sessionType}`,
+    ),
     data: {
       type: "turn_change",
       sessionId,
@@ -560,9 +589,14 @@ async function buildPartnerLeftPayload(callerId, recipientId, data) {
   }
 
   const leaverName = await getUserDisplayName(callerId);
+  const locale = await getUserLocale(recipientId);
   return {
-    title: `${leaverName} left`,
-    body: `${leaverName} left the session. Finish or carry on.`,
+    title: pushCopy(locale, `${leaverName} left`, `${leaverName} غادر`),
+    body: pushCopy(
+      locale,
+      `${leaverName} left the session. Finish or carry on.`,
+      `${leaverName} غادر الجلسة. أنهِ أو واصل.`,
+    ),
     data: {
       type: "partner_left",
       sessionId,
@@ -584,9 +618,14 @@ async function buildBuddyInvitePayload(callerId, recipientId, data) {
     throw new HttpsError("permission-denied", "Caller is not allowed to send this buddy invite.");
   }
   const inviterName = await getUserDisplayName(callerId);
+  const locale = await getUserLocale(recipientId);
   return {
-    title: "Buddy Invite",
-    body: `${inviterName} wants to be your workout buddy!`,
+    title: pushCopy(locale, "Buddy Invite", "دعوة صديق تمارين"),
+    body: pushCopy(
+      locale,
+      `${inviterName} wants to be your workout buddy!`,
+      `${inviterName} يريد أن يكون رفيق تمارينك!`,
+    ),
     data: {
       type: "buddy_invite",
       buddyPairId,

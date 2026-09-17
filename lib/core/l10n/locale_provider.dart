@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -24,6 +26,19 @@ class LocaleNotifier extends AsyncNotifier<Locale?> {
       await prefs.remove(_kLocaleKey);
     } else {
       await prefs.setString(_kLocaleKey, locale.languageCode);
+    }
+    // Mirror onto the user profile so Cloud Functions can localize pushes
+    // (Z-I18N-003). Best-effort — local prefs remain the source of truth offline.
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      try {
+        await FirebaseFirestore.instance.collection('users').doc(uid).set({
+          'locale': locale?.languageCode ??
+              PlatformDispatcher.instance.locale.languageCode,
+        }, SetOptions(merge: true));
+      } catch (_) {
+        // Ignore — push locale falls back to English.
+      }
     }
   }
 
