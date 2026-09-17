@@ -13,7 +13,8 @@ class AuthLocalDataSource {
   Future<void> cacheUser(AuthUserModel user) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_cachedUserKey, user.toEncodedJson());
+      // Persist a minimized profile only — never email/photo (Z-AUTH-005).
+      await prefs.setString(_cachedUserKey, user.toEncodedCacheJson());
       await prefs.setInt(
         _cachedUserAtKey,
         DateTime.now().millisecondsSinceEpoch,
@@ -33,12 +34,17 @@ class AuthLocalDataSource {
       final cachedAt = prefs.getInt(_cachedUserAtKey);
 
       if (encoded == null || cachedAt == null) {
-        FirebaseAnalytics.instance.logEvent(name: 'auth_startup_cache_miss');
+        try {
+          FirebaseAnalytics.instance.logEvent(name: 'auth_startup_cache_miss');
+        } catch (_) {}
         return null;
       }
 
-      FirebaseAnalytics.instance.logEvent(name: 'auth_startup_cache_hit');
-      return AuthUserModel.fromEncodedJson(encoded);
+      final user = AuthUserModel.fromEncodedJson(encoded);
+      try {
+        FirebaseAnalytics.instance.logEvent(name: 'auth_startup_cache_hit');
+      } catch (_) {}
+      return user;
     } catch (_) {
       throw AuthDataException.cache('Failed to read auth cache.');
     }
@@ -49,9 +55,11 @@ class AuthLocalDataSource {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_cachedUserKey);
       await prefs.remove(_cachedUserAtKey);
-      FirebaseAnalytics.instance.logEvent(
-        name: 'auth_startup_sign_in_required',
-      );
+      try {
+        FirebaseAnalytics.instance.logEvent(
+          name: 'auth_startup_sign_in_required',
+        );
+      } catch (_) {}
     } catch (_) {
       throw AuthDataException.cache('Failed to clear auth cache.');
     }

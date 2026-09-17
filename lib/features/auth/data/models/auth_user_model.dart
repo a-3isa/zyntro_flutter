@@ -60,8 +60,23 @@ class AuthUserModel {
     };
   }
 
+  /// Disk cache shape — no email/photo URL (Z-AUTH-005). Firebase Auth remains
+  /// the source of truth for PII once the session is live.
+  Map<String, dynamic> toCacheJson() {
+    return {
+      'id': id,
+      'displayName': displayName,
+      'emailVerified': emailVerified,
+      'providerIds': providerIds,
+    };
+  }
+
   String toEncodedJson() {
     return jsonEncode(toJson());
+  }
+
+  String toEncodedCacheJson() {
+    return jsonEncode(toCacheJson());
   }
 
   AuthUserEntity toEntity() {

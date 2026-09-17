@@ -2593,8 +2593,10 @@
       "standards": [
         "Storage"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Auth disk cache omits email/photoUrl (toCacheJson)."
     },
     {
       "id": "Z-SOC-003",
@@ -3280,8 +3282,10 @@
       "standards": [
         "Ops"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "expireStaleSessions deployed with presence/plans cleanup in stack 062."
     },
     {
       "id": "Z-SEC-007",
