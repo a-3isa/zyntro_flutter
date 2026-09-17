@@ -22,6 +22,7 @@ import 'profile_providers.dart';
 import 'widgets/profile_history_widgets.dart';
 import 'widgets/profile_empty_states.dart';
 import 'widgets/profile_header_widgets.dart';
+import 'widgets/profile_award_card.dart';
 import '../../../services/leaderboard_service.dart';
 import '../../../services/profile_cache_service.dart';
 import '../../../utils/offline_manager.dart';
@@ -2090,7 +2091,7 @@ class _AwardsTab extends ConsumerWidget {
           itemBuilder: (context, index) {
             final badge = availableBadges[index];
             final isEarned = earnedIds.contains(badge.id);
-            return _AwardCard(badge: badge, isEarned: isEarned);
+            return ProfileAwardCard(badge: badge, isEarned: isEarned);
           },
         );
       },
@@ -2101,63 +2102,6 @@ class _AwardsTab extends ConsumerWidget {
         ),
       ),
       error: (_, _) => const SizedBox(),
-    );
-  }
-}
-
-class _AwardCard extends StatelessWidget {
-  final Badge badge;
-  final bool isEarned;
-
-  const _AwardCard({required this.badge, required this.isEarned});
-
-  @override
-  Widget build(BuildContext context) {
-    return Opacity(
-      opacity: isEarned ? 1.0 : 0.4,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 14),
-        decoration: BoxDecoration(
-          color: isEarned ? AppColors.surfaceV2 : Colors.transparent,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: isEarned
-                ? AppColors.signal.withValues(alpha: 0.08)
-                : AppColors.surfaceV2,
-            width: 1,
-          ),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(badge.icon, style: const TextStyle(fontSize: 28)),
-            const SizedBox(height: 8),
-            Text(
-              badge.name,
-              style: AppTextStyles.h5.copyWith(
-                fontSize: 13,
-                color: isEarned
-                    ? AppColors.signal
-                    : AppColors.textV2Secondary,
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              badge.description,
-              style: AppTextStyles.caption.copyWith(
-                fontSize: 10,
-                color: AppColors.textV2Tertiary,
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
