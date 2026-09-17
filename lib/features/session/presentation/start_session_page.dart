@@ -19,6 +19,7 @@ import '../../../services/session_service.dart';
 import '../../../services/follow_service.dart';
 import '../../../core/models/models.dart';
 import '../../../widgets/zyntro_button.dart';
+import '../../../widgets/zyntro_back_button.dart';
 import '../../../widgets/pulse_dot.dart';
 import '../../../utils/haptic_manager.dart';
 import '../../../utils/offline_manager.dart';
@@ -979,7 +980,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                   color: isDisabled
                       ? AppColors.surfaceV2Active.withValues(alpha: 0.3)
                       : isActive
-                      ? AppColors.userAccent.withValues(alpha: 0.4)
+                      ? AppColors.signal.withValues(alpha: 0.4)
                       : AppColors.surfaceV2Active,
                   width: 1.5,
                 ),
@@ -992,7 +993,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                       m.icon,
                       size: 20,
                       color: isActive
-                          ? AppColors.userAccent
+                          ? AppColors.signal
                           : AppColors.textV2Tertiary,
                     ),
                     const SizedBox(height: 4),
@@ -1069,7 +1070,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                           shape: BoxShape.circle,
                           border: Border.all(
                             color: selected
-                                ? AppColors.userAccent
+                                ? AppColors.signal
                                 : AppColors.surfaceV2Active,
                             width: selected ? 2.5 : 1.5,
                           ),
@@ -1096,7 +1097,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                               ? FontWeight.w700
                               : FontWeight.w500,
                           color: selected
-                              ? AppColors.userAccent
+                              ? AppColors.signal
                               : AppColors.textV2Secondary,
                         ),
                       ),
@@ -1112,7 +1113,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
           Text(
             '${_selectedFriends.length} friend selected',
             style: AppTextStyles.caption.copyWith(
-              color: AppColors.userAccent,
+              color: AppColors.signal,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -1146,7 +1147,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                       '$_weekSessions',
                       style: AppTextStyles.h2.copyWith(
                         fontSize: 28,
-                        color: AppColors.userAccent,
+                        color: AppColors.signal,
                         height: 1.0,
                       ),
                     ),
@@ -1304,21 +1305,8 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
               child: Row(
                 children: [
-                  GestureDetector(
-                    onTap: () => setState(() => _view = 'home'),
-                    child: Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceV2,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(
-                        Icons.arrow_back_rounded,
-                        color: t2,
-                        size: 18,
-                      ),
-                    ),
+                  ZyntroBackButton(
+                    onPressed: () => setState(() => _view = 'home'),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -1382,7 +1370,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.add, color: AppColors.userAccent, size: 20),
+                      Icon(Icons.add, color: AppColors.signal, size: 20),
                       const SizedBox(width: 8),
                       Text(
                         'Add exercise',
@@ -1554,7 +1542,7 @@ class _ExercisePlanRow extends StatelessWidget {
                     height: 26,
                     margin: const EdgeInsets.only(left: 3),
                     decoration: BoxDecoration(
-                      color: isActive ? AppColors.userAccent : s3,
+                      color: isActive ? AppColors.signal : s3,
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Center(
@@ -1703,12 +1691,12 @@ class _PastWorkoutsSheetState extends State<_PastWorkoutsSheet> {
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: isSelected
-                      ? AppColors.userAccent.withValues(alpha: 0.1)
+                      ? AppColors.signal.withValues(alpha: 0.1)
                       : AppColors.surfaceV2,
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
                     color: isSelected
-                        ? AppColors.userAccent
+                        ? AppColors.signal
                         : Colors.transparent,
                     width: 1.5,
                   ),
@@ -1752,7 +1740,7 @@ class _PastWorkoutsSheetState extends State<_PastWorkoutsSheet> {
                     if (isSelected)
                       Icon(
                         Icons.check_circle_rounded,
-                        color: AppColors.userAccent,
+                        color: AppColors.signal,
                         size: 22,
                       ),
                   ],

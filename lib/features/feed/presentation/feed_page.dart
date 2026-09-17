@@ -142,22 +142,27 @@ class _V2FeedHeader extends ConsumerWidget {
             children: [
               Text(
                 'zyntro',
-                style: AppTextStyles.h4.copyWith(
-                  fontWeight: FontWeight.w700,
+                style: AppTextStyles.wordmark.copyWith(
                   color: AppColors.textV2Primary,
-                  letterSpacing: -0.8,
                 ),
               ),
               const Spacer(),
 
-              GestureDetector(
-                onTap: onNotificationsTap,
-                child: SizedBox(
-                  width: 36,
-                  height: 36,
+              IconButton(
+                tooltip: 'Notifications',
+                onPressed: onNotificationsTap,
+                constraints: const BoxConstraints.tightFor(
+                  width: 48,
+                  height: 48,
+                ),
+                padding: EdgeInsets.zero,
+                icon: SizedBox(
+                  width: 24,
+                  height: 24,
                   child: Stack(
+                    clipBehavior: Clip.none,
                     children: [
-                      Center(
+                      const Center(
                         child: Icon(
                           Icons.notifications_outlined,
                           color: AppColors.textV2Secondary,
@@ -166,13 +171,13 @@ class _V2FeedHeader extends ConsumerWidget {
                       ),
                       if (hasUnread)
                         Positioned(
-                          top: 4,
-                          right: 4,
+                          top: 0,
+                          right: 0,
                           child: Container(
                             width: 7,
                             height: 7,
                             decoration: BoxDecoration(
-                              color: AppColors.userAccent,
+                              color: AppColors.signal,
                               shape: BoxShape.circle,
                               border: Border.all(
                                 color: AppColors.backgroundV2,
@@ -185,20 +190,21 @@ class _V2FeedHeader extends ConsumerWidget {
                   ),
                 ),
               ),
-              if (onSocialTap != null) ...[
-                GestureDetector(
-                  onTap: onSocialTap,
-                  child: const Padding(
-                    padding: EdgeInsets.all(6),
-                    child: Icon(
-                      Icons.people_outline,
-                      color: AppColors.textV2Secondary,
-                      size: 24,
-                    ),
+              if (onSocialTap != null)
+                IconButton(
+                  tooltip: 'Social',
+                  onPressed: onSocialTap,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 48,
+                    height: 48,
+                  ),
+                  padding: EdgeInsets.zero,
+                  icon: const Icon(
+                    Icons.people_outline,
+                    color: AppColors.textV2Secondary,
+                    size: 24,
                   ),
                 ),
-                const SizedBox(width: 4),
-              ],
             ],
           ),
           const SizedBox(height: 12),
@@ -474,7 +480,7 @@ class _FeedTabState extends ConsumerState<_FeedTab>
               icon: const Icon(Icons.refresh),
               label: const Text('Try Again'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.userAccent,
+                backgroundColor: AppColors.signal,
                 foregroundColor: Colors.white,
               ),
             ),
@@ -527,8 +533,8 @@ class _FeedTabState extends ConsumerState<_FeedTab>
                 _refresh();
               },
               style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.userAccent,
-                side: BorderSide(color: AppColors.userAccent),
+                foregroundColor: AppColors.signal,
+                side: BorderSide(color: AppColors.signal),
               ),
               child: const Text('Refresh'),
             ),
@@ -544,7 +550,7 @@ class _FeedTabState extends ConsumerState<_FeedTab>
             HapticManager.medium();
             await _refresh();
           },
-          color: AppColors.userAccent,
+          color: AppColors.signal,
           child: ListView.builder(
             scrollCacheExtent: const ScrollCacheExtent.pixels(500),
             controller: _scrollController,
@@ -565,41 +571,46 @@ class _FeedTabState extends ConsumerState<_FeedTab>
                     if (isStale)
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                        child: GestureDetector(
-                          onTap: () {
-                            HapticManager.light();
-                            _refresh();
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.amber.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: Colors.amber.withValues(alpha: 0.5),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () {
+                              HapticManager.light();
+                              _refresh();
+                            },
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              constraints: const BoxConstraints(minHeight: 44),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
                               ),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.history,
-                                  size: 16,
-                                  color: Colors.amber,
+                              decoration: BoxDecoration(
+                                color: Colors.amber.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: Colors.amber.withValues(alpha: 0.5),
                                 ),
-                                const SizedBox(width: 8),
-                                const Expanded(
-                                  child: Text(
-                                    'Showing cached feed — tap to refresh',
-                                    style: TextStyle(
-                                      color: Colors.amber,
-                                      fontSize: 13,
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.history,
+                                    size: 16,
+                                    color: Colors.amber,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Expanded(
+                                    child: Text(
+                                      'Showing cached feed — tap to refresh',
+                                      style: TextStyle(
+                                        color: Colors.amber,
+                                        fontSize: 13,
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -621,7 +632,7 @@ class _FeedTabState extends ConsumerState<_FeedTab>
                         height: 24,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: AppColors.userAccent,
+                          color: AppColors.signal,
                         ),
                       ),
                       const SizedBox(width: AppSpacing.md),
@@ -665,7 +676,7 @@ class _FeedTabState extends ConsumerState<_FeedTab>
             bottom: AppSpacing.lg,
             child: FloatingActionButton.small(
               onPressed: _scrollToTop,
-              backgroundColor: AppColors.userAccent,
+              backgroundColor: AppColors.signal,
               child: const Icon(Icons.arrow_upward, color: Colors.white),
             ),
           ),

@@ -298,7 +298,7 @@ class _EmailVerificationBannerState
                   fontSize: AppFontSize.sm,
                   color: _cooldownSeconds > 0
                       ? AppColors.textTertiaryLight
-                      : AppColors.userAccent,
+                      : AppColors.signal,
                 ),
               ),
             ),

@@ -21,6 +21,8 @@ abstract class AuthRepository {
 
   Future<AuthUserEntity?> signInWithFacebook();
 
+  Future<AuthUserEntity?> signInWithApple();
+
   Future<void> signOut();
 
   Future<void> sendEmailVerification();

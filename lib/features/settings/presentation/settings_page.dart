@@ -11,14 +11,16 @@ import '../../../services/exercise_catalog_seed.dart';
 import '../../../services/facebook_link_service.dart';
 import '../../../widgets/circuit_breaker_status_widget.dart';
 import '../../../widgets/fluttermoji_avatar.dart';
+import '../../../widgets/zyntro_back_button.dart';
 import '../../auth/presentation/providers/auth_controller.dart';
 import '../../auth/auth_providers.dart';
 import '../../social/presentation/providers/facebook_friends_provider.dart';
 import '../../../services/feed_cache_service.dart';
 import '../../../services/leaderboard_service.dart';
 import '../../../services/profile_cache_service.dart';
+import '../../../utils/offline_manager.dart';
 
-/// Settings page — v2 design (true-black + acid-lime palette).
+/// Settings page — concrete charcoal + signal orange.
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
 
@@ -62,9 +64,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final profileAsync = ref.watch(authUserProfileProvider);
     final displayName = authState.value?.displayName ?? 'Zyntro User';
     final photoUrl = profileAsync.value?.photoUrl ?? authState.value?.photoUrl;
-    final username = profileAsync.value?.username ?? displayName.toLowerCase().replaceAll(' ', '_');
+    final username =
+        profileAsync.value?.username ??
+        displayName.toLowerCase().replaceAll(' ', '_');
     final userId = authState.value?.id;
-    final rankAsync = userId != null ? ref.watch(currentUserRankProvider(userId)) : null;
+    final rankAsync = userId != null
+        ? ref.watch(currentUserRankProvider(userId))
+        : null;
     final rankLabel = rankAsync?.whenOrNull(
       data: (r) => r.rank != null
           ? (r.isGlobal ? 'Global Rank #${r.rank}' : '#${r.rank} among friends')
@@ -264,34 +270,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   Widget _buildHeader(BuildContext context) {
     return Container(
-      padding: EdgeInsets.only(
-        top: MediaQuery.paddingOf(context).top + 12,
-        bottom: 14,
-        left: 16,
-        right: 16,
-      ),
+      padding: AppSpacing.headerPadding(context, extraTop: 12, bottom: 14),
       color: AppColors.surfaceV2,
       child: Row(
         children: [
-          GestureDetector(
-            onTap: () {
-              HapticFeedback.lightImpact();
-              Navigator.pop(context);
-            },
-            child: Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: AppColors.surfaceV2Active,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(
-                Icons.arrow_back,
-                color: AppColors.textV2Primary,
-                size: 18,
-              ),
-            ),
-          ),
+          const ZyntroBackButton(),
           const SizedBox(width: 14),
           Text(
             'Settings',
@@ -330,7 +313,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             displayName: displayName,
             size: 44,
             showGradientBorder: true,
-            ringColor: AppColors.userAccent.withValues(alpha: 0.5),
+            ringColor: AppColors.signal.withValues(alpha: 0.5),
           ),
           const SizedBox(width: 14),
           // Name + username
@@ -357,27 +340,29 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
           const SizedBox(width: 10),
           // Ghost Edit button
-          GestureDetector(
-            onTap: () async {
+          TextButton(
+            onPressed: () async {
               HapticFeedback.lightImpact();
               await context.push(AppRoutes.editProfile);
               if (!mounted) return;
               ref.invalidate(authUserProfileProvider);
             },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceV2Active,
+            style: TextButton.styleFrom(
+              backgroundColor: AppColors.surfaceV2Active,
+              foregroundColor: AppColors.textV2Secondary,
+              minimumSize: const Size(64, 44),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.surfaceV2Active),
+                side: const BorderSide(color: AppColors.surfaceV2Active),
               ),
-              child: Text(
-                'Edit',
-                style: AppTextStyles.body.copyWith(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textV2Secondary,
-                ),
+            ),
+            child: Text(
+              'Edit',
+              style: AppTextStyles.body.copyWith(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textV2Secondary,
               ),
             ),
           ),
@@ -390,8 +375,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   Widget _buildConnectedAccountsCard(BuildContext context) {
     final profileAsync = ref.watch(authUserProfileProvider);
-    final isFbConnected =
-        profileAsync.value?.isFacebookConnected ?? false;
+    final isFbConnected = profileAsync.value?.isFacebookConnected ?? false;
 
     return _buildSectionCard([
       InkWell(
@@ -439,7 +423,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: AppColors.userAccent.withValues(alpha: 0.15),
+                    color: AppColors.signal.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -447,7 +431,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     style: AppTextStyles.caption.copyWith(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
-                      color: AppColors.userAccent,
+                      color: AppColors.signal,
                     ),
                   ),
                 )
@@ -804,6 +788,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         await ref.read(feedCacheServiceProvider).clearCache();
         await ref.read(profileCacheServiceProvider).clearCache(userId);
       }
+      try {
+        await ref.read(offlineManagerProvider).clearQueue();
+      } catch (_) {}
       await ref.read(authControllerProvider).signOut();
       if (mounted) {
         router.go(AppRoutes.login);
@@ -884,7 +871,7 @@ class _LimeToggle extends StatelessWidget {
         height: 26,
         padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
-          color: value ? AppColors.userAccent : AppColors.surfaceV2Active,
+          color: value ? AppColors.signal : AppColors.surfaceV2Active,
           borderRadius: BorderRadius.circular(13),
         ),
         child: AnimatedAlign(
@@ -934,7 +921,7 @@ class _SegmentedSelector extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
               color: isSelected
-                  ? AppColors.userAccent
+                  ? AppColors.signal
                   : AppColors.surfaceV2Elevated,
               borderRadius: BorderRadius.circular(8),
             ),

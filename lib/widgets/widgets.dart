@@ -5,6 +5,7 @@ library;
 export 'app_empty_state.dart';
 export 'zyntro_card.dart';
 export 'zyntro_button.dart';
+export 'zyntro_back_button.dart';
 export 'streak_card.dart';
 export 'daily_quote.dart';
 export 'buddies_carousel.dart';

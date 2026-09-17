@@ -77,6 +77,15 @@ class AuthenticationUseCase {
     }
   }
 
+  Future<Result<AuthUserEntity?, AuthFailure>> signInWithApple() async {
+    try {
+      final user = await _repository.signInWithApple();
+      return Result.success(user);
+    } catch (e) {
+      return Result.failure(_mapFailure(e));
+    }
+  }
+
   Future<Result<void, AuthFailure>> signOut() async {
     try {
       await _repository.signOut();
@@ -191,15 +200,6 @@ class AuthenticationUseCase {
   }
 
   Future<Result<void, AuthFailure>> reauthenticate(String password) async {
-    if (password.isEmpty) {
-      return Result.failure(
-        AuthFailure.validation(
-          'Please enter your password.',
-          code: 'invalid-password',
-        ),
-      );
-    }
-
     try {
       await _repository.reauthenticate(password);
       return Result.success<void, AuthFailure>(null);
@@ -257,15 +257,6 @@ class AuthenticationUseCase {
   }
 
   Future<Result<void, AuthFailure>> deleteAccount(String password) async {
-    if (password.isEmpty) {
-      return Result.failure(
-        AuthFailure.validation(
-          'Please enter your password.',
-          code: 'invalid-password',
-        ),
-      );
-    }
-
     try {
       await _repository.deleteAccount(password);
       return Result.success<void, AuthFailure>(null);

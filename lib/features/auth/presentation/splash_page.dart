@@ -21,7 +21,9 @@ class SplashPage extends ConsumerWidget {
     if (authState.isLoading || user != null) {
       return const Scaffold(
         backgroundColor: AppColors.backgroundV2,
-        body: Center(child: CircularProgressIndicator(semanticsLabel: 'Starting Zyntro')),
+        body: Center(
+          child: CircularProgressIndicator(semanticsLabel: 'Starting Zyntro'),
+        ),
       );
     }
 
@@ -83,14 +85,14 @@ class SplashPage extends ConsumerWidget {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: AppColors.userAccent.withValues(alpha: 0.27),
+                        color: AppColors.signal.withValues(alpha: 0.27),
                         width: 1.5,
                       ),
                     ),
                     child: Center(
                       child: Icon(
                         Icons.bolt,
-                        color: AppColors.userAccent,
+                        color: AppColors.signal,
                         size: 32,
                       ),
                     ),
@@ -108,17 +110,14 @@ class SplashPage extends ConsumerWidget {
 
                   const SizedBox(height: 16),
 
-                  GestureDetector(
-                    onTap: () => context.go(AppRoutes.login),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Text(
-                        'Already have an account',
-                        style: AppTextStyles.caption.copyWith(
-                          color: AppColors.textV2Tertiary,
-                        ),
-                        textAlign: TextAlign.center,
+                  TextButton(
+                    onPressed: () => context.go(AppRoutes.login),
+                    child: Text(
+                      'Already have an account',
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.textV2Tertiary,
                       ),
+                      textAlign: TextAlign.center,
                     ),
                   ),
 

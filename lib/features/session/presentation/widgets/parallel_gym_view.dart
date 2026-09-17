@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../domain/turn_eligibility.dart';
 import 'participant_avatar.dart';
@@ -259,15 +260,14 @@ class _ParallelGymViewState extends State<ParallelGymView> {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: AppColors.surfaceV2,
-              border: Border.all(color: AppColors.userAccent, width: 3),
+              border: Border.all(color: AppColors.signal, width: 3),
             ),
             alignment: Alignment.center,
             child: Text(
               _formatDuration(_elapsedSeconds),
-              style: TextStyle(
+              style: AppTextStyles.sessionStat.copyWith(
                 color: AppColors.textV2Primary,
                 fontSize: 48,
-                fontWeight: FontWeight.w700,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),

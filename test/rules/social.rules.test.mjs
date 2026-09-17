@@ -23,7 +23,7 @@ import {
   assertSucceeds,
   initializeTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { deleteDoc, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { deleteDoc, doc, getDoc, getDocs, collection, query, where, setDoc, updateDoc } from 'firebase/firestore';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, '..', '..');
@@ -147,6 +147,37 @@ describe('users/{userId}', () => {
     await assertFails(getDoc(doc(anon(), 'users', ALICE)));
   });
 
+  it('lets a stranger read a public profile', async () => {
+    await assertSucceeds(getDoc(doc(as(MALLORY), 'users', ALICE)));
+  });
+
+  it('stops a stranger reading a private profile', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users', ALICE), { isPrivate: true }, { merge: true });
+    });
+    await assertFails(getDoc(doc(as(MALLORY), 'users', ALICE)));
+  });
+
+  it('lets an approved follower read a private profile', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'users', ALICE), { isPrivate: true }, { merge: true });
+      await setDoc(doc(db, 'follows', `${MALLORY}_${ALICE}`), {
+        followerId: MALLORY,
+        followeeId: ALICE,
+        status: 'approved',
+      });
+    });
+    await assertSucceeds(getDoc(doc(as(MALLORY), 'users', ALICE)));
+  });
+
+  it('lets the owner read their private profile', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users', ALICE), { isPrivate: true }, { merge: true });
+    });
+    await assertSucceeds(getDoc(doc(as(ALICE), 'users', ALICE)));
+  });
+
   it('lets a moderator update another user', async () => {
     await assertSucceeds(
       updateDoc(doc(as(MOD), 'users', ALICE), { isBanned: true }),
@@ -173,6 +204,29 @@ describe('follows/{followId}', () => {
         followerId: ALICE,
         followeeId: BOB,
         status: 'pending',
+      }),
+    );
+  });
+
+  it('lets a follower create an approved edge only when the followee is public', async () => {
+    await assertSucceeds(
+      setDoc(doc(as(ALICE), 'follows', edge(ALICE, BOB)), {
+        followerId: ALICE,
+        followeeId: BOB,
+        status: 'approved',
+      }),
+    );
+  });
+
+  it('stops a follower creating an already-approved edge against a private account', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users', BOB), { isPrivate: true }, { merge: true });
+    });
+    await assertFails(
+      setDoc(doc(as(ALICE), 'follows', edge(ALICE, BOB)), {
+        followerId: ALICE,
+        followeeId: BOB,
+        status: 'approved',
       }),
     );
   });
@@ -233,6 +287,47 @@ describe('follows/{followId}', () => {
     await seedFollow(ALICE, BOB, 'approved');
     await assertFails(
       deleteDoc(doc(as(MALLORY), 'follows', edge(ALICE, BOB))),
+    );
+  });
+
+  it('lets the followee list their own pending requests', async () => {
+    await seedFollow(ALICE, BOB, 'pending');
+    await assertSucceeds(getDoc(doc(as(BOB), 'follows', edge(ALICE, BOB))));
+    await assertSucceeds(
+      getDocs(
+        query(
+          collection(as(BOB), 'follows'),
+          where('followeeId', '==', BOB),
+          where('status', '==', 'pending'),
+        ),
+      ),
+    );
+  });
+
+  it('hides pending follow requests from strangers', async () => {
+    await seedFollow(ALICE, BOB, 'pending');
+    await assertFails(getDoc(doc(as(MALLORY), 'follows', edge(ALICE, BOB))));
+    await assertFails(
+      getDocs(
+        query(
+          collection(as(MALLORY), 'follows'),
+          where('followeeId', '==', BOB),
+          where('status', '==', 'pending'),
+        ),
+      ),
+    );
+  });
+
+  it('lets a stranger list approved follow edges', async () => {
+    await seedFollow(ALICE, BOB, 'approved');
+    await assertSucceeds(getDoc(doc(as(MALLORY), 'follows', edge(ALICE, BOB))));
+    await assertSucceeds(
+      getDocs(
+        query(
+          collection(as(MALLORY), 'follows'),
+          where('status', '==', 'approved'),
+        ),
+      ),
     );
   });
 });
@@ -609,5 +704,146 @@ describe('users/{userId}/stats — personal record visibility', () => {
     await seedStats(ALICE);
 
     await assertFails(getDoc(doc(anon(), 'users', ALICE, 'stats', 'prs')));
+  });
+});
+
+describe('posts/{postId} visibility', () => {
+  async function seedPost(id, overrides = {}) {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'posts', id), {
+        authorId: ALICE,
+        visibility: 'public',
+        coAuthored: false,
+        ...overrides,
+      });
+    });
+  }
+
+  it('lets a stranger read a public post on a public account', async () => {
+    await seedPost('pub-1');
+    await assertSucceeds(getDoc(doc(as(MALLORY), 'posts', 'pub-1')));
+  });
+
+  it('stops a stranger reading a private post', async () => {
+    await seedPost('priv-1', { visibility: 'private' });
+    await assertFails(getDoc(doc(as(MALLORY), 'posts', 'priv-1')));
+  });
+
+  it('lets the author read their private post', async () => {
+    await seedPost('priv-2', { visibility: 'private' });
+    await assertSucceeds(getDoc(doc(as(ALICE), 'posts', 'priv-2')));
+  });
+
+  it('stops a blocked user reading a public post', async () => {
+    await seedPost('pub-block');
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'blocks', `${ALICE}_${MALLORY}`), {
+        blockerId: ALICE,
+        blockedId: MALLORY,
+      });
+    });
+    await assertFails(getDoc(doc(as(MALLORY), 'posts', 'pub-block')));
+  });
+});
+
+describe('matchmaking_queue/{entryId}', () => {
+  it('lets a user create their own waiting entry', async () => {
+    await assertSucceeds(
+      setDoc(doc(as(ALICE), 'matchmaking_queue', 'q1'), {
+        userId: ALICE,
+        workoutType: 'gym',
+        status: 'waiting',
+      }),
+    );
+  });
+
+  it('stops a user creating a queue entry for someone else', async () => {
+    await assertFails(
+      setDoc(doc(as(MALLORY), 'matchmaking_queue', 'q2'), {
+        userId: ALICE,
+        workoutType: 'gym',
+        status: 'waiting',
+      }),
+    );
+  });
+});
+
+describe('workouts/{workoutId}', () => {
+  async function seedWorkout(id, data) {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'workouts', id), data);
+    });
+  }
+
+  it('lets a user list their own workouts', async () => {
+    await seedWorkout('w-own', { userId: ALICE, participants: [ALICE] });
+    await assertSucceeds(
+      getDocs(
+        query(collection(as(ALICE), 'workouts'), where('userId', '==', ALICE)),
+      ),
+    );
+  });
+
+  it('lets a stranger list a public account\'s workouts', async () => {
+    await seedWorkout('w-pub', { userId: BOB, participants: [BOB] });
+    await assertSucceeds(getDoc(doc(as(MALLORY), 'workouts', 'w-pub')));
+    await assertSucceeds(
+      getDocs(
+        query(collection(as(MALLORY), 'workouts'), where('userId', '==', BOB)),
+      ),
+    );
+  });
+
+  it('hides a private account\'s workouts from a stranger', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users', ALICE), { isPrivate: true }, { merge: true });
+      await setDoc(doc(ctx.firestore(), 'workouts', 'w-priv'), {
+        userId: ALICE,
+        participants: [ALICE],
+      });
+    });
+    await assertFails(getDoc(doc(as(MALLORY), 'workouts', 'w-priv')));
+    await assertFails(
+      getDocs(
+        query(collection(as(MALLORY), 'workouts'), where('userId', '==', ALICE)),
+      ),
+    );
+  });
+
+  it('lets an approved follower read a private account\'s workouts', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users', ALICE), { isPrivate: true }, { merge: true });
+      await setDoc(doc(ctx.firestore(), 'follows', `${BOB}_${ALICE}`), {
+        followerId: BOB,
+        followeeId: ALICE,
+        status: 'approved',
+      });
+      await setDoc(doc(ctx.firestore(), 'workouts', 'w-follow'), {
+        userId: ALICE,
+        participants: [ALICE],
+      });
+    });
+    await assertSucceeds(getDoc(doc(as(BOB), 'workouts', 'w-follow')));
+    await assertSucceeds(
+      getDocs(
+        query(collection(as(BOB), 'workouts'), where('userId', '==', ALICE)),
+      ),
+    );
+  });
+});
+
+describe('usernames/{username}', () => {
+  it('lets a signed-in user look up a handle by id', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'usernames', 'alice'), {
+        uid: ALICE,
+        createdAt: new Date(),
+      });
+    });
+    await assertSucceeds(getDoc(doc(as(ALICE), 'usernames', 'alice')));
+  });
+
+  it('stops listing the username registry', async () => {
+    await assertFails(getDocs(collection(as(MALLORY), 'usernames')));
   });
 });

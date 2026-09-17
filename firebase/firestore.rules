@@ -5,6 +5,14 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Banned accounts keep a Firebase Auth session until the client signs
+    // them out, so writes must fail closed here. A missing user doc is treated
+    // as not banned so profile-setup can create the first write.
+    function isNotBanned() {
+      let path = /databases/$(database)/documents/users/$(request.auth.uid);
+      return !exists(path) || get(path).data.get('isBanned', false) != true;
+    }
+
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
@@ -60,21 +68,45 @@ service cloud.firestore {
       return ['lastActivityAt', 'lastOccupiedAt', 'expiresAt'];
     }
 
-    // An existing participant updating live session state (turn, phase, status,
-    // clock, roster for matchmaking, etc.). The immutable identity fields are
-    // frozen so a participant cannot hijack the host, tamper with the invite
-    // list, or forge the invite status. (participants stays mutable because the
-    // matchmaking host legitimately adds the matched partner to the roster.)
-    // `endedParticipants` is frozen here on purpose. This predicate uses a
-    // blocklist, so anything not named is writable — which would let one
-    // participant write their PARTNER's uid into the termination list and end a
-    // workout that is not theirs. Terminating has exactly one legitimate shape,
-    // and isOwnTerminationUpdate() below is it.
+    // Live fields a participant may touch. Anything else — hostId, invite
+    // roster, invitationStatus, endedParticipants, type, title, scores — stays
+    // frozen. Completing the session is last-live-member only so one client
+    // cannot end a partner's workout by writing status: completed.
+    function participantLiveKeys() {
+      return [
+        'status',
+        'phase',
+        'mode',
+        'activeUserId',
+        'sharedClockStartedAt',
+        'activeSetStartedAt',
+        'participants',
+        'cancelledBy',
+        'cancelReason',
+        'endedAt',
+        'summary',
+        'participantTypes'
+      ].concat(activityStampKeys());
+    }
+
+    function isLastLiveMemberCompleting() {
+      return request.resource.data.status == 'completed' &&
+        resource.data.participants.hasOnly(
+          resource.data.get('endedParticipants', []).concat([request.auth.uid])
+        );
+    }
+
     function isParticipantSessionUpdate() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
       return hasParticipant(resource.data.participants, request.auth.uid) &&
-        !request.resource.data.diff(resource.data).affectedKeys()
-          .hasAny(['hostId', 'invitedUserIds', 'invitationStatus', 'endedParticipants']) &&
-        request.resource.data.participantTypes.diff(resource.data.participantTypes).affectedKeys().hasOnly([request.auth.uid]);
+        changed.hasOnly(participantLiveKeys()) &&
+        request.resource.data.participantTypes.diff(resource.data.participantTypes)
+          .affectedKeys().hasOnly([request.auth.uid]) &&
+        request.resource.data.participants.hasAll(resource.data.participants) &&
+        (
+          request.resource.data.status != 'completed' ||
+          isLastLiveMemberCompleting()
+        );
     }
 
     // A user joining an open (non-paired) session — random matchmaking or a gym
@@ -98,14 +130,25 @@ service cloud.firestore {
     // remove anyone already there, and may touch nothing but the termination
     // list and the activity stamps.
     function isOwnTerminationUpdate() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      let stampsAndEnded = ['endedParticipants'].concat(activityStampKeys());
+      let withTurn = stampsAndEnded.concat(['activeUserId']);
       return hasParticipant(resource.data.participants, request.auth.uid) &&
         request.resource.data.endedParticipants.hasAll(
           resource.data.get('endedParticipants', [])) &&
         request.resource.data.endedParticipants.hasOnly(
           resource.data.get('endedParticipants', []).concat([request.auth.uid])) &&
         hasParticipant(request.resource.data.endedParticipants, request.auth.uid) &&
-        request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['endedParticipants'].concat(activityStampKeys()));
+        (
+          changed.hasOnly(stampsAndEnded) ||
+          (
+            changed.hasOnly(withTurn) &&
+            resource.data.activeUserId == request.auth.uid &&
+            request.resource.data.activeUserId is string &&
+            request.resource.data.activeUserId != request.auth.uid &&
+            hasParticipant(resource.data.participants, request.resource.data.activeUserId)
+          )
+        );
     }
 
     function isInviteDeclineUpdate() {
@@ -187,8 +230,17 @@ service cloud.firestore {
     }
 
     function isModerator() {
-      return isAuthenticated() &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isModerator == true;
+      return isAuthenticated() && (
+        request.auth.token.get('moderator', false) == true ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isModerator', false) == true
+      );
+    }
+
+    function canReadUserProfile(userId) {
+      return isOwner(userId) ||
+        isModerator() ||
+        isPublicProfile(userId) ||
+        isApprovedFollowerOf(userId);
     }
 
     function privilegedUserFields() {
@@ -263,7 +315,8 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if isAuthenticated();
+      allow get: if isAuthenticated() && canReadUserProfile(userId);
+      allow list: if isAuthenticated();
       allow create: if isOwner(userId) && !isPrivilegedUserCreate();
       allow update: if (isOwner(userId) && !isPrivilegedUserFieldChange()) || isModerator();
       allow delete: if false;
@@ -306,7 +359,8 @@ service cloud.firestore {
     // Username registry — enforces unique handles. Doc id is the lowercase
     // username. A handle is claimed once and never reassigned.
     match /usernames/{username} {
-      allow read: if isAuthenticated();
+      allow get: if isAuthenticated();
+      allow list: if false;
       allow create: if isAuthenticated() &&
         request.resource.data.uid == request.auth.uid &&
         request.resource.data.keys().hasOnly(['uid', 'createdAt']);
@@ -327,10 +381,12 @@ service cloud.firestore {
         (hasParticipant(resource.data.participants, request.auth.uid) ||
         isPendingSessionInvitee(resource.data, request.auth.uid));
       allow create: if isAuthenticated() &&
+        isNotBanned() &&
         request.resource.data.hostId == request.auth.uid &&
         hasParticipant(request.resource.data.participants, request.auth.uid) &&
         hasValidPairedInviteEligibility();
-      allow update: if isAuthenticated() && (
+      allow update: if isAuthenticated() &&
+        isNotBanned() && (
         isParticipantSessionUpdate() ||
         isOwnTerminationUpdate() ||
         isInviteAcceptUpdate() ||
@@ -386,7 +442,34 @@ service cloud.firestore {
     }
 
     match /posts/{postId} {
-      allow read: if isAuthenticated();
+      function isPostAuthorData(data) {
+        return data.authorId == request.auth.uid ||
+          (data.keys().hasAny(['authorIds']) &&
+            data.authorIds.hasAny([request.auth.uid]));
+      }
+
+      // Private and friends posts are not world-readable. Public posts on a
+      // private account still require an approved follow.
+      function canReadPostData(data) {
+        return isAuthenticated() && (
+          isPostAuthorData(data) ||
+          (
+            isNotBlockedPair(request.auth.uid, data.authorId) &&
+            (
+              (
+                data.get('visibility', 'public') == 'public' &&
+                isPublicProfile(data.authorId)
+              ) ||
+              (
+                data.get('visibility', 'public') != 'private' &&
+                isApprovedFollowerOf(data.authorId)
+              )
+            )
+          )
+        );
+      }
+
+      allow read: if canReadPostData(resource.data);
 
       function isSoloCreate() {
         return request.resource.data.authorId == request.auth.uid &&
@@ -418,7 +501,9 @@ service cloud.firestore {
             request.resource.data.authorIds
           );
       }
-      allow create: if isAuthenticated() && (isSoloCreate() || isJointDraftCreate());
+      allow create: if isAuthenticated() &&
+        isNotBanned() &&
+        (isSoloCreate() || isJointDraftCreate());
 
       // The ONLY top-level field a client may change on a co-authored post is
       // the `authors` map, and inside it only their own slot.
@@ -464,9 +549,16 @@ service cloud.firestore {
         && resource.data.coAuthored != true;
 
       match /comments/{commentId} {
-        allow read: if isAuthenticated();
+        allow read: if canReadPostData(
+          get(/databases/$(database)/documents/posts/$(postId)).data
+        );
         allow create: if isAuthenticated() &&
+          isNotBanned() &&
           request.resource.data.authorId == request.auth.uid &&
+          isNotBlockedPair(
+            request.auth.uid,
+            get(/databases/$(database)/documents/posts/$(postId)).data.authorId
+          ) &&
           request.resource.data.keys()
             .hasOnly(['authorId', 'authorName', 'authorPhotoURL', 'text', 'type', 'createdAt', 'audioUrl']);
         allow update: if isAuthenticated() && resource.data.authorId == request.auth.uid;
@@ -474,9 +566,16 @@ service cloud.firestore {
       }
 
       match /reactions/{reactionId} {
-        allow read: if isAuthenticated();
+        allow read: if canReadPostData(
+          get(/databases/$(database)/documents/posts/$(postId)).data
+        );
         allow create: if isAuthenticated() &&
+          isNotBanned() &&
           reactionId == request.auth.uid &&
+          isNotBlockedPair(
+            request.auth.uid,
+            get(/databases/$(database)/documents/posts/$(postId)).data.authorId
+          ) &&
           request.resource.data.keys().hasOnly(['type', 'createdAt']);
         allow update: if isAuthenticated() && reactionId == request.auth.uid;
         allow delete: if isAuthenticated() && reactionId == request.auth.uid;
@@ -484,8 +583,22 @@ service cloud.firestore {
     }
 
     match /follows/{followId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && request.resource.data.followerId == request.auth.uid;
+      allow get, list: if isAuthenticated() && (
+        resource.data.followerId == request.auth.uid ||
+        resource.data.followeeId == request.auth.uid ||
+        resource.data.status == 'approved'
+      );
+      allow create: if isAuthenticated() &&
+        isNotBanned() &&
+        request.resource.data.followerId == request.auth.uid &&
+        request.resource.data.keys().hasAll(['followerId', 'followeeId', 'status']) &&
+        (
+          request.resource.data.status == 'pending' ||
+          (
+            request.resource.data.status == 'approved' &&
+            isPublicProfile(request.resource.data.followeeId)
+          )
+        );
       allow update: if isAuthenticated() && (
         (resource.data.followerId == request.auth.uid && !isFollowStatusChange()) ||
         resource.data.followeeId == request.auth.uid
@@ -547,7 +660,15 @@ service cloud.firestore {
     }
 
     match /workouts/{workoutId} {
-      allow read: if isAuthenticated();
+      allow get, list: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        (
+          resource.data.keys().hasAny(['participants']) &&
+          resource.data.participants.hasAny([request.auth.uid])
+        ) ||
+        isPublicProfile(resource.data.userId) ||
+        isApprovedFollowerOf(resource.data.userId)
+      );
       // Verify membership via the workout's own participants field.
       // Using isSessionMember (which calls getAfter) is unreliable when the
       // session document is also updated in the same batched write.
@@ -571,6 +692,28 @@ service cloud.firestore {
 
     match /pushTokens/{tokenId} {
       allow read, create, update, delete: if false;
+    }
+
+    match /matchmaking_queue/{entryId} {
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.status == 'waiting'
+      );
+      allow create: if isAuthenticated() &&
+        isNotBanned() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.status == 'waiting';
+      allow update: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        (
+          resource.data.status in ['waiting', 'claiming'] &&
+          request.resource.data.status in ['claiming', 'matched', 'waiting']
+        )
+      );
+      allow delete: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.claimedBy == request.auth.uid
+      );
     }
 
     // Exercise catalog — shared read, moderator-only write (T013)

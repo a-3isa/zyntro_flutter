@@ -132,22 +132,7 @@ class _ConnectionsListPageState extends ConsumerState<ConnectionsListPage> {
             ),
             child: Row(
               children: [
-                GestureDetector(
-                  onTap: () => context.pop(),
-                  child: Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceV2Elevated,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.arrow_back,
-                      color: AppColors.textV2Primary,
-                      size: 20,
-                    ),
-                  ),
-                ),
+                ZyntroBackButton(onPressed: () => context.pop()),
                 const SizedBox(width: 16),
                 Text(
                   kind.title,
@@ -169,7 +154,7 @@ class _ConnectionsListPageState extends ConsumerState<ConnectionsListPage> {
     if (!_loadedFirstPage) {
       return Center(
         child: CircularProgressIndicator(
-          color: AppColors.userAccent,
+          color: AppColors.signal,
           semanticsLabel: 'Loading ${kind.title.toLowerCase()}',
         ),
       );

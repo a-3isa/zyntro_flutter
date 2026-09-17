@@ -30,7 +30,7 @@ void main() {
     expect(find.byType(ReactionButtons), findsOneWidget);
   });
 
-  test('reaction burst palette stays on the navy and neon system', () {
+  test('reaction burst palette stays on navy and signal', () {
     final source = File('lib/widgets/reaction_buttons.dart').readAsStringSync();
 
     expect(source.contains('Colors.orange'), isFalse);
@@ -38,6 +38,7 @@ void main() {
     expect(source.contains('Colors.amber'), isFalse);
     expect(source.contains('AppColors.navy700'), isTrue);
     expect(source.contains('AppColors.navy800'), isTrue);
-    expect(source.contains('AppColors.neonGreen'), isTrue);
+    expect(source.contains('AppColors.signal'), isTrue);
+    expect(source.contains('AppColors.neonGreen'), isFalse);
   });
 }

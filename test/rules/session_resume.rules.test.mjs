@@ -141,6 +141,15 @@ describe('sessions/{id} — per-member termination', () => {
     );
   });
 
+  it('allows handing the turn to the remaining member in the same termination write', async () => {
+    await assertSucceeds(
+      updateDoc(doc(as(ALICE), 'sessions', SESSION), {
+        endedParticipants: [ALICE],
+        activeUserId: BOB,
+      }),
+    );
+  });
+
   it('refuses a termination write that smuggles in another field', async () => {
     await assertFails(
       updateDoc(doc(as(ALICE), 'sessions', SESSION), {
@@ -194,6 +203,37 @@ describe('sessions/{id} — activity stamps on ordinary writes', () => {
       updateDoc(doc(as(BOB), 'sessions', SESSION), {
         hostId: BOB,
         lastActivityAt: new Date(),
+      }),
+    );
+  });
+
+  it('refuses completing a shared session while the partner is still live', async () => {
+    await assertFails(
+      updateDoc(doc(as(ALICE), 'sessions', SESSION), {
+        status: 'completed',
+        endedAt: new Date(),
+      }),
+    );
+  });
+
+  it('lets the last live member complete the session', async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), 'sessions', SESSION), {
+        endedParticipants: [BOB],
+      });
+    });
+    await assertSucceeds(
+      updateDoc(doc(as(ALICE), 'sessions', SESSION), {
+        status: 'completed',
+        endedAt: new Date(),
+      }),
+    );
+  });
+
+  it('refuses shrinking the participant roster', async () => {
+    await assertFails(
+      updateDoc(doc(as(ALICE), 'sessions', SESSION), {
+        participants: [ALICE],
       }),
     );
   });

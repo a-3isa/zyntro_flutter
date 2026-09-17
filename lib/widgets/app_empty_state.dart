@@ -124,7 +124,7 @@ class _AppEmptyStateState extends State<AppEmptyState>
   @override
   Widget build(BuildContext context) {
     final hasAction = widget.actionLabel != null && widget.onAction != null;
-    final accentColor = widget.accentColor ?? AppColors.userAccent;
+    final accentColor = widget.accentColor ?? AppColors.signal;
 
     final content = Column(
       mainAxisSize: MainAxisSize.min,

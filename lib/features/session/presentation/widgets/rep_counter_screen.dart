@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -50,7 +50,7 @@ class _RepCounterScreenState extends State<RepCounterScreen>
     );
     _repColorAnim = ColorTween(
       begin: AppColors.textV2Primary,
-      end: AppColors.userAccent,
+      end: AppColors.signal,
     ).animate(CurvedAnimation(parent: _bounceController, curve: Curves.easeOut));
   }
 
@@ -105,11 +105,9 @@ class _RepCounterScreenState extends State<RepCounterScreen>
                                 )
                               : Text(
                                   '$_repCount',
-                                  style: AppTextStyles.display.copyWith(
-                                    fontSize: 80,
-                                    color: _repColorAnim.value ?? AppColors.textV2Primary,
-                                    letterSpacing: -3,
-                                    height: 1,
+                                  style: AppTextStyles.sessionStat.copyWith(
+                                    color: _repColorAnim.value ??
+                                        AppColors.textV2Primary,
                                   ),
                                 ),
                         );
@@ -140,7 +138,7 @@ class _RepCounterScreenState extends State<RepCounterScreen>
                       Text(
                         'Bot completed ${bot.gymReps} reps @ ${_formatWeight(bot.gymWeightKg)} kg',
                         style: AppTextStyles.body.copyWith(
-                          color: AppColors.userAccent,
+                          color: AppColors.signal,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -232,7 +230,7 @@ class _RepCounterScreenState extends State<RepCounterScreen>
                       child: FilledButton(
                         onPressed: canFinish ? () => widget.onDone(_repCount) : null,
                         style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.userAccent,
+                          backgroundColor: AppColors.signal,
                           disabledBackgroundColor: AppColors.surfaceV2Elevated,
                           foregroundColor: AppColors.backgroundV2,
                           disabledForegroundColor: AppColors.textV2Tertiary,

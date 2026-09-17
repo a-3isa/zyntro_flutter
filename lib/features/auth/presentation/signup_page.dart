@@ -27,7 +27,7 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
   final _emailFocusNode = FocusNode();
   final _passwordFocusNode = FocusNode();
   final _confirmPasswordFocusNode = FocusNode();
-  String? _socialLoading; // 'google' | 'facebook' | null
+  String? _socialLoading; // 'google' | 'facebook' | 'apple' | null
   String? _errorMessage;
   String? _errorSuggestion;
   bool _showPasswordRequirements = false;
@@ -174,6 +174,38 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
     }
   }
 
+  Future<void> _handleAppleSignUp() async {
+    if (_isLoading) return;
+    HapticFeedback.lightImpact();
+    setState(() {
+      _socialLoading = 'apple';
+      _errorMessage = null;
+    });
+
+    try {
+      final user = await ref.read(authControllerProvider).signInWithApple();
+
+      if (user != null && mounted) {
+        HapticFeedback.mediumImpact();
+        context.go(AppRoutes.main);
+      }
+    } catch (e) {
+      if (mounted) {
+        HapticFeedback.heavyImpact();
+        setState(() {
+          _errorSuggestion = null;
+          if (e.toString().contains('canceled')) {
+            _errorMessage = null;
+          } else {
+            _errorMessage = 'Apple Sign-Up failed. Please try again.';
+          }
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _socialLoading = null);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -194,23 +226,23 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
                   // Back button
                   Align(
                     alignment: Alignment.centerLeft,
-                    child: GestureDetector(
-                      onTap: () {
+                    child: IconButton(
+                      tooltip: 'Back',
+                      style: IconButton.styleFrom(
+                        backgroundColor: AppColors.surfaceV2Elevated,
+                        minimumSize: const Size(48, 48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: () {
                         HapticFeedback.lightImpact();
                         context.go(AppRoutes.splash);
                       },
-                      child: Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceV2Elevated,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(
-                          Icons.arrow_back_ios_new,
-                          size: 18,
-                          color: AppColors.textV2Primary,
-                        ),
+                      icon: const Icon(
+                        Icons.arrow_back_ios_new,
+                        size: 18,
+                        color: AppColors.textV2Primary,
                       ),
                     ),
                   ),
@@ -350,6 +382,7 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
                   SocialAuthRow(
                     onGoogle: _handleGoogleSignIn,
                     onFacebook: _handleFacebookSignUp,
+                    onApple: _handleAppleSignUp,
                     loadingProvider: _socialLoading,
                     enabled: !_isLoading,
                   ),
@@ -368,8 +401,8 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
                             color: AppColors.textV2Secondary,
                           ),
                         ),
-                        GestureDetector(
-                          onTap: () {
+                        TextButton(
+                          onPressed: () {
                             HapticFeedback.lightImpact();
                             context.go(AppRoutes.login);
                           },
@@ -377,7 +410,7 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
                             'Sign In',
                             style: AppTextStyles.bodyLarge.copyWith(
                               fontWeight: FontWeight.w600,
-                              color: AppColors.userAccent,
+                              color: AppColors.signal,
                             ),
                           ),
                         ),

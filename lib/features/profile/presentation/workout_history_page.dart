@@ -10,6 +10,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../auth/auth_providers.dart';
 import '../../../utils/haptic_manager.dart';
 import '../../../services/profile_cache_service.dart';
+import '../../../widgets/zyntro_back_button.dart';
 
 class Workout {
   final String id;
@@ -198,25 +199,7 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
             ),
             child: Row(
               children: [
-                GestureDetector(
-                  onTap: () {
-                    HapticManager.light();
-                    context.pop();
-                  },
-                  child: Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceV2Elevated,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.arrow_back,
-                      color: AppColors.textV2Primary,
-                      size: 20,
-                    ),
-                  ),
-                ),
+                ZyntroBackButton(onPressed: () => context.pop()),
                 const SizedBox(width: 16),
                 Text(
                   'Workout History',
@@ -234,7 +217,7 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
                 HapticManager.medium();
                 await _refresh();
               },
-              color: AppColors.userAccent,
+              color: AppColors.signal,
               backgroundColor: AppColors.surfaceV2,
               child: _buildContent(),
             ),
@@ -287,7 +270,7 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
                 color: AppColors.surfaceV2Elevated,
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.fitness_center, size: 48, color: AppColors.userAccent),
+              child: Icon(Icons.fitness_center, size: 48, color: AppColors.signal),
             ),
             const SizedBox(height: AppSpacing.lg),
             Text(
@@ -341,7 +324,7 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
                     return Center(
                       child: Padding(
                         padding: EdgeInsets.all(AppSpacing.lg),
-                        child: CircularProgressIndicator(color: AppColors.userAccent),
+                        child: CircularProgressIndicator(color: AppColors.signal),
                       ),
                     );
                   }
@@ -402,13 +385,13 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: AppColors.userAccent.withValues(alpha: 0.12),
+                  color: AppColors.signal.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
                   workout.type.toUpperCase(),
                   style: AppTextStyles.caption.copyWith(
-                    color: AppColors.userAccent,
+                    color: AppColors.signal,
                     fontWeight: FontWeight.w700,
                     fontSize: 10,
                   ),
@@ -438,7 +421,7 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
                 style: TextStyle(color: AppColors.textV2Primary, fontWeight: FontWeight.w500),
               ),
               const Spacer(),
-              Icon(Icons.arrow_forward, color: AppColors.userAccent),
+              Icon(Icons.arrow_forward, color: AppColors.signal),
             ],
           ),
         ],
@@ -457,7 +440,7 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
           width: isActive ? 16 : 6,
           height: 6,
           decoration: BoxDecoration(
-            color: isActive ? AppColors.userAccent : AppColors.textV2Tertiary,
+            color: isActive ? AppColors.signal : AppColors.textV2Tertiary,
             borderRadius: BorderRadius.circular(3),
           ),
         );
@@ -494,14 +477,14 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
                 }
               },
               backgroundColor: AppColors.surfaceV2Elevated,
-              selectedColor: AppColors.userAccent,
+              selectedColor: AppColors.signal,
               labelStyle: TextStyle(
                 color: isSelected ? AppColors.backgroundV2 : AppColors.textV2Secondary,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
               checkmarkColor: AppColors.backgroundV2,
               side: BorderSide(
-                color: isSelected ? AppColors.userAccent : AppColors.surfaceV2Active,
+                color: isSelected ? AppColors.signal : AppColors.surfaceV2Active,
               ),
             ),
           );
@@ -563,10 +546,10 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: AppColors.userAccent.withValues(alpha: 0.12),
+                  color: AppColors.signal.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(AppBorderRadius.sm),
                 ),
-                child: Icon(typeIcon, color: AppColors.userAccent),
+                child: Icon(typeIcon, color: AppColors.signal),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
@@ -624,10 +607,10 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
                 Container(
                   padding: const EdgeInsets.all(AppSpacing.xs),
                   decoration: BoxDecoration(
-                    color: AppColors.userAccent.withValues(alpha: 0.15),
+                    color: AppColors.signal.withValues(alpha: 0.15),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(Icons.people, size: 16, color: AppColors.userAccent),
+                  child: Icon(Icons.people, size: 16, color: AppColors.signal),
                 ),
               ],
             ],

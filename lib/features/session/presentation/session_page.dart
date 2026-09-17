@@ -331,7 +331,7 @@ class _WeeklyRingCard extends ConsumerWidget {
                     done: done,
                     total: goal,
                     trackColor: AppColors.surfaceV2Elevated,
-                    progressColor: AppColors.userAccent,
+                    progressColor: AppColors.signal,
                     strokeWidth: 5,
                   ),
                 ),

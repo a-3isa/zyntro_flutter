@@ -83,7 +83,7 @@ class SessionTimer extends StatelessWidget {
                           ? Icons.pause
                           : Icons.play_arrow,
                       size: 20,
-                      color: AppColors.userAccent,
+                      color: AppColors.signal,
                     ),
                   ),
                 ),
@@ -125,7 +125,7 @@ class ParticipantAvatar extends StatelessWidget {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             border: Border.all(
-              color: isTyping ? AppColors.userAccent : Colors.transparent,
+              color: isTyping ? AppColors.signal : Colors.transparent,
               width: 2,
             ),
           ),
@@ -163,7 +163,7 @@ class ParticipantAvatar extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.all(2),
               decoration: BoxDecoration(
-                color: AppColors.userAccent,
+                color: AppColors.signal,
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.more_horiz, size: 8, color: Colors.white),
@@ -263,7 +263,7 @@ class TimelineItem extends StatelessWidget {
         break;
       case SessionEventType.exercise:
         icon = Icons.fitness_center;
-        color = AppColors.userAccent;
+        color = AppColors.signal;
         break;
       case SessionEventType.voiceNote:
         icon = Icons.mic;
@@ -687,7 +687,7 @@ class MilestoneIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final active = activeColor ?? AppColors.userAccent;
+    final active = activeColor ?? AppColors.signal;
     final inactive = inactiveColor ?? AppColors.surfaceV2Elevated;
 
     return Row(
@@ -870,7 +870,7 @@ class ParticipantComparisonChart extends StatelessWidget {
         : participantValues.values.reduce((a, b) => a > b ? a : b);
 
     final defaultColors = [
-      AppColors.userAccent,
+      AppColors.signal,
       AppColors.secondary,
       AppColors.success,
       AppColors.warning,

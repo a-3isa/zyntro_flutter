@@ -279,6 +279,8 @@ void main() {
     });
 
     test('prevents followers from self-approving follow requests', () {
+      expect(rules, contains('function canReadPostData'));
+      expect(rules, contains('match /matchmaking_queue/{entryId}'));
       expect(rules, contains('isFollowStatusChange()'));
       expect(
         rules,
@@ -300,12 +302,67 @@ void main() {
     // -------------------------------------------------------------------------
     // Session lobby handshake hardening (Task 6)
     // -------------------------------------------------------------------------
+    test('private profiles are not gettable by strangers', () {
+      expect(rules, contains('function canReadUserProfile'));
+      expect(
+        rules,
+        contains('allow get: if isAuthenticated() && canReadUserProfile(userId);'),
+      );
+      expect(rules, contains('allow list: if isAuthenticated();'));
+      expect(rules, contains("request.auth.token.get('moderator', false) == true"));
+    });
+
+    test('username registry is gettable but not listable', () {
+      final idx = rules.indexOf('match /usernames/{username}');
+      expect(idx, isNonNegative);
+      final section = rules.substring(
+        idx,
+        rules.indexOf('match /config/{document}', idx),
+      );
+      expect(section, contains('allow get: if isAuthenticated();'));
+      expect(section, contains('allow list: if false;'));
+    });
+
+    test('pending follow edges are hidden from strangers', () {
+      final idx = rules.indexOf('match /follows/{followId}');
+      expect(idx, isNonNegative);
+      final section = rules.substring(
+        idx,
+        rules.indexOf('match /blocks/{blockId}', idx),
+      );
+      expect(section, contains("resource.data.status == 'approved'"));
+      expect(section, isNot(contains('allow read: if isAuthenticated();')));
+    });
+
+    test('workouts are not world-readable among authenticated users', () {
+      final idx = rules.indexOf('match /workouts/{workoutId}');
+      expect(idx, isNonNegative);
+      final section = rules.substring(
+        idx,
+        rules.indexOf('match /analytics/{eventId}', idx),
+      );
+      expect(section, contains('isPublicProfile(resource.data.userId)'));
+      expect(section, contains('isApprovedFollowerOf(resource.data.userId)'));
+      expect(section, isNot(contains('allow read: if isAuthenticated();')));
+    });
+
+    test('participant session writes use an allowlist, not a field blocklist', () {
+      expect(rules, contains('function participantLiveKeys'));
+      expect(rules, contains('function isLastLiveMemberCompleting'));
+      expect(rules, contains('function isNotBanned'));
+      expect(rules, contains("request.resource.data.status != 'completed'"));
+    });
+
     test('participant updates can only change their own participantTypes', () {
       expect(
         rules,
         contains(
-          "request.resource.data.participantTypes.diff(resource.data.participantTypes).affectedKeys().hasOnly([request.auth.uid])",
+          'request.resource.data.participantTypes.diff(resource.data.participantTypes)',
         ),
+      );
+      expect(
+        rules,
+        contains('.affectedKeys().hasOnly([request.auth.uid])'),
       );
     });
 

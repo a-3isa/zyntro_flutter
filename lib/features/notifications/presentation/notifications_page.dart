@@ -84,32 +84,14 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
               color: AppColors.surfaceV2,
               border: Border(
                 bottom: BorderSide(
-                  color: AppColors.userAccent.withValues(alpha: 0.20),
+                  color: AppColors.signal.withValues(alpha: 0.20),
                   width: 1,
                 ),
               ),
             ),
             child: Row(
               children: [
-                GestureDetector(
-                  onTap: () {
-                    HapticManager.light();
-                    context.pop();
-                  },
-                  child: Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceV2Elevated,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.arrow_back_rounded,
-                      color: AppColors.textV2Primary,
-                      size: 20,
-                    ),
-                  ),
-                ),
+                ZyntroBackButton(onPressed: () => context.pop()),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Text(
@@ -129,7 +111,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.userAccent,
+                      color: AppColors.signal,
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
@@ -153,7 +135,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                   child: Text(
                     'Read All',
                     style: TextStyle(
-                      color: AppColors.userAccent,
+                      color: AppColors.signal,
                       fontWeight: FontWeight.w700,
                       fontSize: 13,
                     ),
@@ -168,7 +150,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                 HapticManager.medium();
                 ref.invalidate(userNotificationsProvider(uid));
               },
-              color: AppColors.userAccent,
+              color: AppColors.signal,
               backgroundColor: AppColors.surfaceV2,
               child: notificationsAsync.when(
                 data: (notifications) {
@@ -217,7 +199,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                         icon: const Icon(Icons.refresh),
                         label: const Text('Retry'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.userAccent,
+                          backgroundColor: AppColors.signal,
                           foregroundColor: Colors.black,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -330,7 +312,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
               backgroundColor: AppColors.surfaceV2,
               action: SnackBarAction(
                 label: 'Undo',
-                textColor: AppColors.userAccent,
+                textColor: AppColors.signal,
                 onPressed: () async {
                   HapticManager.medium();
                   if (!mounted) return;
@@ -367,7 +349,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
               border: Border.all(
                 color: notification.read
                     ? AppColors.surfaceV2Active
-                    : AppColors.userAccent.withValues(alpha: 0.25),
+                    : AppColors.signal.withValues(alpha: 0.25),
                 width: 1,
               ),
             ),
@@ -387,7 +369,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                   border: notification.read
                       ? null
                       : Border.all(
-                          color: AppColors.userAccent.withValues(alpha: 0.18),
+                          color: AppColors.signal.withValues(alpha: 0.18),
                         ),
                 ),
                 child: Icon(icon, color: color, size: 22),
@@ -444,7 +426,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                       width: 7,
                       height: 7,
                       decoration: BoxDecoration(
-                        color: AppColors.userAccent,
+                        color: AppColors.signal,
                         shape: BoxShape.circle,
                       ),
                     )
@@ -569,7 +551,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       return FilledButton(
         onPressed: onPressed,
         style: FilledButton.styleFrom(
-          backgroundColor: AppColors.userAccent,
+          backgroundColor: AppColors.signal,
           foregroundColor: Colors.black,
           minimumSize: minSize,
           padding: hPad,
@@ -754,11 +736,11 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         return AppColors.textV2Secondary;
       case NotificationType.sessionInvite:
       case NotificationType.buddySession:
-        return AppColors.userAccent;
+        return AppColors.signal;
       case NotificationType.voiceNote:
         return AppColors.secondary;
       case NotificationType.newFollower:
-        return AppColors.userAccent;
+        return AppColors.signal;
       case NotificationType.followRequest:
       case NotificationType.buddyInvite:
         return Colors.blue;
@@ -776,12 +758,12 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       case NotificationType.friendStreakBroken:
         return Colors.grey;
       case NotificationType.turnChange:
-        return AppColors.userAccent;
+        return AppColors.signal;
       case NotificationType.partnerLeft:
         // Informational, not an alert — the member's own session is unaffected.
         return AppColors.textV2Secondary;
       case NotificationType.jointPostInvite:
-        return AppColors.userAccent;
+        return AppColors.signal;
       case NotificationType.jointPostExpired:
         return Colors.orange;
     }

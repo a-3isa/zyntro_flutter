@@ -115,9 +115,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
         type: session.type,
         title: session.title,
         authorIds: session.participants,
-        summaries: {
-          for (final uid in session.participants) uid: summary,
-        },
+        summaries: {for (final uid in session.participants) uid: summary},
       );
       _isCreatingJointDraft = false;
       _applyJointState(() {
@@ -243,10 +241,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
               ),
               const SizedBox(height: 16),
               ListTile(
-                leading: Icon(
-                  Icons.camera_alt,
-                  color: AppColors.userAccent,
-                ),
+                leading: Icon(Icons.camera_alt, color: AppColors.signal),
                 title: Text(
                   'Take Photo',
                   style: AppTextStyles.body.copyWith(
@@ -259,10 +254,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
                 },
               ),
               ListTile(
-                leading: Icon(
-                  Icons.photo_library,
-                  color: AppColors.userAccent,
-                ),
+                leading: Icon(Icons.photo_library, color: AppColors.signal),
                 title: Text(
                   'Choose from Gallery',
                   style: AppTextStyles.body.copyWith(
@@ -378,7 +370,6 @@ class _RecapPageState extends ConsumerState<RecapPage> {
       _uploadProgress = _selectedPhotoPath != null ? 0.0 : null;
     });
     try {
-
       final postService = ref.read(postServiceProvider);
       final postId = await postService.createPost(
         CreatePostParams(
@@ -540,9 +531,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
     // Draft creation is in flight.
     return SizedBox(
       height: 120,
-      child: Center(
-        child: CircularProgressIndicator(color: AppColors.userAccent),
-      ),
+      child: Center(child: CircularProgressIndicator(color: AppColors.signal)),
     );
   }
 
@@ -594,9 +583,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
     if (_isLoading) {
       return Scaffold(
         backgroundColor: AppColors.backgroundV2,
-        body: Center(
-          child: CircularProgressIndicator(color: AppColors.userAccent),
-        ),
+        body: Center(child: CircularProgressIndicator(color: AppColors.signal)),
       );
     }
 
@@ -614,10 +601,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
                 ),
               ),
               const SizedBox(height: 24),
-              _GhostButton(
-                label: 'Back to Home',
-                onTap: _goHome,
-              ),
+              _GhostButton(label: 'Back to Home', onTap: _goHome),
             ],
           ),
         ),
@@ -661,25 +645,29 @@ class _RecapPageState extends ConsumerState<RecapPage> {
         _goHome();
       },
       child: Scaffold(
-      backgroundColor: AppColors.backgroundV2,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // ── close button header ─────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: GestureDetector(
-                  onTap: _goHome,
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceV2,
-                      borderRadius: BorderRadius.circular(10),
+        backgroundColor: AppColors.backgroundV2,
+        body: SafeArea(
+          child: Column(
+            children: [
+              // ── close button header ─────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: IconButton(
+                    tooltip: 'Close',
+                    onPressed: _goHome,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 48,
+                      height: 48,
                     ),
-                    child: const Icon(
+                    style: IconButton.styleFrom(
+                      backgroundColor: AppColors.surfaceV2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    icon: const Icon(
                       Icons.close,
                       size: 18,
                       color: AppColors.textV2Secondary,
@@ -687,302 +675,307 @@ class _RecapPageState extends ConsumerState<RecapPage> {
                   ),
                 ),
               ),
-            ),
-            // ── scrollable body ────────────────────────────────────────────
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.only(bottom: 40),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const SizedBox(height: 24),
+              // ── scrollable body ────────────────────────────────────────────
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.only(bottom: 40),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const SizedBox(height: 24),
 
-                    // ── hero section ──────────────────────────────────────
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _DoneHeader(),
-                          const SizedBox(height: 10),
-                          // T024: offline banner — shown when device has no network.
-                          Builder(builder: (ctx) {
-                            final isOnline = ref
-                                .watch(connectivityProvider)
-                                .value ?? true;
-                            if (isOnline) return const SizedBox.shrink();
-                            return Container(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: AppColors.surfaceV2,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                    color: AppColors.textV2Secondary
-                                        .withValues(alpha: 0.3)),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(Icons.cloud_off_outlined,
-                                      size: 16,
-                                      color: AppColors.textV2Secondary),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      'Saved locally — your workout will post when you\'re back online',
-                                      style: AppTextStyles.caption.copyWith(
-                                        color: AppColors.textV2Secondary,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }),
-                          Row(
-                            children: [
-                              Text(
-                                durationStr,
-                                style: AppTextStyles.caption.copyWith(
-                                  fontSize: 13,
-                                  color: AppColors.textV2Secondary,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Container(
-                                width: 3,
-                                height: 3,
-                                decoration: const BoxDecoration(
-                                  color: AppColors.textV2Tertiary,
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              // Points badge
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 5,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppColors.surfaceV2,
-                                  border: Border.all(
-                                    color: AppColors.userAccent.withValues(
-                                      alpha: 0.13,
-                                    ),
-                                  ),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.bolt,
-                                      size: 14,
-                                      color: AppColors.userAccent,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      '+$points',
-                                      style: AppTextStyles.bodyLarge.copyWith(
-                                        color: AppColors.userAccent,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 3),
-                                    Text(
-                                      'pts',
-                                      style: AppTextStyles.caption.copyWith(
-                                        fontSize: 11,
-                                        color: AppColors.textV2Tertiary,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // ── stats 2×2 grid ─────────────────────────────────────
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Column(
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _StatCell(
-                                  value: '$totalExercises',
-                                  label: 'Exercises',
-                                  accentColor: AppColors.userAccent,
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: _StatCell(
-                                  value: '$totalSets',
-                                  label: 'Sets',
-                                  accentColor: AppColors.accentSky,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _StatCell(
-                                  value: durationStr,
-                                  label: 'Duration',
-                                  accentColor: AppColors.warnV2,
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: _StatCell(
-                                  value: totalVolume > 0
-                                      ? '${totalVolume.toStringAsFixed(1)} kg'
-                                      : '—',
-                                  label: 'Volume',
-                                  accentColor: AppColors.errorV2,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // ── breakdown section ───────────────────────────────────
-                    if (session.participantTypes.isNotEmpty) ...[
+                      // ── hero section ──────────────────────────────────────
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceV2,
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(
-                              color: AppColors.userAccent.withValues(
-                                alpha: 0.14,
-                              ),
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.person_outline_rounded,
-                                color: AppColors.userAccent,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Personal workout history',
-                                      style: AppTextStyles.bodyLarge.copyWith(
-                                        color: AppColors.textV2Primary,
-                                        fontWeight: FontWeight.w700,
-                                      ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _DoneHeader(),
+                            const SizedBox(height: 10),
+                            // T024: offline banner — shown when device has no network.
+                            Builder(
+                              builder: (ctx) {
+                                final isOnline =
+                                    ref.watch(connectivityProvider).value ??
+                                    true;
+                                if (isOnline) return const SizedBox.shrink();
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.surfaceV2,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: AppColors.textV2Secondary
+                                          .withValues(alpha: 0.3),
                                     ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Your workout type: $yourWorkoutTypeLabel',
-                                      style: AppTextStyles.caption.copyWith(
-                                        fontSize: 13,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.cloud_off_outlined,
+                                        size: 16,
                                         color: AppColors.textV2Secondary,
                                       ),
-                                    ),
-                                  ],
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          'Saved locally — your workout will post when you\'re back online',
+                                          style: AppTextStyles.caption.copyWith(
+                                            color: AppColors.textV2Secondary,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                            Row(
+                              children: [
+                                Text(
+                                  durationStr,
+                                  style: AppTextStyles.caption.copyWith(
+                                    fontSize: 13,
+                                    color: AppColors.textV2Secondary,
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
+                                const SizedBox(width: 6),
+                                Container(
+                                  width: 3,
+                                  height: 3,
+                                  decoration: const BoxDecoration(
+                                    color: AppColors.textV2Tertiary,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                // Points badge
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.surfaceV2,
+                                    border: Border.all(
+                                      color: AppColors.signal.withValues(
+                                        alpha: 0.13,
+                                      ),
+                                    ),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.bolt,
+                                        size: 14,
+                                        color: AppColors.signal,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '+$points',
+                                        style: AppTextStyles.bodyLarge.copyWith(
+                                          color: AppColors.signal,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        'pts',
+                                        style: AppTextStyles.caption.copyWith(
+                                          fontSize: 11,
+                                          color: AppColors.textV2Tertiary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 16),
-                    ],
 
-                    if (exercises.isNotEmpty) ...[
+                      const SizedBox(height: 24),
+
+                      // ── stats 2×2 grid ─────────────────────────────────────
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: _BreakdownSection(exercises: exercises),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-
-                    // ── share card (collapsible) ────────────────────────────
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: _ShareCardSection(
-                        expanded: _shareCardExpanded,
-                        onToggle: () => setState(
-                          () => _shareCardExpanded = !_shareCardExpanded,
-                        ),
-                        session: session,
-                        durationStr: durationStr,
-                        totalExercises: totalExercises,
-                        totalSets: totalSets,
-                        totalVolume: totalVolume,
-                        points: points,
-                        username: username,
-                      ),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // ── post section ────────────────────────────────────────
-                    // Task 13: everyone sees the stats/breakdown above; only
-                    // the posting UI differs. A two-human paired session posts
-                    // through the embedded joint composer (its own Post button,
-                    // photo picker and visibility toggle), so the solo
-                    // "Post to feed" card — whose _handleShare is a no-op for
-                    // joint sessions — is swapped out rather than stacked on
-                    // top of it.
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: _isTwoHumanPairedSession
-                          ? _buildJointComposerSection()
-                          : _PostToFeedSection(
-                              postedToFeed: _postedToFeed,
-                              selectedPhotoPath: _selectedPhotoPath,
-                              isPickingPhoto: _isPickingPhoto,
-                              isSharing: _isSharing,
-                              shareWithFriendsOnly: _shareWithFriendsOnly,
-                              uploadProgress: _uploadProgress,
-                              onPhotoTap: _showPhotoSourceDialog,
-                              onRemovePhoto: _removePhoto,
-                              onToggleFriendsOnly: (v) =>
-                                  setState(() => _shareWithFriendsOnly = v),
-                              onShare: _handleShare,
+                        child: Column(
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _StatCell(
+                                    value: '$totalExercises',
+                                    label: 'Exercises',
+                                    accentColor: AppColors.signal,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: _StatCell(
+                                    value: '$totalSets',
+                                    label: 'Sets',
+                                    accentColor: AppColors.accentSky,
+                                  ),
+                                ),
+                              ],
                             ),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // ── back to home ghost button ───────────────────────────
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: _GhostButton(
-                        label: 'Back to Home',
-                        onTap: _goHome,
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _StatCell(
+                                    value: durationStr,
+                                    label: 'Duration',
+                                    accentColor: AppColors.warnV2,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: _StatCell(
+                                    value: totalVolume > 0
+                                        ? '${totalVolume.toStringAsFixed(1)} kg'
+                                        : '—',
+                                    label: 'Volume',
+                                    accentColor: AppColors.errorV2,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+
+                      const SizedBox(height: 16),
+
+                      // ── breakdown section ───────────────────────────────────
+                      if (session.participantTypes.isNotEmpty) ...[
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceV2,
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(
+                                color: AppColors.signal.withValues(alpha: 0.14),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.person_outline_rounded,
+                                  color: AppColors.signal,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Personal workout history',
+                                        style: AppTextStyles.bodyLarge.copyWith(
+                                          color: AppColors.textV2Primary,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Your workout type: $yourWorkoutTypeLabel',
+                                        style: AppTextStyles.caption.copyWith(
+                                          fontSize: 13,
+                                          color: AppColors.textV2Secondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+
+                      if (exercises.isNotEmpty) ...[
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: _BreakdownSection(exercises: exercises),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+
+                      // ── share card (collapsible) ────────────────────────────
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: _ShareCardSection(
+                          expanded: _shareCardExpanded,
+                          onToggle: () => setState(
+                            () => _shareCardExpanded = !_shareCardExpanded,
+                          ),
+                          session: session,
+                          durationStr: durationStr,
+                          totalExercises: totalExercises,
+                          totalSets: totalSets,
+                          totalVolume: totalVolume,
+                          points: points,
+                          username: username,
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // ── post section ────────────────────────────────────────
+                      // Task 13: everyone sees the stats/breakdown above; only
+                      // the posting UI differs. A two-human paired session posts
+                      // through the embedded joint composer (its own Post button,
+                      // photo picker and visibility toggle), so the solo
+                      // "Post to feed" card — whose _handleShare is a no-op for
+                      // joint sessions — is swapped out rather than stacked on
+                      // top of it.
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: _isTwoHumanPairedSession
+                            ? _buildJointComposerSection()
+                            : _PostToFeedSection(
+                                postedToFeed: _postedToFeed,
+                                selectedPhotoPath: _selectedPhotoPath,
+                                isPickingPhoto: _isPickingPhoto,
+                                isSharing: _isSharing,
+                                shareWithFriendsOnly: _shareWithFriendsOnly,
+                                uploadProgress: _uploadProgress,
+                                onPhotoTap: _showPhotoSourceDialog,
+                                onRemovePhoto: _removePhoto,
+                                onToggleFriendsOnly: (v) =>
+                                    setState(() => _shareWithFriendsOnly = v),
+                                onShare: _handleShare,
+                              ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // ── back to home ghost button ───────────────────────────
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: _GhostButton(
+                          label: 'Back to Home',
+                          onTap: _goHome,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -1037,11 +1030,9 @@ class _StatCell extends StatelessWidget {
         children: [
           Text(
             value,
-            style: AppTextStyles.h1.copyWith(
+            style: AppTextStyles.sessionStat.copyWith(
               fontSize: 34,
               color: AppColors.textV2Primary,
-              letterSpacing: -1.5,
-              height: 1.0,
             ),
           ),
           const SizedBox(height: 8),
@@ -1140,7 +1131,7 @@ class _BreakdownSection extends StatelessWidget {
                           vertical: 3,
                         ),
                         decoration: BoxDecoration(
-                          color: AppColors.userAccent.withValues(alpha: 0.12),
+                          color: AppColors.signal.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
@@ -1148,7 +1139,7 @@ class _BreakdownSection extends StatelessWidget {
                           style: AppTextStyles.caption.copyWith(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
-                            color: AppColors.userAccent,
+                            color: AppColors.signal,
                           ),
                         ),
                       ),
@@ -1286,7 +1277,7 @@ class _ShareCardSection extends StatelessWidget {
                 colors: [Color(0xFF141414), Color(0xFF1A1A1A)],
               ),
               border: Border.all(
-                color: AppColors.userAccent.withValues(alpha: 0.13),
+                color: AppColors.signal.withValues(alpha: 0.13),
               ),
               borderRadius: const BorderRadius.vertical(
                 bottom: Radius.circular(20),
@@ -1304,7 +1295,7 @@ class _ShareCardSection extends StatelessWidget {
                       'zyntro',
                       style: AppTextStyles.label.copyWith(
                         fontSize: 15,
-                        color: AppColors.userAccent,
+                        color: AppColors.signal,
                       ),
                     ),
                     Text(
@@ -1364,7 +1355,7 @@ class _ShareCardSection extends StatelessWidget {
                       '+$points pts',
                       style: AppTextStyles.label.copyWith(
                         fontSize: 13,
-                        color: AppColors.userAccent,
+                        color: AppColors.signal,
                       ),
                     ),
                   ],
@@ -1448,17 +1439,13 @@ class _PostToFeedSection extends StatelessWidget {
           postedToFeed
               ? Row(
                   children: [
-                    Icon(
-                      Icons.check_circle,
-                      size: 16,
-                      color: AppColors.userAccent,
-                    ),
+                    Icon(Icons.check_circle, size: 16, color: AppColors.signal),
                     const SizedBox(width: 6),
                     Text(
                       'Posted to feed',
                       style: AppTextStyles.bodyLarge.copyWith(
                         fontWeight: FontWeight.w700,
-                        color: AppColors.userAccent,
+                        color: AppColors.signal,
                       ),
                     ),
                   ],
@@ -1510,7 +1497,7 @@ class _PostToFeedSection extends StatelessWidget {
                               height: 20,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: AppColors.userAccent,
+                                color: AppColors.signal,
                               ),
                             )
                           : Text(
@@ -1565,7 +1552,7 @@ class _PostToFeedSection extends StatelessWidget {
                 Switch(
                   value: shareWithFriendsOnly,
                   onChanged: isSharing ? null : onToggleFriendsOnly,
-                  activeThumbColor: AppColors.userAccent,
+                  activeThumbColor: AppColors.signal,
                   inactiveTrackColor: AppColors.surfaceV2Active,
                 ),
               ],
@@ -1600,7 +1587,7 @@ class _PostToFeedSection extends StatelessWidget {
                         '${(uploadProgress! * 100).toInt()}%',
                         style: AppTextStyles.caption.copyWith(
                           fontWeight: FontWeight.w700,
-                          color: AppColors.userAccent,
+                          color: AppColors.signal,
                         ),
                       ),
                     ],
@@ -1613,7 +1600,7 @@ class _PostToFeedSection extends StatelessWidget {
                       minHeight: 4,
                       backgroundColor: AppColors.surfaceV2Active,
                       valueColor: AlwaysStoppedAnimation<Color>(
-                        AppColors.userAccent,
+                        AppColors.signal,
                       ),
                     ),
                   ),
@@ -1632,8 +1619,8 @@ class _PostToFeedSection extends StatelessWidget {
                 height: 52,
                 decoration: BoxDecoration(
                   color: isSharing
-                      ? AppColors.userAccent.withValues(alpha: 0.5)
-                      : AppColors.userAccent,
+                      ? AppColors.signal.withValues(alpha: 0.5)
+                      : AppColors.signal,
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Center(

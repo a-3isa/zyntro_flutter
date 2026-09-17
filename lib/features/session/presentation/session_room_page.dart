@@ -503,8 +503,9 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   /// Dismissing is equivalent to carrying on — this never ends the member's own
   /// session for them.
   void _announceDeparturesIfNeeded(Session session, String currentUserId) {
-    final departed =
-        session.endedParticipants.where((id) => id != currentUserId).toList();
+    final departed = session.endedParticipants
+        .where((id) => id != currentUserId)
+        .toList();
 
     if (!_departureSeedDone) {
       _departureSeedDone = true;
@@ -801,9 +802,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     }
 
     // Check availability based on turn-based rules
-    final session = ref
-        .read(currentSessionProvider(widget.sessionId))
-        .value;
+    final session = ref.read(currentSessionProvider(widget.sessionId)).value;
     final authState = ref.read(authSessionProvider);
     final uid = authState.value?.id;
 
@@ -811,9 +810,9 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         session.derivedMode == SessionMode.turnBased &&
         !_isSoloSession &&
         session.activeUserId != uid) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("It's not your turn yet")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("It's not your turn yet")));
       return false;
     }
 
@@ -838,7 +837,11 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         _exercises[existingIndex] = _exercises[existingIndex].copyWith(
           sets: [
             ..._exercises[existingIndex].sets,
-            SetData(weight: weight, reps: reps, durationSeconds: _currentSetDuration),
+            SetData(
+              weight: weight,
+              reps: reps,
+              durationSeconds: _currentSetDuration,
+            ),
           ],
         );
       } else {
@@ -846,7 +849,13 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           Exercise(
             id: DateTime.now().millisecondsSinceEpoch.toString(),
             name: _currentExercise!,
-            sets: [SetData(weight: weight, reps: reps, durationSeconds: _currentSetDuration)],
+            sets: [
+              SetData(
+                weight: weight,
+                reps: reps,
+                durationSeconds: _currentSetDuration,
+              ),
+            ],
           ),
         );
       }
@@ -899,19 +908,22 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         });
       } else {
         try {
-          await ref.read(sessionServiceProvider).addSessionEvent(
-            sessionId: widget.sessionId,
-            type: SessionEventType.setLogged,
-            userId: uid,
-            text: '$_currentExercise: ${weight}kg x $reps reps',
-            data: {
-              'exercise': _currentExercise,
-              if (_currentExerciseId != null) 'exerciseId': _currentExerciseId,
-              'weight': weight,
-              'reps': reps,
-              'durationSeconds': _currentSetDuration,
-            },
-          );
+          await ref
+              .read(sessionServiceProvider)
+              .addSessionEvent(
+                sessionId: widget.sessionId,
+                type: SessionEventType.setLogged,
+                userId: uid,
+                text: '$_currentExercise: ${weight}kg x $reps reps',
+                data: {
+                  'exercise': _currentExercise,
+                  if (_currentExerciseId != null)
+                    'exerciseId': _currentExerciseId,
+                  'weight': weight,
+                  'reps': reps,
+                  'durationSeconds': _currentSetDuration,
+                },
+              );
           // Server event is arriving via stream — drop the local placeholder so
           // there is no transient double-count in _completedSetsByUserAndExercise.
           if (mounted) setState(() => _localPendingEvents.remove(localEvent));
@@ -927,7 +939,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
               'text': '$_currentExercise: ${weight}kg x $reps reps',
               'data': {
                 'exercise': _currentExercise,
-                if (_currentExerciseId != null) 'exerciseId': _currentExerciseId,
+                if (_currentExerciseId != null)
+                  'exerciseId': _currentExerciseId,
                 'weight': weight,
                 'reps': reps,
                 'durationSeconds': _currentSetDuration,
@@ -1172,9 +1185,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     }
 
     // Check availability based on turn-based rules
-    final session = ref
-        .read(currentSessionProvider(widget.sessionId))
-        .value;
+    final session = ref.read(currentSessionProvider(widget.sessionId)).value;
     final authState = ref.read(authSessionProvider);
     final uid = authState.value?.id;
 
@@ -1182,9 +1193,9 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         session.derivedMode == SessionMode.turnBased &&
         !_isSoloSession &&
         session.activeUserId != uid) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("It's not your turn yet")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("It's not your turn yet")));
       return;
     }
 
@@ -1251,18 +1262,20 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         });
       } else {
         try {
-          await ref.read(sessionServiceProvider).addSessionEvent(
-            sessionId: widget.sessionId,
-            type: SessionEventType.cardioEntry,
-            userId: uid,
-            text: eventText,
-            data: {
-              'activityType': _cardioActivityType,
-              'distance': distance,
-              'duration': duration,
-              'pace': calculatedPace,
-            },
-          );
+          await ref
+              .read(sessionServiceProvider)
+              .addSessionEvent(
+                sessionId: widget.sessionId,
+                type: SessionEventType.cardioEntry,
+                userId: uid,
+                text: eventText,
+                data: {
+                  'activityType': _cardioActivityType,
+                  'distance': distance,
+                  'duration': duration,
+                  'pace': calculatedPace,
+                },
+              );
           // Drop local placeholder once the server event is incoming via stream.
           if (mounted) setState(() => _localPendingEvents.remove(localEvent));
           await HapticFeedback.mediumImpact();
@@ -1586,9 +1599,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   /// Dispatches to turn-based or parallel UIs when we have a session,
   /// otherwise falls back to the legacy monolithic [_buildInputSection].
   Widget _buildDispatchedInputSection() {
-    final session = ref
-        .watch(currentSessionProvider(widget.sessionId))
-        .value;
+    final session = ref.watch(currentSessionProvider(widget.sessionId)).value;
     final uid = ref.watch(authSessionProvider).value?.id;
     if (session == null || uid == null) {
       return _buildInputSection();
@@ -1611,8 +1622,12 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           return _buildPlanCompleteView(session, uid, soloPlans);
         }
         return _buildActiveTurnView(
-          session, uid, soloPlans, soloPlans[uid],
-          counts[uid] ?? const {}, counts,
+          session,
+          uid,
+          soloPlans,
+          soloPlans[uid],
+          counts[uid] ?? const {},
+          counts,
         );
       }
       return _buildInputSection();
@@ -1736,7 +1751,9 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       (e) => e.name == exerciseName,
       orElse: () => Exercise(id: '', name: exerciseName, sets: const []),
     );
-    final lastSet = exerciseEntry.sets.isNotEmpty ? exerciseEntry.sets.last : null;
+    final lastSet = exerciseEntry.sets.isNotEmpty
+        ? exerciseEntry.sets.last
+        : null;
 
     return ActiveTurnScreen(
       exerciseName: exerciseName,
@@ -1819,7 +1836,9 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       final d = DateTime.now().difference(activeSetStart);
       partnerSetElapsed = d.isNegative ? Duration.zero : d;
     } else {
-      partnerSetElapsed = Duration(seconds: partnerProgress?.lastSetSeconds ?? 0);
+      partnerSetElapsed = Duration(
+        seconds: partnerProgress?.lastSetSeconds ?? 0,
+      );
     }
 
     return FutureBuilder<User?>(
@@ -1860,11 +1879,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Icon(
-              Icons.check_circle_rounded,
-              color: AppColors.userAccent,
-              size: 64,
-            ),
+            Icon(Icons.check_circle_rounded, color: AppColors.signal, size: 64),
             const SizedBox(height: 18),
             const Text(
               'Plan complete',
@@ -1889,7 +1904,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
             ElevatedButton(
               onPressed: _handleFinishSession,
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.userAccent,
+                backgroundColor: AppColors.signal,
                 foregroundColor: AppColors.backgroundV2,
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
@@ -2297,10 +2312,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                       decoration: BoxDecoration(
                         gradient: (_currentExercise != null && !_isLogging)
                             ? LinearGradient(
-                                colors: [
-                                  AppColors.userAccent,
-                                  AppColors.userAccentDim,
-                                ],
+                                colors: [AppColors.signal, AppColors.signalDim],
                               )
                             : null,
                         color: (_currentExercise != null && !_isLogging)
@@ -2308,7 +2320,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                             : Colors.white.withValues(alpha: 0.05),
                         border: Border.all(
                           color: (_currentExercise != null && !_isLogging)
-                              ? AppColors.userAccent
+                              ? AppColors.signal
                               : Colors.white.withValues(alpha: 0.1),
                           width: 2,
                         ),
@@ -2326,7 +2338,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                             : const Text(
                                 'LOG SET',
                                 style: TextStyle(
-                                  fontFamily: 'Outfit',
+                                  fontFamily: AppFonts.primary,
                                   fontWeight: FontWeight.w700,
                                   fontSize: 14,
                                   letterSpacing: 2,
@@ -2371,7 +2383,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                       Text(
                         '${(_voiceUploadProgress * 100).toInt()}%',
                         style: const TextStyle(
-                          fontFamily: 'Outfit',
+                          fontFamily: AppFonts.primary,
                           color: AppColors.warning,
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
@@ -2397,9 +2409,9 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                   child: Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: AppColors.userAccent.withValues(alpha: 0.1),
+                      color: AppColors.signal.withValues(alpha: 0.1),
                       border: Border.all(
-                        color: AppColors.userAccent.withValues(alpha: 0.5),
+                        color: AppColors.signal.withValues(alpha: 0.5),
                         width: 2,
                       ),
                     ),
@@ -2408,7 +2420,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                       label: 'Record Voice Note',
                       child: Icon(
                         Icons.mic_rounded,
-                        color: AppColors.userAccent,
+                        color: AppColors.signal,
                         size: 22,
                       ),
                     ),
@@ -2436,10 +2448,10 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             margin: const EdgeInsets.only(bottom: AppSpacing.md),
             decoration: BoxDecoration(
-              color: AppColors.userAccent.withValues(alpha: 0.1),
+              color: AppColors.signal.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(AppBorderRadius.md),
               border: Border.all(
-                color: AppColors.userAccent.withValues(alpha: 0.3),
+                color: AppColors.signal.withValues(alpha: 0.3),
               ),
             ),
             child: Row(
@@ -2448,14 +2460,14 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                 Icon(
                   cardioActivityIcon(_workoutType.value),
                   size: 16,
-                  color: AppColors.userAccentDim,
+                  color: AppColors.signalDim,
                 ),
                 const SizedBox(width: 6),
                 Text(
                   _workoutType.displayName,
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
-                    color: AppColors.userAccentDim,
+                    color: AppColors.signalDim,
                   ),
                 ),
               ],
@@ -2483,7 +2495,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                       ),
                       decoration: BoxDecoration(
                         color: isSelected
-                            ? AppColors.userAccent
+                            ? AppColors.signal
                             : AppColors.surfaceSecondaryLight,
                         borderRadius: BorderRadius.horizontal(
                           left: isFirst
@@ -2585,10 +2597,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                     decoration: BoxDecoration(
                       gradient: (_cardioActivityType != null && !_isLogging)
                           ? LinearGradient(
-                              colors: [
-                                AppColors.userAccent,
-                                AppColors.userAccentDim,
-                              ],
+                              colors: [AppColors.signal, AppColors.signalDim],
                             )
                           : null,
                       color: (_cardioActivityType != null && !_isLogging)
@@ -2596,7 +2605,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                           : Colors.white.withValues(alpha: 0.05),
                       border: Border.all(
                         color: (_cardioActivityType != null && !_isLogging)
-                            ? AppColors.userAccent
+                            ? AppColors.signal
                             : Colors.white.withValues(alpha: 0.1),
                         width: 2,
                       ),
@@ -2614,7 +2623,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                           : const Text(
                               'LOG ACTIVITY',
                               style: TextStyle(
-                                fontFamily: 'Outfit',
+                                fontFamily: AppFonts.primary,
                                 fontWeight: FontWeight.w700,
                                 fontSize: 14,
                                 letterSpacing: 2,
@@ -2633,11 +2642,11 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                   decoration: BoxDecoration(
                     color: _isRecording
                         ? AppColors.error.withValues(alpha: 0.1)
-                        : AppColors.userAccent.withValues(alpha: 0.1),
+                        : AppColors.signal.withValues(alpha: 0.1),
                     border: Border.all(
                       color: _isRecording
                           ? AppColors.error.withValues(alpha: 0.5)
-                          : AppColors.userAccent.withValues(alpha: 0.5),
+                          : AppColors.signal.withValues(alpha: 0.5),
                       width: 2,
                     ),
                   ),
@@ -2648,7 +2657,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                         : 'Record Voice Note',
                     child: Icon(
                       _isRecording ? Icons.stop_rounded : Icons.mic_rounded,
-                      color: _isRecording ? AppColors.error : AppColors.userAccent,
+                      color: _isRecording ? AppColors.error : AppColors.signal,
                       size: 22,
                     ),
                   ),
@@ -2675,7 +2684,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.userAccent,
+              backgroundColor: AppColors.signal,
               foregroundColor: Colors.black,
             ),
             child: const Text('Finish'),
@@ -2753,10 +2762,23 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     );
 
     try {
-      // Save session completion to backend
-      await ref
-          .read(sessionServiceProvider)
-          .endSession(widget.sessionId, uid, summary);
+      final sessionService = ref.read(sessionServiceProvider);
+      final session = await sessionService.getSession(widget.sessionId);
+      final remaining = session == null
+          ? 0
+          : session.participants
+                .where((id) => id != uid && !session.hasTerminated(id))
+                .length;
+
+      if (remaining > 0) {
+        await sessionService.terminateForMember(widget.sessionId, uid);
+        if (mounted) {
+          context.go(AppRouteLocations.main);
+        }
+        return;
+      }
+
+      await sessionService.endSession(widget.sessionId, uid, summary);
 
       if (mounted) {
         // Recap is a terminal screen for the workout. Use go() (not push) so the
@@ -2786,7 +2808,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                AppColors.userAccent.withValues(alpha: 0.05),
+                AppColors.signal.withValues(alpha: 0.05),
                 Colors.transparent,
                 AppColors.secondary.withValues(alpha: 0.03),
               ],
@@ -2807,7 +2829,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    AppColors.userAccent.withValues(alpha: 0.15),
+                    AppColors.signal.withValues(alpha: 0.15),
                     Colors.transparent,
                   ],
                 ),
@@ -2964,9 +2986,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   }
 
   Widget _buildV2SessionHeader(BuildContext context) {
-    final session = ref
-        .watch(currentSessionProvider(widget.sessionId))
-        .value;
+    final session = ref.watch(currentSessionProvider(widget.sessionId)).value;
     final inviteStatus = session?.invitationStatus;
     final setupStatusChip = session?.phase == SessionPhase.setup
         ? Container(
@@ -3009,7 +3029,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
             Icon(
               Icons.timer_outlined,
               size: 11,
-              color: AppColors.userAccent.withValues(alpha: 0.85),
+              color: AppColors.signal.withValues(alpha: 0.85),
             ),
             const SizedBox(width: 5),
             Text(
@@ -3030,7 +3050,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         inviteStatus == WorkoutInvitationStatus.declined ||
         inviteStatus == WorkoutInvitationStatus.expired;
     final inviteChipColor = switch (inviteStatus) {
-      WorkoutInvitationStatus.accepted => AppColors.userAccent,
+      WorkoutInvitationStatus.accepted => AppColors.signal,
       WorkoutInvitationStatus.declined => AppColors.errorV2,
       WorkoutInvitationStatus.expired => Colors.orange,
       _ => AppColors.textV2Secondary,
@@ -3093,24 +3113,24 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
             ),
           )
         : null;
-    final endButton = GestureDetector(
-      onTap: () {
+    final endButton = TextButton(
+      onPressed: () {
         HapticManager.heavy();
         _handleFinishSession();
       },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: AppColors.error,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: const Text(
-          'End',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-          ),
+      style: TextButton.styleFrom(
+        backgroundColor: AppColors.error,
+        foregroundColor: Colors.white,
+        minimumSize: const Size(64, 44),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      ),
+      child: const Text(
+        'End',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
@@ -3212,9 +3232,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     return Container(
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: active
-            ? Border.all(color: AppColors.userAccent, width: 2)
-            : null,
+        border: active ? Border.all(color: AppColors.signal, width: 2) : null,
       ),
       padding: const EdgeInsets.all(2),
       child: Stack(
@@ -3255,9 +3273,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   /// current exercise, each participant's sets side by side as
   /// weight × reps · time, with dim placeholders for planned-but-undone sets.
   Widget _buildV2ProgressRow(BuildContext context) {
-    final session = ref
-        .watch(currentSessionProvider(widget.sessionId))
-        .value;
+    final session = ref.watch(currentSessionProvider(widget.sessionId)).value;
     if (session == null || session.participants.length < 2) {
       return const SizedBox.shrink();
     }
@@ -3356,15 +3372,16 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         (_participantProgress[userId]?.isActive ?? false);
 
     // Logged sets for this exercise, oldest first.
-    final sets = events
-        .where(
-          (e) =>
-              e.type == SessionEventType.setLogged &&
-              e.userId == userId &&
-              (e.data?['exercise'] as String?) == exerciseName,
-        )
-        .toList()
-      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    final sets =
+        events
+            .where(
+              (e) =>
+                  e.type == SessionEventType.setLogged &&
+                  e.userId == userId &&
+                  (e.data?['exercise'] as String?) == exerciseName,
+            )
+            .toList()
+          ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
 
     String rowText(int i) {
       if (i >= sets.length) return '—';
@@ -3381,12 +3398,12 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     return Container(
       decoration: BoxDecoration(
         color: active
-            ? AppColors.userAccent.withValues(alpha: 0.08)
+            ? AppColors.signal.withValues(alpha: 0.08)
             : AppColors.surfaceV2Elevated,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: active
-              ? AppColors.userAccent.withValues(alpha: 0.4)
+              ? AppColors.signal.withValues(alpha: 0.4)
               : AppColors.borderDarkSecondary,
         ),
       ),
@@ -3414,9 +3431,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w800,
-                    color: active
-                        ? AppColors.userAccent
-                        : AppColors.textV2Primary,
+                    color: active ? AppColors.signal : AppColors.textV2Primary,
                   ),
                 ),
               ),
@@ -3466,7 +3481,6 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       ),
     );
   }
-
 
   /// Format elapsed duration as HH:MM:SS
   String _formatElapsedTime(Duration duration) {

@@ -109,11 +109,11 @@ class _ReactionButtonsState extends State<ReactionButtons>
   List<Color> _getGradientColors(ReactionType type) {
     switch (type) {
       case ReactionType.fire:
-        return [AppColors.neonGreen, AppColors.navy700];
+        return [AppColors.signal, AppColors.navy700];
       case ReactionType.strong:
         return [AppColors.navy700, AppColors.navy800];
       case ReactionType.clap:
-        return [AppColors.navy800, AppColors.neonGreen];
+        return [AppColors.navy800, AppColors.signal];
     }
   }
 
@@ -142,7 +142,7 @@ class _ReactionButtonsState extends State<ReactionButtons>
           _buildReactionButton(
             type: ReactionType.fire,
             emoji: '🔥',
-            color: AppColors.userAccent,
+            color: AppColors.signal,
             label: 'Fire',
             buttonPadding: buttonPadding,
             emojiSize: emojiSize,
@@ -160,7 +160,7 @@ class _ReactionButtonsState extends State<ReactionButtons>
           _buildReactionButton(
             type: ReactionType.clap,
             emoji: '👏',
-            color: AppColors.userAccent,
+            color: AppColors.signal,
             label: 'Clap',
             buttonPadding: buttonPadding,
             emojiSize: emojiSize,
@@ -182,61 +182,64 @@ class _ReactionButtonsState extends State<ReactionButtons>
     final count = widget.reactionCounts[type] ?? 0;
     final isAnimating = _animatingType == type;
 
-    Widget button = GestureDetector(
-      onTap: () => _handleTap(type),
-      child: AnimatedBuilder(
-        animation: _scaleAnimation,
-        builder: (context, child) {
-          final scale = isAnimating ? _scaleAnimation.value : 1.0;
-          return Transform.scale(scale: scale, child: child);
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          padding: buttonPadding,
-          decoration: BoxDecoration(
-            gradient: isSelected
-                ? LinearGradient(
-                    colors: [
-                      AppColors.userAccent.withValues(alpha: 0.14),
-                      AppColors.userAccent.withValues(alpha: 0.05),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  )
-                : null,
-            color: isSelected ? null : Colors.transparent,
-            borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-            border: Border.all(
-              color: isSelected
-                  ? AppColors.userAccent
-                  : AppColors.gray400.withValues(alpha: 0.3),
-              width: isSelected ? 2 : 1,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                emoji,
-                style: TextStyle(
-                  fontSize: emojiSize,
-                  color: isSelected ? color : null,
-                ),
+    Widget button = ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
+      child: GestureDetector(
+        onTap: () => _handleTap(type),
+        child: AnimatedBuilder(
+          animation: _scaleAnimation,
+          builder: (context, child) {
+            final scale = isAnimating ? _scaleAnimation.value : 1.0;
+            return Transform.scale(scale: scale, child: child);
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            padding: buttonPadding,
+            decoration: BoxDecoration(
+              gradient: isSelected
+                  ? LinearGradient(
+                      colors: [
+                        AppColors.signal.withValues(alpha: 0.14),
+                        AppColors.signal.withValues(alpha: 0.05),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    )
+                  : null,
+              color: isSelected ? null : Colors.transparent,
+              borderRadius: BorderRadius.circular(AppBorderRadius.lg),
+              border: Border.all(
+                color: isSelected
+                    ? AppColors.signal
+                    : AppColors.gray400.withValues(alpha: 0.3),
+                width: isSelected ? 2 : 1,
               ),
-              if (count > 0) ...[
-                const SizedBox(width: AppSpacing.xs),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
                 Text(
-                  '$count',
+                  emoji,
                   style: TextStyle(
-                    fontSize: AppFontSize.sm,
-                    fontWeight: isSelected
-                        ? FontWeight.bold
-                        : FontWeight.normal,
-                    color: isSelected ? color : AppColors.textV2Secondary,
+                    fontSize: emojiSize,
+                    color: isSelected ? color : null,
                   ),
                 ),
+                if (count > 0) ...[
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(
+                    '$count',
+                    style: TextStyle(
+                      fontSize: AppFontSize.sm,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                      color: isSelected ? color : AppColors.textV2Secondary,
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),

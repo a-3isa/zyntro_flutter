@@ -190,7 +190,7 @@ class _StreakCardState extends State<StreakCard>
                       width: isSmallScreen ? 48 : 56,
                       height: isSmallScreen ? 48 : 56,
                       decoration: BoxDecoration(
-                        color: AppColors.userAccent.withValues(alpha: 0.15),
+                        color: AppColors.signal.withValues(alpha: 0.15),
                         shape: BoxShape.circle,
                       ),
                       child: Center(
@@ -216,7 +216,7 @@ class _StreakCardState extends State<StreakCard>
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: AppFontSize.sm,
-                      color: AppColors.userAccent,
+                      color: AppColors.signal,
                     ),
                   ),
                 ),
@@ -313,9 +313,9 @@ class _StreakCardState extends State<StreakCard>
         width: containerWidth,
         padding: EdgeInsets.all(isSmallScreen ? 4 : AppSpacing.xs),
         decoration: BoxDecoration(
-          color: AppColors.userAccent.withValues(alpha: 0.1),
+          color: AppColors.signal.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(AppBorderRadius.md),
-          border: Border.all(color: AppColors.userAccent, width: 2),
+          border: Border.all(color: AppColors.signal, width: 2),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -325,7 +325,7 @@ class _StreakCardState extends State<StreakCard>
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: isSmallScreen ? 9 : 10,
-                color: AppColors.userAccent,
+                color: AppColors.signal,
               ),
             ),
             const SizedBox(height: 2),

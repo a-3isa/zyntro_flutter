@@ -103,6 +103,15 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<AuthUserEntity?> signInWithApple() async {
+    final model = await _remoteDataSource.signInWithApple();
+    if (model == null) return null;
+
+    await _localDataSource.cacheUser(model);
+    return model.toEntity();
+  }
+
+  @override
   Future<void> signOut() async {
     await _remoteDataSource.signOut();
     await _localDataSource.clearCachedUser();

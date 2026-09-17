@@ -137,12 +137,12 @@ void main() {
     setUp(() => LaunchIntent.instance.resetForTest());
     tearDown(() => LaunchIntent.instance.resetForTest());
 
-    test('an unresolved launch reads as having a destination', () {
-      // Fail-safe: skipping a redirect costs one tap, hijacking a notification
-      // tap sends the member somewhere they did not ask to go. Only one of
-      // those is recoverable.
+    test('an unresolved launch does not claim an explicit destination', () {
+      // Ordinary cold start must be allowed to resume. Notification taps are
+      // recorded in main() before runApp, so this default is only the
+      // pre-capture window.
       expect(LaunchIntent.instance.isResolved, isFalse);
-      expect(LaunchIntent.instance.hasExplicitDestination, isTrue);
+      expect(LaunchIntent.instance.hasExplicitDestination, isFalse);
     });
 
     test('a launch with a notification payload has a destination', () {
@@ -190,9 +190,9 @@ void main() {
       );
     });
 
-    test('an unresolved launch intent also suppresses the redirect', () {
-      // Never resolved — the fail-safe must hold end to end, not just at the
-      // LaunchIntent getter.
+    test('an unresolved launch still allows a warm redirect', () {
+      // Capture happens in main() before runApp. If that has not run yet,
+      // treating unknown as "no destination" lets a live session resume.
       final decision = resolveResumeDecision(
         candidate: ResumeCandidate(
           sessionId: 's1',
@@ -211,7 +211,7 @@ void main() {
         expiryAlreadyNotified: false,
       );
 
-      expect(decision, isA<ResumeNone>());
+      expect(decision, isA<ResumeRedirect>());
     });
   });
 }

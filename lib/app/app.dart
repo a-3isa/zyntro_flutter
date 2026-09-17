@@ -17,9 +17,8 @@ class ZyntroApp extends ConsumerWidget {
     final router = ref.watch(routerProvider);
     final themeMode = ref.watch(themeModeProvider).value ?? ThemeMode.system;
 
-    // Apply the signed-in user's chosen neon color app-wide. Watching this
-    // rebuilds the whole app when the color changes (login / onboarding /
-    // sign-out), so every widget reading AppColors.userAccent recolors.
+    // Apply the signed-in user's chosen accent for avatars and gym type color.
+    // App chrome (buttons, nav, focus) uses AppColors.signal and does not follow this.
     final accent = ref.watch(accentColorProvider);
     AppColors.setAccent(accent);
 

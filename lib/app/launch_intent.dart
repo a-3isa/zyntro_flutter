@@ -9,10 +9,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// sequences them, so left alone the member lands wherever the scheduler
 /// happened to finish last.
 ///
-/// Rather than trying to synchronise the two, this records the fact early:
-/// `NotificationService.init()` runs before `runApp()`, so by the time the
-/// router exists the answer is already known and the resume decision simply
-/// stands down. A race becomes an ordering fact.
+/// `main()` captures `FirebaseMessaging.getInitialMessage()` before `runApp()`,
+/// so by the time the router exists the answer is already known. Unknown
+/// (not yet captured) reads as no explicit destination so an ordinary cold
+/// start can still resume.
 ///
 /// Deliberately a plain singleton rather than a provider: it has to be writable
 /// from `init()`, which runs before any [ProviderContainer] exists.
@@ -26,13 +26,14 @@ class LaunchIntent {
   /// Set once during start-up, before the first frame.
   set hasExplicitDestination(bool value) => _hasExplicitDestination = value;
 
-  /// True when the launch has its own destination — including when we could not
-  /// work out whether it does.
+  /// True when the launch has its own destination.
   ///
-  /// The unknown case deliberately reads as `true`: skipping a redirect costs
-  /// the member one tap, while hijacking their notification tap sends them
-  /// somewhere they did not ask to go. Only one of those is recoverable.
-  bool get hasExplicitDestination => _hasExplicitDestination ?? true;
+  /// Unknown (not yet resolved) reads as `false` so an ordinary cold start can
+  /// still resume a live session. [main] captures `getInitialMessage` before
+  /// `runApp`, so a notification tap is recorded as `true` before the first
+  /// redirect. Prefer waiting on [isResolved] if you are not sure the capture
+  /// has run.
+  bool get hasExplicitDestination => _hasExplicitDestination ?? false;
 
   /// Whether start-up has resolved the question yet.
   bool get isResolved => _hasExplicitDestination != null;

@@ -61,7 +61,7 @@ class ComingSoonDialog extends StatelessWidget {
               Icons
                   .rocket_launch_rounded, // Using rounded variant if available, or just rocket_launch
               size: 64,
-              color: AppColors.userAccent,
+              color: AppColors.signal,
             ),
             const SizedBox(height: AppSpacing.lg),
 
@@ -83,7 +83,7 @@ class ComingSoonDialog extends StatelessWidget {
               style: TextStyle(
                 fontSize: AppFontSize.lg,
                 fontWeight: FontWeight.w600,
-                color: AppColors.userAccent,
+                color: AppColors.signal,
               ),
               textAlign: TextAlign.center,
             ),

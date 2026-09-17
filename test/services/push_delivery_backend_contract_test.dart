@@ -25,6 +25,13 @@ void main() {
       expect(source, isNot(contains('Access-Control-Allow-Origin", "*"')));
       expect(source, contains('sendEachForMulticast'));
       expect(source, contains('case "new_follower"'));
+      expect(source, contains('case "partner_left"'));
+      expect(source, contains('buildPartnerLeftPayload'));
+      expect(source, contains('exports.cleanupDeletedUser'));
+      expect(source, contains('onUserDeleted'));
+      expect(source, contains('deletePostsByAuthor'));
+      expect(source, contains('async function isBlockedPair('));
+      expect(source, contains('blocked: true'));
       expect(source, contains('persistRecipientNotification'));
       expect(source, contains('.collection("notifications")'));
       expect(source, contains('notificationId'));

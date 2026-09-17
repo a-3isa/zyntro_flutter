@@ -6,7 +6,6 @@ import '../../../core/theme/app_theme.dart';
 import '../../../widgets/widgets.dart';
 import '../../../core/models/models.dart';
 import '../../auth/auth_providers.dart';
-import 'package:flutter/services.dart';
 import '../../../services/moderation_service.dart';
 
 /// Blocked users page for managing blocked accounts.
@@ -85,12 +84,7 @@ class _BlockedUsersPageState extends ConsumerState<BlockedUsersPage> {
         children: [
           // Custom Header
           Container(
-            padding: EdgeInsets.only(
-              top: MediaQuery.paddingOf(context).top + 8,
-              bottom: 8,
-              left: 16,
-              right: 16,
-            ),
+            padding: AppSpacing.headerPadding(context),
             decoration: BoxDecoration(
               color: AppColors.surfaceV2,
               border: Border(
@@ -99,24 +93,7 @@ class _BlockedUsersPageState extends ConsumerState<BlockedUsersPage> {
             ),
             child: Row(
               children: [
-                GestureDetector(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    Navigator.pop(context);
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceV2Elevated,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.arrow_back,
-                      color: AppColors.textV2Primary,
-                      size: 20,
-                    ),
-                  ),
-                ),
+                const ZyntroBackButton(),
                 const SizedBox(width: 16),
                 Text(
                   'Blocked Users',
@@ -200,7 +177,7 @@ class _BlockedUsersPageState extends ConsumerState<BlockedUsersPage> {
                       : 'U',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: AppColors.userAccent,
+                    color: AppColors.signal,
                   ),
                 )
               : null,

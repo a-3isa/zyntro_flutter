@@ -37,17 +37,8 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
   Timer? _usernameDebounce;
   int _usernameCheckSeq = 0;
 
-  // Profile: accent color — all neon shades. This becomes the user's app color.
-  final List<Color> _avatarColors = const [
-    AppColors.accentLime, // acid lime (default)
-    AppColors.neonGreen, // neon green
-    Color(0xFF00FFC6), // neon teal
-    Color(0xFF00E5FF), // neon cyan
-    Color(0xFF2979FF), // neon blue
-    Color(0xFFB026FF), // neon purple
-    Color(0xFFFF2EC4), // neon magenta
-    Color(0xFFFF6D00), // neon orange
-  ];
+  // Profile: accent color — same swatches as profile setup / edit profile.
+  List<Color> get _avatarColors => AppColors.userAccentChoices;
   int _selectedColorIndex = 0;
 
   // Training: workout preference
@@ -264,7 +255,7 @@ class _ProgressDots extends StatelessWidget {
         final isActive = i == currentStep;
         final width = isActive ? 20.0 : 6.0;
         final color = (isActive || isPast)
-            ? AppColors.userAccent
+            ? AppColors.signal
             : AppColors.surfaceV2Elevated;
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 3),
@@ -347,7 +338,7 @@ class _ContinueButtonState extends State<_ContinueButton> {
           height: 54,
           decoration: BoxDecoration(
             color: (enabled || widget.isLoading)
-                ? AppColors.userAccent
+                ? AppColors.signal
                 : AppColors.surfaceV2Elevated,
             borderRadius: BorderRadius.circular(16),
           ),
@@ -450,7 +441,7 @@ class _StepProfileState extends State<_StepProfile> {
       case _UsernameStatus.available:
         return Icon(
           Icons.check_circle_rounded,
-          color: AppColors.userAccent,
+          color: AppColors.signal,
           size: 22,
         );
       case _UsernameStatus.taken:
@@ -477,7 +468,7 @@ class _StepProfileState extends State<_StepProfile> {
     final Color usernameBorder = usernameError
         ? AppColors.validationError.withValues(alpha: 0.5)
         : (widget.usernameStatus == _UsernameStatus.available
-              ? AppColors.userAccent.withValues(alpha: 0.4)
+              ? AppColors.signal.withValues(alpha: 0.4)
               : AppColors.surfaceV2Elevated);
 
     return Column(
@@ -552,7 +543,7 @@ class _StepProfileState extends State<_StepProfile> {
                     color: AppColors.textV2Primary,
                     letterSpacing: -0.5,
                   ),
-                  cursorColor: AppColors.userAccent,
+                  cursorColor: AppColors.signal,
                   decoration: InputDecoration(
                     prefixText: '@',
                     prefixStyle: AppTextStyles.h3.copyWith(
@@ -610,34 +601,39 @@ class _StepProfileState extends State<_StepProfile> {
                   children: List.generate(widget.colors.length, (i) {
                     final isSelected = i == widget.selectedColorIndex;
                     final color = widget.colors[i];
-                    return GestureDetector(
-                      onTap: () {
-                        HapticFeedback.selectionClick();
-                        widget.onColorSelected(i);
-                      },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? color.withValues(alpha: 0.15)
-                              : AppColors.surfaceV2,
-                          shape: BoxShape.circle,
-                          border: Border.all(
+                    return Semantics(
+                      button: true,
+                      selected: isSelected,
+                      label: 'Accent color ${i + 1}',
+                      child: GestureDetector(
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          widget.onColorSelected(i);
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
                             color: isSelected
-                                ? color
-                                : AppColors.surfaceV2Elevated,
-                            width: isSelected ? 2.5 : 1.5,
+                                ? color.withValues(alpha: 0.15)
+                                : AppColors.surfaceV2,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: isSelected
+                                  ? color
+                                  : AppColors.surfaceV2Elevated,
+                              width: isSelected ? 2.5 : 1.5,
+                            ),
                           ),
-                        ),
-                        child: Center(
-                          child: Container(
-                            width: 22,
-                            height: 22,
-                            decoration: BoxDecoration(
-                              color: color,
-                              shape: BoxShape.circle,
+                          child: Center(
+                            child: Container(
+                              width: 22,
+                              height: 22,
+                              decoration: BoxDecoration(
+                                color: color,
+                                shape: BoxShape.circle,
+                              ),
                             ),
                           ),
                         ),
@@ -680,7 +676,7 @@ class _NameInput extends StatelessWidget {
             color: AppColors.textV2Primary,
             letterSpacing: -0.5,
           ),
-          cursorColor: AppColors.userAccent,
+          cursorColor: AppColors.signal,
           decoration: InputDecoration(
             hintText: 'Your name',
             hintStyle: AppTextStyles.h3.copyWith(
@@ -699,7 +695,7 @@ class _NameInput extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
               borderSide: BorderSide(
                 color: hasText
-                    ? AppColors.userAccent.withValues(alpha: 0.27)
+                    ? AppColors.signal.withValues(alpha: 0.27)
                     : AppColors.surfaceV2Elevated,
               ),
             ),
@@ -707,7 +703,7 @@ class _NameInput extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
               borderSide: BorderSide(
                 color: hasText
-                    ? AppColors.userAccent.withValues(alpha: 0.27)
+                    ? AppColors.signal.withValues(alpha: 0.27)
                     : AppColors.surfaceV2Elevated,
               ),
             ),
@@ -715,7 +711,7 @@ class _NameInput extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
               borderSide: BorderSide(
                 color: hasText
-                    ? AppColors.userAccent.withValues(alpha: 0.27)
+                    ? AppColors.signal.withValues(alpha: 0.27)
                     : AppColors.surfaceV2Elevated,
                 width: 1.5,
               ),
@@ -805,7 +801,7 @@ class _StepTraining extends StatelessWidget {
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
                             color: isSelected
-                                ? AppColors.userAccent.withValues(alpha: 0.27)
+                                ? AppColors.signal.withValues(alpha: 0.27)
                                 : Colors.transparent,
                           ),
                         ),
@@ -845,7 +841,7 @@ class _StepTraining extends StatelessWidget {
                                 width: 18,
                                 height: 18,
                                 decoration: BoxDecoration(
-                                  color: AppColors.userAccent,
+                                  color: AppColors.signal,
                                   shape: BoxShape.circle,
                                 ),
                                 child: const Icon(
@@ -873,7 +869,7 @@ class _StepTraining extends StatelessWidget {
                     style: AppTextStyles.display.copyWith(
                       fontSize: 56,
                       fontWeight: FontWeight.w700,
-                      color: AppColors.userAccent,
+                      color: AppColors.signal,
                       letterSpacing: -2,
                     ),
                   ),
@@ -898,13 +894,13 @@ class _StepTraining extends StatelessWidget {
                           height: 44,
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? AppColors.userAccent
+                                ? AppColors.signal
                                 : AppColors.surfaceV2,
                             borderRadius: BorderRadius.circular(12),
                             boxShadow: isSelected
                                 ? [
                                     BoxShadow(
-                                      color: AppColors.userAccent.withValues(
+                                      color: AppColors.signal.withValues(
                                         alpha: 0.35,
                                       ),
                                       blurRadius: 12,
@@ -1100,7 +1096,7 @@ class _StepWorkoutPreferenceState extends State<_StepWorkoutPreference> {
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
                             color: isSelected
-                                ? AppColors.userAccent.withValues(alpha: 0.45)
+                                ? AppColors.signal.withValues(alpha: 0.45)
                                 : Colors.transparent,
                             width: 1.5,
                           ),
@@ -1121,7 +1117,7 @@ class _StepWorkoutPreferenceState extends State<_StepWorkoutPreference> {
                                     width: 14,
                                     height: 14,
                                     decoration: BoxDecoration(
-                                      color: AppColors.userAccent,
+                                      color: AppColors.signal,
                                       shape: BoxShape.circle,
                                     ),
                                     child: const Icon(
@@ -1187,12 +1183,12 @@ class _StepWorkoutPreferenceState extends State<_StepWorkoutPreference> {
                         ),
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? AppColors.userAccent
+                              ? AppColors.signal
                               : AppColors.surfaceV2,
                           borderRadius: BorderRadius.circular(50),
                           border: Border.all(
                             color: isSelected
-                                ? AppColors.userAccent
+                                ? AppColors.signal
                                 : AppColors.surfaceV2Elevated,
                           ),
                         ),

@@ -74,6 +74,12 @@ class AuthController {
     return _resolveValue(result);
   }
 
+  Future<AuthUserEntity?> signInWithApple() async {
+    await ensureMigrationSliceInitialized();
+    final result = await _useCase.signInWithApple();
+    return _resolveValue(result);
+  }
+
   Future<void> signOut() async {
     final result = await _useCase.signOut();
     await _resolveVoid(result);

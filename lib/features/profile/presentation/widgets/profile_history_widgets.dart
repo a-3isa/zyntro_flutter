@@ -58,7 +58,7 @@ class WeeklyVolumeChart extends StatelessWidget {
         ? '↑ ${(((currWeek - prevWeek) / prevWeek) * 100).round()}%'
         : '↓ ${(((prevWeek - currWeek) / prevWeek) * 100).round()}%';
     final trendColor = (currWeek >= prevWeek && prevWeek > 0)
-        ? AppColors.userAccent
+        ? AppColors.signal
         : AppColors.error;
 
     return Container(
@@ -105,9 +105,9 @@ class WeeklyVolumeChart extends StatelessWidget {
                     : weeklySets[i] / maxSets;
                 Color barColor;
                 if (isLast) {
-                  barColor = AppColors.userAccent;
+                  barColor = AppColors.signal;
                 } else if (isSecondLast) {
-                  barColor = AppColors.userAccent.withValues(alpha: 0.53);
+                  barColor = AppColors.signal.withValues(alpha: 0.53);
                 } else {
                   barColor = AppColors.surfaceV2Elevated;
                 }
@@ -139,7 +139,7 @@ class WeeklyVolumeChart extends StatelessWidget {
                                 ? FontWeight.w700
                                 : FontWeight.w400,
                             color: isLast
-                                ? AppColors.userAccent
+                                ? AppColors.signal
                                 : AppColors.textV2Tertiary,
                           ),
                         ),
@@ -267,7 +267,7 @@ class ActivityHeatmap extends StatelessWidget {
                                 decoration: BoxDecoration(
                                   color: alpha == 0.0
                                       ? AppColors.surfaceV2Elevated
-                                      : AppColors.userAccent.withValues(
+                                      : AppColors.signal.withValues(
                                           alpha: alpha,
                                         ),
                                   borderRadius: BorderRadius.circular(2),
@@ -323,7 +323,7 @@ class ActivityHeatmap extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: a == 0.0
                         ? AppColors.surfaceV2Elevated
-                        : AppColors.userAccent.withValues(alpha: a),
+                        : AppColors.signal.withValues(alpha: a),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),

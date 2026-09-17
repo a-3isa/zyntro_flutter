@@ -16,7 +16,7 @@ class LobbyWaitingView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircularProgressIndicator(color: AppColors.userAccent),
+            CircularProgressIndicator(color: AppColors.signal),
             const SizedBox(height: 20),
             Text(
               title,

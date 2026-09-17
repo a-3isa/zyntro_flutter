@@ -116,7 +116,7 @@ class PlanProgressBar extends StatelessWidget {
                       height: 4,
                       decoration: BoxDecoration(
                         color: done
-                            ? AppColors.userAccent
+                            ? AppColors.signal
                             : (AppColors.surfaceV2Active),
                         borderRadius: BorderRadius.circular(2),
                       ),
@@ -130,7 +130,7 @@ class PlanProgressBar extends StatelessWidget {
           Text(
             '$completed/$totalExercises',
             style: TextStyle(
-              color: AppColors.userAccent,
+              color: AppColors.signal,
               fontSize: 12,
               fontWeight: FontWeight.w700,
             ),

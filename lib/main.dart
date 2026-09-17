@@ -13,6 +13,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app/app.dart';
 import 'app/app_runtime_config.dart';
+import 'app/launch_intent.dart';
 import 'utils/offline_handlers.dart';
 import 'services/notification_service.dart';
 import 'services/storage_service.dart';
@@ -95,6 +96,18 @@ void main() async {
   final container = ProviderContainer(
     overrides: [sharedPreferencesProvider.overrideWithValue(sharedPrefs)],
   );
+
+  // Resolve notification-vs-resume BEFORE the first GoRouter redirect.
+  // getInitialMessage does not show a permission dialog. Unknown used to
+  // default to "explicit destination", which latched ResumeNone on every
+  // ordinary cold start because NotificationService.init() runs after runApp.
+  try {
+    final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+    LaunchIntent.instance.hasExplicitDestination = initialMessage != null;
+  } catch (e, st) {
+    LaunchIntent.instance.hasExplicitDestination = false;
+    _debugPrintStartupFailure('LaunchIntent', e, st);
+  }
 
   runApp(
     UncontrolledProviderScope(

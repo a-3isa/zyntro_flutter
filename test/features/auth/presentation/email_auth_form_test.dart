@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:zyntro_flutter/l10n/app_localizations.dart';
@@ -152,6 +153,23 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.text('Create Account'), findsOneWidget);
       expect(find.byType(SocialAuthRow), findsOneWidget);
+    });
+
+    testWidgets('LoginPage shows Apple with Google and Facebook on iOS', (
+      tester,
+    ) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      tester.view.physicalSize = const Size(360, 640);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(_wrap(const LoginPage(), MockAuthController()));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Apple'), findsOneWidget);
+      expect(find.text('Google'), findsOneWidget);
+      expect(find.text('Facebook'), findsOneWidget);
+      debugDefaultTargetPlatformOverride = null;
     });
   });
 

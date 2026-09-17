@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -203,7 +203,7 @@ class _MatchmakingPageState extends ConsumerState<MatchmakingPage>
               ),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.userAccent.withValues(alpha: 0.4),
+                  color: AppColors.signal.withValues(alpha: 0.4),
                   blurRadius: 30,
                   spreadRadius: 5,
                 ),
@@ -259,7 +259,7 @@ class _MatchmakingPageState extends ConsumerState<MatchmakingPage>
               height: 8,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: AppColors.userAccent.withValues(alpha: opacity),
+                color: AppColors.signal.withValues(alpha: opacity),
               ),
             );
           },
@@ -303,7 +303,7 @@ class _MatchmakingPageState extends ConsumerState<MatchmakingPage>
           _startMatchmaking();
         },
         style: FilledButton.styleFrom(
-          backgroundColor: AppColors.userAccent,
+          backgroundColor: AppColors.signal,
           minimumSize: const Size.fromHeight(52),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),

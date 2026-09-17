@@ -2,7 +2,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
@@ -259,24 +258,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
               ),
               child: Row(
                 children: [
-                  GestureDetector(
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      Navigator.pop(context);
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceV2Elevated,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.arrow_back,
-                        color: AppColors.textV2Primary,
-                        size: 20,
-                      ),
-                    ),
-                  ),
+                  const ZyntroBackButton(),
                   const SizedBox(width: 16),
                   Text(
                     'Post',
@@ -343,24 +325,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
             ),
             child: Row(
               children: [
-                GestureDetector(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    Navigator.pop(context);
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceV2Elevated,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.arrow_back,
-                      color: AppColors.textV2Primary,
-                      size: 20,
-                    ),
-                  ),
-                ),
+                const ZyntroBackButton(),
                 const SizedBox(width: 16),
                 const Text(
                   'Post',
@@ -534,7 +499,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                                     child: Center(
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
-                                        color: AppColors.userAccent,
+                                        color: AppColors.signal,
                                       ),
                                     ),
                                   ),
@@ -679,7 +644,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                                         Icon(
                                           Icons.fitness_center,
                                           size: 14,
-                                          color: AppColors.userAccent,
+                                          color: AppColors.signal,
                                         ),
                                         const SizedBox(width: AppSpacing.xs),
                                         Expanded(
@@ -814,7 +779,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
               decoration: BoxDecoration(
                 border: Border(
                   bottom: BorderSide(
-                    color: isActive ? AppColors.userAccent : Colors.transparent,
+                    color: isActive ? AppColors.signal : Colors.transparent,
                     width: 2,
                   ),
                 ),
@@ -1104,24 +1069,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
             ),
             child: Row(
               children: [
-                GestureDetector(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    Navigator.pop(context);
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceV2Elevated,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.arrow_back,
-                      color: AppColors.textV2Primary,
-                      size: 20,
-                    ),
-                  ),
-                ),
+                const ZyntroBackButton(),
                 const SizedBox(width: 16),
                 const Text(
                   'Post',
@@ -1359,7 +1307,7 @@ class WorkoutDetailSection extends StatelessWidget {
               style: AppTextStyles.h2.copyWith(
                 fontSize: 28,
                 fontWeight: FontWeight.w700,
-                color: AppColors.userAccent,
+                color: AppColors.signal,
                 letterSpacing: -1,
               ),
             ),

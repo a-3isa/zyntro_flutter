@@ -453,7 +453,7 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
                                         Icon(
                                           Icons.fitness_center,
                                           size: 14,
-                                          color: AppColors.userAccent,
+                                          color: AppColors.signal,
                                         ),
                                         const SizedBox(width: AppSpacing.xs),
                                         Expanded(
@@ -961,7 +961,7 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
         ? Icons.fitness_center
         : Icons.directions_run;
     final typeColor = widget.post.type == 'strength'
-        ? AppColors.userAccent
+        ? AppColors.signal
         : AppColors.secondary;
 
     return RepaintBoundary(
@@ -1063,7 +1063,7 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
     final hasImage = photoUrl != null && photoUrl.isNotEmpty;
 
     final typeColor = widget.post.type == 'strength'
-        ? AppColors.userAccent
+        ? AppColors.signal
         : AppColors.secondary;
     final fallback = Container(
       color: typeColor.withValues(alpha: 0.1),
@@ -1178,7 +1178,7 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
         ? Icons.fitness_center
         : Icons.directions_run;
     final typeColor = widget.post.type == 'strength'
-        ? AppColors.userAccent
+        ? AppColors.signal
         : AppColors.secondary;
 
     return AspectRatio(

@@ -47,12 +47,15 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
         final providerData = user.providerIds;
         final isGoogleSignup = providerData.contains('google.com');
         final isFacebookSignup = providerData.contains('facebook.com');
+        final isAppleSignup = providerData.contains('apple.com');
 
         setState(() {
           if (isGoogleSignup) {
             _authProvider = 'google';
           } else if (isFacebookSignup) {
             _authProvider = 'facebook';
+          } else if (isAppleSignup) {
+            _authProvider = 'apple';
           }
 
           if (_authProvider != 'email') {
@@ -215,7 +218,11 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
                         ),
                         const SizedBox(height: AppSpacing.md),
                         Text(
-                          'Profile photo from ${_authProvider == 'google' ? 'Google' : 'Facebook'}',
+                          'Profile photo from ${_authProvider == 'google'
+                              ? 'Google'
+                              : _authProvider == 'facebook'
+                              ? 'Facebook'
+                              : 'Apple'}',
                           style: AppTextStyles.body.copyWith(
                             color: AppColors.textV2Secondary,
                           ),

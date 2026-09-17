@@ -185,7 +185,7 @@ class _GymExercisePickerSheetState
             ),
             FilledButton(
               style: FilledButton.styleFrom(
-                backgroundColor: AppColors.userAccent,
+                backgroundColor: AppColors.signal,
                 foregroundColor: AppColors.textInverseDark,
               ),
               onPressed: () {
@@ -295,7 +295,7 @@ class _GymExercisePickerSheetState
       child: FilledButton(
         style: FilledButton.styleFrom(
           backgroundColor: hasSelection
-              ? AppColors.userAccent
+              ? AppColors.signal
               : AppColors.surfaceV2Elevated,
           foregroundColor: hasSelection
               ? AppColors.textInverseDark
@@ -331,7 +331,7 @@ class _GymExercisePickerSheetState
             const SizedBox(height: 12),
             FilledButton(
               style: FilledButton.styleFrom(
-                backgroundColor: AppColors.userAccent,
+                backgroundColor: AppColors.signal,
                 foregroundColor: AppColors.textInverseDark,
               ),
               onPressed: () => _doSearch(_searchController.text.trim()),
@@ -364,12 +364,12 @@ class _GymExercisePickerSheetState
           child: DecoratedBox(
             decoration: BoxDecoration(
               color: isSelected
-                  ? AppColors.userAccent.withValues(alpha: 0.12)
+                  ? AppColors.signal.withValues(alpha: 0.12)
                   : AppColors.surfaceV2Elevated,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: isSelected
-                    ? AppColors.userAccent
+                    ? AppColors.signal
                     : AppColors.borderDarkSecondary,
                 width: isSelected ? 1.5 : 1,
               ),
@@ -395,7 +395,7 @@ class _GymExercisePickerSheetState
                               style: TextStyle(
                                 fontWeight: FontWeight.w600,
                                 color: isSelected
-                                    ? AppColors.userAccent
+                                    ? AppColors.signal
                                     : AppColors.textV2Primary,
                               ),
                             ),
@@ -454,7 +454,7 @@ class _SelectionIndicator extends StatelessWidget {
       height: 26,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: isSelected ? AppColors.userAccent : Colors.transparent,
+        color: isSelected ? AppColors.signal : Colors.transparent,
         border: isSelected
             ? null
             : Border.all(color: AppColors.textV2Tertiary, width: 1.5),
@@ -582,7 +582,7 @@ class _NoMatchesState extends StatelessWidget {
           const SizedBox(height: 16),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: AppColors.userAccent,
+              backgroundColor: AppColors.signal,
               foregroundColor: AppColors.textInverseDark,
             ),
             onPressed: onAddCustom,

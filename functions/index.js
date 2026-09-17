@@ -6,6 +6,7 @@ const { getMessaging } = require("firebase-admin/messaging");
 const logger = require("firebase-functions/logger");
 const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const { onRequest, HttpsError } = require("firebase-functions/v2/https");
+const { onUserDeleted } = require("firebase-functions/v2/identity");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 
 initializeApp();
@@ -47,6 +48,17 @@ function requireString(value, fieldName) {
 
 function followDocId(followerId, followeeId) {
   return `${followerId}_${followeeId}`;
+}
+
+async function isBlockedPair(a, b) {
+  if (!a || !b || a === b) {
+    return false;
+  }
+  const [ab, ba] = await Promise.all([
+    db.collection("blocks").doc(`${a}_${b}`).get(),
+    db.collection("blocks").doc(`${b}_${a}`).get(),
+  ]);
+  return ab.exists || ba.exists;
 }
 
 function normalizeData(data) {
@@ -495,20 +507,51 @@ async function buildPostCommentPayload(callerId, recipientId, data) {
     typeof commentDoc.data().authorName === "string" && commentDoc.data().authorName.trim().length > 0
       ? commentDoc.data().authorName.trim()
       : await getUserDisplayName(callerId);
-  const commentText =
-    typeof commentDoc.data().text === "string" ? commentDoc.data().text.trim() : "";
-  const preview =
-    commentText.length > 50 ? `${commentText.slice(0, 50)}...` : commentText;
 
   return {
     title: "New Comment",
-    body: `${commenterName}: "${preview}"`,
+    body: `${commenterName} commented on your post`,
     data: {
       type: "post_comment",
       postId,
       commentId,
       byUserId: callerId,
       byUserName: commenterName,
+    },
+  };
+}
+
+async function buildPartnerLeftPayload(callerId, recipientId, data) {
+  const sessionId = requireString(data.sessionId, "data.sessionId");
+  const leaverId = requireString(data.leaverId, "data.leaverId");
+  if (leaverId !== callerId) {
+    throw new HttpsError("permission-denied", "Caller is not the leaver.");
+  }
+
+  const sessionDoc = await db.collection("sessions").doc(sessionId).get();
+  if (!sessionDoc.exists) {
+    throw new HttpsError("not-found", "Session not found.");
+  }
+
+  const session = sessionDoc.data() || {};
+  const participants = Array.isArray(session.participants) ? session.participants : [];
+  const ended = Array.isArray(session.endedParticipants) ? session.endedParticipants : [];
+  if (!participants.includes(callerId) || !participants.includes(recipientId)) {
+    throw new HttpsError("permission-denied", "Caller is not part of this session.");
+  }
+  if (!ended.includes(callerId)) {
+    throw new HttpsError("failed-precondition", "Caller has not left this session.");
+  }
+
+  const leaverName = await getUserDisplayName(callerId);
+  return {
+    title: `${leaverName} left`,
+    body: `${leaverName} left the session. Finish or carry on.`,
+    data: {
+      type: "partner_left",
+      sessionId,
+      leaverId,
+      action: "open_session",
     },
   };
 }
@@ -533,6 +576,8 @@ async function buildPushPayload(type, callerId, recipientId, data) {
       return buildPostLikePayload(callerId, recipientId, data);
     case "post_comment":
       return buildPostCommentPayload(callerId, recipientId, data);
+    case "partner_left":
+      return buildPartnerLeftPayload(callerId, recipientId, data);
     default:
       throw new HttpsError("failed-precondition", `Push delivery is not supported for ${type}.`);
   }
@@ -619,6 +664,16 @@ exports.deliverNotificationPush = onRequest({ invoker: "public" }, async (req, r
     const type = requireString(req.body && req.body.type, "type");
     const recipientId = requireString(req.body && req.body.recipientId, "recipientId");
     const payloadData = getPayloadData(req.body);
+
+    if (await isBlockedPair(callerId, recipientId)) {
+      logger.info("Skipping push for blocked pair.", { callerId, recipientId, type });
+      res.status(200).json({
+        delivered: 0,
+        skipped: true,
+        blocked: true,
+      });
+      return;
+    }
 
     const payload = await buildPushPayload(type, callerId, recipientId, payloadData);
     // The Cloud Function is the single authoritative writer for all cross-user
@@ -723,7 +778,7 @@ exports.expireStaleSessions = onSchedule("every 15 minutes", async () => {
     .collection("sessions")
     .where("status", "==", "active")
     .where("expiresAt", "<", now)
-    .limit(400)
+    .limit(200)
     .get();
 
   if (snapshot.empty) {
@@ -904,4 +959,74 @@ exports.cleanupFullyRemovedJointPosts = onDocumentUpdated("posts/{postId}", asyn
 
   await event.data.after.ref.delete();
   logger.info("Deleted fully-removed joint post.", { postId: event.params.postId });
+});
+
+async function deleteByQuery(query) {
+  let total = 0;
+  for (;;) {
+    const snapshot = await query.limit(200).get();
+    if (snapshot.empty) {
+      return total;
+    }
+    const batch = db.batch();
+    snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+    await batch.commit();
+    total += snapshot.size;
+    if (snapshot.size < 200) {
+      return total;
+    }
+  }
+}
+
+async function deleteUserSubcollection(uid, name) {
+  await deleteByQuery(db.collection("users").doc(uid).collection(name));
+}
+
+async function deletePostsByAuthor(uid) {
+  for (;;) {
+    const snapshot = await db.collection("posts").where("authorId", "==", uid).limit(50).get();
+    if (snapshot.empty) {
+      return;
+    }
+    for (const post of snapshot.docs) {
+      await deleteByQuery(post.ref.collection("comments"));
+      await deleteByQuery(post.ref.collection("reactions"));
+      await post.ref.delete();
+    }
+    if (snapshot.size < 50) {
+      return;
+    }
+  }
+}
+
+exports.cleanupDeletedUser = onUserDeleted(async (event) => {
+  const uid = event.data.uid;
+  logger.info("Cleaning up deleted user.", { uid });
+
+  for (const name of [
+    "devices",
+    "notifications",
+    "settings",
+    "stats",
+    "personalExercises",
+    "joinedEvents",
+  ]) {
+    await deleteUserSubcollection(uid, name);
+  }
+
+  await deleteByQuery(db.collection("usernames").where("uid", "==", uid));
+  await deleteByQuery(db.collection("follows").where("followerId", "==", uid));
+  await deleteByQuery(db.collection("follows").where("followeeId", "==", uid));
+  await deleteByQuery(db.collection("blocks").where("blockerId", "==", uid));
+  await deleteByQuery(db.collection("blocks").where("blockedId", "==", uid));
+  await deleteByQuery(db.collection("matchmaking_queue").where("userId", "==", uid));
+  await deletePostsByAuthor(uid);
+
+  try {
+    await db.collection("users").doc(uid).delete();
+  } catch (e) {
+    logger.warn("User profile delete skipped.", { uid, error: String(e) });
+  }
+
+  logger.info("Deleted-user cleanup finished.", { uid });
 });

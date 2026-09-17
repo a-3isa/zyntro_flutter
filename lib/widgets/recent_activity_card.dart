@@ -223,7 +223,7 @@ class RecentActivityCard extends StatelessWidget {
     final workoutType = activity.workoutTypeEnum;
 
     if (workoutType.isStrength) {
-      return AppColors.userAccent;
+      return AppColors.signal;
     } else if (workoutType.isCardio) {
       return AppColors.secondary;
     } else if (workoutType == WorkoutType.cycling) {

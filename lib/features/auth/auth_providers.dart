@@ -140,9 +140,9 @@ final authUserProfileProvider = FutureProvider<UserProfileEntity?>((ref) async {
   );
 });
 
-/// The current user's chosen neon accent color (stored in their profile as an
-/// ARGB/RGB hex string). Defaults to the app's neon green when absent.
-/// Drives [AppColors.userAccent] app-wide via the root widget.
+/// The current user's chosen accent color (stored in their profile as an
+/// ARGB/RGB hex string). Defaults to brand signal orange when absent.
+/// Drives [AppColors.userAccent] for avatars and gym type colour.
 final accentColorProvider = Provider<Color>((ref) {
   final profile = ref.watch(authUserProfileProvider).value;
   return _parseAccent(profile?.avatarConfig) ?? AppColors.accentLime;

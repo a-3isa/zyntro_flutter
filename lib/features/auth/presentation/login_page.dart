@@ -15,7 +15,7 @@ import 'widgets/auth_error_surface.dart';
 import 'widgets/auth_text_field.dart';
 import 'widgets/social_auth_row.dart';
 
-/// Login screen — v2 design (true-black, no glassmorphism).
+/// Login screen — concrete charcoal, no glassmorphism.
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
 
@@ -29,7 +29,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   final _passwordController = TextEditingController();
   final _emailFocusNode = FocusNode();
   final _passwordFocusNode = FocusNode();
-  String? _socialLoading; // 'google' | 'facebook' | null
+  String? _socialLoading; // 'google' | 'facebook' | 'apple' | null
   bool _emailLoading = false;
   String? _errorMessage;
   String? _errorSuggestion;
@@ -160,6 +160,38 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     }
   }
 
+  Future<void> _handleAppleSignIn() async {
+    if (_isLoading) return;
+    HapticFeedback.lightImpact();
+    setState(() {
+      _socialLoading = 'apple';
+      _errorMessage = null;
+    });
+
+    try {
+      final user = await ref.read(authControllerProvider).signInWithApple();
+
+      if (user != null && mounted) {
+        HapticFeedback.mediumImpact();
+        context.go(AppRoutes.main);
+      }
+    } catch (e) {
+      if (mounted) {
+        HapticFeedback.heavyImpact();
+        setState(() {
+          _errorSuggestion = null;
+          if (e.toString().contains('canceled')) {
+            _errorMessage = null;
+          } else {
+            _errorMessage = 'Apple Sign-In failed. Please try again.';
+          }
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _socialLoading = null);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -182,25 +214,23 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   // Back button
                   Align(
                     alignment: Alignment.centerLeft,
-                    child: GestureDetector(
-                      onTap: () {
+                    child: IconButton(
+                      tooltip: 'Back',
+                      style: IconButton.styleFrom(
+                        backgroundColor: AppColors.surfaceV2,
+                        minimumSize: const Size(48, 48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: () {
                         HapticFeedback.lightImpact();
                         context.go(AppRoutes.splash);
                       },
-                      child: Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceV2,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Center(
-                          child: Icon(
-                            Icons.arrow_back_ios_new,
-                            size: 16,
-                            color: AppColors.textV2Primary,
-                          ),
-                        ),
+                      icon: const Icon(
+                        Icons.arrow_back_ios_new,
+                        size: 16,
+                        color: AppColors.textV2Primary,
                       ),
                     ),
                   ),
@@ -283,8 +313,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
                   Align(
                     alignment: Alignment.centerRight,
-                    child: GestureDetector(
-                      onTap: _isLoading
+                    child: TextButton(
+                      onPressed: _isLoading
                           ? null
                           : () {
                               HapticFeedback.lightImpact();
@@ -293,7 +323,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       child: Text(
                         l10n.forgotPassword,
                         style: AppTextStyles.label.copyWith(
-                          color: AppColors.userAccent,
+                          color: AppColors.signal,
                         ),
                       ),
                     ),
@@ -337,6 +367,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   SocialAuthRow(
                     onGoogle: _handleGoogleSignIn,
                     onFacebook: _handleFacebookSignIn,
+                    onApple: _handleAppleSignIn,
                     loadingProvider: _socialLoading,
                     enabled: !_isLoading,
                   ),
@@ -355,15 +386,15 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             color: AppColors.textV2Secondary,
                           ),
                         ),
-                        GestureDetector(
-                          onTap: () {
+                        TextButton(
+                          onPressed: () {
                             HapticFeedback.lightImpact();
                             context.go(AppRoutes.signUp);
                           },
                           child: Text(
-                            'Sign Up',
+                            l10n.signUp,
                             style: AppTextStyles.label.copyWith(
-                              color: AppColors.userAccent,
+                              color: AppColors.signal,
                             ),
                           ),
                         ),

@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/theme/app_theme.dart';
 
 /// Full-screen widget shown to the participant who is waiting for their turn.
@@ -153,7 +154,7 @@ class _WaitingTurnScreenState extends State<WaitingTurnScreen>
         Text(
           widget.activeStatusLabel,
           style: TextStyle(
-            color: AppColors.userAccent,
+            color: AppColors.signal,
             fontSize: 12,
             fontWeight: FontWeight.w700,
           ),
@@ -201,7 +202,7 @@ class _WaitingTurnScreenState extends State<WaitingTurnScreen>
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: AppColors.userAccent.withValues(alpha: opacity),
+                      color: AppColors.signal.withValues(alpha: opacity),
                       width: 3,
                     ),
                   ),
@@ -269,12 +270,9 @@ class _WaitingTurnScreenState extends State<WaitingTurnScreen>
         children: <Widget>[
           Text(
             _formatDuration(widget.partnerElapsedTime),
-            style: const TextStyle(
+            style: AppTextStyles.sessionStat.copyWith(
               color: AppColors.textV2Primary,
               fontSize: 56,
-              fontWeight: FontWeight.w800,
-              height: 1.0,
-              letterSpacing: -1,
             ),
           ),
           const SizedBox(height: 8),
@@ -297,7 +295,7 @@ class _WaitingTurnScreenState extends State<WaitingTurnScreen>
     final Color buttonColor = recording ? AppColors.error : AppColors.surfaceV2;
     final Color iconColor = recording
         ? AppColors.textV2Primary
-        : AppColors.userAccent;
+        : AppColors.signal;
 
     return Column(
       mainAxisSize: MainAxisSize.min,

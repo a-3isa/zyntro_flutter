@@ -49,24 +49,7 @@ class _UserPostsPageState extends ConsumerState<UserPostsPage> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                GestureDetector(
-                  onTap: () {
-                    HapticManager.light();
-                    context.pop();
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceV2Elevated,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.arrow_back,
-                      color: AppColors.textV2Primary,
-                      size: 20,
-                    ),
-                  ),
-                ),
+                ZyntroBackButton(onPressed: () => context.pop()),
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -98,7 +81,7 @@ class _UserPostsPageState extends ConsumerState<UserPostsPage> {
                             Icon(
                               Icons.check,
                               size: 18,
-                              color: AppColors.userAccent,
+                              color: AppColors.signal,
                             ),
                           if (_filter != 'all') const SizedBox(width: 18),
                           const SizedBox(width: 8),
@@ -117,7 +100,7 @@ class _UserPostsPageState extends ConsumerState<UserPostsPage> {
                             Icon(
                               Icons.check,
                               size: 18,
-                              color: AppColors.userAccent,
+                              color: AppColors.signal,
                             ),
                           if (_filter != 'strength') const SizedBox(width: 18),
                           const SizedBox(width: 8),
@@ -136,7 +119,7 @@ class _UserPostsPageState extends ConsumerState<UserPostsPage> {
                             Icon(
                               Icons.check,
                               size: 18,
-                              color: AppColors.userAccent,
+                              color: AppColors.signal,
                             ),
                           if (_filter != 'cardio') const SizedBox(width: 18),
                           const SizedBox(width: 8),
@@ -172,7 +155,7 @@ class _UserPostsPageState extends ConsumerState<UserPostsPage> {
                   onRefresh: () async {
                     ref.invalidate(userPostsProvider(widget.userId));
                   },
-                  color: AppColors.userAccent,
+                  color: AppColors.signal,
                   backgroundColor: AppColors.surfaceV2,
                   child: GridView.builder(
                     padding: const EdgeInsets.all(AppSpacing.md),

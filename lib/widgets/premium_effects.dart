@@ -364,7 +364,7 @@ class GradientText extends StatelessWidget {
     super.key,
     required this.text,
     this.style,
-    this.colors = const [AppColors.textDark, AppColors.neonGreen],
+    this.colors = const [AppColors.textV2Primary, AppColors.signal],
     this.textAlign,
   });
 

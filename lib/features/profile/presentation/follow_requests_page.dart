@@ -9,7 +9,6 @@ import '../../../core/models/models.dart';
 import '../../auth/auth_providers.dart';
 import '../../../services/follow_service.dart';
 import '../../../services/user_service.dart';
-import '../../../utils/haptic_manager.dart';
 
 /// Follow requests page for managing pending follow requests.
 /// Migrated from React Native FollowRequestsScreen.
@@ -124,24 +123,7 @@ class _FollowRequestsPageState extends ConsumerState<FollowRequestsPage> {
             ),
             child: Row(
               children: [
-                GestureDetector(
-                  onTap: () {
-                    HapticManager.light();
-                    context.pop();
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceV2Elevated,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.arrow_back,
-                      color: AppColors.textV2Primary,
-                      size: 20,
-                    ),
-                  ),
-                ),
+                ZyntroBackButton(onPressed: () => context.pop()),
                 const SizedBox(width: 16),
                 Text(
                   'Follow Requests',
@@ -231,7 +213,7 @@ class _FollowRequestsPageState extends ConsumerState<FollowRequestsPage> {
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.userAccent,
+                        color: AppColors.signal,
                       ),
                     )
                   : null,

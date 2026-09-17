@@ -47,7 +47,7 @@ class _PulseDotState extends State<PulseDot>
 
   @override
   Widget build(BuildContext context) {
-    final color = widget.color ?? AppColors.userAccent;
+    final color = widget.color ?? AppColors.signal;
     return SizedBox(
       width: widget.size * 3,
       height: widget.size * 3,

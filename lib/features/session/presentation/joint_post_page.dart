@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../../widgets/zyntro_back_button.dart';
 import 'widgets/joint_post_composer.dart';
 
 /// Standalone host for [JointPostComposer], reached at `/joint-post/:postId`.
@@ -29,27 +29,14 @@ class JointPostPage extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               child: Row(
                 children: [
-                  GestureDetector(
-                    onTap: () {
-                      HapticFeedback.lightImpact();
+                  ZyntroBackButton(
+                    onPressed: () {
                       if (context.canPop()) {
                         context.pop();
                       } else {
                         context.go('/?tab=feed');
                       }
                     },
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceV2,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.arrow_back,
-                        color: AppColors.textV2Primary,
-                        size: 20,
-                      ),
-                    ),
                   ),
                   const SizedBox(width: 16),
                   const Text(

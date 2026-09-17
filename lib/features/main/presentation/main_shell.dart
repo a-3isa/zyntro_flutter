@@ -304,7 +304,12 @@ class _MainShellState extends ConsumerState<MainShell>
             left: 0,
             right: 0,
             child: Center(
-              child: GestureDetector(
+              child: Semantics(
+                button: true,
+                label: showStart
+                    ? (canStart ? 'Start session' : 'Pick a workout type')
+                    : 'Train',
+                child: GestureDetector(
                 onTap: () {
                   HapticFeedback.mediumImpact();
                   if (canStart && !fabLoading) {
@@ -342,19 +347,19 @@ class _MainShellState extends ConsumerState<MainShell>
                     decoration: BoxDecoration(
                       // Active: full accent. Inactive START: dim accent. Dumbbell: surface.
                       color: canStart
-                          ? AppColors.userAccent
+                          ? AppColors.signal
                           : AppColors.surfaceV2Elevated,
                       shape: BoxShape.circle,
                       border: Border.all(
                         color: canStart
-                            ? AppColors.userAccent
+                            ? AppColors.signal
                             : Colors.white.withValues(alpha: 0.12),
                         width: 2,
                       ),
                       boxShadow: [
                         BoxShadow(
                           color: canStart
-                              ? AppColors.userAccent.withValues(alpha: 0.55)
+                              ? AppColors.signal.withValues(alpha: 0.55)
                               : Colors.black.withValues(alpha: 0.4),
                           blurRadius: canStart ? 24 : 14,
                           spreadRadius: canStart ? 2 : 0,
@@ -389,10 +394,11 @@ class _MainShellState extends ConsumerState<MainShell>
                           )
                         : Icon(
                             Icons.fitness_center_rounded,
-                            color: AppColors.userAccent,
+                            color: AppColors.signal,
                             size: 26,
                           ),
                   ),
+                ),
                 ),
               ),
             ),
@@ -410,7 +416,11 @@ class _MainShellState extends ConsumerState<MainShell>
   }) {
     final isActive = _currentIndex == index;
 
-    return GestureDetector(
+    return Semantics(
+      button: true,
+      label: label,
+      selected: isActive,
+      child: GestureDetector(
       onTap: () {
         HapticFeedback.selectionClick();
         setState(() => _currentIndex = index);
@@ -432,7 +442,7 @@ class _MainShellState extends ConsumerState<MainShell>
               child: Icon(
                 isActive ? activeIcon : icon,
                 color: isActive
-                    ? AppColors.userAccent
+                    ? AppColors.signal
                     : AppColors.textV2Tertiary,
                 size: 26,
               ),
@@ -446,12 +456,13 @@ class _MainShellState extends ConsumerState<MainShell>
                 height: 4,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: AppColors.userAccent,
+                  color: AppColors.signal,
                 ),
               ),
             ),
           ],
         ),
+      ),
       ),
     );
   }

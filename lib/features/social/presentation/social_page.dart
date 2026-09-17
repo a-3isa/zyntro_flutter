@@ -180,10 +180,7 @@ class _SocialPageState extends ConsumerState<SocialPage>
               children: [
                 Text(
                   'Social',
-                  style: AppTextStyles.h3.copyWith(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -0.7,
+                  style: AppTextStyles.h2.copyWith(
                     color: AppColors.textV2Primary,
                   ),
                 ),
@@ -248,7 +245,7 @@ class _SocialPageState extends ConsumerState<SocialPage>
         HapticManager.medium();
         await _loadBuddies(refresh: true);
       },
-      color: AppColors.userAccent,
+      color: AppColors.signal,
       backgroundColor: AppColors.surfaceV2,
       child: ListView(
         controller: _buddiesScrollController,
@@ -281,7 +278,7 @@ class _SocialPageState extends ConsumerState<SocialPage>
                   height: 24,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: AppColors.userAccent,
+                    color: AppColors.signal,
                   ),
                 ),
               ),
@@ -641,7 +638,7 @@ class _SocialPageState extends ConsumerState<SocialPage>
                       ? (user.displayName as String)[0].toUpperCase()
                       : '?',
                   style: AppTextStyles.body.copyWith(
-                    color: AppColors.userAccent,
+                    color: AppColors.signal,
                     fontWeight: FontWeight.w700,
                   ),
                 )
@@ -676,7 +673,7 @@ class _SocialPageState extends ConsumerState<SocialPage>
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: AppColors.userAccent,
+                    color: AppColors.signal,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -886,7 +883,7 @@ class _FriendsLeaderboard extends ConsumerWidget {
       },
       loading: () => Center(
         child: CircularProgressIndicator(
-          color: AppColors.userAccent,
+          color: AppColors.signal,
           strokeWidth: 2,
         ),
       ),
@@ -956,7 +953,7 @@ class _FriendsLeaderboard extends ConsumerWidget {
                 color: AppColors.surfaceV2,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
-                  color: AppColors.userAccent.withValues(alpha: 0.40),
+                  color: AppColors.signal.withValues(alpha: 0.40),
                   width: 1.5,
                 ),
               ),
@@ -966,7 +963,7 @@ class _FriendsLeaderboard extends ConsumerWidget {
                     '#${me.rank}',
                     style: AppTextStyles.h2.copyWith(
                       fontWeight: FontWeight.w700,
-                      color: AppColors.userAccent,
+                      color: AppColors.signal,
                       height: 1,
                     ),
                   ),
@@ -997,7 +994,7 @@ class _FriendsLeaderboard extends ConsumerWidget {
                     'You',
                     style: AppTextStyles.caption.copyWith(
                       fontWeight: FontWeight.w700,
-                      color: AppColors.userAccent,
+                      color: AppColors.signal,
                     ),
                   ),
                 ],
@@ -1080,7 +1077,7 @@ class _PodiumSpot extends StatelessWidget {
               shape: BoxShape.circle,
               border: Border.all(
                 color: entry.isCurrentUser
-                    ? AppColors.userAccent
+                    ? AppColors.signal
                     : podiumColor.withValues(alpha: 0.60),
                 width: entry.isCurrentUser ? 2.5 : 2,
               ),
@@ -1114,7 +1111,7 @@ class _PodiumSpot extends StatelessWidget {
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
                 color: entry.isCurrentUser
-                    ? AppColors.userAccent
+                    ? AppColors.signal
                     : AppColors.textV2Primary,
               ),
               textAlign: TextAlign.center,
@@ -1173,12 +1170,12 @@ class _LeaderboardRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: entry.isCurrentUser
-            ? AppColors.userAccent.withValues(alpha: 0.08)
+            ? AppColors.signal.withValues(alpha: 0.08)
             : AppColors.surfaceV2,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: entry.isCurrentUser
-              ? AppColors.userAccent.withValues(alpha: 0.35)
+              ? AppColors.signal.withValues(alpha: 0.35)
               : AppColors.surfaceV2Elevated,
           width: 1,
         ),
@@ -1193,7 +1190,7 @@ class _LeaderboardRow extends StatelessWidget {
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
                 color: entry.isCurrentUser
-                    ? AppColors.userAccent
+                    ? AppColors.signal
                     : AppColors.textV2Tertiary,
               ),
             ),
@@ -1227,7 +1224,7 @@ class _LeaderboardRow extends StatelessWidget {
                   style: AppTextStyles.h4.copyWith(
                     fontSize: 14,
                     color: entry.isCurrentUser
-                        ? AppColors.userAccent
+                        ? AppColors.signal
                         : AppColors.textV2Primary,
                   ),
                 ),
@@ -1271,7 +1268,7 @@ class _GlobalUpsell extends StatelessWidget {
             color: AppColors.surfaceV2,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: AppColors.userAccent.withValues(alpha: 0.30),
+              color: AppColors.signal.withValues(alpha: 0.30),
               width: 1.5,
             ),
           ),
@@ -1282,13 +1279,13 @@ class _GlobalUpsell extends StatelessWidget {
                 width: 64,
                 height: 64,
                 decoration: BoxDecoration(
-                  color: AppColors.userAccent.withValues(alpha: 0.12),
+                  color: AppColors.signal.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   Icons.public_rounded,
                   size: 32,
-                  color: AppColors.userAccent,
+                  color: AppColors.signal,
                 ),
               ),
               const SizedBox(height: 20),
@@ -1312,11 +1309,11 @@ class _GlobalUpsell extends StatelessWidget {
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 decoration: BoxDecoration(
-                  color: AppColors.userAccent,
+                  color: AppColors.signal,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  'Unlock for \$5',
+                  'Coming soon',
                   style: AppTextStyles.h5.copyWith(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
@@ -1376,7 +1373,7 @@ class _SearchResultsWidget extends ConsumerWidget {
       },
       loading: () => Center(
         child: CircularProgressIndicator(
-          color: AppColors.userAccent,
+          color: AppColors.signal,
           strokeWidth: 2,
         ),
       ),
@@ -1483,7 +1480,7 @@ class _UserSearchRow extends ConsumerWidget {
                     vertical: 7,
                   ),
                   decoration: BoxDecoration(
-                    color: AppColors.userAccent,
+                    color: AppColors.signal,
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(

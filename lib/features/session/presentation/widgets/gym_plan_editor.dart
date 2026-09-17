@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../core/theme/app_theme.dart';
@@ -73,7 +73,7 @@ class GymPlanEditor extends StatelessWidget {
                   FilledButton.icon(
                     onPressed: onAddExercise,
                     style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.userAccent,
+                      backgroundColor: AppColors.signal,
                       foregroundColor: AppColors.textInverseDark,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(100),
@@ -159,7 +159,7 @@ class _ExerciseCard extends StatelessWidget {
                   height: 30,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: AppColors.userAccent,
+                    color: AppColors.signal,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
@@ -315,7 +315,7 @@ class _StepButton extends StatelessWidget {
             icon,
             size: 20,
             color: enabled
-                ? AppColors.userAccent
+                ? AppColors.signal
                 : AppColors.textV2Tertiary.withValues(alpha: 0.4),
           ),
         ),
@@ -324,7 +324,7 @@ class _StepButton extends StatelessWidget {
   }
 }
 
-/// Compact, restrained remove control — a ghost icon button that only turns
+/// Compact, restrained remove control  a ghost icon button that only turns
 /// destructive-red on press, so it reads as secondary to the plan itself.
 class _RemoveButton extends StatelessWidget {
   const _RemoveButton({required this.onTap});

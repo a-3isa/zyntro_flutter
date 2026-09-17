@@ -26,7 +26,9 @@ void main() {
       expect(rules, contains('match /posts/{postId}/{fileName}'));
       expect(rules, contains('isImageContent()'));
       expect(rules, contains('isUnder5Mb()'));
-      expect(rules, contains('allow read: if isAuthenticated();'));
+      expect(rules, contains('isPostMediaReadable(postId)'));
+      expect(rules, contains('function isPostMediaReadableData'));
+      expect(rules, contains('allow read: if isPostMediaReadable(postId);'));
       expect(rules, contains('isPostOwner(postId)'));
       expect(rules, contains('allow write: if isPostOwner(postId) && isImageContent() && isUnder5Mb();'));
     });

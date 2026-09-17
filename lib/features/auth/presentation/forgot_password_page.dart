@@ -114,19 +114,31 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
   }
 
   String _getErrorMessage(String error) {
-    if (error.contains('user-not-found')) return 'No account found with this email address.';
-    if (error.contains('invalid-email')) return 'Please enter a valid email address.';
+    if (error.contains('user-not-found')) {
+      return 'No account found with this email address.';
+    }
+    if (error.contains('invalid-email')) {
+      return 'Please enter a valid email address.';
+    }
     if (error.contains('network-request-failed')) {
       return 'Network error. Please check your connection and try again.';
     }
-    if (error.contains('too-many-requests')) return 'Too many attempts. Please try again later.';
+    if (error.contains('too-many-requests')) {
+      return 'Too many attempts. Please try again later.';
+    }
     return 'Failed to send reset email. Please try again.';
   }
 
-  InputDecoration _buildInputDecoration({required String hint, required IconData icon}) {
+  InputDecoration _buildInputDecoration({
+    required String hint,
+    required IconData icon,
+  }) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: TextStyle(color: AppColors.textV2Tertiary, fontSize: AppFontSize.md),
+      hintStyle: TextStyle(
+        color: AppColors.textV2Tertiary,
+        fontSize: AppFontSize.md,
+      ),
       prefixIcon: Icon(icon, color: AppColors.textV2Secondary),
       filled: true,
       fillColor: AppColors.surfaceV2Elevated,
@@ -140,7 +152,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-        borderSide: BorderSide(color: AppColors.userAccent, width: 2),
+        borderSide: BorderSide(color: AppColors.signal, width: 2),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppBorderRadius.lg),
@@ -173,23 +185,23 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
               // Back button
               Align(
                 alignment: Alignment.centerLeft,
-                child: GestureDetector(
-                  onTap: () {
+                child: IconButton(
+                  tooltip: 'Back',
+                  style: IconButton.styleFrom(
+                    backgroundColor: AppColors.surfaceV2Elevated,
+                    minimumSize: const Size(48, 48),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: () {
                     HapticFeedback.lightImpact();
                     context.pop();
                   },
-                  child: Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceV2Elevated,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.arrow_back_ios_new,
-                      size: 18,
-                      color: AppColors.textV2Primary,
-                    ),
+                  icon: const Icon(
+                    Icons.arrow_back_ios_new,
+                    size: 18,
+                    color: AppColors.textV2Primary,
                   ),
                 ),
               ),
@@ -219,7 +231,11 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
                 color: AppColors.surfaceV2Elevated,
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.lock_reset_rounded, size: 40, color: AppColors.userAccent),
+              child: Icon(
+                Icons.lock_reset_rounded,
+                size: 40,
+                color: AppColors.signal,
+              ),
             ),
           ),
 
@@ -266,7 +282,9 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
               icon: Icons.email_outlined,
             ),
             validator: (value) {
-              if (value == null || value.isEmpty) return 'Please enter your email address';
+              if (value == null || value.isEmpty) {
+                return 'Please enter your email address';
+              }
               if (!value.contains('@') || !value.contains('.')) {
                 return 'Please enter a valid email address';
               }
@@ -281,12 +299,14 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
             title: _isLoading
                 ? 'Sending...'
                 : _cooldownSeconds > 0
-                    ? 'Resend in ${_cooldownSeconds}s'
-                    : 'Send Reset Email',
+                ? 'Resend in ${_cooldownSeconds}s'
+                : 'Send Reset Email',
             fullWidth: true,
             loading: _isLoading,
             size: ZyntroButtonSize.lg,
-            rightIcon: _isLoading || _cooldownSeconds > 0 ? null : const Icon(Icons.send_rounded),
+            rightIcon: _isLoading || _cooldownSeconds > 0
+                ? null
+                : const Icon(Icons.send_rounded),
             onPressed: (_isLoading || _cooldownSeconds > 0)
                 ? null
                 : () {
@@ -298,19 +318,16 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
           const SizedBox(height: AppSpacing.xl),
 
           Center(
-            child: GestureDetector(
-              onTap: () {
+            child: TextButton(
+              onPressed: () {
                 HapticFeedback.lightImpact();
                 context.go(AppRoutes.login);
               },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text(
-                  'Back to Sign In',
-                  style: AppTextStyles.bodyLarge.copyWith(
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.userAccent,
-                  ),
+              child: Text(
+                'Back to Sign In',
+                style: AppTextStyles.bodyLarge.copyWith(
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.signal,
                 ),
               ),
             ),
@@ -332,7 +349,11 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
               color: AppColors.surfaceV2Elevated,
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.mark_email_read_rounded, size: 40, color: AppColors.success),
+            child: const Icon(
+              Icons.mark_email_read_rounded,
+              size: 40,
+              color: AppColors.success,
+            ),
           ),
         ),
 
@@ -371,7 +392,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
                 _emailController.text.trim(),
                 style: AppTextStyles.h5.copyWith(
                   fontWeight: FontWeight.w700,
-                  color: AppColors.userAccent,
+                  color: AppColors.signal,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -383,21 +404,23 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
 
         Text(
           "Click the link in the email to reset your password. If you don't see it, check your spam folder.",
-          style: AppTextStyles.body.copyWith(
-            color: AppColors.textV2Secondary,
-          ),
+          style: AppTextStyles.body.copyWith(color: AppColors.textV2Secondary),
           textAlign: TextAlign.center,
         ),
 
         const SizedBox(height: AppSpacing.xxl),
 
         ZyntroButton(
-          title: _cooldownSeconds > 0 ? 'Resend in ${_cooldownSeconds}s' : 'Resend Email',
+          title: _cooldownSeconds > 0
+              ? 'Resend in ${_cooldownSeconds}s'
+              : 'Resend Email',
           fullWidth: true,
           variant: ZyntroButtonVariant.secondary,
           loading: _isLoading,
           size: ZyntroButtonSize.lg,
-          leftIcon: _cooldownSeconds > 0 ? null : const Icon(Icons.refresh_rounded),
+          leftIcon: _cooldownSeconds > 0
+              ? null
+              : const Icon(Icons.refresh_rounded),
           onPressed: (_isLoading || _cooldownSeconds > 0)
               ? null
               : () {

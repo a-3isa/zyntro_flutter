@@ -143,7 +143,7 @@ class _JointPostComposerState extends ConsumerState<JointPostComposer> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: Icon(Icons.camera_alt, color: AppColors.userAccent),
+              leading: Icon(Icons.camera_alt, color: AppColors.signal),
               title: Text(
                 'Take Photo',
                 style: AppTextStyles.body.copyWith(
@@ -156,7 +156,7 @@ class _JointPostComposerState extends ConsumerState<JointPostComposer> {
               },
             ),
             ListTile(
-              leading: Icon(Icons.photo_library, color: AppColors.userAccent),
+              leading: Icon(Icons.photo_library, color: AppColors.signal),
               title: Text(
                 'Choose from Gallery',
                 style: AppTextStyles.body.copyWith(
@@ -268,7 +268,7 @@ class _JointPostComposerState extends ConsumerState<JointPostComposer> {
           return SizedBox(
             height: 160,
             child: Center(
-              child: CircularProgressIndicator(color: AppColors.userAccent),
+              child: CircularProgressIndicator(color: AppColors.signal),
             ),
           );
         }
@@ -420,7 +420,7 @@ class _JointPostComposerState extends ConsumerState<JointPostComposer> {
                               height: 20,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: AppColors.userAccent,
+                                color: AppColors.signal,
                               ),
                             )
                           : Icon(
@@ -472,7 +472,7 @@ class _JointPostComposerState extends ConsumerState<JointPostComposer> {
                     : (v) => setState(
                           () => _visibility = v ? 'public' : 'private',
                         ),
-                activeThumbColor: AppColors.userAccent,
+                activeThumbColor: AppColors.signal,
                 inactiveTrackColor: AppColors.surfaceV2Active,
               ),
             ],
@@ -485,7 +485,7 @@ class _JointPostComposerState extends ConsumerState<JointPostComposer> {
               onPressed:
                   confirmed || _isPosting ? null : () => _handlePost(post),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.userAccent,
+                backgroundColor: AppColors.signal,
                 foregroundColor: AppColors.backgroundV2,
               ),
               child: _isPosting
@@ -574,7 +574,7 @@ class _JointPostComposerState extends ConsumerState<JointPostComposer> {
             statusLabel,
             style: AppTextStyles.caption.copyWith(
               color: statusLabel == 'posted ✓'
-                  ? AppColors.userAccent
+                  ? AppColors.signal
                   : AppColors.textV2Secondary,
               fontWeight: FontWeight.w600,
             ),

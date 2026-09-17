@@ -95,7 +95,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       return Scaffold(
         backgroundColor: AppColors.backgroundV2,
         body: Center(
-          child: CircularProgressIndicator(color: AppColors.userAccent),
+          child: CircularProgressIndicator(color: AppColors.signal),
         ),
       );
     }
@@ -204,7 +204,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         return Scaffold(
           backgroundColor: AppColors.backgroundV2,
           body: Center(
-            child: CircularProgressIndicator(color: AppColors.userAccent),
+            child: CircularProgressIndicator(color: AppColors.signal),
           ),
         );
       },
@@ -389,7 +389,7 @@ class _ProfileContent extends ConsumerWidget {
     return DefaultTabController(
       length: 3,
       child: RefreshIndicator(
-        color: AppColors.userAccent,
+        color: AppColors.signal,
         backgroundColor: AppColors.surfaceV2,
         onRefresh: onRefresh,
         child: NestedScrollView(
@@ -411,7 +411,7 @@ class _ProfileContent extends ConsumerWidget {
                 TabBar(
                   labelColor: AppColors.textV2Primary,
                   unselectedLabelColor: AppColors.textV2Tertiary,
-                  indicatorColor: AppColors.userAccent,
+                  indicatorColor: AppColors.signal,
                   indicatorSize: TabBarIndicatorSize.label,
                   dividerColor: Colors.transparent,
                   labelStyle: AppTextStyles.label.copyWith(
@@ -478,14 +478,9 @@ class _PrivateProfileView extends ConsumerWidget {
             // Back button — icon only, consistent with regular visitor header
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-              child: GestureDetector(
-                onTap: () => context.pop(),
-                behavior: HitTestBehavior.opaque,
-                child: const Icon(
-                  Icons.arrow_back_ios_new_rounded,
-                  size: 20,
-                  color: AppColors.textV2Secondary,
-                ),
+              child: ZyntroBackButton(
+                icon: Icons.arrow_back_ios_new_rounded,
+                onPressed: () => context.pop(),
               ),
             ),
             Expanded(
@@ -572,7 +567,7 @@ class _PrivateProfileView extends ConsumerWidget {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: isPending
                               ? AppColors.surfaceV2
-                              : AppColors.userAccent,
+                              : AppColors.signal,
                           foregroundColor: isPending
                               ? AppColors.textV2Secondary
                               : AppColors.backgroundV2,
@@ -632,7 +627,7 @@ class _PrivateProfileView extends ConsumerWidget {
     }
 
     final ringColor =
-        avatarColorFromConfig(user.avatarConfig) ?? AppColors.userAccent;
+        avatarColorFromConfig(user.avatarConfig) ?? AppColors.signal;
 
     return Container(
       width: size + 6,
@@ -864,7 +859,7 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
                               style: AppTextStyles.h2.copyWith(
                                 fontSize: 26,
                                 fontWeight: FontWeight.w800,
-                                color: AppColors.userAccent,
+                                color: AppColors.signal,
                                 height: 1.1,
                                 letterSpacing: -1,
                               ),
@@ -978,11 +973,9 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
           const SizedBox(height: 8),
           Row(
             children: [
-              IconButton(
-                tooltip: 'Back',
-                onPressed: context.pop,
-                icon: const Icon(Icons.arrow_back_ios_new_rounded),
-                color: AppColors.textV2Secondary,
+              ZyntroBackButton(
+                icon: Icons.arrow_back_ios_new_rounded,
+                onPressed: () => context.pop(),
               ),
               const Spacer(),
               IconButton.filled(
@@ -1131,17 +1124,9 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
           const SizedBox(height: 8),
           Row(
             children: [
-              GestureDetector(
-                onTap: () => context.pop(),
-                behavior: HitTestBehavior.opaque,
-                child: const Padding(
-                  padding: EdgeInsets.only(right: 16, top: 4, bottom: 4),
-                  child: Icon(
-                    Icons.arrow_back_ios_new_rounded,
-                    size: 20,
-                    color: AppColors.textV2Secondary,
-                  ),
-                ),
+              ZyntroBackButton(
+                icon: Icons.arrow_back_ios_new_rounded,
+                onPressed: () => context.pop(),
               ),
               const Spacer(),
               GestureDetector(
@@ -1196,7 +1181,7 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
                           style: AppTextStyles.h2.copyWith(
                             fontSize: 22,
                             fontWeight: FontWeight.w800,
-                            color: AppColors.userAccent,
+                            color: AppColors.signal,
                             height: 1.1,
                             letterSpacing: -0.8,
                           ),
@@ -1229,13 +1214,13 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
-                          AppColors.userAccent.withValues(alpha: 0.22),
-                          AppColors.userAccent.withValues(alpha: 0.10),
+                          AppColors.signal.withValues(alpha: 0.22),
+                          AppColors.signal.withValues(alpha: 0.10),
                         ],
                       ),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: AppColors.userAccent.withValues(alpha: 0.45),
+                        color: AppColors.signal.withValues(alpha: 0.45),
                         width: 1,
                       ),
                     ),
@@ -1245,7 +1230,7 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
                         Icon(
                           Icons.people_alt_rounded,
                           size: 13,
-                          color: AppColors.userAccent,
+                          color: AppColors.signal,
                         ),
                         const SizedBox(width: 5),
                         Text(
@@ -1253,7 +1238,7 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
                           style: AppTextStyles.caption.copyWith(
                             fontSize: 11,
                             fontWeight: FontWeight.w800,
-                            color: AppColors.userAccent,
+                            color: AppColors.signal,
                             letterSpacing: 0.3,
                           ),
                         ),
@@ -1360,7 +1345,7 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
   }) {
     // Ring color comes from the profile owner's chosen color, not the viewer's.
     final ringColor =
-        avatarColorFromConfig(user.avatarConfig) ?? AppColors.userAccent;
+        avatarColorFromConfig(user.avatarConfig) ?? AppColors.signal;
 
     Widget innerAvatar;
     if (user.photoURL != null && user.photoURL!.isNotEmpty) {
@@ -1721,7 +1706,7 @@ class _BuddiesSheetState extends ConsumerState<_BuddiesSheet> {
                 if (snap.connectionState == ConnectionState.waiting) {
                   return Center(
                     child: CircularProgressIndicator(
-                      color: AppColors.userAccent,
+                      color: AppColors.signal,
                     ),
                   );
                 }
@@ -1884,7 +1869,7 @@ class _ActionRow extends ConsumerWidget {
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
                           color: weeklyDone >= weeklyGoal
-                              ? AppColors.userAccent
+                              ? AppColors.signal
                               : AppColors.textV2Secondary,
                         ),
                       ),
@@ -1898,7 +1883,7 @@ class _ActionRow extends ConsumerWidget {
                       minHeight: 5,
                       backgroundColor: AppColors.surfaceV2Elevated,
                       valueColor: AlwaysStoppedAnimation<Color>(
-                        AppColors.userAccent,
+                        AppColors.signal,
                       ),
                     ),
                   ),
@@ -1968,7 +1953,7 @@ class _FollowButton extends ConsumerWidget {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 14),
             decoration: BoxDecoration(
-              color: isPrimary ? AppColors.userAccent : AppColors.surfaceV2,
+              color: isPrimary ? AppColors.signal : AppColors.surfaceV2,
               borderRadius: BorderRadius.circular(AppBorderRadius.lg),
               border: isPrimary
                   ? null
@@ -1983,7 +1968,7 @@ class _FollowButton extends ConsumerWidget {
                         strokeWidth: 2,
                         color: isPrimary
                             ? AppColors.backgroundV2
-                            : AppColors.userAccent,
+                            : AppColors.signal,
                       ),
                     )
                   : Text(
@@ -2007,7 +1992,7 @@ class _FollowButton extends ConsumerWidget {
         child: Center(
           child: CircularProgressIndicator(
             strokeWidth: 2,
-            color: AppColors.userAccent,
+            color: AppColors.signal,
           ),
         ),
       ),
@@ -2017,7 +2002,7 @@ class _FollowButton extends ConsumerWidget {
           width: double.infinity,
           padding: const EdgeInsets.symmetric(vertical: 14),
           decoration: BoxDecoration(
-            color: AppColors.userAccent,
+            color: AppColors.signal,
             borderRadius: BorderRadius.circular(AppBorderRadius.lg),
           ),
           child: Center(
@@ -2179,7 +2164,7 @@ class _PostsTab extends ConsumerWidget {
       loading: () => Center(
         child: CircularProgressIndicator(
           strokeWidth: 2,
-          color: AppColors.userAccent,
+          color: AppColors.signal,
         ),
       ),
       error: (_, _) => const SizedBox(),
@@ -2268,7 +2253,7 @@ class _HistoryTab extends ConsumerWidget {
       loading: () => Center(
         child: CircularProgressIndicator(
           strokeWidth: 2,
-          color: AppColors.userAccent,
+          color: AppColors.signal,
           semanticsLabel: 'Loading workout history',
         ),
       ),
@@ -2318,7 +2303,7 @@ class _AwardsTab extends ConsumerWidget {
       loading: () => Center(
         child: CircularProgressIndicator(
           strokeWidth: 2,
-          color: AppColors.userAccent,
+          color: AppColors.signal,
         ),
       ),
       error: (_, _) => const SizedBox(),
@@ -2343,7 +2328,7 @@ class _AwardCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: isEarned
-                ? AppColors.userAccent.withValues(alpha: 0.08)
+                ? AppColors.signal.withValues(alpha: 0.08)
                 : AppColors.surfaceV2,
             width: 1,
           ),
@@ -2358,7 +2343,7 @@ class _AwardCard extends StatelessWidget {
               style: AppTextStyles.h5.copyWith(
                 fontSize: 13,
                 color: isEarned
-                    ? AppColors.userAccent
+                    ? AppColors.signal
                     : AppColors.textV2Secondary,
               ),
               textAlign: TextAlign.center,

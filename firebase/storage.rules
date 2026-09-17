@@ -34,8 +34,50 @@ service firebase.storage {
         firestore.get(/databases/(default)/documents/posts/$(postId)).data.authorId == request.auth.uid;
     }
 
+    function isPostMediaReadable(postId) {
+      let postPath = /databases/(default)/documents/posts/$(postId);
+      return isAuthenticated() &&
+        firestore.exists(postPath) &&
+        isPostMediaReadableData(firestore.get(postPath).data);
+    }
+
+    function isPostMediaReadableData(post) {
+      return post.authorId == request.auth.uid ||
+        (
+          post.keys().hasAny(['authorIds']) &&
+          request.auth.uid in post.authorIds
+        ) ||
+        (
+          !firestore.exists(
+            /databases/(default)/documents/blocks/$(request.auth.uid + '_' + post.authorId)
+          ) &&
+          !firestore.exists(
+            /databases/(default)/documents/blocks/$(post.authorId + '_' + request.auth.uid)
+          ) &&
+          (
+            (
+              post.get('visibility', 'public') == 'public' &&
+              firestore.exists(/databases/(default)/documents/users/$(post.authorId)) &&
+              firestore.get(/databases/(default)/documents/users/$(post.authorId))
+                .data.isPrivate != true
+            ) ||
+            (
+              post.get('visibility', 'public') != 'private' &&
+              firestore.exists(
+                /databases/(default)/documents/follows/$(
+                  request.auth.uid + '_' + post.authorId)
+              ) &&
+              firestore.get(
+                /databases/(default)/documents/follows/$(
+                  request.auth.uid + '_' + post.authorId)
+              ).data.status == 'approved'
+            )
+          )
+        );
+    }
+
     match /posts/{postId}/{fileName} {
-      allow read: if isAuthenticated();
+      allow read: if isPostMediaReadable(postId);
       allow write: if isPostOwner(postId) && isImageContent() && isUnder5Mb();
     }
 

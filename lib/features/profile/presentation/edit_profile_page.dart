@@ -11,8 +11,8 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/constants.dart';
 import '../../../core/models/models.dart';
 import '../../../services/media_service.dart';
-import '../../../utils/haptic_manager.dart';
 import '../../../widgets/responsive_center.dart';
+import '../../../widgets/zyntro_back_button.dart';
 
 import '../../auth/auth_providers.dart';
 import '../../auth/presentation/providers/auth_controller.dart';
@@ -248,25 +248,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
             ),
             child: Row(
               children: [
-                GestureDetector(
-                  onTap: () {
-                    HapticManager.light();
-                    context.pop();
-                  },
-                  child: Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceV2Elevated,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.arrow_back,
-                      color: AppColors.textV2Primary,
-                      size: 20,
-                    ),
-                  ),
-                ),
+                ZyntroBackButton(onPressed: () => context.pop()),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Text(
