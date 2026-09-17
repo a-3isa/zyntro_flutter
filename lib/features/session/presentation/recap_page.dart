@@ -120,10 +120,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
         .join(' ');
   }
 
-  /// True when this was a paired session between two humans (excludes the
-  /// solo-with-bot-partner case and single-participant solo sessions). Such
-  /// sessions branch to the joint post composer instead of the solo share
-  /// flow below.
+  /// Two-human paired session (not bot/solo) → joint post composer.
   bool get _isTwoHumanPairedSession {
     final session = _session;
     if (session == null) return false;
@@ -132,10 +129,6 @@ class _RecapPageState extends ConsumerState<RecapPage> {
   }
 
   /// Creates (or reuses, idempotently) the joint draft post for a two-human
-  /// paired session so [JointPostComposer] has something to stream. Both
-  /// authors are seeded with the recap's aggregate summary — the best
-  /// available approximation, since recap only has the combined session
-  /// summary rather than a truly per-author breakdown.
   Future<void> _ensureJointDraft() async {
     if (_jointDraftPostId != null ||
         _isCreatingJointDraft ||
@@ -181,8 +174,6 @@ class _RecapPageState extends ConsumerState<RecapPage> {
   }
 
   /// Applies a joint-draft state mutation through `setState` when this page is
-  /// still mounted, and directly otherwise (the async draft creation can land
-  /// after the user already left recap).
   void _applyJointState(VoidCallback mutate) {
     if (mounted) {
       setState(mutate);
@@ -198,8 +189,6 @@ class _RecapPageState extends ConsumerState<RecapPage> {
   }
 
   /// Persist the workout as a private post (visible only to the owner, shown
-  /// with a lock badge in their profile) when they leave recap without sharing.
-  /// Best-effort, fire-and-forget; the session itself is already saved.
   void _savePrivatelyIfNeeded() {
     if (_createdPostId != null || _privateSaveDone || _session == null) return;
     if (_isTwoHumanPairedSession) {
@@ -537,8 +526,6 @@ class _RecapPageState extends ConsumerState<RecapPage> {
   // ── joint composer section ────────────────────────────────────────────────
 
   /// Task 13: the paired-session posting UI, rendered *inside* recap's
-  /// scrolling stats body (the stats/breakdown above it are identical to what
-  /// a solo session shows).
   Widget _buildJointComposerSection() {
     final terminalStatus = _jointDraftTerminalStatus;
     if (terminalStatus != null) {
@@ -574,10 +561,6 @@ class _RecapPageState extends ConsumerState<RecapPage> {
   }
 
   /// Terminal state for a session whose joint post is already decided —
-  /// `published` (the pair posted it) or `expired` (24h TTL elapsed). Neither
-  /// is retryable, so this offers a way to *view* the post instead of a Retry.
-  /// The expired case deliberately routes into `/post/:postId`, where Task 14's
-  /// solo-repost flow already lives rather than being duplicated here.
   Widget _buildJointTerminalCard(String status) {
     final isPublished = status == 'published';
     final message = isPublished

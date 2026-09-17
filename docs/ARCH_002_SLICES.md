@@ -48,6 +48,7 @@
 | 120 | Start-session plan row / ring / past-workouts sheet (≤45KB) |
 | 121 | Drop unused SectionHeader |
 | 122 | Social Find people-you-may-know + friend row |
+| 128 | Recap comment trim under 40KB |
 
 ## Next slices (suggested)
 
