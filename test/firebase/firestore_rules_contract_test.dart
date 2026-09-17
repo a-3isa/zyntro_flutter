@@ -208,12 +208,15 @@ void main() {
       expect(section, contains('sessionHasAllParticipants('));
     });
 
-    test('joint engagement counters stay at parity with the solo owner branch', () {
-      expect(rules, contains('function isJointAuthorCounterUpdate()'));
+    test('engagement counters are ±1 only for any auth user (Z-SEC-006)', () {
+      expect(rules, contains('function isEngagementCounterUpdate()'));
+      expect(rules, contains('function isSoloAuthorContentUpdate()'));
+      expect(rules, contains('isEngagementCounterUpdate()'));
+      expect(rules, isNot(contains('isJointAuthorCounterUpdate')));
       expect(
         rules,
         contains(
-          "resource.data.authorIds.hasAny([request.auth.uid]) &&\n          request.resource.data.diff(resource.data).affectedKeys()\n            .hasOnly(['likesCount', 'commentsCount'])",
+          "request.resource.data.likesCount == resource.data.get('likesCount', 0) + 1",
         ),
       );
     });
@@ -225,11 +228,10 @@ void main() {
       // The new state must also stay solo, not just the old state:
       expect(section, contains('request.resource.data.coAuthored != true'));
       // authorIds/authors/authorId/coAuthored must be frozen on the solo-owner update branch:
+      expect(section, contains('function isSoloAuthorContentUpdate()'));
       expect(
         section,
-        contains(
-          "!request.resource.data.diff(resource.data).affectedKeys()\n            .hasAny(['authorIds', 'authors', 'authorId', 'coAuthored'])",
-        ),
+        contains("'likesCount'"),
       );
     });
 

@@ -612,24 +612,46 @@ service cloud.firestore {
           request.resource.data.authors.diff(resource.data.authors).affectedKeys().hasOnly([request.auth.uid]);
       }
 
-      // Engagement counters on a joint post, at exact parity with the solo
-      // branch below (which lets only the post's own author touch non-identity
-      // fields, counters included). Callers who are not an author of the post
-      // are denied here exactly as a non-owner is denied on a solo post.
-      function isJointAuthorCounterUpdate() {
-        return resource.data.coAuthored == true &&
-          resource.data.authorIds.hasAny([request.auth.uid]) &&
-          request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['likesCount', 'commentsCount']);
+      // Engagement counters: any authenticated user may nudge likes/comments by
+      // ±1 (Z-SEC-006). Authors must not be able to set arbitrary tallies.
+      function isEngagementCounterUpdate() {
+        let changed = request.resource.data.diff(resource.data).affectedKeys();
+        return isNotBanned() &&
+          changed.hasOnly(['likesCount', 'commentsCount', 'reactionCounts']) &&
+          (
+            !changed.hasAny(['likesCount']) ||
+            request.resource.data.likesCount == resource.data.get('likesCount', 0) + 1 ||
+            request.resource.data.likesCount == resource.data.get('likesCount', 0) - 1
+          ) &&
+          (
+            !changed.hasAny(['commentsCount']) ||
+            request.resource.data.commentsCount == resource.data.get('commentsCount', 0) + 1 ||
+            request.resource.data.commentsCount == resource.data.get('commentsCount', 0) - 1
+          );
       }
+
+      // Author content edits on solo posts — counters are excluded (use
+      // isEngagementCounterUpdate instead).
+      function isSoloAuthorContentUpdate() {
+        return resource.data.authorId == request.auth.uid &&
+          resource.data.coAuthored != true &&
+          request.resource.data.coAuthored != true &&
+          !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny([
+              'authorIds',
+              'authors',
+              'authorId',
+              'coAuthored',
+              'likesCount',
+              'commentsCount',
+              'reactionCounts'
+            ]);
+      }
+
       allow update: if isAuthenticated() && (
-        (resource.data.authorId == request.auth.uid &&
-         resource.data.coAuthored != true &&
-         request.resource.data.coAuthored != true &&
-         !request.resource.data.diff(resource.data).affectedKeys()
-            .hasAny(['authorIds', 'authors', 'authorId', 'coAuthored'])) ||
+        isSoloAuthorContentUpdate() ||
         isOwnAuthorSlotUpdate() ||
-        isJointAuthorCounterUpdate()
+        isEngagementCounterUpdate()
       );
 
       allow delete: if isAuthenticated() && resource.data.authorId == request.auth.uid
