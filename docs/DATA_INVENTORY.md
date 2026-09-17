@@ -15,6 +15,7 @@ Use this as the single source of truth when filling **App Store Privacy Nutritio
 | Name / display name | Yes | Yes | No | App functionality | Firestore `users` | Yes (`Name`) | Yes |
 | User ID | Yes | Yes | No | App functionality, analytics | Firebase Auth, Firestore, Analytics, Crashlytics | Yes (`UserID`) | Yes (account / usage) |
 | Device ID / push token | Yes | Yes | No | App functionality, analytics | FCM, Analytics | Yes (`DeviceID`) | Yes |
+| Session presence (online/away in a live room) | Yes (ephemeral) | Yes | No | App functionality | Firestore `sessions/{id}/presence/{uid}` — **session members only**; purged on expiry/leave | No (ephemeral operational) | Yes (session features) |
 | Photos / images | Yes (optional) | Yes | No | App functionality | Firebase Storage (profile / posts); EXIF stripped client-side | Yes (`Photos`) | Yes |
 | Audio data | Yes (optional voice notes) | Yes | No | App functionality | Firebase Storage | Yes (`AudioData`) | Yes |
 | Product interaction / usage | Yes | Yes | No | Analytics (consent-gated) | Firebase Analytics (GA4) | Yes (`ProductInteraction`) | Yes |
@@ -54,6 +55,22 @@ When changing the table above:
 3. Update Google Play Console Data safety form.
 4. Update `docs/privacy-policy.md` if user-facing wording changes.
 5. Keep Meta data-deletion URL live (`/legal/data-deletion`).
+
+## Account deletion completeness (Z-PRV-005)
+
+`cleanupDeletedUser` (Cloud Functions `onUserDeleted`) removes or detaches:
+
+- User subcollections / devices / settings
+- Workouts owned by the uid
+- Posts authored or last remaining joint-author slots (+ Storage prefix)
+- Profile photos Storage prefix
+- Session participation via `detachUserFromSessions`
+
+**Presence** is session-scoped only (not a global “last seen” flag). Docs under
+`sessions/{id}/presence` are deleted when sessions expire and when members leave.
+
+Facebook **App ID / Client Token** in Android/iOS resources are Meta client identifiers
+(see `docs/CLIENT_SECRETS.md`) — not user access tokens.
 
 ## Verification
 

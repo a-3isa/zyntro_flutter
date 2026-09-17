@@ -3083,8 +3083,10 @@
       "standards": [
         "Privacy"
       ],
-      "status": "open",
-      "firstSeen": "2026-09-17"
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "DATA_INVENTORY documents presence scope + cleanupDeletedUser; FB client token treated as public client config."
     },
     {
       "id": "Z-DOC-002",

@@ -28,5 +28,9 @@ void main() {
     expect(privacyInfo, contains('NSPrivacyCollectedDataTypeProductInteraction'));
 
     expect(policy, contains('DATA_INVENTORY.md'));
+
+    expect(inventory, contains('Session presence'));
+    expect(inventory, contains('cleanupDeletedUser'));
+    expect(inventory, contains('Z-PRV-005'));
   });
 }
