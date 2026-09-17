@@ -80,10 +80,13 @@ typedef BatchOperationHandler =
 /// Matches React Native offlineManager.ts behavior.
 /// Enhanced with batch sync, connection quality monitoring, and improved retry strategies.
 class OfflineManager {
-  static const String _queueKey = 'zyntro_offline_queue';
-  static const String _failedOpsKey = 'zyntro_failed_operations';
+  static const String _legacyQueueKey = 'zyntro_offline_queue';
+  static const String _legacyFailedOpsKey = 'zyntro_failed_operations';
   static const int _maxRetries = 3;
   static const int _batchSize = 10;
+
+  /// Active Firebase Auth uid. Queues are keyed per user (Z-OFF-001).
+  String? _userId;
 
   final Connectivity _connectivity = Connectivity();
   final Map<String, OperationHandler> _handlers = {};
@@ -98,6 +101,23 @@ class OfflineManager {
   // Connection quality tracking
   ConnectionQuality _connectionQuality = ConnectionQuality.good;
   final List<int> _latencyHistory = [];
+
+  /// Bind the offline queue to [userId]. Pass null after sign-out.
+  void bindUser(String? userId) {
+    _userId = (userId == null || userId.isEmpty) ? null : userId;
+  }
+
+  String get _queueKey {
+    final uid = _userId;
+    if (uid == null) return _legacyQueueKey;
+    return '${_legacyQueueKey}_$uid';
+  }
+
+  String get _failedOpsKey {
+    final uid = _userId;
+    if (uid == null) return _legacyFailedOpsKey;
+    return '${_legacyFailedOpsKey}_$uid';
+  }
   static const int _latencyHistorySize = 10;
 
   // Sync progress tracking
@@ -264,6 +284,7 @@ class OfflineManager {
   Future<void> clearFailedOperations() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_failedOpsKey);
+    await prefs.remove(_legacyFailedOpsKey);
   }
 
   /// Update connection quality based on operation latency.
@@ -610,10 +631,11 @@ class OfflineManager {
     }
   }
 
-  /// Clear all queued operations.
+  /// Clear all queued operations for the bound user (and the legacy unscoped key).
   Future<void> clearQueue() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_queueKey);
+    await prefs.remove(_legacyQueueKey);
     _queueCountController.add(0);
   }
 

@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/session_service.dart';
@@ -59,6 +60,12 @@ Future<void> registerOfflineHandlers(ProviderContainer container) async {
 
   // Initialize manager
   await offlineManager.init();
+
+  // Scope the queue to the signed-in user (Z-OFF-001).
+  offlineManager.bindUser(FirebaseAuth.instance.currentUser?.uid);
+  FirebaseAuth.instance.authStateChanges().listen((user) {
+    offlineManager.bindUser(user?.uid);
+  });
 
   // Register batch handler for session events
   offlineManager.registerBatchHandler('session_event', (operations) async {

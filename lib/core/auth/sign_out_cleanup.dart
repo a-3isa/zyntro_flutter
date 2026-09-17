@@ -53,6 +53,7 @@ class SignOutCleanup {
 
     try {
       await _ref.read(offlineManagerProvider).clearQueue();
+      _ref.read(offlineManagerProvider).bindUser(null);
     } catch (e, st) {
       debugPrint('[SignOutCleanup] offline queue: $e\n$st');
     }
