@@ -46,9 +46,11 @@
 | 118 | Voice upload, live progress map, late-add plan, time format, active prefill |
 | 119 | Social board/search widgets (social ≤40KB — core god files met) |
 | 120 | Start-session plan row / ring / past-workouts sheet (≤45KB) |
+| 121 | Drop unused SectionHeader |
+| 122 | Social Find people-you-may-know + friend row |
 
 ## Next slices (suggested)
 
-None required for soft budgets. Optional polish only.
+None required for soft budgets. Only **Z-REPO-004** remains deferred (owner T054 device gate).
 
 Z-ARCH-002 soft budgets are **met** for session_room, profile, social, start_session, and recap.
