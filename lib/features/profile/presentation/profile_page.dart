@@ -25,6 +25,7 @@ import 'widgets/profile_header_widgets.dart';
 import 'widgets/profile_award_card.dart';
 import 'widgets/profile_follow_button.dart';
 import 'widgets/profile_action_row.dart';
+import 'widgets/profile_buddies_sheet.dart';
 import '../../../services/leaderboard_service.dart';
 import '../../../services/profile_cache_service.dart';
 import '../../../utils/offline_manager.dart';
@@ -1492,137 +1493,6 @@ class _HeaderSectionState extends ConsumerState<_HeaderSection> {
     );
   }
 
-}
-
-// ---------------------------------------------------------------------------
-// Buddies Sheet
-// ---------------------------------------------------------------------------
-
-class _BuddiesSheet extends ConsumerStatefulWidget {
-  final String targetUserId;
-
-  const _BuddiesSheet({required this.targetUserId});
-
-  @override
-  ConsumerState<_BuddiesSheet> createState() => _BuddiesSheetState();
-}
-
-class _BuddiesSheetState extends ConsumerState<_BuddiesSheet> {
-  late Future<List<User>> _followersFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _followersFuture = ref
-        .read(followServiceProvider)
-        .getFollowersList(widget.targetUserId);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final followersAsync = _followersFuture;
-
-    return DraggableScrollableSheet(
-      initialChildSize: 0.6,
-      minChildSize: 0.4,
-      maxChildSize: 0.9,
-      expand: false,
-      builder: (_, scrollController) => Column(
-        children: [
-          const SizedBox(height: 12),
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: AppColors.textV2Tertiary.withValues(alpha: 0.4),
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Buddies',
-            style: AppTextStyles.h5.copyWith(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textV2Primary,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: FutureBuilder<List<User>>(
-              future: followersAsync,
-              builder: (context, snap) {
-                if (snap.connectionState == ConnectionState.waiting) {
-                  return Center(
-                    child: CircularProgressIndicator(
-                      color: AppColors.signal,
-                    ),
-                  );
-                }
-                final users = snap.data ?? [];
-                if (users.isEmpty) {
-                  return Center(
-                    child: Text(
-                      'No buddies yet',
-                      style: AppTextStyles.body.copyWith(
-                        color: AppColors.textV2Tertiary,
-                      ),
-                    ),
-                  );
-                }
-                return ListView.builder(
-                  controller: scrollController,
-                  itemCount: users.length,
-                  itemBuilder: (_, index) {
-                    final u = users[index];
-                    return ListTile(
-                      onTap: () {
-                        Navigator.pop(context);
-                        context.push('/user/${u.id}');
-                      },
-                      leading: CircleAvatar(
-                        radius: 20,
-                        backgroundColor: AppColors.surfaceV2Elevated,
-                        backgroundImage:
-                            u.photoURL != null && u.photoURL!.isNotEmpty
-                            ? CachedNetworkImageProvider(u.photoURL!)
-                            : null,
-                        child: u.photoURL == null || u.photoURL!.isEmpty
-                            ? Text(
-                                u.displayName.isNotEmpty
-                                    ? u.displayName[0].toUpperCase()
-                                    : '?',
-                                style: AppTextStyles.label.copyWith(
-                                  color: AppColors.textV2Primary,
-                                ),
-                              )
-                            : null,
-                      ),
-                      title: Text(
-                        u.displayName,
-                        style: AppTextStyles.body.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textV2Primary,
-                        ),
-                      ),
-                      subtitle: u.username != null && u.username!.isNotEmpty
-                          ? Text(
-                              '@${u.username}',
-                              style: AppTextStyles.caption.copyWith(
-                                color: AppColors.textV2Tertiary,
-                              ),
-                            )
-                          : null,
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 // ---------------------------------------------------------------------------
