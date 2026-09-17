@@ -48,6 +48,7 @@ import 'widgets/session_header_avatar.dart';
 import 'widgets/session_progress_row.dart';
 import 'widgets/session_end_confirm_dialog.dart';
 import 'widgets/session_sync_status_dialog.dart';
+import 'widgets/session_plan_complete_view.dart';
 import '../domain/turn_plan_progress.dart';
 
 /// Session room page for active workout sessions.
@@ -1881,60 +1882,12 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     String currentUserId,
     Map<String, GymSessionPlan> plans,
   ) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Icon(Icons.check_circle_rounded, color: AppColors.signal, size: 64),
-            const SizedBox(height: 18),
-            const Text(
-              'Plan complete',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: AppColors.textV2Primary,
-                fontSize: 28,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Finish the session or add another exercise.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: AppColors.textV2Secondary,
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _handleFinishSession,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.signal,
-                foregroundColor: AppColors.backgroundV2,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-              ),
-              child: const Text('Finish Session'),
-            ),
-            const SizedBox(height: 10),
-            OutlinedButton(
-              onPressed: () => _openLateAddPicker(
-                session: session,
-                currentUserId: currentUserId,
-                plans: plans,
-              ),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.textV2Primary,
-                side: const BorderSide(color: AppColors.surfaceV2Active),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-              ),
-              child: const Text('Add Exercise'),
-            ),
-          ],
-        ),
+    return SessionPlanCompleteView(
+      onFinishSession: _handleFinishSession,
+      onAddExercise: () => _openLateAddPicker(
+        session: session,
+        currentUserId: currentUserId,
+        plans: plans,
       ),
     );
   }

@@ -39,6 +39,7 @@
 | 111 | Session sync status dialog |
 | 112 | Session summary builder |
 | 113 | Profile history + awards tabs |
+| 114 | Session plan-complete view |
 
 ## Next slices (suggested)
 
