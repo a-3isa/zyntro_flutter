@@ -108,4 +108,34 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get checkConnection => 'تحقّق من اتصالك وحاول مرة أخرى.';
+
+  @override
+  String get navFeed => 'الخلاصة';
+
+  @override
+  String get navTrain => 'تمرّن';
+
+  @override
+  String get navStartSession => 'ابدأ الجلسة';
+
+  @override
+  String get navPickWorkoutType => 'اختر نوع التمرين';
+
+  @override
+  String get navProfile => 'الملف';
+
+  @override
+  String get navSocial => 'اجتماعي';
+
+  @override
+  String get settingsTitle => 'الإعدادات';
+
+  @override
+  String get socialTabBoard => 'اللوحة';
+
+  @override
+  String get socialTabBuddies => 'الرفاق';
+
+  @override
+  String get socialTabFind => 'ابحث';
 }

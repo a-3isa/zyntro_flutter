@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/legacy.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/navigation/app_route_locations.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../l10n/app_localizations.dart';
 
 import '../../feed/presentation/feed_page.dart';
 import '../../session/presentation/start_session_page.dart'
@@ -239,6 +240,7 @@ class _MainShellState extends ConsumerState<MainShell>
   }
 
   Widget _buildFloatingBottomNav() {
+    final l10n = AppLocalizations.of(context);
     final isSessionActive = _currentIndex == 1;
     final fabReady = ref.watch(sessionFabActiveProvider);
     final fabLoading = ref.watch(sessionFabLoadingProvider);
@@ -286,13 +288,13 @@ class _MainShellState extends ConsumerState<MainShell>
                     icon: Icons.home_outlined,
                     activeIcon: Icons.home_rounded,
                     index: 0,
-                    label: 'Feed',
+                    label: l10n.navFeed,
                   ),
                   _buildNavItem(
                     icon: Icons.person_outline,
                     activeIcon: Icons.person_rounded,
                     index: 3,
-                    label: 'Profile',
+                    label: l10n.navProfile,
                   ),
                 ],
               ),
@@ -307,8 +309,8 @@ class _MainShellState extends ConsumerState<MainShell>
               child: Semantics(
                 button: true,
                 label: showStart
-                    ? (canStart ? 'Start session' : 'Pick a workout type')
-                    : 'Train',
+                    ? (canStart ? l10n.navStartSession : l10n.navPickWorkoutType)
+                    : l10n.navTrain,
                 child: GestureDetector(
                 onTap: () {
                   HapticFeedback.mediumImpact();

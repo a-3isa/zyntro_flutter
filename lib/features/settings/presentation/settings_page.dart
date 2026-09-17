@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../app/navigation/app_router.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../services/exercise_catalog_seed.dart';
 import '../../../services/facebook_link_service.dart';
 import '../../../services/data_export_service.dart';
@@ -285,7 +286,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           const ZyntroBackButton(),
           const SizedBox(width: 14),
           Text(
-            'Settings',
+            AppLocalizations.of(context).settingsTitle,
             style: AppTextStyles.h3.copyWith(
               fontSize: 22,
               fontWeight: FontWeight.w700,

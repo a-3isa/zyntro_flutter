@@ -8,9 +8,9 @@ void main() {
       'lib/features/social/presentation/social_page.dart',
     ).readAsStringSync();
 
-    expect(source, contains("Tab(text: 'Board')"));
-    expect(source, contains("Tab(text: 'Buddies')"));
-    expect(source, contains("Tab(text: 'Find')"));
+    expect(source, contains('socialTabBoard'));
+    expect(source, contains('socialTabBuddies'));
+    expect(source, contains('socialTabFind'));
   });
 
   test('feed page loads following posts via PostService (Z-TEST-002)', () {

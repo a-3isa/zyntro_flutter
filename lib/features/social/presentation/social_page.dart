@@ -7,6 +7,7 @@ import '../../../app/navigation/app_route_locations.dart';
 import '../../../core/models/models.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../auth/auth_providers.dart';
 import '../../../services/facebook_link_service.dart';
 import '../../../services/follow_service.dart';
@@ -207,10 +208,10 @@ class _SocialPageState extends ConsumerState<SocialPage>
                     unselectedLabelStyle: AppTextStyles.body.copyWith(
                       fontSize: 13,
                     ),
-                    tabs: const [
-                      Tab(text: 'Board'),
-                      Tab(text: 'Buddies'),
-                      Tab(text: 'Find'),
+                    tabs: [
+                      Tab(text: AppLocalizations.of(context).socialTabBoard),
+                      Tab(text: AppLocalizations.of(context).socialTabBuddies),
+                      Tab(text: AppLocalizations.of(context).socialTabFind),
                     ],
                   ),
                 ),

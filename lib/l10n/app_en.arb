@@ -139,5 +139,46 @@
   "checkConnection": "Check your connection and try again.",
   "@checkConnection": {
     "description": "Default supporting line on a network error state"
+  },
+
+  "navFeed": "Feed",
+  "@navFeed": {
+    "description": "Main shell bottom nav — feed tab"
+  },
+  "navTrain": "Train",
+  "@navTrain": {
+    "description": "Main shell FAB when not ready to start"
+  },
+  "navStartSession": "Start session",
+  "@navStartSession": {
+    "description": "Main shell FAB when a workout type is selected"
+  },
+  "navPickWorkoutType": "Pick a workout type",
+  "@navPickWorkoutType": {
+    "description": "Main shell FAB when start is blocked"
+  },
+  "navProfile": "Profile",
+  "@navProfile": {
+    "description": "Main shell bottom nav — profile tab"
+  },
+  "navSocial": "Social",
+  "@navSocial": {
+    "description": "Main shell / social destination label"
+  },
+  "settingsTitle": "Settings",
+  "@settingsTitle": {
+    "description": "Settings screen title"
+  },
+  "socialTabBoard": "Board",
+  "@socialTabBoard": {
+    "description": "Social page Board tab"
+  },
+  "socialTabBuddies": "Buddies",
+  "@socialTabBuddies": {
+    "description": "Social page Buddies tab"
+  },
+  "socialTabFind": "Find",
+  "@socialTabFind": {
+    "description": "Social page Find tab"
   }
 }

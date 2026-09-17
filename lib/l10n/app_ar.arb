@@ -37,5 +37,16 @@
   "resetEmailFailed": "تعذّر إرسال رسالة إعادة التعيين. من فضلك حاول مرة أخرى.",
 
   "tryAgain": "حاول مرة أخرى",
-  "checkConnection": "تحقّق من اتصالك وحاول مرة أخرى."
+  "checkConnection": "تحقّق من اتصالك وحاول مرة أخرى.",
+
+  "navFeed": "الخلاصة",
+  "navTrain": "تمرّن",
+  "navStartSession": "ابدأ الجلسة",
+  "navPickWorkoutType": "اختر نوع التمرين",
+  "navProfile": "الملف",
+  "navSocial": "اجتماعي",
+  "settingsTitle": "الإعدادات",
+  "socialTabBoard": "اللوحة",
+  "socialTabBuddies": "الرفاق",
+  "socialTabFind": "ابحث"
 }

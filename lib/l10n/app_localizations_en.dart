@@ -107,4 +107,34 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get checkConnection => 'Check your connection and try again.';
+
+  @override
+  String get navFeed => 'Feed';
+
+  @override
+  String get navTrain => 'Train';
+
+  @override
+  String get navStartSession => 'Start session';
+
+  @override
+  String get navPickWorkoutType => 'Pick a workout type';
+
+  @override
+  String get navProfile => 'Profile';
+
+  @override
+  String get navSocial => 'Social';
+
+  @override
+  String get settingsTitle => 'Settings';
+
+  @override
+  String get socialTabBoard => 'Board';
+
+  @override
+  String get socialTabBuddies => 'Buddies';
+
+  @override
+  String get socialTabFind => 'Find';
 }

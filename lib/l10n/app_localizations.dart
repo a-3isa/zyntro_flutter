@@ -289,6 +289,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Check your connection and try again.'**
   String get checkConnection;
+
+  /// Main shell bottom nav — feed tab
+  ///
+  /// In en, this message translates to:
+  /// **'Feed'**
+  String get navFeed;
+
+  /// Main shell FAB when not ready to start
+  ///
+  /// In en, this message translates to:
+  /// **'Train'**
+  String get navTrain;
+
+  /// Main shell FAB when a workout type is selected
+  ///
+  /// In en, this message translates to:
+  /// **'Start session'**
+  String get navStartSession;
+
+  /// Main shell FAB when start is blocked
+  ///
+  /// In en, this message translates to:
+  /// **'Pick a workout type'**
+  String get navPickWorkoutType;
+
+  /// Main shell bottom nav — profile tab
+  ///
+  /// In en, this message translates to:
+  /// **'Profile'**
+  String get navProfile;
+
+  /// Main shell / social destination label
+  ///
+  /// In en, this message translates to:
+  /// **'Social'**
+  String get navSocial;
+
+  /// Settings screen title
+  ///
+  /// In en, this message translates to:
+  /// **'Settings'**
+  String get settingsTitle;
+
+  /// Social page Board tab
+  ///
+  /// In en, this message translates to:
+  /// **'Board'**
+  String get socialTabBoard;
+
+  /// Social page Buddies tab
+  ///
+  /// In en, this message translates to:
+  /// **'Buddies'**
+  String get socialTabBuddies;
+
+  /// Social page Find tab
+  ///
+  /// In en, this message translates to:
+  /// **'Find'**
+  String get socialTabFind;
 }
 
 class _AppLocalizationsDelegate
