@@ -928,7 +928,7 @@
       ],
       "status": "deferred",
       "firstSeen": "2026-09-17",
-      "closureNote": "XL campaign through 099 (header chips). See docs/ARCH_002_SLICES.md. Remains deferred until soft budgets met.",
+      "closureNote": "XL campaign through 100 (set column). See docs/ARCH_002_SLICES.md. Remains deferred until soft budgets met.",
       "closedAt": "2026-09-17"
     },
     {

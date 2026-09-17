@@ -25,6 +25,7 @@
 | 097 | Session room animated background |
 | 098 | Profile award card + this roadmap |
 | 099 | Session header invite/setup chips |
+| 100 | Session set column widget |
 
 ## Next slices (suggested)
 

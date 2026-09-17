@@ -41,6 +41,7 @@ import '../domain/gym_session_plan.dart';
 import '../domain/turn_eligibility.dart';
 import 'widgets/partner_left_dialog.dart';
 import 'widgets/session_header_chips.dart';
+import 'widgets/session_set_column.dart';
 import '../domain/turn_plan_progress.dart';
 import '../domain/workout_score.dart';
 
@@ -3277,90 +3278,12 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       return '${w}kg × $r · $t';
     }
 
-    return Container(
-      decoration: BoxDecoration(
-        color: active
-            ? AppColors.signal.withValues(alpha: 0.08)
-            : AppColors.surfaceV2Elevated,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: active
-              ? AppColors.signal.withValues(alpha: 0.4)
-              : AppColors.borderDarkSecondary,
-        ),
-      ),
-      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 6,
-                height: 6,
-                margin: const EdgeInsets.only(right: 6),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: active
-                      ? AppColors.accentEmerald
-                      : AppColors.textV2Tertiary,
-                ),
-              ),
-              Expanded(
-                child: Text(
-                  name,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    color: active ? AppColors.signal : AppColors.textV2Primary,
-                  ),
-                ),
-              ),
-              Text(
-                '${sets.length.clamp(0, plannedSets)}/$plannedSets',
-                style: const TextStyle(
-                  fontSize: 10,
-                  color: AppColors.textV2Secondary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          for (var i = 0; i < plannedSets; i++)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 3),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 26,
-                    child: Text(
-                      'S${i + 1}',
-                      style: const TextStyle(
-                        fontSize: 10,
-                        color: AppColors.textV2Tertiary,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: Text(
-                      rowText(i),
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                        color: i < sets.length
-                            ? AppColors.textV2Primary
-                            : AppColors.textV2Tertiary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
+    return SessionSetColumn(
+      name: name,
+      active: active,
+      plannedSets: plannedSets,
+      loggedCount: sets.length,
+      rowTexts: [for (var i = 0; i < plannedSets; i++) rowText(i)],
     );
   }
 
