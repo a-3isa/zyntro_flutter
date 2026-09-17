@@ -726,7 +726,7 @@ void main() {
 
       // 20 min time + 0 buddy (bot/solo) + 6 effort (3 sets * 2) + 40 progress
       // (first-time 5% * 800) = 66. Returned for recap; not persisted (Z-DATA-001).
-      expect(localScore, 66);
+      expect(localScore.score, 66);
       verifyNever(() => mockBatch.update(mockUserDoc, any()));
       verifyNever(
         () => mockBatch.set<Map<String, dynamic>>(mockUserPrsDoc, any(), any()),
@@ -779,8 +779,8 @@ void main() {
         // 5% * 800) = 66. The effort+progress contribution (46) is exactly what
         // the type-matching bug silently dropped — a time-only score of 20 here
         // means the scorer fell through both branches again.
-        expect(localScore, 66);
-        expect(localScore, isNot(20));
+        expect(localScore.score, 66);
+        expect(localScore.score, isNot(20));
         verifyNever(() => mockBatch.update(mockUserDoc, any()));
         verifyNever(
           () =>
@@ -812,7 +812,7 @@ void main() {
         );
 
         // 20 time + 0 effort (cardio) + 40 progress (first-time 5% * 800) = 60.
-        expect(localScore, 60);
+        expect(localScore.score, 60);
         verifyNever(() => mockBatch.update(mockUserDoc, any()));
       },
     );
@@ -840,7 +840,7 @@ void main() {
         );
 
         // By design: flexibility scores time only (no effort, no progress).
-        expect(localScore, 20);
+        expect(localScore.score, 20);
         verifyNever(() => mockBatch.update(mockUserDoc, any()));
         verifyNever(
           () =>
@@ -871,11 +871,12 @@ void main() {
           ),
         });
 
-        return sessionService.endSession(
+        final result = await sessionService.endSession(
           kPairedSessionId,
           kPairedHostId,
           null,
         );
+        return result.score;
       }
 
       test('an accepted real-friend invite earns the +15 bonus', () async {
@@ -1076,7 +1077,7 @@ void main() {
 
         // The user is not blocked from finishing; score is local-only.
         verify(() => mockBatch.commit()).called(1);
-        expect(localScore, 66);
+        expect(localScore.score, 66);
         verifyNever(() => mockBatch.update(mockUserDoc, any()));
         verifyNever(
           () =>

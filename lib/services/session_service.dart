@@ -1122,16 +1122,22 @@ class SessionService {
   }
 
   /// Ends the session for [userId]. Returns the locally computed workout score
-  /// for recap UX. Aggregate score/streak/PR persistence is server-owned
-  /// (Z-DATA-001) and is not written from the client.
-  Future<int> endSession(
+  /// and any newly set PRs for recap UX. Aggregate score/streak/PR persistence
+  /// is server-owned (Z-DATA-001) and is not written from the client.
+  Future<WorkoutScoreResult> endSession(
     String sessionId,
     String userId,
     SessionSummary? summary,
   ) async {
     // Get session data for workout logging
     final session = await getSession(sessionId);
-    if (session == null) return 0;
+    if (session == null) {
+      return const WorkoutScoreResult(
+        score: 0,
+        updatedStrengthPrs: {},
+        updatedCardioPrs: {},
+      );
+    }
 
     final sessionDuration = DateTime.now().difference(session.startedAt);
     // `partnerKind` is stamped at session creation, before the invited friend
@@ -1283,7 +1289,7 @@ class SessionService {
       );
     }
 
-    return scoreResult.score;
+    return scoreResult;
   }
 
   /// Records a funnel event without ever letting it affect the caller.

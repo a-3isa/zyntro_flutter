@@ -34,6 +34,7 @@ import 'live_progress_map.dart';
 import 'late_add_plan.dart';
 import 'session_time_format.dart';
 import 'active_turn_prefill.dart';
+import 'recap_launch_extras.dart';
 import 'waiting_turn_partner.dart';
 import 'widgets/active_turn_screen.dart';
 import 'widgets/waiting_turn_screen.dart';
@@ -2018,7 +2019,20 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         return;
       }
 
-      await sessionService.endSession(widget.sessionId, uid, summary);
+      final scoreResult = await sessionService.endSession(
+        widget.sessionId,
+        uid,
+        summary,
+      );
+      if (scoreResult.updatedStrengthPrs.isNotEmpty ||
+          scoreResult.updatedCardioPrs.isNotEmpty) {
+        RecapLaunchExtras.stage(
+          RecapLaunchExtras(
+            newStrengthPrNames: scoreResult.updatedStrengthPrs.keys.toList(),
+            newCardioPrNames: scoreResult.updatedCardioPrs.keys.toList(),
+          ),
+        );
+      }
 
       if (mounted) {
         // Recap is a terminal screen for the workout. Use go() (not push) so the

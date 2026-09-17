@@ -13,6 +13,8 @@ import '../../../services/media_service.dart';
 import '../../auth/auth_providers.dart';
 import '../../../utils/haptic_manager.dart';
 import '../../../utils/offline_manager.dart';
+import '../../../widgets/celebration_overlay.dart';
+import 'recap_launch_extras.dart';
 import 'widgets/joint_post_composer.dart';
 import 'widgets/recap_widgets.dart';
 
@@ -69,6 +71,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
           _session = session;
           _isLoading = false;
         });
+        _maybeShowPrCelebration();
         if (_isTwoHumanPairedSession) {
           // Joint sessions never fall back to a solo private post — the
           // shared draft (created below) is the only post that can result.
@@ -79,6 +82,42 @@ class _RecapPageState extends ConsumerState<RecapPage> {
     } catch (_) {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  /// Fires once when the user just set one or more PRs (Z-ENH-007).
+  void _maybeShowPrCelebration() {
+    final extras = RecapLaunchExtras.take();
+    if (extras == null || !extras.hasNewPrs || !mounted) return;
+
+    final names = [
+      ...extras.newStrengthPrNames.map(_titleCasePr),
+      ...extras.newCardioPrNames.map(_titleCasePr),
+    ];
+    final subtitle = names.length == 1
+        ? names.first
+        : '${names.length} new personal records';
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      HapticManager.heavy();
+      unawaited(
+        showCelebration(
+          context,
+          title: 'New PR!',
+          subtitle: subtitle,
+          emoji: '🏆',
+        ),
+      );
+    });
+  }
+
+  String _titleCasePr(String raw) {
+    if (raw.isEmpty) return raw;
+    return raw
+        .split(RegExp(r'[\s_]+'))
+        .where((p) => p.isNotEmpty)
+        .map((p) => '${p[0].toUpperCase()}${p.substring(1)}')
+        .join(' ');
   }
 
   /// True when this was a paired session between two humans (excludes the

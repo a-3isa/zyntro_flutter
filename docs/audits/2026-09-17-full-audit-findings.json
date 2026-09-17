@@ -24,7 +24,7 @@
         "Z-REPO-004"
       ],
       "arch002": "soft budgets met (session/profile/social/start_session/recap)",
-      "stackHead": "122-arch-social-find-row",
+      "stackHead": "124-enh-pr-celebration",
       "updatedAt": "2026-09-17"
     }
   },
@@ -4066,7 +4066,10 @@
       "dependsOn": [
         "Z-DATA-001"
       ],
-      "slice": "008-pr-celebration"
+      "slice": "008-pr-celebration",
+      "status": "closed",
+      "closedAt": "2026-09-17",
+      "closureNote": "Recap celebration when endSession returns new PRs (124)."
     },
     {
       "id": "Z-ENH-008",
@@ -4226,7 +4229,10 @@
         "score": 36000
       },
       "dependsOn": [],
-      "slice": "008-in-app-review"
+      "slice": "008-in-app-review",
+      "status": "closed",
+      "closedAt": "2026-09-17",
+      "closureNote": "BuddyReviewPromptService after 3rd buddy session (013)."
     },
     {
       "id": "Z-ENH-018",
@@ -4699,7 +4705,10 @@
         "Z-RT-001",
         "Z-DATA-002"
       ],
-      "slice": "008-mode-derivation"
+      "slice": "008-mode-derivation",
+      "status": "closed",
+      "closedAt": "2026-09-17",
+      "closureNote": "derivedMode + no client mode writes (009 / Z-DATA-002)."
     }
   ],
   "priorAudit": [
