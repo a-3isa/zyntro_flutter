@@ -22,4 +22,11 @@ void main() {
     expect(method, contains('Future.wait('));
     expect(method, contains('_buildFriendLeaderboardEntry('));
   });
+
+  test('leaderboards exclude blocked users (Z-SOC-003)', () {
+    final source = File('lib/services/leaderboard_service.dart').readAsStringSync();
+    expect(source, contains('excludedUserIds'));
+    expect(source, contains('blockedUserIdsProvider'));
+    expect(source, contains('Z-SOC-003'));
+  });
 }

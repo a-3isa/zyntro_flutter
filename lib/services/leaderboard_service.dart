@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/auth/auth_providers.dart';
 import 'follow_service.dart';
+import 'moderation_service.dart';
 
 /// Flip to true only after Cloud Function `applySessionScore` is live and
 /// historical client-written scores are trusted or backfilled (Z-DATA-001).
@@ -78,8 +79,9 @@ class LeaderboardService {
   /// Sorts by streak descending, then by workoutScore descending.
   Future<List<LeaderboardEntry>> getFriendsLeaderboard(
     String currentUserId,
-    List<String> followingIds,
-  ) async {
+    List<String> followingIds, {
+    Set<String> excludedUserIds = const {},
+  }) async {
     if (!kServerScoresLive) {
       debugPrint(
         'LeaderboardService: friends board gated (kServerScoresLive=false)',
@@ -87,7 +89,11 @@ class LeaderboardService {
       return const [];
     }
     try {
-      final userIds = [...followingIds, currentUserId];
+      // Drop blocked users before the chunked reads (Z-SOC-003).
+      final userIds = [
+        ...followingIds.where((id) => !excludedUserIds.contains(id)),
+        currentUserId,
+      ];
       final List<LeaderboardEntry> entries = [];
 
       // Firestore 'whereIn' has a limit of 10 items, so chunk the queries
@@ -176,6 +182,7 @@ class LeaderboardService {
   Future<List<LeaderboardEntry>> getGlobalLeaderboard(
     String currentUserId, {
     int limit = 50,
+    Set<String> excludedUserIds = const {},
   }) async {
     if (!kServerScoresLive) {
       debugPrint(
@@ -184,16 +191,22 @@ class LeaderboardService {
       return const [];
     }
     try {
+      // Over-fetch so excluded (blocked) rows do not shrink the visible top-N.
+      final fetchLimit = limit + excludedUserIds.length;
       final querySnapshot = await _firestore
           .collection('users')
           .orderBy('workoutScore', descending: true)
-          .limit(limit)
+          .limit(fetchLimit)
           .get();
 
       final entries = <LeaderboardEntry>[];
       var rank = 1;
 
       for (final doc in querySnapshot.docs) {
+        if (excludedUserIds.contains(doc.id) && doc.id != currentUserId) {
+          continue;
+        }
+        if (entries.length >= limit) break;
         final data = doc.data();
         entries.add(
           LeaderboardEntry(
@@ -337,19 +350,32 @@ final friendsLeaderboardProvider =
     FutureProvider.family<List<LeaderboardEntry>, String>((ref, userId) async {
       final leaderboardService = ref.watch(leaderboardServiceProvider);
       final followService = ref.watch(followServiceProvider);
+      final blocked =
+          (ref.watch(blockedUserIdsProvider).value ?? const <String>[])
+              .toSet();
 
       // Get users that the current user follows
       final following = await followService.getFollowingList(userId);
       final followingIds = following.map((u) => u.id).toList();
 
-      return leaderboardService.getFriendsLeaderboard(userId, followingIds);
+      return leaderboardService.getFriendsLeaderboard(
+        userId,
+        followingIds,
+        excludedUserIds: blocked,
+      );
     });
 
 /// Global leaderboard provider.
 final globalLeaderboardProvider =
     FutureProvider.family<List<LeaderboardEntry>, String>((ref, userId) async {
       final leaderboardService = ref.watch(leaderboardServiceProvider);
-      return leaderboardService.getGlobalLeaderboard(userId);
+      final blocked =
+          (ref.watch(blockedUserIdsProvider).value ?? const <String>[])
+              .toSet();
+      return leaderboardService.getGlobalLeaderboard(
+        userId,
+        excludedUserIds: blocked,
+      );
     });
 
 /// Global leaderboard access provider.
