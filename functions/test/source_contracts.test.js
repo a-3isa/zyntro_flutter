@@ -29,4 +29,10 @@ describe("Cloud Functions source contracts", () => {
     assert.match(source, /writeScheduleHeartbeat\("expireStaleSessions"/);
     assert.match(source, /writeScheduleHeartbeat\("expireStaleJointPostDrafts"/);
   });
+
+  it("cleans ephemeral session subs on expiry (Z-DATA-004)", () => {
+    assert.match(source, /deleteByQuery\(doc\.ref\.collection\("presence"\)\)/);
+    assert.match(source, /deleteByQuery\(doc\.ref\.collection\("plans"\)\)/);
+    assert.match(source, /Expired stale sessions/);
+  });
 });

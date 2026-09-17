@@ -1022,6 +1022,16 @@ exports.expireStaleSessions = onSchedule("every 15 minutes", async () => {
     });
     await batch.commit();
 
+    // Z-DATA-004: drop ephemeral presence (and empty-room plans) so expiry
+    // does not leave live-listener docs billing forever. Timeline events stay
+    // for any later workout/history reconstruction.
+    await Promise.allSettled(
+      snapshot.docs.map(async (doc) => {
+        await deleteByQuery(doc.ref.collection("presence"));
+        await deleteByQuery(doc.ref.collection("plans"));
+      }),
+    );
+
     logger.info("Expired stale sessions.", { count: snapshot.size });
   }
 
