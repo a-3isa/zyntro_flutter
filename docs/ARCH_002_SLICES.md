@@ -34,6 +34,7 @@
 | 106 | Session cardio input section |
 | 107 | Session header avatar |
 | 108 | Session progress row shell |
+| 109 | Profile posts tab (profile under 60KB budget) |
 
 ## Next slices (suggested)
 
