@@ -3,6 +3,7 @@ const { getAppCheck } = require("firebase-admin/app-check");
 const { getAuth } = require("firebase-admin/auth");
 const { FieldValue, getFirestore, Timestamp } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
+const { getStorage } = require("firebase-admin/storage");
 const logger = require("firebase-functions/logger");
 const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const { onRequest, HttpsError } = require("firebase-functions/v2/https");
@@ -15,6 +16,7 @@ const appCheck = getAppCheck();
 const auth = getAuth();
 const db = getFirestore();
 const messaging = getMessaging();
+const storage = getStorage();
 
 const INVALID_TOKEN_ERRORS = new Set([
   "messaging/invalid-registration-token",
@@ -1153,15 +1155,104 @@ async function deletePostsByAuthor(uid) {
   for (;;) {
     const snapshot = await db.collection("posts").where("authorId", "==", uid).limit(50).get();
     if (snapshot.empty) {
-      return;
+      break;
     }
     for (const post of snapshot.docs) {
       await deleteByQuery(post.ref.collection("comments"));
       await deleteByQuery(post.ref.collection("reactions"));
+      await deleteStoragePrefix(`posts/${post.id}/`);
       await post.ref.delete();
     }
     if (snapshot.size < 50) {
+      break;
+    }
+  }
+
+  // Joint / co-authored drafts where this uid is listed (Z-FN-003).
+  for (;;) {
+    const snapshot = await db
+      .collection("posts")
+      .where("authorIds", "array-contains", uid)
+      .limit(50)
+      .get();
+    if (snapshot.empty) {
       return;
+    }
+    for (const post of snapshot.docs) {
+      const data = post.data() || {};
+      const authorIds = Array.isArray(data.authorIds)
+        ? data.authorIds.filter((id) => id !== uid)
+        : [];
+      if (authorIds.length === 0) {
+        await deleteByQuery(post.ref.collection("comments"));
+        await deleteByQuery(post.ref.collection("reactions"));
+        await deleteStoragePrefix(`posts/${post.id}/`);
+        await post.ref.delete();
+        continue;
+      }
+      const authors = { ...(data.authors || {}) };
+      delete authors[uid];
+      await post.ref.update({
+        authorIds,
+        authors,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+    if (snapshot.size < 50) {
+      return;
+    }
+  }
+}
+
+async function deleteStoragePrefix(prefix) {
+  try {
+    await storage.bucket().deleteFiles({ prefix });
+    logger.info("Deleted storage prefix.", { prefix });
+  } catch (error) {
+    logger.warn("Storage prefix delete skipped.", { prefix, error: String(error) });
+  }
+}
+
+async function detachUserFromSessions(uid) {
+  for (;;) {
+    const snapshot = await db
+      .collection("sessions")
+      .where("participants", "array-contains", uid)
+      .limit(50)
+      .get();
+    if (snapshot.empty) {
+      break;
+    }
+    for (const doc of snapshot.docs) {
+      const data = doc.data() || {};
+      const participants = (data.participants || []).filter((id) => id !== uid);
+      if (participants.length === 0 || data.hostId === uid) {
+        await deleteByQuery(doc.ref.collection("events"));
+        await deleteByQuery(doc.ref.collection("plans"));
+        await deleteByQuery(doc.ref.collection("presence"));
+        await doc.ref.delete();
+      } else {
+        const ended = Array.isArray(data.endedParticipants)
+          ? data.endedParticipants.filter((id) => id !== uid)
+          : [];
+        const participantTypes = { ...(data.participantTypes || {}) };
+        delete participantTypes[uid];
+        await doc.ref.update({
+          participants,
+          endedParticipants: ended,
+          participantTypes,
+          lastActivityAt: FieldValue.serverTimestamp(),
+        });
+        try {
+          await doc.ref.collection("plans").doc(uid).delete();
+          await doc.ref.collection("presence").doc(uid).delete();
+        } catch (_) {
+          // Subdocs may already be gone.
+        }
+      }
+    }
+    if (snapshot.size < 50) {
+      break;
     }
   }
 }
@@ -1187,7 +1278,10 @@ exports.cleanupDeletedUser = onUserDeleted(async (event) => {
   await deleteByQuery(db.collection("blocks").where("blockerId", "==", uid));
   await deleteByQuery(db.collection("blocks").where("blockedId", "==", uid));
   await deleteByQuery(db.collection("matchmaking_queue").where("userId", "==", uid));
+  await deleteByQuery(db.collection("workouts").where("userId", "==", uid));
+  await detachUserFromSessions(uid);
   await deletePostsByAuthor(uid);
+  await deleteStoragePrefix(`profilePhotos/${uid}/`);
 
   try {
     await db.collection("users").doc(uid).delete();

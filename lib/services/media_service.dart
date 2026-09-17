@@ -60,10 +60,10 @@ class MediaService {
   }
 
   /// Check image dimensions and size, compress if necessary.
-  /// Uses adaptive compression strategy:
-  /// - Images < 1MB: 90% quality, max 2048px
-  /// - Images 1-3MB: 85% quality, max 2048px
-  /// - Images > 3MB: 80% quality, max 1920px
+  ///
+  /// Always re-encodes before return so EXIF/GPS metadata is stripped
+  /// (Z-PRV-004). Skipping compression for "small" images previously leaked
+  /// location tags from camera originals.
   Future<File> checkAndCompressImage(File file) async {
     try {
       final bytes = await file.readAsBytes();
@@ -77,22 +77,11 @@ class MediaService {
       // Determine compression settings based on file size
       final compressionSettings = _getCompressionSettings(fileSizeMB);
 
-      // Check if compression is needed
-      final needsDimensionResize =
-          width > compressionSettings.maxDimension ||
-          height > compressionSettings.maxDimension;
-      final needsSizeReduction = fileSizeMB > 0.5; // Compress if over 500KB
-
-      if (!needsDimensionResize && !needsSizeReduction) {
-        debugPrint(
-          '[MediaService] Image ($width x $height, ${fileSizeMB.toStringAsFixed(2)}MB) - no compression needed',
-        );
-        return file;
-      }
-
       debugPrint(
-        '[MediaService] Compressing image ($width x $height, ${fileSizeMB.toStringAsFixed(2)}MB) '
-        'with quality ${compressionSettings.quality}%, max ${compressionSettings.maxDimension}px',
+        '[MediaService] Re-encoding image ($width x $height, '
+        '${fileSizeMB.toStringAsFixed(2)}MB) quality '
+        '${compressionSettings.quality}%, max ${compressionSettings.maxDimension}px '
+        '(EXIF stripped)',
       );
 
       final dir = file.parent.path;
@@ -105,6 +94,7 @@ class MediaService {
         minWidth: compressionSettings.maxDimension,
         minHeight: compressionSettings.maxDimension,
         quality: compressionSettings.quality,
+        keepExif: false,
       );
 
       if (result != null) {
@@ -123,11 +113,11 @@ class MediaService {
         return compressedFile;
       }
 
-      return file;
+      // Fall through: never upload the camera original with possible GPS EXIF.
+      throw StateError('Image re-encode returned null');
     } catch (e) {
       debugPrint('[MediaService] Compression failed: $e');
-      // If compression fails, return original file but log warning
-      return file;
+      rethrow;
     }
   }
 
