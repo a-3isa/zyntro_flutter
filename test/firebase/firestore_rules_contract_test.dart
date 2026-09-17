@@ -416,6 +416,21 @@ void main() {
       expect(rules, contains('isEmailVerifiedForInviteCreate()'));
     });
 
+    test('analytics and reports creates are bounded (Z-SEC-005)', () {
+      expect(rules, contains('function isReportCreate()'));
+      expect(rules, contains('allow create: if isReportCreate()'));
+      expect(
+        rules,
+        contains("request.resource.data.type.matches('^[a-z0-9_]+\$')"),
+      );
+      expect(
+        rules,
+        contains(
+          "request.resource.data.reason in ['spam', 'harassment', 'inappropriate', 'other']",
+        ),
+      );
+    });
+
     test('rateLimits collection is client-inaccessible (Z-FN-001)', () {
       expect(rules, contains('match /rateLimits/{docId}'));
       expect(rules, contains('allow read, write: if false'));
