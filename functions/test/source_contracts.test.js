@@ -22,4 +22,11 @@ describe("Cloud Functions source contracts", () => {
     assert.match(source, /deleteStoragePrefix/);
     assert.match(source, /workouts"\)\.where\("userId"/);
   });
+
+  it("writes schedule heartbeats for ops liveness (Z-OBS-002)", () => {
+    assert.match(source, /function writeScheduleHeartbeat/);
+    assert.match(source, /writeScheduleHeartbeat\("expireStalePairedInvites"/);
+    assert.match(source, /writeScheduleHeartbeat\("expireStaleSessions"/);
+    assert.match(source, /writeScheduleHeartbeat\("expireStaleJointPostDrafts"/);
+  });
 });

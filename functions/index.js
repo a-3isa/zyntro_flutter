@@ -23,6 +23,17 @@ const INVALID_TOKEN_ERRORS = new Set([
   "messaging/registration-token-not-registered",
 ]);
 
+// Ops heartbeat for scheduled jobs (Z-OBS-002). Writes even when the job
+// finds nothing to do, so a missing/stale heartbeat means the schedule is
+// unhealthy rather than "quietly idle".
+async function writeScheduleHeartbeat(jobName, extra = {}) {
+  await db.collection("ops").doc("heartbeats").collection("jobs").doc(jobName).set({
+    jobName,
+    lastRunAt: FieldValue.serverTimestamp(),
+    ...extra,
+  }, { merge: true });
+}
+
 function allowedCorsOrigins() {
   return (process.env.ALLOWED_CORS_ORIGINS || "")
     .split(",")
@@ -949,21 +960,23 @@ exports.expireStalePairedInvites = onSchedule("every 15 minutes", async () => {
     .limit(400)
     .get();
 
-  if (snapshot.empty) {
-    return;
+  if (!snapshot.empty) {
+    const batch = db.batch();
+    snapshot.docs.forEach((doc) => {
+      // `ref`, not `reference` — the latter is the Dart/Flutter property and is
+      // undefined in the Node SDK, which made this pass undefined to
+      // batch.update and throw on every scheduled run.
+      batch.update(doc.ref, { invitationStatus: "expired" });
+    });
+    await batch.commit();
+
+    logger.info("Expired stale paired-session invites.", {
+      count: snapshot.size,
+    });
   }
 
-  const batch = db.batch();
-  snapshot.docs.forEach((doc) => {
-    // `ref`, not `reference` — the latter is the Dart/Flutter property and is
-    // undefined in the Node SDK, which made this pass undefined to
-    // batch.update and throw on every scheduled run.
-    batch.update(doc.ref, { invitationStatus: "expired" });
-  });
-  await batch.commit();
-
-  logger.info("Expired stale paired-session invites.", {
-    count: snapshot.size,
+  await writeScheduleHeartbeat("expireStalePairedInvites", {
+    processed: snapshot.size,
   });
 });
 
@@ -989,30 +1002,32 @@ exports.expireStaleSessions = onSchedule("every 15 minutes", async () => {
     .limit(200)
     .get();
 
-  if (snapshot.empty) {
-    return;
+  if (!snapshot.empty) {
+    const batch = db.batch();
+    snapshot.docs.forEach((doc) => {
+      // `ref`, not `reference` — the latter is the Dart/Flutter property and is
+      // undefined in the Node SDK. It broke expireStalePairedInvites once.
+      batch.update(doc.ref, {
+        status: "completed",
+        endedReason: "expired",
+        endedAt: FieldValue.serverTimestamp(),
+      });
+      // Abandonment counter for SC-014: a session nobody came back to, as
+      // distinct from one somebody deliberately finished.
+      batch.set(db.collection("analytics").doc(), {
+        type: "session_expired_abandoned",
+        sessionId: doc.id,
+        timestamp: FieldValue.serverTimestamp(),
+      });
+    });
+    await batch.commit();
+
+    logger.info("Expired stale sessions.", { count: snapshot.size });
   }
 
-  const batch = db.batch();
-  snapshot.docs.forEach((doc) => {
-    // `ref`, not `reference` — the latter is the Dart/Flutter property and is
-    // undefined in the Node SDK. It broke expireStalePairedInvites once.
-    batch.update(doc.ref, {
-      status: "completed",
-      endedReason: "expired",
-      endedAt: FieldValue.serverTimestamp(),
-    });
-    // Abandonment counter for SC-014: a session nobody came back to, as
-    // distinct from one somebody deliberately finished.
-    batch.set(db.collection("analytics").doc(), {
-      type: "session_expired_abandoned",
-      sessionId: doc.id,
-      timestamp: FieldValue.serverTimestamp(),
-    });
+  await writeScheduleHeartbeat("expireStaleSessions", {
+    processed: snapshot.size,
   });
-  await batch.commit();
-
-  logger.info("Expired stale sessions.", { count: snapshot.size });
 });
 
 // ==================== JOINT (CO-AUTHORED) POST LIFECYCLE ====================
@@ -1113,6 +1128,9 @@ exports.expireStaleJointPostDrafts = onSchedule("every 15 minutes", async () => 
     .get();
 
   if (snapshot.empty) {
+    await writeScheduleHeartbeat("expireStaleJointPostDrafts", {
+      processed: 0,
+    });
     return;
   }
 
@@ -1148,6 +1166,10 @@ exports.expireStaleJointPostDrafts = onSchedule("every 15 minutes", async () => 
   logger.info("Expired stale joint post drafts.", {
     count: snapshot.size,
     offersSent: offers.length - failed.length,
+  });
+
+  await writeScheduleHeartbeat("expireStaleJointPostDrafts", {
+    processed: snapshot.size,
   });
 });
 

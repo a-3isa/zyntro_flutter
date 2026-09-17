@@ -825,5 +825,10 @@ service cloud.firestore {
     match /rateLimits/{docId} {
       allow read, write: if false;
     }
+
+    // Schedule heartbeats (Z-OBS-002). Admin SDK writes only.
+    match /ops/{document=**} {
+      allow read, write: if false;
+    }
   }
 }
