@@ -44,6 +44,7 @@ import 'widgets/session_duration_input.dart';
 import 'widgets/session_strength_input.dart';
 import 'widgets/session_cardio_input.dart';
 import 'widgets/session_header_avatar.dart';
+import 'widgets/session_progress_row.dart';
 import '../domain/turn_plan_progress.dart';
 import '../domain/workout_score.dart';
 
@@ -2678,51 +2679,18 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     final plannedSets = match.isNotEmpty ? match.first.plannedSets : 3;
     final participants = session.participants;
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceV2,
-        border: Border(
-          bottom: BorderSide(
-            color: Colors.white.withValues(alpha: 0.06),
-            width: 1,
+    return SessionProgressRow(
+      exerciseName: exerciseName,
+      columns: [
+        for (final id in participants)
+          _buildSetColumn(
+            id,
+            exerciseName,
+            plannedSets,
+            events,
+            session,
           ),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 2, bottom: 6),
-            child: Text(
-              exerciseName.toUpperCase(),
-              style: const TextStyle(
-                color: AppColors.textV2Secondary,
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.1,
-              ),
-            ),
-          ),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (var i = 0; i < participants.length; i++) ...[
-                if (i > 0) const SizedBox(width: 8),
-                Expanded(
-                  child: _buildSetColumn(
-                    participants[i],
-                    exerciseName,
-                    plannedSets,
-                    events,
-                    session,
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ],
-      ),
+      ],
     );
   }
 

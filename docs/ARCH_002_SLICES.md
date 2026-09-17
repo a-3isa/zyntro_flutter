@@ -33,6 +33,7 @@
 | 105 | Session strength input section |
 | 106 | Session cardio input section |
 | 107 | Session header avatar |
+| 108 | Session progress row shell |
 
 ## Next slices (suggested)
 
