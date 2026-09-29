@@ -375,6 +375,8 @@ void main() {
         },
         'sessionId': sessionId,
         'visibility': visibility,
+        // Stamped server-side by stampPostAuthorPrivacy in production.
+        'authorIsPrivate': false,
         'title': 'Joint $status',
         'type': 'strength',
         'summary': SessionSummary().toMap(),

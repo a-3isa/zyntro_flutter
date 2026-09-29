@@ -573,7 +573,30 @@ service cloud.firestore {
         );
       }
 
-      allow read: if canReadPostData(resource.data);
+      // A published public post whose authors are all public accounts.
+      // `authorIsPrivate` is stamped server-side (stampPostAuthorPrivacy /
+      // syncPostAuthorPrivacy) — clients can never write it.
+      function isListablePublicPost(data) {
+        return data.status == 'published' &&
+          data.visibility == 'public' &&
+          data.authorIsPrivate == false;
+      }
+
+      // resource == null: createJointDraft's transaction reads the
+      // deterministic joint_<sessionId> id before it exists; a miss reveals
+      // nothing but absence.
+      allow get: if resource == null || canReadPostData(resource.data);
+
+      // Rules are not filters: a query is allowed only if its own constraints
+      // prove the rule for every doc it could return. canReadPostData looks up
+      // users/follows by `authorId`, which only an `authorId ==` query can
+      // pin, so multi-author feeds (Discover, Following chunks, profile grids)
+      // must instead constrain status/visibility/authorIsPrivate to satisfy
+      // isListablePublicPost. Blocks are not provable here; clients filter them.
+      allow list: if isAuthenticated() && (
+        isListablePublicPost(resource.data) ||
+        canReadPostData(resource.data)
+      );
 
       function isSoloCreate() {
         return request.resource.data.authorId == request.auth.uid &&
@@ -608,6 +631,7 @@ service cloud.firestore {
       allow create: if isAuthenticated() &&
         isNotBanned() &&
         isEmailVerifiedForSocial() &&
+        !request.resource.data.keys().hasAny(['authorIsPrivate']) &&
         (isSoloCreate() || isJointDraftCreate());
 
       // The ONLY top-level field a client may change on a co-authored post is
@@ -659,6 +683,7 @@ service cloud.firestore {
               'authorIds',
               'authors',
               'authorId',
+              'authorIsPrivate',
               'coAuthored',
               'likesCount',
               'commentsCount',

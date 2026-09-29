@@ -5,8 +5,9 @@ const { FieldValue, getFirestore, Timestamp } = require("firebase-admin/firestor
 const { getMessaging } = require("firebase-admin/messaging");
 const { getStorage } = require("firebase-admin/storage");
 const { normalizeUserLocale, pushCopy } = require("./lib/push_copy");
+const { computeAuthorIsPrivate, restampPosts } = require("./lib/post_author_privacy");
 const logger = require("firebase-functions/logger");
-const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
+const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const { onRequest, HttpsError } = require("firebase-functions/v2/https");
 const { onUserDeleted } = require("firebase-functions/v2/identity");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
@@ -1113,6 +1114,40 @@ exports.publishJointPostWhenBothConfirm = onDocumentUpdated("posts/{postId}", as
   });
 
   logger.info("Published joint post on dual confirm.", { postId: event.params.postId });
+});
+
+// Stamps `authorIsPrivate` on every new post so it can match the
+// isListablePublicPost `list` rule (Discover / Following / profile grids).
+// Until this runs the post is only reachable through authorId-pinned queries,
+// which fails closed.
+exports.stampPostAuthorPrivacy = onDocumentCreated("posts/{postId}", async (event) => {
+  const post = event.data?.data();
+  if (!post) return;
+
+  const authorIsPrivate = await computeAuthorIsPrivate(db, post);
+  if (post.authorIsPrivate === authorIsPrivate) return;
+  await event.data.ref.update({ authorIsPrivate });
+});
+
+// Keeps `posts.authorIsPrivate` in step when an account flips isPrivate.
+// Recomputes per post so a co-authored post stays private while any of its
+// authors is private.
+exports.syncPostAuthorPrivacy = onDocumentUpdated("users/{userId}", async (event) => {
+  const before = event.data.before.data() || {};
+  const after = event.data.after.data() || {};
+  if ((before.isPrivate === true) === (after.isPrivate === true)) return;
+
+  const { userId } = event.params;
+  // `authorId ==` also catches legacy posts written before `authorIds`.
+  const [coAuthored, legacy] = await Promise.all([
+    db.collection("posts").where("authorIds", "array-contains", userId).get(),
+    db.collection("posts").where("authorId", "==", userId).get(),
+  ]);
+  const docs = new Map([...coAuthored.docs, ...legacy.docs].map((doc) => [doc.id, doc]));
+  const known = new Map([[userId, after.isPrivate === true]]);
+  const updated = await restampPosts(db, [...docs.values()], known);
+
+  logger.info("Synced post author privacy.", { userId, isPrivate: after.isPrivate === true, updated });
 });
 
 // Writes the owner-scoped "post it solo?" notification for an author whose

@@ -2,14 +2,17 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:rxdart/rxdart.dart';
 
 import '../core/models/models.dart';
+import '../core/constants/constants.dart';
 import '../core/constants/feature_flags.dart';
 import '../core/auth/email_verification_gate.dart';
 import '../utils/retry_helper.dart';
 import '../utils/offline_manager.dart';
 import '../features/auth/auth_providers.dart';
 import 'notification_service.dart';
+import 'follow_service.dart';
 import 'content_filter_service.dart';
 import 'media_service.dart';
 
@@ -399,16 +402,35 @@ class PostService {
     return Post.fromFirestore(doc);
   }
 
+  /// Constrains a posts query to what the Firestore `list` rule
+  /// (isListablePublicPost) can prove without per-doc lookups: published,
+  /// public, and from public accounts. `authorIsPrivate` is stamped
+  /// server-side; posts not yet stamped simply don't match.
+  static Query<Map<String, dynamic>> _listablePublic(
+    Query<Map<String, dynamic>> query,
+  ) => query
+      .where('status', isEqualTo: 'published')
+      .where('visibility', isEqualTo: 'public')
+      .where('authorIsPrivate', isEqualTo: false);
+
+  /// Visibilities the author or an approved follower may list. Only an
+  /// `authorId ==` query lets the rules check that follow, so these reads go
+  /// one author at a time.
+  static const _audienceVisibilities = ['public', 'friends'];
+
+  Query<Map<String, dynamic>> _authorAudienceQuery(String authorId) =>
+      _firestore
+          .collection('posts')
+          .where('authorId', isEqualTo: authorId)
+          .where('status', isEqualTo: 'published')
+          .where('visibility', whereIn: _audienceVisibilities);
+
   /// Get public feed posts.
   /// Matches RN getPublicFeedPosts.
   Future<List<Post>> getPublicFeedPosts({int limit = 20}) async {
-    final snapshot = await _firestore
-        .collection('posts')
-        .where('visibility', isEqualTo: 'public')
-        .where('status', isEqualTo: 'published')
-        .orderBy('createdAt', descending: true)
-        .limit(limit)
-        .get();
+    final snapshot = await _listablePublic(
+      _firestore.collection('posts'),
+    ).orderBy('createdAt', descending: true).limit(limit).get();
 
     return snapshot.docs.map((doc) => Post.fromFirestore(doc)).toList();
   }
@@ -419,12 +441,9 @@ class PostService {
     int limit = 20,
     DocumentSnapshot? startAfterDoc,
   }) async {
-    Query<Map<String, dynamic>> query = _firestore
-        .collection('posts')
-        .where('visibility', isEqualTo: 'public')
-        .where('status', isEqualTo: 'published')
-        .orderBy('createdAt', descending: true)
-        .limit(limit);
+    Query<Map<String, dynamic>> query = _listablePublic(
+      _firestore.collection('posts'),
+    ).orderBy('createdAt', descending: true).limit(limit);
 
     if (startAfterDoc != null) {
       query = query.startAfterDocument(startAfterDoc);
@@ -461,20 +480,55 @@ class PostService {
   }
 
   /// Real-time stream of posts by a specific user.
-  Stream<List<Post>> watchUserPosts(String userId, {int limit = 20}) {
-    return _firestore
-        .collection('posts')
-        .where('authorIds', arrayContains: userId)
-        .where('status', isEqualTo: 'published')
+  ///
+  /// [isOwner] reads the author's full grid. Anyone else gets what the rules
+  /// can prove for a list: listable public posts (incl. co-authored ones),
+  /// plus — when [viewerFollows] — the author's own public/friends posts via
+  /// an `authorId ==` query.
+  Stream<List<Post>> watchUserPosts(
+    String userId, {
+    int limit = 20,
+    bool isOwner = true,
+    bool viewerFollows = false,
+  }) {
+    List<Post> toPosts(
+      Iterable<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+    ) {
+      final byId = {for (final doc in docs) doc.id: Post.fromFirestore(doc)};
+      return (byId.values
+              .where((post) => post.authors[userId]?.removed != true)
+              .toList()
+            ..sort((a, b) => b.createdAt.compareTo(a.createdAt)))
+          .take(limit)
+          .toList();
+    }
+
+    Stream<List<QueryDocumentSnapshot<Map<String, dynamic>>>> watch(
+      Query<Map<String, dynamic>> query,
+    ) => query
         .orderBy('createdAt', descending: true)
         .limit(limit)
         .snapshots()
-        .map(
-          (snap) => snap.docs
-              .map((doc) => Post.fromFirestore(doc))
-              .where((post) => post.authors[userId]?.removed != true)
-              .toList(),
-        );
+        .map((snap) => snap.docs);
+
+    final byAuthorIds = _firestore
+        .collection('posts')
+        .where('authorIds', arrayContains: userId);
+
+    if (isOwner) {
+      return watch(
+        byAuthorIds.where('status', isEqualTo: 'published'),
+      ).map(toPosts);
+    }
+
+    final listable = watch(_listablePublic(byAuthorIds));
+    if (!viewerFollows) return listable.map(toPosts);
+
+    return Rx.combineLatest2(
+      listable,
+      watch(_authorAudienceQuery(userId)),
+      (a, b) => toPosts([...a, ...b]),
+    );
   }
 
   // Prefetch cache
@@ -513,7 +567,8 @@ class PostService {
   /// feeds. Solo posts carry an empty `authors` map, so they always pass.
   bool _hasActiveQueriedAuthor(Post post, Set<String> queriedIds) =>
       queriedIds.any(
-        (id) => post.authorIds.contains(id) && post.authors[id]?.removed != true,
+        (id) =>
+            post.authorIds.contains(id) && post.authors[id]?.removed != true,
       );
 
   /// Get posts from followed users.
@@ -548,40 +603,58 @@ class PostService {
       return FeedResult(posts: [], cursor: FeedCursor(hasMore: false));
     }
 
-    // Unified chunking strategy (batches of 10) for consistent pagination
-    final chunks = <List<String>>[];
-    for (var i = 0; i < allIds.length; i += 10) {
-      chunks.add(allIds.sublist(i, (i + 10).clamp(0, allIds.length)));
-    }
-
-    // Prepare queries for all chunks
-    // We use a unified createdAt cursor if startAfterDoc is provided
-    DateTime? lastCreatedAt;
-    if (startAfterDoc != null) {
-      final data = startAfterDoc.data() as Map<String, dynamic>?;
-      lastCreatedAt = (data?['createdAt'] as Timestamp?)?.toDate();
-    }
-
-    final futures = chunks.map((chunk) {
-      // `authorIds arrayContainsAny` (not `authorId whereIn`) so a co-authored
-      // post reaches the followers of BOTH authors, not just authorIds.first.
-      // `status == 'published'` keeps unconfirmed/expired joint drafts out of
-      // the feed — mirrors getUserPosts/getPublicFeedPosts.
-      Query<Map<String, dynamic>> query = _firestore
-          .collection('posts')
-          .where('authorIds', arrayContainsAny: chunk)
-          .where('status', isEqualTo: 'published')
-          .orderBy('createdAt', descending: true)
-          .limit(limit);
-
+    // Unified createdAt cursor across every query below.
+    final lastCreatedAt =
+        ((startAfterDoc?.data() as Map<String, dynamic>?)?['createdAt']
+                as Timestamp?)
+            ?.toDate();
+    Object? firstError;
+    Future<QuerySnapshot<Map<String, dynamic>>?> page(
+      Query<Map<String, dynamic>> query,
+    ) {
+      query = query.orderBy('createdAt', descending: true).limit(limit);
       if (lastCreatedAt != null) {
         query = query.startAfter([Timestamp.fromDate(lastCreatedAt)]);
       }
+      // One denied/failed query (e.g. a block since the follow list was
+      // read) must not take down the whole feed.
+      return query.get().then<QuerySnapshot<Map<String, dynamic>>?>(
+        (snap) => snap,
+        onError: (Object e) {
+          debugPrint('[PostService] Following feed query failed: $e');
+          firstError ??= e;
+          return null;
+        },
+      );
+    }
 
-      return query.get();
-    });
+    // 1. Listable public posts, chunked by 10. `authorIds arrayContainsAny`
+    //    (not `authorId whereIn`) so a co-authored post reaches the followers
+    //    of BOTH authors, not just authorIds.first. `status == 'published'`
+    //    keeps unconfirmed/expired joint drafts out.
+    final futures = <Future<QuerySnapshot<Map<String, dynamic>>?>>[
+      for (var i = 0; i < allIds.length; i += 10)
+        page(
+          _listablePublic(
+            _firestore
+                .collection('posts')
+                .where(
+                  'authorIds',
+                  arrayContainsAny: allIds.sublist(
+                    i,
+                    (i + 10).clamp(0, allIds.length),
+                  ),
+                ),
+          ),
+        ),
+      // 2. Per author: friends-only posts and posts from private accounts,
+      //    which the rules only release to an `authorId ==` query.
+      for (final id in allIds) page(_authorAudienceQuery(id)),
+    ];
 
-    final snapshots = await Future.wait(futures);
+    final snapshots = (await Future.wait(futures)).nonNulls.toList();
+    // Partial failure degrades; total failure is a real error for the UI.
+    if (snapshots.isEmpty && firstError != null) throw firstError!;
 
     // Merge all results
     final allPosts = <Post>[];
@@ -655,7 +728,7 @@ class PostService {
   }
 
   /// Get recent posts from specific buddies.
-  /// Filters for 'public' and 'followers' visibility.
+  /// Listable public posts only (see [_listablePublic]).
   Future<List<Post>> getBuddiesRecentPosts(
     List<String> buddyIds, {
     int limit = 15,
@@ -667,29 +740,15 @@ class PostService {
     final queriedIds = safeBuddyIds.toSet();
 
     // `authorIds arrayContainsAny` so co-authored posts surface for BOTH
-    // authors; `status == 'published'` keeps unconfirmed/expired joint drafts
-    // out — mirrors getUserPosts/getPublicFeedPosts.
-    // Query 1: Public posts
-    final publicSnapshot = await _firestore
-        .collection('posts')
-        .where('authorIds', arrayContainsAny: safeBuddyIds)
-        .where('visibility', isEqualTo: 'public')
-        .where('status', isEqualTo: 'published')
-        .orderBy('createdAt', descending: true)
-        .limit(limit)
-        .get();
+    // authors; the listable constraints keep drafts, non-public posts and
+    // private accounts out and satisfy the `list` rule.
+    final publicSnapshot = await _listablePublic(
+      _firestore
+          .collection('posts')
+          .where('authorIds', arrayContainsAny: safeBuddyIds),
+    ).orderBy('createdAt', descending: true).limit(limit).get();
 
-    // Query 2: Followers posts
-    final followersSnapshot = await _firestore
-        .collection('posts')
-        .where('authorIds', arrayContainsAny: safeBuddyIds)
-        .where('visibility', isEqualTo: 'followers')
-        .where('status', isEqualTo: 'published')
-        .orderBy('createdAt', descending: true)
-        .limit(limit)
-        .get();
-
-    final allDocs = [...publicSnapshot.docs, ...followersSnapshot.docs];
+    final allDocs = publicSnapshot.docs;
 
     // Deduplicate and Convert
     final uniquePosts = <String, Post>{};
@@ -1092,21 +1151,38 @@ final publicFeedProvider = FutureProvider.autoDispose<List<Post>>((ref) async {
 });
 
 /// User posts provider — real-time stream so the grid updates without a pull-to-refresh.
-final userPostsProvider = StreamProvider.autoDispose.family<List<Post>, String>((
-  ref,
-  userId,
-) {
-  return ref.watch(postServiceProvider).watchUserPosts(userId);
-});
+final userPostsProvider = StreamProvider.autoDispose.family<List<Post>, String>(
+  (ref, userId) {
+    final posts = ref.watch(postServiceProvider);
+    final viewerId = ref.watch(authSessionProvider).value?.id;
+    if (viewerId == null) {
+      return posts.watchUserPosts(userId, isOwner: false);
+    }
+    if (viewerId == userId) return posts.watchUserPosts(userId);
+
+    // Re-subscribe when a follow is approved or removed: it changes which
+    // queries the rules allow.
+    return ref
+        .watch(followServiceProvider)
+        .watchFollowStatus(viewerId, userId)
+        .map((status) => status == FollowStatus.approved)
+        .distinct()
+        .switchMap(
+          (follows) => posts.watchUserPosts(
+            userId,
+            isOwner: false,
+            viewerFollows: follows,
+          ),
+        );
+  },
+);
 
 /// Comments stream provider.
-final commentsProvider = StreamProvider.autoDispose.family<List<Comment>, String>((
-  ref,
-  postId,
-) {
-  if (!FeatureFlags.isCommentsEnabled) {
-    return Stream.value([]);
-  }
-  // ignore: deprecated_member_use_from_same_package
-  return ref.watch(postServiceProvider).subscribeToComments(postId);
-});
+final commentsProvider = StreamProvider.autoDispose
+    .family<List<Comment>, String>((ref, postId) {
+      if (!FeatureFlags.isCommentsEnabled) {
+        return Stream.value([]);
+      }
+      // ignore: deprecated_member_use_from_same_package
+      return ref.watch(postServiceProvider).subscribeToComments(postId);
+    });

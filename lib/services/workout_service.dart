@@ -291,7 +291,7 @@ final friendsRecentActivityProvider =
       final safeBuddyIds = buddyIds.take(10).toList();
 
       // 2. Fetch workouts and posts in parallel
-      // PostService.getBuddiesRecentPosts handles visibility filtering (public/followers only)
+      // PostService.getBuddiesRecentPosts returns listable public posts only
       final results = await Future.wait([
         workoutService.getBuddiesRecentWorkouts(safeBuddyIds),
         postService.getBuddiesRecentPosts(safeBuddyIds),
