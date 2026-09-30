@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:google_fonts/google_fonts.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../widgets/widgets.dart';
 import '../../../core/models/models.dart';
 import '../../auth/auth_providers.dart';
 import '../../../services/moderation_service.dart';
-import '../../../utils/haptic_manager.dart';
 import 'package:go_router/go_router.dart';
 
 /// Moderation queue page for admins to review reports.
@@ -21,7 +21,7 @@ class ModerationQueuePage extends ConsumerStatefulWidget {
 
 final isModeratorProvider = FutureProvider<bool>((ref) async {
   final authState = ref.watch(authSessionProvider);
-  final uid = authState.valueOrNull?.id;
+  final uid = authState.value?.id;
   if (uid == null) return false;
   return ref.read(moderationServiceProvider).isModerator(uid);
 });
@@ -214,7 +214,7 @@ class _ModerationQueuePageState extends ConsumerState<ModerationQueuePage> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authSessionProvider);
-    final moderatorId = authState.valueOrNull?.id;
+    final moderatorId = authState.value?.id;
     final isModeratorAsync = ref.watch(isModeratorProvider);
     final reportsAsync = ref.watch(pendingReportsProvider);
 
@@ -232,29 +232,11 @@ class _ModerationQueuePageState extends ConsumerState<ModerationQueuePage> {
             ),
             child: Row(
               children: [
-                GestureDetector(
-                  onTap: () {
-                    HapticManager.light();
-                    context.pop();
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceV2Elevated,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.arrow_back,
-                      color: AppColors.textV2Primary,
-                      size: 20,
-                    ),
-                  ),
-                ),
+                ZyntroBackButton(onPressed: () => context.pop()),
                 const SizedBox(width: 16),
                 Text(
                   'Moderation Queue',
-                  style: GoogleFonts.syne(
-                    fontSize: 20,
+                  style: AppTextStyles.h4.copyWith(
                     fontWeight: FontWeight.w700,
                     color: AppColors.textV2Primary,
                   ),
@@ -307,12 +289,18 @@ class _ModerationQueuePageState extends ConsumerState<ModerationQueuePage> {
                     );
                   },
                   loading: () =>
-                      const Center(child: CircularProgressIndicator()),
-                  error: (e, _) => Center(child: Text('Error: $e')),
+                      const Center(child: CircularProgressIndicator(semanticsLabel: 'Loading reports')),
+                  error: (e, _) => AppErrorState(
+                    title: "Couldn't load the moderation queue",
+                    onRetry: () => ref.invalidate(pendingReportsProvider),
+                  ),
                 );
               },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('Error: $e')),
+              loading: () => const Center(child: CircularProgressIndicator(semanticsLabel: 'Loading reports')),
+              error: (e, _) => AppErrorState(
+                    title: "Couldn't load the moderation queue",
+                    onRetry: () => ref.invalidate(pendingReportsProvider),
+                  ),
             ),
           ),
         ],
@@ -321,33 +309,11 @@ class _ModerationQueuePageState extends ConsumerState<ModerationQueuePage> {
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.xxl),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.check_circle, size: 80, color: Colors.green.shade400),
-            const SizedBox(height: AppSpacing.lg),
-            const Text(
-              'All clear!',
-              style: TextStyle(
-                fontSize: AppFontSize.xl,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              'No pending reports to review',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.grey.shade600,
-                fontSize: AppFontSize.md,
-              ),
-            ),
-          ],
-        ),
-      ),
+    return const AppEmptyState(
+      icon: Icons.check_circle,
+      title: 'All clear!',
+      message: 'No pending reports to review',
+      accentColor: AppColors.okV2,
     );
   }
 
@@ -413,7 +379,7 @@ class _ModerationQueuePageState extends ConsumerState<ModerationQueuePage> {
             SizedBox(
               width: double.infinity,
               child: isProcessing
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const Center(child: CircularProgressIndicator(semanticsLabel: 'Processing report'))
                   : ElevatedButton(
                       onPressed: () => _showActionMenu(report, moderatorId),
                       child: const Text('Take Action'),

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
+import '../core/theme/app_text_styles.dart';
 import '../core/theme/app_theme.dart';
 import '../services/user_service.dart';
 import '../utils/haptic_manager.dart';
@@ -151,10 +151,9 @@ class _StreakCardState extends State<StreakCard>
                             animation: _countAnim,
                             builder: (context, _) => Text(
                               '${_countAnim.value}',
-                              style: GoogleFonts.syne(
+                              style: AppTextStyles.display.copyWith(
                                 fontSize: 52,
-                                fontWeight: FontWeight.w900,
-                                color: const Color(0xFFFF8C00),
+                                color: AppColors.warnV2,
                                 letterSpacing: -2,
                                 height: 1,
                               ),
@@ -168,8 +167,7 @@ class _StreakCardState extends State<StreakCard>
                       ),
                       Text(
                         'day streak',
-                        style: GoogleFonts.outfit(
-                          fontSize: 12,
+                        style: AppTextStyles.caption.copyWith(
                           color: AppColors.textV2Tertiary,
                           letterSpacing: 0.04,
                         ),
@@ -192,7 +190,7 @@ class _StreakCardState extends State<StreakCard>
                       width: isSmallScreen ? 48 : 56,
                       height: isSmallScreen ? 48 : 56,
                       decoration: BoxDecoration(
-                        color: AppColors.action.withValues(alpha: 0.15),
+                        color: AppColors.signal.withValues(alpha: 0.15),
                         shape: BoxShape.circle,
                       ),
                       child: Center(
@@ -215,10 +213,10 @@ class _StreakCardState extends State<StreakCard>
                   padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                   child: Text(
                     rankText,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: AppFontSize.sm,
-                      color: AppColors.accentLime,
+                      color: AppColors.signal,
                     ),
                   ),
                 ),
@@ -281,21 +279,21 @@ class _StreakCardState extends State<StreakCard>
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(8),
               color: isToday
-                  ? const Color(0xFFFF8C00)
+                  ? AppColors.warnV2
                   : isDone
-                      ? const Color(0x33FF8C00)
+                      ? AppColors.warnV2Glow
                       : AppColors.surfaceV2Elevated,
             ),
             child: Center(
               child: Text(
                 weekdayLabels[i],
-                style: GoogleFonts.outfit(
+                style: AppTextStyles.caption.copyWith(
                   fontSize: 11,
                   fontWeight: isToday ? FontWeight.w700 : FontWeight.w500,
                   color: isToday
                       ? Colors.black
                       : isDone
-                          ? const Color(0xFFFF8C00)
+                          ? AppColors.warnV2
                           : AppColors.textV2Tertiary,
                 ),
               ),
@@ -315,9 +313,9 @@ class _StreakCardState extends State<StreakCard>
         width: containerWidth,
         padding: EdgeInsets.all(isSmallScreen ? 4 : AppSpacing.xs),
         decoration: BoxDecoration(
-          color: AppColors.accentLime.withValues(alpha: 0.1),
+          color: AppColors.signal.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(AppBorderRadius.md),
-          border: Border.all(color: AppColors.accentLime, width: 2),
+          border: Border.all(color: AppColors.signal, width: 2),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -327,7 +325,7 @@ class _StreakCardState extends State<StreakCard>
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: isSmallScreen ? 9 : 10,
-                color: AppColors.accentLime,
+                color: AppColors.signal,
               ),
             ),
             const SizedBox(height: 2),
@@ -362,7 +360,7 @@ class _StreakCardState extends State<StreakCard>
         ),
         const SizedBox(height: 4),
         Text(
-          '${item.currentStreak} 🔥',
+          '${item.currentStreak}',
           style: TextStyle(
             fontSize: isSmallScreen ? 9 : 10,
             fontWeight: FontWeight.bold,

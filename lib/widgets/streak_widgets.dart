@@ -45,7 +45,6 @@ class StreakPodiumSpot extends StatelessWidget {
                       )
                     : null,
                 child: FluttermojiAvatar(
-                  avatarConfig: entry.avatarConfig,
                   photoUrl: entry.photoURL,
                   displayName: entry.displayName,
                   size: rank == 1 ? 64 : 52,
@@ -79,7 +78,7 @@ class StreakPodiumSpot extends StatelessWidget {
             ),
           ),
           Text(
-            '${entry.currentStreak} days 🔥',
+            '${entry.currentStreak} days',
             style: TextStyle(
               fontSize: AppFontSize.sm,
               fontWeight: FontWeight.bold,
@@ -145,7 +144,6 @@ class StreakListItem extends StatelessWidget {
               ),
             ),
             FluttermojiAvatar(
-              avatarConfig: entry.avatarConfig,
               photoUrl: entry.photoURL,
               displayName: entry.displayName,
               size: 40,
@@ -165,7 +163,7 @@ class StreakListItem extends StatelessWidget {
             const Text('Current: '),
             Flexible(
               child: Text(
-                '${entry.currentStreak} 🔥',
+                '${entry.currentStreak}',
                 style: const TextStyle(fontWeight: FontWeight.bold),
                 overflow: TextOverflow.ellipsis,
               ),

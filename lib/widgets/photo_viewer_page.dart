@@ -71,7 +71,7 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Image link copied to clipboard! 📋'),
+            content: Text('Image link copied to clipboard!'),
             backgroundColor: AppColors.success,
           ),
         );
@@ -133,7 +133,7 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Photo saved to: $fileName 💾'),
+            content: Text('Photo saved to: $fileName'),
             backgroundColor: AppColors.success,
             duration: const Duration(seconds: 3),
           ),

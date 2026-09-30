@@ -21,6 +21,8 @@ abstract class AuthRepository {
 
   Future<AuthUserEntity?> signInWithFacebook();
 
+  Future<AuthUserEntity?> signInWithApple();
+
   Future<void> signOut();
 
   Future<void> sendEmailVerification();
@@ -41,6 +43,7 @@ abstract class AuthRepository {
     String? photoUrl,
     String? avatarConfig,
     String? authProvider,
+    int? trainingDaysPerWeek,
   });
 
   Future<void> updateUserProfile({

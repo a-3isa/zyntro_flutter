@@ -61,7 +61,7 @@ class _EmailVerificationBannerState
   void _startVerificationCheck() {
     // Check every 3 seconds
     _checkTimer = Timer.periodic(const Duration(seconds: 3), (_) async {
-      final user = ref.read(authSessionProvider).valueOrNull;
+      final user = ref.read(authSessionProvider).value;
       if (user != null && !user.emailVerified) {
         try {
           await ref.read(authControllerProvider).reloadCurrentUser();
@@ -173,7 +173,7 @@ class _EmailVerificationBannerState
   @override
   Widget build(BuildContext context) {
     // Also hide if auth state provider says we are verified (reactive update)
-    final user = ref.watch(authSessionProvider).valueOrNull;
+    final user = ref.watch(authSessionProvider).value;
     if (user?.emailVerified == true) return const SizedBox.shrink();
 
     if (!_isVisible) return const SizedBox.shrink();
@@ -298,7 +298,7 @@ class _EmailVerificationBannerState
                   fontSize: AppFontSize.sm,
                   color: _cooldownSeconds > 0
                       ? AppColors.textTertiaryLight
-                      : AppColors.primary,
+                      : AppColors.signal,
                 ),
               ),
             ),

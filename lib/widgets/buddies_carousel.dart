@@ -11,13 +11,13 @@ class BuddiesActivityCarousel extends StatelessWidget {
   static const List<Map<String, dynamic>> _buddies = [
     {
       'name': 'Alex',
-      'activity': 'Just finished a workout! 💪',
+      'activity': 'Just finished a workout!',
       'isOnline': true,
     },
-    {'name': 'Jordan', 'activity': 'On a 12-day streak 🔥', 'isOnline': true},
+    {'name': 'Jordan', 'activity': 'On a 12-day streak', 'isOnline': true},
     {'name': 'Sam', 'activity': 'Set a new PR today!', 'isOnline': false},
     {'name': 'Riley', 'activity': 'Morning cardio completed', 'isOnline': true},
-    {'name': 'Casey', 'activity': '21-day streak! 🏆', 'isOnline': false},
+    {'name': 'Casey', 'activity': '21-day streak!', 'isOnline': false},
   ];
 
   @override
@@ -112,6 +112,7 @@ class _BuddyChip extends StatelessWidget {
                 displayName: name,
                 size: 32,
                 showGradientBorder: false,
+                ringColor: null,
               ),
               if (isOnline)
                 Positioned(

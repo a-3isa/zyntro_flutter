@@ -1,33 +1,33 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'app_text_styles.dart';
 
-/// Font family constants for premium typography.
+/// Font family constants for dual-register typography.
 class AppFonts {
-  static const String primary = 'Outfit';
-  static const String display = 'Syne';
+  static const String primary = 'Bricolage Grotesque';
+  static const String display = 'Barlow Condensed';
 }
 
-/// Premium color scheme for Zyntro - Figma navy and neon-green palette.
+/// Premium color scheme for Zyntro — concrete charcoal, iron surfaces, signal orange.
 class AppColors {
-  // Figma navy scale
+  // Figma navy scale — legacy, kept for gradientStart/accent/premium; use v2 surface tokens in new code
   static const Color navy900 = Color(0xFF0A0E27);
   static const Color navy800 = Color(0xFF151B3D);
   static const Color navy700 = Color(0xFF1E2749);
 
-  // Figma neon green scale
-  static const Color neonGreen = Color(0xFF39FF14);
-  static const Color neonGreenHover = Color(0xFF2EE00F);
+  // Legacy neon names now alias signal so leftover call sites stay on brand.
+  static const Color neonGreen = signal;
+  static const Color neonGreenHover = signalDim;
 
   // Figma gray scale
   static const Color gray400 = Color(0xFF8B8B98);
   static const Color gray300 = Color(0xFFA0A0AC);
 
-  // Primary colors - Neon Green
-  static const Color primary = neonGreen;
-  static const Color primaryDark = neonGreenHover;
-  static const Color primaryLight = Color(0xFF6CFF52);
+  // Primary colors - Acid Lime (v2)
+  static const Color primary = accentLime;
+  static const Color primaryDark = accentLimeDim;
+  static const Color primaryLight = Color(0xFFFF7A3D);
   static const Color primaryMuted = navy700;
-  static const Color primaryGlow   = Color(0x33C8FF00); // lime @ 20%
+  static const Color primaryGlow = Color(0x33FF5C1A); // signal @ 20%
 
   // Secondary colors - Gray
   static const Color secondary = gray400;
@@ -44,7 +44,7 @@ class AppColors {
   static const Color premium = navy800;
   static const Color premiumDark = navy900;
   static const Color premiumLight = navy700;
-  static const Color premiumGlow   = Color(0x1AC8FF00); // lime @ 10%
+  static const Color premiumGlow = Color(0x1AFF5C1A); // signal @ 10%
 
   // Semantic colors
   static const Color success = Color(0xFF10B981);
@@ -71,7 +71,7 @@ class AppColors {
   static const Color borderLight = Color(0xFFE2E8F0);
   static const Color borderLightSecondary = Color(0xFFF1F5F9);
 
-  // Dark mode surface colors — aliased to v2 true-black tokens
+  // Dark mode surface colors — aliased to concrete tokens
   static const Color backgroundDark = backgroundV2;
   static const Color surfaceDark = surfaceV2;
   static const Color surfaceSecondaryDark = surfaceV2Elevated;
@@ -88,14 +88,14 @@ class AppColors {
   static const Color borderDarkSecondary = surfaceV2Elevated;
 
   // Action color
-  static const Color action = neonGreen;
+  static const Color action = accentLime;
   static const Color actionLight = primaryLight;
-  static const Color actionDark = neonGreenHover;
+  static const Color actionDark = accentLimeDim;
 
   // Warm accent colors for streak cards
-  static const Color warmBackground = navy700;
-  static const Color warmBorder = neonGreen;
-  static const Color warmAccent = gray300;
+  static const Color warmBackground = surfaceV2Elevated;
+  static const Color warmBorder = accentLime;
+  static const Color warmAccent = textV2Secondary;
 
   // Gradient colors for splash
   static const Color gradientStart = navy900;
@@ -110,75 +110,183 @@ class AppColors {
   static const Color white = Colors.white;
   static const Color text = textLight;
 
-  // Gradient presets
-  static const List<Color> primaryGradient = [neonGreen, neonGreenHover];
-  static const List<Color> secondaryGradient = [navy700, navy800];
-  static const List<Color> premiumGradient = [navy800, navy700];
+  // Gradient presets (v2 — concrete charcoal + signal orange)
+  static const List<Color> primaryGradient = [accentLime, accentLimeDim];
+  static const List<Color> secondaryGradient = [surfaceV2Elevated, surfaceV2];
+  static const List<Color> premiumGradient = [surfaceV2, surfaceV2Elevated];
   static const List<Color> splashGradient = [
-    splashGradientBlue,
-    splashGradientNavy,
-    splashGradientTeal,
-    splashGradientGreen,
+    backgroundV2,
+    surfaceV2,
+    surfaceV2Elevated,
+    surfaceV2Active,
   ];
-  static const List<Color> cardGradient = [navy800, navy700];
+  static const List<Color> cardGradient = [surfaceV2, surfaceV2Elevated];
 
   static const List<Color> successGradient = [
     Color(0xFF10B981),
     Color(0xFF34D399),
   ];
 
-  // Additional gradients
-  static const List<Color> motivationalGradient = [navy700, neonGreen];
-  static const List<Color> achievementGradient = [navy800, neonGreen];
-  static const List<Color> streakGradient = [navy700, navy800, neonGreenHover];
+  // Additional gradients (v2)
+  static const List<Color> motivationalGradient = [
+    surfaceV2Elevated,
+    accentLime,
+  ];
+  static const List<Color> achievementGradient = [surfaceV2, accentLime];
+  static const List<Color> streakGradient = [
+    surfaceV2Elevated,
+    surfaceV2,
+    accentLimeDim,
+  ];
 
-  // ── v2 Design tokens (true-black + acid-lime) ──────────────────────────────
+  // ── Brand tokens (concrete + iron + signal orange) ─────────────────────────
   // Dark mode surfaces
-  static const Color backgroundV2 = Color(0xFF080808);
-  static const Color surfaceV2 = Color(0xFF111111);
-  static const Color surfaceV2Elevated = Color(0xFF1C1C1C);
-  static const Color surfaceV2Active = Color(0xFF242424);
+  static const Color backgroundV2 = Color(0xFF1A1A18);
+  static const Color surfaceV2 = Color(0xFF2C2A27);
+  static const Color surfaceV2Elevated = Color(0xFF35322E);
+  static const Color surfaceV2Active = Color(0xFF3F3C37);
 
-  // Accent
-  static const Color accentLime = Color(0xFFC8FF00);
-  static const Color accentLimeDim = Color(0xFFA6D400);
+  /// Brand CTA / focus / "your turn". Chrome uses this, not [userAccent].
+  static const Color signal = Color(0xFFFF5C1A);
+  static const Color signalDim = Color(0xFFE04810);
+  static const Color signalLight = Color(0xFFC7420F);
+
+  // Accent SEED values. [accentLime] is a stable alias for [signal] so existing
+  // call sites keep compiling. Profile chrome should use [signal]; avatar rings
+  // and the colour picker keep [userAccent].
+  static const Color accentLime = signal;
+  static const Color accentLimeDim = signalDim;
+
+  // ── Per-user dynamic accent ────────────────────────────────────────────────
+  // Mutable runtime accent, set from the color the user picks during profile
+  // setup (defaults to signal orange). Non-const widget code reads these so
+  // the whole app takes on the user's color. Use [setAccent] to update.
+  static Color userAccent = accentLime;
+  static Color userAccentDim = accentLimeDim;
+
+  /// Apply a user's chosen accent color app-wide. [dim] defaults to a slightly
+  /// darker shade for pressed/secondary states.
+  static void setAccent(Color color, {Color? dim}) {
+    userAccent = color;
+    userAccentDim = dim ?? _darken(color, 0.16);
+  }
+
+  /// Reset the accent back to the default signal orange (e.g. on sign-out).
+  static void resetAccent() {
+    userAccent = accentLime;
+    userAccentDim = accentLimeDim;
+  }
+
+  static Color _darken(Color c, double amount) {
+    final hsl = HSLColor.fromColor(c);
+    return hsl
+        .withLightness((hsl.lightness - amount).clamp(0.0, 1.0))
+        .toColor();
+  }
 
   // Dark mode text
   static const Color textV2Primary = Color(0xFFFFFFFF);
-  static const Color textV2Secondary = Color(0xFF888888);
-  static const Color textV2Tertiary = Color(0xFF444444);
+  static const Color textV2Secondary = Color(0xFFA39E96);
+  static const Color textV2Tertiary = Color(0xFF6B665F);
 
   // Semantic (same in both modes)
   static const Color errorV2 = Color(0xFFFF4D4D);
   static const Color okV2 = Color(0xFF00D68F);
   static const Color warnV2 = Color(0xFFFF8C00);
+  static const Color warnV2Glow = Color(0x33FF8C00); // warn @ 20%
+  static const Color accentLimeGlowFaint = Color(0x10FF5C1A); // signal @ 6%
 
   // Light mode surfaces
-  static const Color backgroundV2Light = Color(0xFFF8F8F8);
-  static const Color surfaceV2Light = Color(0xFFFFFFFF);
-  static const Color surfaceV2ElevatedLight = Color(0xFFF2F2F2);
-  static const Color surfaceV2ActiveLight = Color(0xFFE8E8E8);
+  static const Color backgroundV2Light = Color(0xFFE8E4DC);
+  static const Color surfaceV2Light = Color(0xFFF7F4EE);
+  static const Color surfaceV2ElevatedLight = Color(0xFFEEEAE2);
+  static const Color surfaceV2ActiveLight = Color(0xFFDDD8CE);
 
   // Light mode accent
-  static const Color accentLimeLight = Color(0xFF8AB000);
-  static const Color accentLimeDimLight = Color(0xFF6E8C00);
+  static const Color accentLimeLight = signalLight;
+  static const Color accentLimeDimLight = Color(0xFFA3360C);
 
   // Light mode text
-  static const Color textV2PrimaryLight = Color(0xFF0A0A0A);
-  static const Color textV2SecondaryLight = Color(0xFF555555);
-  static const Color textV2TertiaryLight = Color(0xFFBBBBBB);
+  static const Color textV2PrimaryLight = Color(0xFF1A1A18);
+  static const Color textV2SecondaryLight = Color(0xFF5C574F);
+  static const Color textV2TertiaryLight = Color(0xFF9A948A);
 
-  // Workout type accent colors
+  // Accent palette — also offered to users as their profile accent choice.
+  static const Color accentSky = Color(0xFF38BDF8);
+  static const Color accentPurple = Color(0xFFA78BFA);
+  static const Color accentEmerald = Color(0xFF34D399);
+  static const Color accentCyan = Color(0xFF22D3EE);
+  static const Color accentPink = Color(0xFFFF4D6D);
+  static const Color accentAmber = Color(0xFFFBBF24);
+
+  /// Leaderboard first place and the global-rank badge.
+  static const Color accentGold = Color(0xFFFFD700);
+  static const Color accentSilver = Color(0xFFC0C0C0);
+  static const Color accentBronze = Color(0xFFCD7F32);
+
+  /// Third-party brand colours. Fixed by the vendor, not ours to theme — named
+  /// here so they are written once rather than retyped at each usage.
+  static const Color brandFacebook = Color(0xFF1877F2);
+
+  /// The accent colours a user may pick for their profile, in display order.
+  static const List<Color> userAccentChoices = [
+    accentLime,
+    accentSky,
+    warnV2,
+    accentPurple,
+    accentEmerald,
+    accentCyan,
+    accentPink,
+    accentAmber,
+  ];
+
+  /// Accent colour per workout type, keyed by [WorkoutType.value].
+  ///
+  /// Previously this map mixed a category key ('cardio') in with type keys and
+  /// omitted running, walking, sports and other — so typeColor('running')
+  /// silently fell through to the default. Three screens had each grown their
+  /// own switch to work around that, and they disagreed: cycling rendered
+  /// emerald on one screen and purple on another, with yoga reversed. This map
+  /// is now the single source, and covers every WorkoutType value.
   static const Map<String, Color> typeColors = {
-    'gym': Color(0xFFC8FF00),
-    'cardio': Color(0xFF38BDF8),
-    'hiit': Color(0xFFFF8C00),
-    'cycling': Color(0xFFA78BFA),
-    'yoga': Color(0xFF34D399),
-    'swimming': Color(0xFF22D3EE),
+    'gym': accentLime,
+    'running': accentSky,
+    'walking': accentSky,
+    'cycling': accentPurple,
+    'swimming': accentCyan,
+    'yoga': accentEmerald,
+    'hiit': warnV2,
+    'sports': accentPurple,
+    'other': accentLime,
+    // Category keys, for callers holding a post's category rather than its
+    // workout type (Post.type stores a category, not a WorkoutType value).
+    'strength': accentLime,
+    'cardio': accentSky,
+    'flexibility': accentEmerald,
+    'mixed': warnV2,
   };
 
-  static Color typeColor(String type) => typeColors[type] ?? accentLime;
+  /// Unfilled portion of a progress ring or bar.
+  static const Color progressTrack = Color(0xFF2A2A2A);
+
+  /// Base of the activity-card gradient — the shared first stop each workout
+  /// type's gradient starts from.
+  static const Color activityGradientBase = Color(0xFF1F2940);
+
+  /// Inline field-validation red. Softer than [errorV2], which is reserved for
+  /// failed operations rather than "this input is not valid yet".
+  static const Color validationError = Color(0xFFFF6B6B);
+
+  /// Accent for [type], which may be a [WorkoutType.value] or a category.
+  ///
+  /// Gym and unknown types resolve to [userAccent] rather than a fixed lime so
+  /// the user's chosen profile colour carries through. [accentLime] is the
+  /// default accent, so this is unchanged for anyone who has not picked one.
+  static Color typeColor(String type) {
+    final mapped = typeColors[type];
+    if (mapped == null || mapped == accentLime) return userAccent;
+    return mapped;
+  }
 }
 
 /// Helper class for creating gradients with common configurations.
@@ -249,13 +357,26 @@ class AppGradients {
 
 /// Spacing constants for consistent layout.
 class AppSpacing {
-  static const double xs   = 4;
-  static const double sm   = 8;
-  static const double md   = 12;
-  static const double lg   = 16;
-  static const double xl   = 24;
-  static const double xxl  = 32;
+  static const double xs = 4;
+  static const double sm = 8;
+  static const double md = 12;
+  static const double lg = 16;
+  static const double xl = 24;
+  static const double xxl = 32;
   static const double xxxl = 48;
+
+  static EdgeInsetsDirectional headerPadding(
+    BuildContext context, {
+    double extraTop = 8,
+    double bottom = 8,
+  }) {
+    return EdgeInsetsDirectional.only(
+      top: MediaQuery.paddingOf(context).top + extraTop,
+      bottom: bottom,
+      start: lg,
+      end: lg,
+    );
+  }
 }
 
 /// Border radius constants - more rounded for premium feel.
@@ -284,32 +405,44 @@ class AppFontSize {
 /// Shadow definitions - premium glow effects.
 class AppShadows {
   static const List<BoxShadow> sm = [
-    BoxShadow(color: Color(0x0AC8FF00), offset: Offset(0, 2), blurRadius: 4),
+    BoxShadow(color: Color(0x0AFF5C1A), offset: Offset(0, 2), blurRadius: 4),
   ];
 
   static const List<BoxShadow> md = [
-    BoxShadow(color: Color(0x12C8FF00), offset: Offset(0, 4), blurRadius: 12),
+    BoxShadow(color: Color(0x12FF5C1A), offset: Offset(0, 4), blurRadius: 12),
   ];
 
   static const List<BoxShadow> lg = [
-    BoxShadow(color: Color(0x18C8FF00), offset: Offset(0, 8), blurRadius: 24),
+    BoxShadow(color: Color(0x18FF5C1A), offset: Offset(0, 8), blurRadius: 24),
   ];
 
   static const List<BoxShadow> xl = [
-    BoxShadow(color: Color(0x20C8FF00), offset: Offset(0, 12), blurRadius: 32),
+    BoxShadow(color: Color(0x20FF5C1A), offset: Offset(0, 12), blurRadius: 32),
   ];
 
   // Glow effects for buttons and cards
   static List<BoxShadow> primaryGlow = [
-    BoxShadow(color: AppColors.primaryGlow, blurRadius: 20, offset: const Offset(0, 8)),
+    BoxShadow(
+      color: AppColors.primaryGlow,
+      blurRadius: 20,
+      offset: const Offset(0, 8),
+    ),
   ];
 
   static List<BoxShadow> premiumGlow = [
-    BoxShadow(color: AppColors.premiumGlow, blurRadius: 20, offset: const Offset(0, 8)),
+    BoxShadow(
+      color: AppColors.premiumGlow,
+      blurRadius: 20,
+      offset: const Offset(0, 8),
+    ),
   ];
 
   static List<BoxShadow> secondaryGlow = [
-    BoxShadow(color: AppColors.secondaryGlow, blurRadius: 20, offset: const Offset(0, 8)),
+    BoxShadow(
+      color: AppColors.secondaryGlow,
+      blurRadius: 20,
+      offset: const Offset(0, 8),
+    ),
   ];
 
   static List<BoxShadow> successGlow = [
@@ -357,12 +490,12 @@ class AppDurations {
 
 /// Animation curves for premium feel.
 class AppCurves {
-  static const Curve premium    = Cubic(0.23, 1.00, 0.32, 1.00);
-  static const Curve smooth     = Cubic(0.77, 0.00, 0.175, 1.00);
-  static const Curve spring     = Cubic(0.34, 1.56, 0.64, 1.00);
+  static const Curve premium = Cubic(0.23, 1.00, 0.32, 1.00);
+  static const Curve smooth = Cubic(0.77, 0.00, 0.175, 1.00);
+  static const Curve spring = Cubic(0.34, 1.56, 0.64, 1.00);
   static const Curve decelerate = Cubic(0.00, 0.00, 0.20, 1.00);
-  static const Curve press      = Cubic(0.23, 1.00, 0.32, 1.00);
-  static const Curve bounce     = Cubic(0.34, 1.56, 0.64, 1.00);
+  static const Curve press = Cubic(0.23, 1.00, 0.32, 1.00);
+  static const Curve bounce = Cubic(0.34, 1.56, 0.64, 1.00);
 }
 
 /// Animation configuration constants for consistent micro-interactions.
@@ -398,8 +531,18 @@ class AppTheme {
       useMaterial3: true,
       brightness: Brightness.light,
       fontFamily: AppFonts.primary,
+      focusColor: AppColors.signal.withValues(alpha: 0.24),
+      hoverColor: AppColors.signal.withValues(alpha: 0.08),
+      splashColor: AppColors.signal.withValues(alpha: 0.12),
+      materialTapTargetSize: MaterialTapTargetSize.padded,
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          foregroundColor: AppColors.textV2PrimaryLight,
+        ),
+      ),
       colorScheme: const ColorScheme.light(
-        primary: AppColors.accentLimeLight,
+        primary: AppColors.signalLight,
         secondary: AppColors.textV2SecondaryLight,
         tertiary: AppColors.surfaceV2ActiveLight,
         surface: AppColors.surfaceV2Light,
@@ -415,9 +558,7 @@ class AppTheme {
         foregroundColor: AppColors.textV2PrimaryLight,
         elevation: 0,
         centerTitle: true,
-        titleTextStyle: GoogleFonts.syne(
-          fontSize: AppFontSize.lg,
-          fontWeight: FontWeight.w600,
+        titleTextStyle: AppTextStyles.h5.copyWith(
           color: AppColors.textV2PrimaryLight,
         ),
       ),
@@ -430,7 +571,7 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.accentLimeLight,
+          backgroundColor: AppColors.signalLight,
           foregroundColor: AppColors.textV2PrimaryLight,
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.xl,
@@ -439,10 +580,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppBorderRadius.md),
           ),
-          textStyle: GoogleFonts.syne(
-            fontSize: AppFontSize.md,
-            fontWeight: FontWeight.w700,
-          ),
+          textStyle: AppTextStyles.label,
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -458,21 +596,20 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-          borderSide: const BorderSide(
-            color: AppColors.accentLimeLight,
-            width: 2,
-          ),
+          borderSide: const BorderSide(color: AppColors.signalLight, width: 2),
         ),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.lg,
           vertical: AppSpacing.lg,
         ),
         prefixIconColor: AppColors.textV2SecondaryLight,
-        hintStyle: GoogleFonts.outfit(color: AppColors.textV2TertiaryLight),
+        hintStyle: AppTextStyles.body.copyWith(
+          color: AppColors.textV2TertiaryLight,
+        ),
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: AppColors.backgroundV2Light,
-        selectedItemColor: AppColors.accentLimeLight,
+        selectedItemColor: AppColors.signalLight,
         unselectedItemColor: AppColors.textV2SecondaryLight,
       ),
       dividerTheme: const DividerThemeData(
@@ -487,53 +624,40 @@ class AppTheme {
         ),
         trackColor: WidgetStateProperty.resolveWith(
           (s) => s.contains(WidgetState.selected)
-              ? AppColors.accentLimeLight
+              ? AppColors.signalLight
               : AppColors.surfaceV2ActiveLight,
         ),
       ),
       textTheme: TextTheme(
-        displayLarge: GoogleFonts.syne(
-          fontSize: AppFontSize.hero,
-          fontWeight: FontWeight.w800,
+        displayLarge: AppTextStyles.display.copyWith(
           color: AppColors.textV2PrimaryLight,
         ),
-        displayMedium: GoogleFonts.syne(
-          fontSize: AppFontSize.display,
-          fontWeight: FontWeight.w800,
+        displayMedium: AppTextStyles.h1.copyWith(
           color: AppColors.textV2PrimaryLight,
         ),
-        headlineLarge: GoogleFonts.syne(
-          fontSize: AppFontSize.xxxl,
-          fontWeight: FontWeight.w700,
+        headlineLarge: AppTextStyles.h2.copyWith(
           color: AppColors.textV2PrimaryLight,
         ),
-        headlineMedium: GoogleFonts.syne(
-          fontSize: AppFontSize.xxl,
-          fontWeight: FontWeight.w700,
+        headlineMedium: AppTextStyles.h3.copyWith(
           color: AppColors.textV2PrimaryLight,
         ),
-        titleLarge: GoogleFonts.syne(
-          fontSize: AppFontSize.xl,
-          fontWeight: FontWeight.w600,
+        titleLarge: AppTextStyles.h4.copyWith(
           color: AppColors.textV2PrimaryLight,
         ),
-        titleMedium: GoogleFonts.outfit(
-          fontSize: AppFontSize.lg,
-          fontWeight: FontWeight.w600,
+        titleMedium: AppTextStyles.h5.copyWith(
           color: AppColors.textV2PrimaryLight,
         ),
-        bodyLarge: GoogleFonts.outfit(
-          fontSize: AppFontSize.md,
+        bodyLarge: AppTextStyles.bodyLarge.copyWith(
           color: AppColors.textV2PrimaryLight,
         ),
-        bodyMedium: GoogleFonts.outfit(
-          fontSize: AppFontSize.sm,
+        bodyMedium: AppTextStyles.body.copyWith(
           color: AppColors.textV2SecondaryLight,
         ),
-        labelLarge: GoogleFonts.outfit(
-          fontSize: AppFontSize.md,
-          fontWeight: FontWeight.w600,
+        labelLarge: AppTextStyles.label.copyWith(
           color: AppColors.textV2PrimaryLight,
+        ),
+        labelSmall: AppTextStyles.caption.copyWith(
+          color: AppColors.textV2SecondaryLight,
         ),
       ),
     );
@@ -544,8 +668,18 @@ class AppTheme {
       useMaterial3: true,
       brightness: Brightness.dark,
       fontFamily: AppFonts.primary,
+      focusColor: AppColors.signal.withValues(alpha: 0.28),
+      hoverColor: AppColors.signal.withValues(alpha: 0.10),
+      splashColor: AppColors.signal.withValues(alpha: 0.14),
+      materialTapTargetSize: MaterialTapTargetSize.padded,
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          foregroundColor: AppColors.textV2Primary,
+        ),
+      ),
       colorScheme: const ColorScheme.dark(
-        primary: AppColors.accentLime,
+        primary: AppColors.signal,
         secondary: AppColors.textV2Secondary,
         tertiary: AppColors.surfaceV2Active,
         surface: AppColors.surfaceV2,
@@ -561,9 +695,7 @@ class AppTheme {
         foregroundColor: AppColors.textV2Primary,
         elevation: 0,
         centerTitle: true,
-        titleTextStyle: GoogleFonts.syne(
-          fontSize: AppFontSize.lg,
-          fontWeight: FontWeight.w600,
+        titleTextStyle: AppTextStyles.h5.copyWith(
           color: AppColors.textV2Primary,
         ),
       ),
@@ -576,7 +708,7 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.accentLime,
+          backgroundColor: AppColors.signal,
           foregroundColor: AppColors.backgroundV2,
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.xl,
@@ -585,10 +717,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppBorderRadius.md),
           ),
-          textStyle: GoogleFonts.syne(
-            fontSize: AppFontSize.md,
-            fontWeight: FontWeight.w700,
-          ),
+          textStyle: AppTextStyles.label,
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -604,18 +733,18 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-          borderSide: const BorderSide(color: AppColors.accentLime, width: 2),
+          borderSide: const BorderSide(color: AppColors.signal, width: 2),
         ),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.lg,
           vertical: AppSpacing.lg,
         ),
         prefixIconColor: AppColors.textV2Secondary,
-        hintStyle: GoogleFonts.outfit(color: AppColors.textV2Tertiary),
+        hintStyle: AppTextStyles.body.copyWith(color: AppColors.textV2Tertiary),
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: Colors.transparent,
-        selectedItemColor: AppColors.accentLime,
+        selectedItemColor: AppColors.signal,
         unselectedItemColor: AppColors.textV2Secondary,
       ),
       dividerTheme: const DividerThemeData(
@@ -630,54 +759,138 @@ class AppTheme {
         ),
         trackColor: WidgetStateProperty.resolveWith(
           (s) => s.contains(WidgetState.selected)
-              ? AppColors.accentLime
+              ? AppColors.signal
               : AppColors.surfaceV2Active,
         ),
       ),
       textTheme: TextTheme(
-        displayLarge: GoogleFonts.syne(
-          fontSize: AppFontSize.hero,
-          fontWeight: FontWeight.w800,
+        displayLarge: AppTextStyles.display.copyWith(
           color: AppColors.textV2Primary,
         ),
-        displayMedium: GoogleFonts.syne(
-          fontSize: AppFontSize.display,
-          fontWeight: FontWeight.w800,
+        displayMedium: AppTextStyles.h1.copyWith(
           color: AppColors.textV2Primary,
         ),
-        headlineLarge: GoogleFonts.syne(
-          fontSize: AppFontSize.xxxl,
-          fontWeight: FontWeight.w700,
+        headlineLarge: AppTextStyles.h2.copyWith(
           color: AppColors.textV2Primary,
         ),
-        headlineMedium: GoogleFonts.syne(
-          fontSize: AppFontSize.xxl,
-          fontWeight: FontWeight.w700,
+        headlineMedium: AppTextStyles.h3.copyWith(
           color: AppColors.textV2Primary,
         ),
-        titleLarge: GoogleFonts.syne(
-          fontSize: AppFontSize.xl,
-          fontWeight: FontWeight.w600,
+        titleLarge: AppTextStyles.h4.copyWith(color: AppColors.textV2Primary),
+        titleMedium: AppTextStyles.h5.copyWith(color: AppColors.textV2Primary),
+        bodyLarge: AppTextStyles.bodyLarge.copyWith(
           color: AppColors.textV2Primary,
         ),
-        titleMedium: GoogleFonts.outfit(
-          fontSize: AppFontSize.lg,
-          fontWeight: FontWeight.w600,
-          color: AppColors.textV2Primary,
-        ),
-        bodyLarge: GoogleFonts.outfit(
-          fontSize: AppFontSize.md,
-          color: AppColors.textV2Primary,
-        ),
-        bodyMedium: GoogleFonts.outfit(
-          fontSize: AppFontSize.sm,
+        bodyMedium: AppTextStyles.body.copyWith(
           color: AppColors.textV2Secondary,
         ),
-        labelLarge: GoogleFonts.outfit(
-          fontSize: AppFontSize.md,
-          fontWeight: FontWeight.w600,
+        labelLarge: AppTextStyles.label.copyWith(
           color: AppColors.textV2Primary,
         ),
+        labelSmall: AppTextStyles.caption.copyWith(
+          color: AppColors.textV2Secondary,
+        ),
+      ),
+    );
+  }
+
+  /// WCAG-leaning dark theme: near-black surfaces, pure white body text,
+  /// brighter secondary copy, thicker focus rings (Z-ENH-029).
+  static ThemeData get highContrastDarkTheme {
+    const bg = Color(0xFF000000);
+    const surface = Color(0xFF121212);
+    const onSurface = Color(0xFFFFFFFF);
+    const secondary = Color(0xFFE8E4DC);
+    return darkTheme.copyWith(
+      scaffoldBackgroundColor: bg,
+      colorScheme: const ColorScheme.dark(
+        primary: AppColors.signal,
+        secondary: secondary,
+        tertiary: Color(0xFF5A5A5A),
+        surface: surface,
+        error: Color(0xFFFF6B6B),
+        onPrimary: bg,
+        onSecondary: bg,
+        onSurface: onSurface,
+        onError: bg,
+      ),
+      appBarTheme: darkTheme.appBarTheme.copyWith(
+        backgroundColor: bg,
+        foregroundColor: onSurface,
+      ),
+      cardTheme: CardThemeData(
+        color: surface,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppBorderRadius.lg),
+          side: const BorderSide(color: Color(0xFF6B665F), width: 1.5),
+        ),
+      ),
+      dividerTheme: const DividerThemeData(
+        color: Color(0xFF6B665F),
+        thickness: 1.5,
+      ),
+      textTheme: darkTheme.textTheme.apply(
+        bodyColor: onSurface,
+        displayColor: onSurface,
+      ),
+      inputDecorationTheme: darkTheme.inputDecorationTheme.copyWith(
+        fillColor: surface,
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppBorderRadius.md),
+          borderSide: const BorderSide(color: AppColors.signal, width: 3),
+        ),
+        hintStyle: AppTextStyles.body.copyWith(color: secondary),
+      ),
+    );
+  }
+
+  /// High-contrast light theme (Z-ENH-029).
+  static ThemeData get highContrastLightTheme {
+    const bg = Color(0xFFFFFFFF);
+    const surface = Color(0xFFF5F5F5);
+    const onSurface = Color(0xFF000000);
+    const secondary = Color(0xFF1A1A18);
+    return lightTheme.copyWith(
+      scaffoldBackgroundColor: bg,
+      colorScheme: const ColorScheme.light(
+        primary: AppColors.signal,
+        secondary: secondary,
+        tertiary: Color(0xFF5C574F),
+        surface: surface,
+        error: Color(0xFFB00020),
+        onPrimary: bg,
+        onSecondary: bg,
+        onSurface: onSurface,
+        onError: bg,
+      ),
+      appBarTheme: lightTheme.appBarTheme.copyWith(
+        backgroundColor: bg,
+        foregroundColor: onSurface,
+      ),
+      cardTheme: CardThemeData(
+        color: surface,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppBorderRadius.lg),
+          side: const BorderSide(color: Color(0xFF1A1A18), width: 1.5),
+        ),
+      ),
+      dividerTheme: const DividerThemeData(
+        color: Color(0xFF1A1A18),
+        thickness: 1.5,
+      ),
+      textTheme: lightTheme.textTheme.apply(
+        bodyColor: onSurface,
+        displayColor: onSurface,
+      ),
+      inputDecorationTheme: lightTheme.inputDecorationTheme.copyWith(
+        fillColor: surface,
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppBorderRadius.md),
+          borderSide: const BorderSide(color: AppColors.signal, width: 3),
+        ),
+        hintStyle: AppTextStyles.body.copyWith(color: secondary),
       ),
     );
   }

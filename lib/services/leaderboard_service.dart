@@ -4,8 +4,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/auth/auth_providers.dart';
 import 'follow_service.dart';
+import 'moderation_service.dart';
 
-/// Leaderboard entry for display.
+/// Flip to true only after Cloud Function `applySessionScore` is live and
+/// historical client-written scores are trusted or backfilled (Z-DATA-001).
+const bool kServerScoresLive = false;
+
+/// Thrown / returned as empty when leaderboards are gated off.
+class LeaderboardUnavailableException implements Exception {
+  @override
+  String toString() =>
+      'Leaderboards are temporarily unavailable while scores move server-side.';
+}
 class LeaderboardEntry {
   final String userId;
   final String displayName;
@@ -69,52 +79,42 @@ class LeaderboardService {
   /// Sorts by streak descending, then by workoutScore descending.
   Future<List<LeaderboardEntry>> getFriendsLeaderboard(
     String currentUserId,
-    List<String> followingIds,
-  ) async {
+    List<String> followingIds, {
+    Set<String> excludedUserIds = const {},
+  }) async {
+    if (!kServerScoresLive) {
+      debugPrint(
+        'LeaderboardService: friends board gated (kServerScoresLive=false)',
+      );
+      return const [];
+    }
     try {
-      final userIds = [...followingIds, currentUserId];
+      // Drop blocked users before the chunked reads (Z-SOC-003).
+      final userIds = [
+        ...followingIds.where((id) => !excludedUserIds.contains(id)),
+        currentUserId,
+      ];
       final List<LeaderboardEntry> entries = [];
 
-      // Firestore 'whereIn' has a limit of 10 items, so chunk the queries
-      const chunkSize = 10;
+      // Firestore whereIn limit is 30 (Z-DATA-005).
+      const chunkSize = 30;
       for (var i = 0; i < userIds.length; i += chunkSize) {
         final chunk = userIds.skip(i).take(chunkSize).toList();
-        final querySnapshot = await _firestore
-            .collection('users')
-            .where(FieldPath.documentId, whereIn: chunk)
-            .get();
+        final querySnapshot = await Future.wait(
+          chunk.map(
+            (id) => _firestore.collection('users').doc(id).get(),
+          ),
+        );
 
-        for (final doc in querySnapshot.docs) {
-          final data = doc.data();
-
-          // Fetch streak from user's stats subcollection
-          int streak = 0;
-          try {
-            final statsDoc = await _firestore
-                .collection('users')
-                .doc(doc.id)
-                .collection('stats')
-                .doc('current')
-                .get();
-            if (statsDoc.exists) {
-              streak = statsDoc.data()?['currentStreak'] ?? 0;
-            }
-          } catch (e) {
-            debugPrint('Error fetching streak for ${doc.id}: $e');
-          }
-
-          entries.add(
-            LeaderboardEntry(
-              userId: doc.id,
-              displayName: data['displayName'] ?? 'Unknown',
-              photoURL: data['photoURL'],
-              score: data['workoutScore'] ?? 0,
-              streak: streak,
-              rank: 0, // Will be assigned after sorting
-              isCurrentUser: doc.id == currentUserId,
-            ),
-          );
-        }
+        entries.addAll(
+          await Future.wait(
+            querySnapshot
+                .where((doc) => doc.exists)
+                .map(
+                  (doc) => _buildFriendLeaderboardEntry(doc, currentUserId),
+                ),
+          ),
+        );
       }
 
       // Sort by streak descending first, then by score descending
@@ -144,23 +144,69 @@ class LeaderboardService {
     }
   }
 
+  Future<LeaderboardEntry> _buildFriendLeaderboardEntry(
+    DocumentSnapshot<Map<String, dynamic>> doc,
+    String currentUserId,
+  ) async {
+    final data = doc.data()!;
+
+    // Fetch streak from user's stats subcollection.
+    int streak = 0;
+    try {
+      final statsDoc = await _firestore
+          .collection('users')
+          .doc(doc.id)
+          .collection('stats')
+          .doc('current')
+          .get();
+      if (statsDoc.exists) {
+        streak = statsDoc.data()?['currentStreak'] ?? 0;
+      }
+    } catch (e) {
+      debugPrint('Error fetching streak for ${doc.id}: $e');
+    }
+
+    return LeaderboardEntry(
+      userId: doc.id,
+      displayName: data['displayName'] ?? 'Unknown',
+      photoURL: data['photoURL'],
+      score: data['workoutScore'] ?? 0,
+      streak: streak,
+      rank: 0, // Will be assigned after sorting
+      isCurrentUser: doc.id == currentUserId,
+    );
+  }
+
   /// Get global leaderboard (top 50 users by workoutScore).
   /// Matches RN getGlobalLeaderboard.
   Future<List<LeaderboardEntry>> getGlobalLeaderboard(
     String currentUserId, {
     int limit = 50,
+    Set<String> excludedUserIds = const {},
   }) async {
+    if (!kServerScoresLive) {
+      debugPrint(
+        'LeaderboardService: global board gated (kServerScoresLive=false)',
+      );
+      return const [];
+    }
     try {
+      // Over-fetch so excluded (blocked) rows do not shrink the visible top-N.
+      final fetchLimit = limit + excludedUserIds.length;
       final querySnapshot = await _firestore
           .collection('users')
           .orderBy('workoutScore', descending: true)
-          .limit(limit)
+          .limit(fetchLimit)
           .get();
 
       final entries = <LeaderboardEntry>[];
       var rank = 1;
 
       for (final doc in querySnapshot.docs) {
+        if (excludedUserIds.contains(doc.id) && doc.id != currentUserId) {
+          continue;
+        }
+        if (entries.length >= limit) break;
         final data = doc.data();
         entries.add(
           LeaderboardEntry(
@@ -194,16 +240,11 @@ class LeaderboardService {
   }
 
   /// Grant global leaderboard access to a user.
+  /// Client path removed (Z-DATA-001) — privileged field; Admin only.
   Future<void> grantGlobalLeaderboardAccess(String userId) async {
-    try {
-      await _firestore.collection('users').doc(userId).update({
-        'hasGlobalLeaderboardAccess': true,
-        'globalAccessGrantedAt': FieldValue.serverTimestamp(),
-      });
-    } catch (e) {
-      debugPrint('Error granting global leaderboard access: $e');
-      rethrow;
-    }
+    throw UnsupportedError(
+      'grantGlobalLeaderboardAccess requires a trusted Cloud Function',
+    );
   }
 
   /// Get community events.
@@ -309,19 +350,32 @@ final friendsLeaderboardProvider =
     FutureProvider.family<List<LeaderboardEntry>, String>((ref, userId) async {
       final leaderboardService = ref.watch(leaderboardServiceProvider);
       final followService = ref.watch(followServiceProvider);
+      final blocked =
+          (ref.watch(blockedUserIdsProvider).value ?? const <String>[])
+              .toSet();
 
       // Get users that the current user follows
       final following = await followService.getFollowingList(userId);
       final followingIds = following.map((u) => u.id).toList();
 
-      return leaderboardService.getFriendsLeaderboard(userId, followingIds);
+      return leaderboardService.getFriendsLeaderboard(
+        userId,
+        followingIds,
+        excludedUserIds: blocked,
+      );
     });
 
 /// Global leaderboard provider.
 final globalLeaderboardProvider =
     FutureProvider.family<List<LeaderboardEntry>, String>((ref, userId) async {
       final leaderboardService = ref.watch(leaderboardServiceProvider);
-      return leaderboardService.getGlobalLeaderboard(userId);
+      final blocked =
+          (ref.watch(blockedUserIdsProvider).value ?? const <String>[])
+              .toSet();
+      return leaderboardService.getGlobalLeaderboard(
+        userId,
+        excludedUserIds: blocked,
+      );
     });
 
 /// Global leaderboard access provider.
@@ -337,6 +391,35 @@ final hasGlobalAccessProvider = FutureProvider.family<bool, String>((
 final eventsProvider = FutureProvider<List<LeaderboardEvent>>((ref) async {
   final leaderboardService = ref.watch(leaderboardServiceProvider);
   return leaderboardService.getEvents();
+});
+
+/// Returns the current user's rank and whether it is global.
+/// Checks global leaderboard access first; falls back to friends leaderboard.
+final currentUserRankProvider =
+    FutureProvider.family<({int? rank, bool isGlobal}), String>((
+  ref,
+  userId,
+) async {
+  final service = ref.watch(leaderboardServiceProvider);
+  final hasGlobal = await service.hasGlobalLeaderboardAccess(userId);
+
+  if (hasGlobal) {
+    final board = await ref.watch(globalLeaderboardProvider(userId).future);
+    final entry = board.firstWhere(
+      (e) => e.isCurrentUser,
+      orElse: () =>
+          LeaderboardEntry(userId: userId, displayName: '', score: 0, rank: 0),
+    );
+    return (rank: entry.rank > 0 ? entry.rank : null, isGlobal: true);
+  }
+
+  final board = await ref.watch(friendsLeaderboardProvider(userId).future);
+  final entry = board.firstWhere(
+    (e) => e.isCurrentUser,
+    orElse: () =>
+        LeaderboardEntry(userId: userId, displayName: '', score: 0, rank: 0),
+  );
+  return (rank: entry.rank > 0 ? entry.rank : null, isGlobal: false);
 });
 
 

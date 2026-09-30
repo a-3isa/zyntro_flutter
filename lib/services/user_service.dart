@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/models/models.dart';
 import '../features/auth/auth_providers.dart';
+import '../features/session/domain/workout_streak.dart';
 
 /// Streak risk levels for at-risk detection.
 enum StreakRisk {
@@ -18,7 +19,6 @@ class FriendStreakComparison {
   final String userId;
   final String displayName;
   final String? photoURL;
-  final String? avatarConfig;
   final int currentStreak;
   final int longestStreak;
   final bool isCurrentUser;
@@ -30,7 +30,6 @@ class FriendStreakComparison {
     required this.userId,
     required this.displayName,
     this.photoURL,
-    this.avatarConfig,
     required this.currentStreak,
     required this.longestStreak,
     required this.isCurrentUser,
@@ -59,12 +58,20 @@ class UserStreak {
   final int longestStreak;
   final String? lastWorkoutDate;
   final int totalWorkouts;
+  final int weeklyWorkouts;
+
+  /// Completed sessions that had more than one participant. Derived from the
+  /// same session read the other stats come from, so badge checks can use it
+  /// instead of re-scanning the user's whole session history.
+  final int buddyWorkouts;
 
   UserStreak({
     required this.currentStreak,
     required this.longestStreak,
     this.lastWorkoutDate,
     required this.totalWorkouts,
+    this.weeklyWorkouts = 0,
+    this.buddyWorkouts = 0,
   });
 }
 
@@ -183,8 +190,14 @@ class UserService {
   final Map<String, ({UserStreak streak, DateTime fetchedAt})> _streakCache =
       {};
 
-  /// Calculate user's workout streak based on session history.
-  /// Matches RN calculateUserStreak.
+  /// Read a user's workout streak stats.
+  ///
+  /// Served from the counters maintained on the user document at session end,
+  /// which costs one document read regardless of how long the user's history
+  /// is. Users whose documents predate those counters fall back to
+  /// [_calculateUserStreakFromHistory], which scans their sessions — that path
+  /// exists only until a user's next completed session writes the counters, or
+  /// until the backfill in scripts/backfill_user_streak_counters.js runs.
   Future<UserStreak> calculateUserStreak(String userId) async {
     // Check cache (5 min TTL)
     if (_streakCache.containsKey(userId)) {
@@ -194,6 +207,53 @@ class UserService {
       }
     }
 
+    try {
+      final userDoc = await _firestore.collection('users').doc(userId).get();
+      final data = userDoc.data();
+      final state = streakStateFromUserData(data);
+
+      // lastWorkoutDate is written by every session end, so its absence on a
+      // user with completed workouts means the counters were never populated.
+      final totalWorkouts = (data?['totalWorkouts'] as num?)?.toInt() ?? 0;
+      if (state.lastWorkoutDate == null && totalWorkouts > 0) {
+        return _calculateUserStreakFromHistory(userId);
+      }
+
+      final streak = UserStreak(
+        currentStreak: _isStreakStillActive(state.lastWorkoutDate)
+            ? state.currentStreak
+            : 0,
+        longestStreak: state.longestStreak,
+        totalWorkouts: totalWorkouts,
+        lastWorkoutDate: state.lastWorkoutDate,
+        weeklyWorkouts: state.weekStartDate == weekStartFor(DateTime.now())
+            ? state.weeklyWorkouts
+            : 0,
+        buddyWorkouts: (data?['buddyWorkouts'] as num?)?.toInt() ?? 0,
+      );
+
+      _streakCache[userId] = (streak: streak, fetchedAt: DateTime.now());
+      return streak;
+    } catch (e) {
+      debugPrint('Error reading streak counters for $userId: $e');
+      return UserStreak(currentStreak: 0, longestStreak: 0, totalWorkouts: 0);
+    }
+  }
+
+  /// A stored streak only still counts if the user trained today or yesterday.
+  /// The counter itself is never decayed on read, so this is where a lapsed
+  /// streak becomes zero.
+  static bool _isStreakStillActive(String? lastWorkoutDate) {
+    if (lastWorkoutDate == null) return false;
+    final now = DateTime.now();
+    return lastWorkoutDate == calendarDay(now) ||
+        lastWorkoutDate == calendarDay(now.subtract(const Duration(days: 1)));
+  }
+
+  /// Pre-counter fallback: derives the same stats by reading a user's whole
+  /// completed-session history. Kept only for user documents written before the
+  /// counters existed.
+  Future<UserStreak> _calculateUserStreakFromHistory(String userId) async {
     try {
       final snapshot = await _firestore
           .collection('sessions')
@@ -207,19 +267,30 @@ class UserService {
           currentStreak: 0,
           longestStreak: 0,
           totalWorkouts: 0,
+          weeklyWorkouts: 0,
         );
         _streakCache[userId] = (streak: streak, fetchedAt: DateTime.now());
         return streak;
       }
 
-      // Extract unique dates
+      // Monday of the current week (week starts Monday)
+      final now = DateTime.now();
+      final weekStart = now.subtract(Duration(days: now.weekday - 1));
+      final weekStartDate = DateTime(weekStart.year, weekStart.month, weekStart.day);
+
+      // Extract unique dates + count sessions this week
       final workoutDates = <String>{};
+      int weeklyCount = 0;
+      int buddyCount = 0;
       for (final doc in snapshot.docs) {
         final data = doc.data();
+        final participants = data['participants'];
+        if (participants is List && participants.length > 1) buddyCount++;
         if (data['createdAt'] != null) {
           final date = (data['createdAt'] as Timestamp).toDate();
           final dateStr = date.toIso8601String().split('T')[0];
           workoutDates.add(dateStr);
+          if (!date.isBefore(weekStartDate)) weeklyCount++;
         }
       }
 
@@ -230,6 +301,8 @@ class UserService {
           currentStreak: 0,
           longestStreak: 0,
           totalWorkouts: snapshot.docs.length,
+          weeklyWorkouts: weeklyCount,
+          buddyWorkouts: buddyCount,
         );
         _streakCache[userId] = (streak: streak, fetchedAt: DateTime.now());
         return streak;
@@ -274,6 +347,8 @@ class UserService {
         longestStreak: longestStreak,
         totalWorkouts: snapshot.docs.length,
         lastWorkoutDate: sortedDates[0],
+        weeklyWorkouts: weeklyCount,
+        buddyWorkouts: buddyCount,
       );
 
       _streakCache[userId] = (streak: result, fetchedAt: DateTime.now());
@@ -340,49 +415,29 @@ class UserService {
     return results;
   }
 
-  /// Update user's streak in their profile.
+  /// Streak display is read from the user doc (server-owned, Z-DATA-001).
+  /// Client recalculation no longer writes — kept as a no-op so call sites
+  /// that refresh UI caches stay safe.
   Future<void> updateUserStreak(String userId) async {
-    invalidateStreakCache(userId); // Clear cache before recalculating
-    final stats = await calculateUserStreak(userId);
-
-    final statsData = {
-      'currentStreak': stats.currentStreak,
-      'longestStreak': stats.longestStreak,
-      'totalWorkouts': stats.totalWorkouts,
-      'lastWorkoutDate': stats.lastWorkoutDate,
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
-
-    final batch = _firestore.batch();
-
-    // Update basic stats field on user document (legacy/quick access)
-    batch.update(_firestore.collection('users').doc(userId), {
-      'stats': statsData,
-    });
-
-    // Update stats/current subcollection (used by leaderboard service)
-    batch.set(
-      _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('stats')
-          .doc('current'),
-      statsData,
-      SetOptions(merge: true),
-    );
-
-    await batch.commit();
+    invalidateStreakCache(userId);
+    await calculateUserStreak(userId);
   }
 
-  /// Search for users by display name.
-  /// Matches RN searchUsers.
+  /// Search for users by unique username (case-insensitive prefix match).
   Future<List<User>> searchUsers(String query) async {
-    if (query.trim().isEmpty) return [];
+    // Normalize to match stored lowercase handle; strip a leading '@'.
+    final normalized = query.trim().toLowerCase().replaceFirst(
+      RegExp(r'^@'),
+      '',
+    );
+    if (normalized.isEmpty) return [];
 
+    // isPrivate == false keeps the query inside public list ACL (Z-SEC-001).
     final snapshot = await _firestore
         .collection('users')
-        .where('displayName', isGreaterThanOrEqualTo: query)
-        .where('displayName', isLessThanOrEqualTo: '$query\uf8ff')
+        .where('isPrivate', isEqualTo: false)
+        .where('usernameLower', isGreaterThanOrEqualTo: normalized)
+        .where('usernameLower', isLessThanOrEqualTo: '$normalized\uf8ff')
         .limit(10)
         .get();
 
@@ -541,6 +596,9 @@ class UserService {
 
       final stats = await calculateUserStreak(userId);
 
+      // Fetched lazily and at most once, no matter how many cheer badges exist.
+      int? cheersSent;
+
       for (final badge in availableBadges) {
         if (existingBadges.contains(badge.id)) continue;
 
@@ -570,37 +628,45 @@ class UserService {
             }
             break;
           case BadgeCriteriaType.buddySessions:
-            final sessionsSnapshot = await _firestore
-                .collection('sessions')
-                .where('participants', arrayContains: userId)
-                .where('status', isEqualTo: 'completed')
-                .get();
-            final buddySessionCount = sessionsSnapshot.docs
-                .where((d) => (d.data()['participants'] as List).length > 1)
-                .length;
-            shouldAward = buddySessionCount >= badge.criteria.threshold;
+            // Already derived from calculateUserStreak's single session read
+            // above. Querying the session history again here made every
+            // session-end re-scan the user's entire history a second time.
+            shouldAward = stats.buddyWorkouts >= badge.criteria.threshold;
             break;
           case BadgeCriteriaType.cheersSent:
-            // Count cheers in this session
-            final eventsSnapshot = await _firestore
-                .collection('sessions')
-                .doc(sessionId)
-                .collection('events')
-                .where('userId', isEqualTo: userId)
-                .where('type', isEqualTo: 'cheer')
-                .get();
-            shouldAward =
-                eventsSnapshot.docs.length >= badge.criteria.threshold;
+            // Cheers sent in this session only, so the count is bounded by one
+            // session's events. Read once and reuse across every cheer badge.
+            cheersSent ??= (await _firestore
+                    .collection('sessions')
+                    .doc(sessionId)
+                    .collection('events')
+                    .where('userId', isEqualTo: userId)
+                    .where('type', isEqualTo: 'cheer')
+                    .count()
+                    .get())
+                .count ??
+                0;
+            shouldAward = cheersSent >= badge.criteria.threshold;
             break;
         }
 
-        if (shouldAward) {
-          await awardBadge(userId, badge.id);
-          newlyUnlocked.add(badge.id);
-        }
+        if (shouldAward) newlyUnlocked.add(badge.id);
       }
-    } catch (e) {
-      // Silent fail for badge checks
+
+      // One write for the whole batch instead of one per badge.
+      if (newlyUnlocked.isNotEmpty) {
+        await _firestore.collection('users').doc(userId).update({
+          'badges': FieldValue.arrayUnion(newlyUnlocked),
+          for (final badgeId in newlyUnlocked)
+            'badgeUnlockDates.$badgeId': FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (e, st) {
+      // A badge check must never fail the session it runs after, but it also
+      // must not vanish — a swallowed error here hid the quota cost of the
+      // duplicate history scan this method used to perform.
+      debugPrint('Error checking badges for $userId: $e\n$st');
+      return const [];
     }
 
     return newlyUnlocked;
@@ -614,21 +680,6 @@ class UserService {
     );
   }
 
-  /// Update user's workout score after session completion.
-  /// Used for leaderboard ranking.
-  /// pointsToAdd: typically +10 per workout, +25 per challenge, +5 per judgment
-  Future<void> updateWorkoutScore(String userId, int pointsToAdd) async {
-    try {
-      await _firestore.collection('users').doc(userId).update({
-        'workoutScore': FieldValue.increment(pointsToAdd),
-        'totalWorkouts': FieldValue.increment(1),
-      });
-    } catch (e) {
-      // Log but don't fail - leaderboard score update is non-critical
-      // debugPrint would need import, but we keep it simple
-    }
-  }
-
   /// Get friend streak comparison for leaderboard.
   Future<List<FriendStreakComparison>> getFriendsStreakComparison(
     String currentUserId,
@@ -639,12 +690,12 @@ class UserService {
 
     // Fetch user profiles for display info
     // Only fetch if not current user (current user info usually available, but for simplicity fetch all or use cache if available)
-    // Firestore whereIn limit is 10
+    // Firestore whereIn limit is 30 (Z-DATA-005).
     final userProfiles = <String, Map<String, dynamic>>{};
 
     final chunks = <List<String>>[];
-    for (var i = 0; i < allIds.length; i += 10) {
-      chunks.add(allIds.skip(i).take(10).toList());
+    for (var i = 0; i < allIds.length; i += 30) {
+      chunks.add(allIds.skip(i).take(30).toList());
     }
 
     for (final chunk in chunks) {
@@ -652,13 +703,14 @@ class UserService {
       if (chunk.isEmpty) continue;
 
       try {
-        final snapshot = await _firestore
-            .collection('users')
-            .where(FieldPath.documentId, whereIn: chunk)
-            .get();
+        final docs = await Future.wait(
+          chunk.map((id) => _firestore.collection('users').doc(id).get()),
+        );
 
-        for (final doc in snapshot.docs) {
-          userProfiles[doc.id] = doc.data();
+        for (final doc in docs) {
+          if (doc.exists) {
+            userProfiles[doc.id] = doc.data()!;
+          }
         }
       } catch (e) {
         debugPrint('Error fetching user profiles: $e');
@@ -677,7 +729,6 @@ class UserService {
             userId: id,
             displayName: profile['displayName'] ?? 'Unknown',
             photoURL: profile['photoURL'],
-            avatarConfig: profile['avatarConfig'],
             currentStreak: streak.currentStreak,
             longestStreak: streak.longestStreak,
             isCurrentUser: id == currentUserId,
@@ -700,7 +751,6 @@ class UserService {
           userId: comparisons[i].userId,
           displayName: comparisons[i].displayName,
           photoURL: comparisons[i].photoURL,
-          avatarConfig: comparisons[i].avatarConfig,
           currentStreak: comparisons[i].currentStreak,
           longestStreak: comparisons[i].longestStreak,
           isCurrentUser: comparisons[i].isCurrentUser,

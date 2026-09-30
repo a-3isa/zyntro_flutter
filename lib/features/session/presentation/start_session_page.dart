@@ -1,25 +1,43 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-import 'package:google_fonts/google_fonts.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../app/navigation/app_route_locations.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/constants.dart';
+import '../../../core/constants/feature_flags.dart';
 import '../../auth/auth_providers.dart';
 import '../../../services/session_service.dart';
 import '../../../services/follow_service.dart';
 import '../../../core/models/models.dart';
 import '../../../widgets/zyntro_button.dart';
+import '../../../widgets/zyntro_back_button.dart';
 import '../../../widgets/pulse_dot.dart';
 import '../../../utils/haptic_manager.dart';
-import '../domain/exercise_plan_item.dart';
+import '../../../utils/offline_manager.dart';
+import '../domain/gym_session_plan.dart';
+import 'widgets/gym_exercise_picker_sheet.dart';
+import 'widgets/start_session_widgets.dart';
+import 'widgets/start_session_plan_widgets.dart';
+
+/// Signals the train screen to reset to its home view.
+/// Increment this value whenever the session FAB is tapped.
+final sessionViewResetProvider = StateProvider<int>((ref) => 0);
+
+/// True when the centre FAB should render as an active Start button.
+final sessionFabActiveProvider = StateProvider<bool>((ref) => false);
+
+/// True while the session creation is in flight (spinner in FAB).
+final sessionFabLoadingProvider = StateProvider<bool>((ref) => false);
+
+/// Shell increments this to fire the Start action from the FAB.
+final sessionStartTriggerProvider = StateProvider<int>((ref) => 0);
 
 /// Train screen — workout type + partner selection + session start.
 class StartSessionPage extends ConsumerStatefulWidget {
@@ -31,21 +49,16 @@ class StartSessionPage extends ConsumerStatefulWidget {
 
 class _StartSessionPageState extends ConsumerState<StartSessionPage> {
   WorkoutType? _selectedType; // null = nothing chosen yet
-  // partner mode: 'solo' | 'friends' | 'random'
+  // partner mode: 'solo' | 'bot' | 'friends' | 'random'
   String _partnerMode = 'solo';
   final Set<String> _selectedFriends = {};
   bool _isLoading = false;
   bool _isLoadingFollows = true;
   List<User> _mutualFollows = [];
-  final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = '';
   // views: 'home' | 'plan'
   String _view = 'home';
-  late List<ExercisePlanItem> _plan;
-  final TextEditingController _exerciseInputController = TextEditingController();
-  List<String> _suggestions = [];
-
-  bool _startButtonPressed = false;
+  late List<PlannedExercise> _plan;
+  bool _hasShownWorkoutsPopup = false;
 
   // Live friends strip
   List<Map<String, dynamic>> _liveFriends = [];
@@ -54,20 +67,21 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
   int _weekSessions = 0;
   static const int _weekTarget = 5;
   int _streakDays = 0;
-  int _totalSessions = 0;
   List<Session> _recentSessions = [];
-  bool _isLoadingStats = true;
 
   static const _prefKeyType = 'last_workout_type';
 
   @override
   void initState() {
     super.initState();
-    _plan = kDefaultPlan.map((e) => ExercisePlanItem(name: e.name, sets: e.sets)).toList();
+    _plan = [];
     _loadPreferences();
-    _loadMutualFollows();
-    _loadStats();
-    _loadLiveFriends();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _loadMutualFollows();
+      _loadStats();
+      _loadLiveFriends();
+    });
   }
 
   Future<void> _loadPreferences() async {
@@ -86,23 +100,23 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
 
   @override
   void dispose() {
-    _searchController.dispose();
-    _exerciseInputController.dispose();
     super.dispose();
   }
 
   Future<void> _loadStats() async {
-    final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = await _readCurrentUserId();
     if (uid == null) {
-      if (mounted) setState(() => _isLoadingStats = false);
       return;
     }
     try {
       final service = ref.read(sessionServiceProvider);
       final now = DateTime.now();
       final weekStart = now.subtract(Duration(days: now.weekday - 1));
-      final weekStartDate = DateTime(weekStart.year, weekStart.month, weekStart.day);
+      final weekStartDate = DateTime(
+        weekStart.year,
+        weekStart.month,
+        weekStart.day,
+      );
 
       final allSessions = await service.getUserSessions(uid, limit: 20);
       final weekCount = allSessions
@@ -112,21 +126,28 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
       if (mounted) {
         setState(() {
           _weekSessions = weekCount;
-          _totalSessions = allSessions.length;
           _recentSessions = allSessions.take(3).toList();
           _streakDays = weekCount; // approximate from this-week count
-          _isLoadingStats = false;
         });
       }
     } catch (_) {
-      if (mounted) setState(() => _isLoadingStats = false);
+      // Keep the home stats fallback values when history loading fails.
+    }
+  }
+
+  Future<String?> _readCurrentUserId() async {
+    final current = ref.read(authSessionProvider).value?.id;
+    if (current != null) return current;
+    try {
+      return (await ref.read(authSessionProvider.future))?.id;
+    } catch (_) {
+      return null;
     }
   }
 
   Future<void> _loadMutualFollows() async {
     setState(() => _isLoadingFollows = true);
-    final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = await _readCurrentUserId();
     if (uid == null) {
       if (mounted) setState(() => _isLoadingFollows = false);
       return;
@@ -152,11 +173,12 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
   /// Fails silently — the strip simply stays hidden if this errors or returns empty.
   Future<void> _loadLiveFriends() async {
     try {
-      final authState = ref.read(authSessionProvider);
-      final uid = authState.valueOrNull?.id;
+      final uid = await _readCurrentUserId();
       if (uid == null) return;
 
-      final follows = await ref.read(followServiceProvider).getMutualFollows(uid);
+      final follows = await ref
+          .read(followServiceProvider)
+          .getMutualFollows(uid);
       if (follows.isEmpty) return;
 
       final sessionService = ref.read(sessionServiceProvider);
@@ -184,118 +206,59 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
     }
   }
 
-  List<User> get _filteredFriends {
-    if (_searchQuery.isEmpty) return _mutualFollows;
-    return _mutualFollows.where((user) {
-      final query = _searchQuery.toLowerCase();
-      return user.displayName.toLowerCase().contains(query);
-    }).toList();
+  Future<void> _handleStartSession() async {
+    await _startSelectedSession(includeEmptyPlanExtra: false);
   }
 
-  Future<void> _handleStartSession() async {
+  Future<void> _startSelectedSession({
+    required bool includeEmptyPlanExtra,
+  }) async {
     final type = _selectedType;
     if (type == null) return;
     setState(() => _isLoading = true);
 
     try {
-      final authState = ref.read(authSessionProvider);
-      final uid = authState.valueOrNull?.id;
+      final uid = await _readCurrentUserId();
       if (uid == null) throw Exception('Not authenticated');
 
       final sessionService = ref.read(sessionServiceProvider);
       final existingSessionId = await sessionService.checkActiveSession(uid);
-
-      if (existingSessionId != null && mounted) {
-        setState(() => _isLoading = false);
-        final action = await showModalBottomSheet<String>(
-          context: context,
-          backgroundColor: Colors.transparent,
-          builder: (ctx) => Container(
-            margin: const EdgeInsets.all(16),
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceV2Elevated,
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Active Session Found',
-                  style: GoogleFonts.syne(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textV2Primary,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'You already have a workout in progress. Resume it or end it to start a new one.',
-                  style: GoogleFonts.outfit(
-                    fontSize: 14,
-                    color: AppColors.textV2Secondary,
-                    height: 1.5,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                ZyntroButton(
-                  title: 'Resume Active Session',
-                  variant: ZyntroButtonVariant.primary,
-                  fullWidth: true,
-                  onPressed: () => Navigator.pop(ctx, 'resume'),
-                ),
-                const SizedBox(height: 8),
-                ZyntroButton(
-                  title: 'End Old & Start New',
-                  variant: ZyntroButtonVariant.destructive,
-                  fullWidth: true,
-                  onPressed: () => Navigator.pop(ctx, 'end'),
-                ),
-                const SizedBox(height: 8),
-                ZyntroButton(
-                  title: 'Cancel',
-                  variant: ZyntroButtonVariant.ghost,
-                  fullWidth: true,
-                  onPressed: () => Navigator.pop(ctx, 'cancel'),
-                ),
-                const SizedBox(height: 8),
-              ],
-            ),
-          ),
+      if (existingSessionId != null) {
+        final shouldCreateNew = await _resolveActiveSessionConflict(
+          sessionService: sessionService,
+          uid: uid,
+          type: type,
+          existingSessionId: existingSessionId,
         );
-
-        if (!mounted) return;
-
-        if (action == 'resume') {
-          context.push(AppRouteLocations.sessionRoom(existingSessionId, type: type.value));
-          return;
-        } else if (action == 'end') {
-          setState(() => _isLoading = true);
-          await sessionService.endSession(existingSessionId, uid, null);
-        } else {
-          return;
-        }
+        if (!shouldCreateNew) return;
       }
 
-      // Build invited list from selected friends
-      final invitedIds = _partnerMode == 'friends' && _selectedFriends.isNotEmpty
-          ? _selectedFriends.toList()
-          : null;
-
-      final sessionId = await sessionService.createSession(
-        hostId: uid,
-        type: type.value,
-        title: '${type.displayName} Session',
-        invitedUserIds: invitedIds,
-        phase: SessionPhase.live,
+      final plannedExercises = _currentPlannedExercises();
+      final gymPlan = _buildHostGymPlan(
+        uid: uid,
+        type: type,
+        plannedExercises: plannedExercises,
+      );
+      final sessionId = await _createSelectedSession(
+        sessionService: sessionService,
+        uid: uid,
+        type: type,
+        gymPlan: gymPlan,
+      );
+      await _saveGymPlanBestEffort(
+        sessionService: sessionService,
+        sessionId: sessionId,
+        gymPlan: gymPlan,
+        plannedExercises: plannedExercises,
       );
 
       await HapticFeedback.mediumImpact();
-
-      if (mounted) {
-        context.push(AppRouteLocations.sessionRoom(sessionId, type: type.value));
-      }
+      _openCreatedSession(
+        sessionId: sessionId,
+        type: type,
+        plannedExercises: plannedExercises,
+        includeEmptyPlanExtra: includeEmptyPlanExtra,
+      );
     } catch (e) {
       debugPrint('[StartSessionPage] Failed to start session: $e');
       if (mounted) {
@@ -307,6 +270,165 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  Future<bool> _resolveActiveSessionConflict({
+    required SessionService sessionService,
+    required String uid,
+    required WorkoutType type,
+    required String existingSessionId,
+  }) async {
+    if (!mounted) return false;
+    setState(() => _isLoading = false);
+
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        margin: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceV2Elevated,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Active Session Found',
+              style: AppTextStyles.h4.copyWith(color: AppColors.textV2Primary),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'You already have a workout in progress. Resume it or end it to start a new one.',
+              style: AppTextStyles.body.copyWith(
+                color: AppColors.textV2Secondary,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 24),
+            ZyntroButton(
+              title: 'Resume Active Session',
+              variant: ZyntroButtonVariant.primary,
+              fullWidth: true,
+              onPressed: () => Navigator.pop(ctx, 'resume'),
+            ),
+            const SizedBox(height: 8),
+            ZyntroButton(
+              title: 'End Old & Start New',
+              variant: ZyntroButtonVariant.destructive,
+              fullWidth: true,
+              onPressed: () => Navigator.pop(ctx, 'end'),
+            ),
+            const SizedBox(height: 8),
+            ZyntroButton(
+              title: 'Cancel',
+              variant: ZyntroButtonVariant.ghost,
+              fullWidth: true,
+              onPressed: () => Navigator.pop(ctx, 'cancel'),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+
+    if (!mounted) return false;
+
+    if (action == 'resume') {
+      context.push(
+        AppRouteLocations.sessionRoom(existingSessionId, type: type.value),
+      );
+      return false;
+    }
+    if (action == 'end') {
+      setState(() => _isLoading = true);
+      await sessionService.endSession(existingSessionId, uid, null);
+      return true;
+    }
+    return false;
+  }
+
+  List<PlannedExercise> _currentPlannedExercises() {
+    // Re-stamp order to match current list position; preserve catalog/custom identity (T025).
+    return _plan
+        .asMap()
+        .entries
+        .map((entry) => entry.value.copyWithPlanFields(order: entry.key))
+        .toList();
+  }
+
+  GymSessionPlan _buildHostGymPlan({
+    required String uid,
+    required WorkoutType type,
+    required List<PlannedExercise> plannedExercises,
+  }) {
+    return GymSessionPlan(
+      userId: uid,
+      workoutType: type,
+      source: GymSessionPlanSource.hostTemplate,
+      isReady: true,
+      exercises: plannedExercises,
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  Future<String> _createSelectedSession({
+    required SessionService sessionService,
+    required String uid,
+    required WorkoutType type,
+    required GymSessionPlan gymPlan,
+  }) {
+    if (_partnerMode == 'bot') {
+      return sessionService.createBotPairedSession(
+        hostId: uid,
+        type: type.value,
+        title: '${type.displayName} Session',
+        plan: gymPlan,
+      );
+    }
+
+    final invitedIds = _partnerMode == 'friends' && _selectedFriends.isNotEmpty
+        ? _selectedFriends.toList()
+        : null;
+    return sessionService.createSession(
+      hostId: uid,
+      type: type.value,
+      title: '${type.displayName} Session',
+      invitedUserIds: invitedIds,
+      phase: SessionPhase.live,
+    );
+  }
+
+  Future<void> _saveGymPlanBestEffort({
+    required SessionService sessionService,
+    required String sessionId,
+    required GymSessionPlan gymPlan,
+    required List<PlannedExercise> plannedExercises,
+  }) async {
+    if (_partnerMode == 'bot' || plannedExercises.isEmpty) return;
+
+    try {
+      await sessionService.saveGymPlan(sessionId: sessionId, plan: gymPlan);
+    } catch (e) {
+      debugPrint('[StartSessionPage] saveGymPlan failed (non-fatal): $e');
+    }
+  }
+
+  void _openCreatedSession({
+    required String sessionId,
+    required WorkoutType type,
+    required List<PlannedExercise> plannedExercises,
+    required bool includeEmptyPlanExtra,
+  }) {
+    if (!mounted) return;
+    context.push(
+      AppRouteLocations.sessionRoom(sessionId, type: type.value),
+      extra: includeEmptyPlanExtra || plannedExercises.isNotEmpty
+          ? {'plannedExercises': plannedExercises}
+          : null,
+    );
   }
 
   void _showError(String message) {
@@ -336,202 +458,129 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
       return 'Check your internet connection and try again.';
     }
 
+    if (normalizedError.contains('not eligible')) {
+      return 'You can only invite one mutual friend who has not blocked you.';
+    }
+
+    if (normalizedError.contains('exactly one invited friend')) {
+      return 'Choose one friend for a paired session.';
+    }
+
+    if (normalizedError.contains('expired')) {
+      return 'That invite expired. Send a new one to train together.';
+    }
+
+    if (normalizedError.contains('delivery')) {
+      return 'Invite delivery failed. Try again in a moment.';
+    }
+
     return 'Failed to start session. Please try again.';
-  }
-
-  IconData _getIconData(String iconName) {
-    switch (iconName) {
-      case 'fitness_center':
-        return Icons.fitness_center_rounded;
-      case 'directions_run':
-        return Icons.directions_run_rounded;
-      case 'directions_bike':
-        return Icons.directions_bike_rounded;
-      case 'pool':
-        return Icons.pool_rounded;
-      case 'self_improvement':
-        return Icons.self_improvement_rounded;
-      case 'timer':
-        return Icons.timer_rounded;
-      case 'directions_walk':
-        return Icons.directions_walk_rounded;
-      case 'sports_soccer':
-        return Icons.sports_soccer_rounded;
-      case 'category':
-      default:
-        return Icons.category_rounded;
-    }
-  }
-
-
-  String _getTypeLabel(WorkoutType type) {
-    for (final item in _quickStartTypes) {
-      if (item.type == type) return item.label;
-    }
-    return type.displayName;
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_view == 'plan') return _buildPlanView();
+    // Reset to home view when the session FAB is tapped from another tab.
+    ref.listen<int>(sessionViewResetProvider, (_, _) {
+      if (_view != 'home') setState(() => _view = 'home');
+    });
+
+    // Fire start action when the shell FAB is tapped while on this tab.
+    ref.listen<int>(sessionStartTriggerProvider, (_, _) {
+      if (_isLoading) return;
+      final isFriendInvite =
+          _partnerMode == 'friends' && _selectedFriends.isNotEmpty;
+      if (_view == 'plan') {
+        HapticManager.heavy();
+        _handleStartSessionWithPlan();
+      } else if (isFriendInvite && _selectedType != null) {
+        HapticManager.medium();
+        _handleStartFriendInvite(_selectedType!);
+      } else if (_selectedType != null) {
+        HapticManager.medium();
+        if (_selectedType == WorkoutType.gym) {
+          _navigateToPlanView();
+        } else {
+          _handleStartSession();
+        }
+      }
+    });
+
+    // Sync FAB state to shell providers after every build.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final active = _selectedType != null && !_isLoading;
+      if (ref.read(sessionFabActiveProvider) != active) {
+        ref.read(sessionFabActiveProvider.notifier).state = active;
+      }
+      if (ref.read(sessionFabLoadingProvider) != _isLoading) {
+        ref.read(sessionFabLoadingProvider.notifier).state = _isLoading;
+      }
+    });
+    // Force solo mode when connectivity drops.
+    ref.listen<AsyncValue<bool>>(connectivityProvider, (_, next) {
+      final isOnline = next.value ?? true;
+      if (!isOnline && _partnerMode != 'solo') {
+        setState(() {
+          _partnerMode = 'solo';
+          _selectedFriends.clear();
+        });
+      }
+    });
+    if (_view == 'plan') {
+      if (!_hasShownWorkoutsPopup) {
+        _hasShownWorkoutsPopup = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _view == 'plan') _showPastWorkoutsPopup();
+        });
+      }
+      return _buildPlanView();
+    }
     return _buildHomeView();
   }
 
-  Color _getTypeColor(WorkoutType type) {
-    switch (type.value) {
-      case 'gym': return const Color(0xFFC8FF00);
-      case 'running': return const Color(0xFF38BDF8);
-      case 'cycling': return const Color(0xFFA78BFA);
-      case 'swimming': return const Color(0xFF22D3EE);
-      case 'yoga': return const Color(0xFF34D399);
-      case 'hiit': return const Color(0xFFFF8C00);
-      default: return const Color(0xFF888888);
+  Future<void> _handleStartFriendInvite(WorkoutType type) async {
+    final uid = await _readCurrentUserId();
+    if (uid == null || _selectedFriends.isEmpty) return;
+    setState(() => _isLoading = true);
+    try {
+      final sessionService = ref.read(sessionServiceProvider);
+      final existing = await sessionService.checkActiveSession(uid);
+      if (existing != null) {
+        // Offer resume / end-and-start-new, same as the solo path. Without this
+        // the tap silently did nothing when a stale active session existed.
+        final proceed = await _resolveActiveSessionConflict(
+          sessionService: sessionService,
+          uid: uid,
+          type: type,
+          existingSessionId: existing,
+        );
+        if (!proceed) return;
+      }
+      final sessionId = await sessionService.createSession(
+        hostId: uid,
+        type: type.value,
+        title: '${type.displayName} Session',
+        invitedUserIds: _selectedFriends.toList(),
+        phase: SessionPhase.setup,
+      );
+      await HapticFeedback.mediumImpact();
+      if (mounted) context.push(AppRouteLocations.gymSessionSetup(sessionId));
+    } catch (e) {
+      if (mounted) {
+        _showError(_mapStartSessionError(e));
+        await HapticFeedback.vibrate();
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Widget _buildFriendTile(User user, {int index = 0}) {
-    final isSelected = _selectedFriends.contains(user.id);
-
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          if (isSelected) {
-            _selectedFriends.remove(user.id);
-          } else if (_selectedFriends.length < 10) {
-            _selectedFriends.add(user.id);
-          }
-        });
-        HapticManager.light();
-      },
-      child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? AppColors.accentLime.withValues(alpha: 0.1)
-                : AppColors.surfaceV2Elevated.withValues(alpha: 0.4),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isSelected ? AppColors.accentLime.withValues(alpha: 0.4) : Colors.white.withValues(alpha: 0.05),
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: isSelected ? AppColors.accentLime : Colors.white.withValues(alpha: 0.1),
-                    width: 2,
-                  ),
-                ),
-                child: ClipOval(
-                  child: user.photoURL != null
-                      ? CachedNetworkImage(
-                          imageUrl: user.photoURL!,
-                          placeholder: (context, url) => Container(color: AppColors.surfaceV2),
-                          errorWidget: (context, url, error) => _buildAvatarPlaceholder(user),
-                          fit: BoxFit.cover,
-                        )
-                      : _buildAvatarPlaceholder(user),
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      user.displayName,
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                        color: AppColors.textV2Primary,
-                      ),
-                    ),
-                    Text(
-                      '@${user.id.substring(0, 8)}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textV2Tertiary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
-                child: Icon(
-                  isSelected ? Icons.check_circle_rounded : Icons.add_circle_outline_rounded,
-                  key: ValueKey(isSelected),
-                  color: isSelected ? AppColors.accentLime : AppColors.textV2Tertiary,
-                  size: 24,
-                ),
-              ),
-            ],
-          ),
-        ),
-    );
-  }
-
-  Widget _buildAvatarPlaceholder(User user) {
-    return Container(
-      color: AppColors.surfaceV2,
-      child: Center(
-        child: Text(
-          user.displayName.isNotEmpty ? user.displayName[0].toUpperCase() : '?',
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-            fontSize: 18,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLoadingSkeleton() {
-    return Column(
-      children: List.generate(
-        3,
-        (index) => Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Container(
-            decoration: BoxDecoration(
-              color: AppColors.surfaceV2Elevated.withValues(alpha: 0.3),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceV2Elevated,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(width: 120, height: 16, color: AppColors.surfaceV2Elevated),
-                      const SizedBox(height: 6),
-                      Container(width: 80, height: 12, color: AppColors.surfaceV2Elevated),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
+  void _navigateToPlanView() {
+    setState(() {
+      _view = 'plan';
+      _plan = [];
+      _hasShownWorkoutsPopup = false;
+    });
   }
 
   // ─── Live friends strip ─────────────────────────────────────────────────────
@@ -569,19 +618,22 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         border: Border.all(
-                            color: AppColors.backgroundV2, width: 2),
+                          color: AppColors.backgroundV2,
+                          width: 2,
+                        ),
                       ),
                       child: ClipOval(
                         child: _liveFriends[i]['photoURL'] != null
                             ? CachedNetworkImage(
-                                imageUrl:
-                                    _liveFriends[i]['photoURL'] as String,
+                                imageUrl: _liveFriends[i]['photoURL'] as String,
                                 fit: BoxFit.cover,
                                 errorWidget: (_, url, e) => _avatarFallback(
-                                    _liveFriends[i]['name'] as String),
+                                  _liveFriends[i]['name'] as String,
+                                ),
                               )
                             : _avatarFallback(
-                                _liveFriends[i]['name'] as String),
+                                _liveFriends[i]['name'] as String,
+                              ),
                       ),
                     ),
                   ),
@@ -592,7 +644,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
           Expanded(
             child: Text(
               '$names$extra ${_liveFriends.length == 1 ? 'is' : 'are'} training now',
-              style: GoogleFonts.outfit(
+              style: AppTextStyles.caption.copyWith(
                 fontSize: 13,
                 color: AppColors.textV2Secondary,
               ),
@@ -600,14 +652,14 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
             ),
           ),
           const SizedBox(width: 8),
-          PulseDot(color: const Color(0xFFFF4D4D), size: 6),
+          PulseDot(color: AppColors.errorV2, size: 6),
           const SizedBox(width: 6),
           Text(
             'LIVE',
-            style: GoogleFonts.outfit(
+            style: AppTextStyles.caption.copyWith(
               fontSize: 10,
               fontWeight: FontWeight.w700,
-              color: const Color(0xFFFF4D4D),
+              color: AppColors.errorV2,
               letterSpacing: 0.08,
             ),
           ),
@@ -635,8 +687,6 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
   // ─── Home (Train) view ──────────────────────────────────────────────────────
 
   Widget _buildHomeView() {
-    final canStart = _selectedType != null && !_isLoading;
-
     return Scaffold(
       backgroundColor: AppColors.backgroundV2,
       body: SafeArea(
@@ -645,15 +695,14 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
             Expanded(
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+                padding: const EdgeInsets.fromLTRB(20, 24, 20, 112),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'Train',
-                      style: GoogleFonts.syne(
+                      style: AppTextStyles.h1.copyWith(
                         fontSize: 34,
-                        fontWeight: FontWeight.w800,
                         color: AppColors.textV2Primary,
                         letterSpacing: -1,
                       ),
@@ -663,33 +712,56 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                     const SizedBox(height: 20),
                     _buildLiveStrip(),
                     const SizedBox(height: 8),
-                    _buildSectionLabel('WORKOUT TYPE'),
+                    const StartSessionSectionLabel('WORKOUT TYPE'),
                     const SizedBox(height: 12),
                     _buildTypeSelectionGrid(),
                     const SizedBox(height: 28),
-                    _buildSectionLabel('TRAIN WITH'),
+                    const StartSessionSectionLabel('TRAIN WITH'),
                     const SizedBox(height: 12),
                     _buildPartnerModeRow(),
-                    if (_partnerMode == 'friends') ...[
-                      const SizedBox(height: 12),
-                      _buildFriendsSection(),
-                    ],
-                    if (_recentSessions.isNotEmpty || _isLoadingStats) ...[
-                      const SizedBox(height: 28),
-                      _buildSectionLabel('RECENT'),
-                      const SizedBox(height: 12),
-                      _buildRecentList(),
-                    ],
-                    const SizedBox(height: 16),
+                    if (!(ref.watch(connectivityProvider).value ?? true))
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.orange.withValues(alpha: 0.3),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.wifi_off_rounded,
+                                size: 16,
+                                color: Colors.orange,
+                              ),
+                              const SizedBox(width: 10),
+                              Text(
+                                "You're offline — solo sessions only",
+                                style: AppTextStyles.caption.copyWith(
+                                  color: Colors.orange,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    _buildBuddiesStrip(
+                      isOffline:
+                          !(ref.watch(connectivityProvider).value ?? true),
+                    ),
                   ],
                 ),
               ),
             ),
-            // Sticky Start Session CTA
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-              child: _buildStartSessionCta(canStart: canStart),
-            ),
+            const SizedBox(height: 16),
           ],
         ),
       ),
@@ -705,168 +777,98 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       children: _quickStartTypes
-          .map((item) => _buildTypeCard(item.type, item.label))
+          .map(
+            (item) => StartSessionTypeCard(
+              type: item.type,
+              label: item.label,
+              isSelected: _selectedType == item.type,
+              onTap: () {
+                setState(
+                  () => _selectedType =
+                      _selectedType == item.type ? null : item.type,
+                );
+                _savePreferences();
+              },
+            ),
+          )
           .toList(),
     );
   }
 
-  Widget _buildTypeCard(WorkoutType type, String label) {
-    final isSelected = _selectedType == type;
-    final typeColor = _getTypeColor(type);
-    final icon = _getIconData(type.icon);
-
-    return GestureDetector(
-      onTap: () {
-        HapticManager.selection();
-        setState(() => _selectedType = type);
-        _savePreferences();
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: AppCurves.press,
-        decoration: BoxDecoration(
-          color: isSelected
-              ? typeColor.withValues(alpha: 0.15)
-              : AppColors.surfaceV2.withValues(alpha: 0.8),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected ? typeColor : AppColors.surfaceV2Active,
-            width: isSelected ? 1.5 : 1,
-          ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: typeColor.withValues(alpha: 0.2),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  )
-                ]
-              : [],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: Stack(
-            children: [
-              // Diagonal shimmer accent
-              Positioned(
-                top: -20,
-                right: -10,
-                child: Transform.rotate(
-                  angle: 0.6,
-                  child: Container(
-                    width: 40,
-                    height: 120,
-                    color: typeColor.withValues(alpha: 0.04),
-                  ),
-                ),
-              ),
-              // Left accent bar
-              Positioned(
-                left: 0,
-                top: 0,
-                bottom: 0,
-                child: Container(width: 3, color: typeColor),
-              ),
-              // Content
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 10, 10, 10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(icon, color: typeColor, size: 18),
-                        const SizedBox(width: 5),
-                        Flexible(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 5, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: typeColor.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              label.toUpperCase(),
-                              style: GoogleFonts.outfit(
-                                fontSize: 8,
-                                fontWeight: FontWeight.w700,
-                                color: typeColor,
-                                letterSpacing: 0.08,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      label,
-                      style: GoogleFonts.syne(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textV2Primary,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildPartnerModeRow() {
+    final pairedSessionsEnabled = ref.watch(
+      pairedFriendSessionsEnabledProvider,
+    );
+    final isOffline = !(ref.watch(connectivityProvider).value ?? true);
     final modes = [
       (id: 'solo', label: 'Solo', icon: Icons.person_outline_rounded),
-      (id: 'friends', label: 'Friends', icon: Icons.group_outlined),
-      (id: 'random', label: 'Random', icon: Icons.shuffle_rounded),
+      if (pairedSessionsEnabled) ...[
+        (id: 'bot', label: 'Bot', icon: Icons.smart_toy_outlined),
+        (id: 'friends', label: 'Friend', icon: Icons.person_add_alt_1),
+      ],
     ];
     return Row(
       children: modes.map((m) {
         final isActive = _partnerMode == m.id;
+        final isDisabled = isOffline && m.id != 'solo';
         return Expanded(
           child: GestureDetector(
-            onTap: () {
-              HapticManager.light();
-              setState(() => _partnerMode = m.id);
-              if (m.id == 'random' && _selectedType != null) {
-                context.push(AppRouteLocations.matchmaking(_selectedType!));
-              }
-            },
+            onTap: isDisabled
+                ? null
+                : () {
+                    HapticManager.light();
+                    setState(() {
+                      _partnerMode = m.id;
+                      if (m.id != 'friends') _selectedFriends.clear();
+                    });
+                    if (m.id == 'friends') {
+                      _loadMutualFollows();
+                    }
+                  },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 160),
-              margin: EdgeInsets.only(right: m.id == 'random' ? 0 : 8),
+              margin: EdgeInsets.only(right: m.id == modes.last.id ? 0 : 8),
               padding: const EdgeInsets.symmetric(vertical: 12),
               decoration: BoxDecoration(
-                color: isActive ? AppColors.surfaceV2Elevated : AppColors.surfaceV2,
+                color: isDisabled
+                    ? AppColors.surfaceV2.withValues(alpha: 0.4)
+                    : isActive
+                    ? AppColors.surfaceV2Elevated
+                    : AppColors.surfaceV2,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
-                  color: isActive
-                      ? AppColors.accentLime.withValues(alpha: 0.4)
+                  color: isDisabled
+                      ? AppColors.surfaceV2Active.withValues(alpha: 0.3)
+                      : isActive
+                      ? AppColors.signal.withValues(alpha: 0.4)
                       : AppColors.surfaceV2Active,
                   width: 1.5,
                 ),
               ),
-              child: Column(
-                children: [
-                  Icon(m.icon,
-                    size: 20,
-                    color: isActive ? AppColors.accentLime : AppColors.textV2Tertiary,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(m.label,
-                    style: GoogleFonts.outfit(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: isActive ? AppColors.textV2Primary : AppColors.textV2Tertiary,
+              child: Opacity(
+                opacity: isDisabled ? 0.4 : 1.0,
+                child: Column(
+                  children: [
+                    Icon(
+                      m.icon,
+                      size: 20,
+                      color: isActive
+                          ? AppColors.signal
+                          : AppColors.textV2Tertiary,
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 4),
+                    Text(
+                      m.label,
+                      style: AppTextStyles.caption.copyWith(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: isActive
+                            ? AppColors.textV2Primary
+                            : AppColors.textV2Tertiary,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -875,57 +877,107 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
     );
   }
 
-  Widget _buildFriendsSection() {
+  /// Always-visible horizontal strip of the user's buddies (mutual follows).
+  /// Tapping a buddy selects them and switches the partner mode to "Friend".
+  Widget _buildBuddiesStrip({bool isOffline = false}) {
+    if (_isLoadingFollows && _mutualFollows.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    if (_mutualFollows.isEmpty) return const SizedBox.shrink();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (_mutualFollows.isNotEmpty || _isLoadingFollows)
-          Container(
-            decoration: BoxDecoration(
-              color: AppColors.surfaceV2Elevated.withValues(alpha: 0.4),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-            ),
-            child: TextField(
-              controller: _searchController,
-              style: const TextStyle(color: AppColors.textV2Primary, fontSize: 13),
-              decoration: InputDecoration(
-                hintText: 'Search friends...',
-                hintStyle: TextStyle(color: AppColors.textV2Tertiary),
-                prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textV2Tertiary, size: 18),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              ),
-              onChanged: (v) => setState(() => _searchQuery = v),
+        const SizedBox(height: 22),
+        const StartSessionSectionLabel('YOUR BUDDIES'),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 92,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: _mutualFollows.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 14),
+            itemBuilder: (context, i) {
+              final u = _mutualFollows[i];
+              final selected = _selectedFriends.contains(u.id);
+              final firstName = u.displayName.trim().split(' ').first;
+              return GestureDetector(
+                onTap: isOffline
+                    ? null
+                    : () {
+                        HapticFeedback.selectionClick();
+                        setState(() {
+                          if (_selectedFriends.contains(u.id)) {
+                            _selectedFriends.clear();
+                            _partnerMode = 'solo';
+                          } else {
+                            _selectedFriends
+                              ..clear()
+                              ..add(u.id);
+                            _partnerMode = 'friends';
+                          }
+                        });
+                      },
+                child: SizedBox(
+                  width: 64,
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 58,
+                        height: 58,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: selected
+                                ? AppColors.signal
+                                : AppColors.surfaceV2Active,
+                            width: selected ? 2.5 : 1.5,
+                          ),
+                        ),
+                        child: ClipOval(
+                          child: (u.photoURL != null && u.photoURL!.isNotEmpty)
+                              ? CachedNetworkImage(
+                                  imageUrl: u.photoURL!,
+                                  fit: BoxFit.cover,
+                                  errorWidget: (_, _, _) =>
+                                      StartSessionAvatarPlaceholder(user: u),
+                                )
+                              : StartSessionAvatarPlaceholder(user: u),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        firstName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.caption.copyWith(
+                          fontSize: 11,
+                          fontWeight: selected
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                          color: selected
+                              ? AppColors.signal
+                              : AppColors.textV2Secondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        if (_selectedFriends.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text(
+            '${_selectedFriends.length} friend selected',
+            style: AppTextStyles.caption.copyWith(
+              color: AppColors.signal,
+              fontWeight: FontWeight.w700,
             ),
           ),
-        const SizedBox(height: 10),
-        if (_isLoadingFollows)
-          _buildLoadingSkeleton()
-        else if (_mutualFollows.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text(
-              'No mutual follows yet — start solo or find friends.',
-              style: TextStyle(color: AppColors.textV2Tertiary, fontSize: 13),
-            ),
-          )
-        else
-          ..._filteredFriends.asMap().entries.map(
-            (e) => _buildFriendTile(e.value, index: e.key),
-          ),
-        if (_selectedFriends.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(
-              '${_selectedFriends.length} friend${_selectedFriends.length > 1 ? 's' : ''} selected',
-              style: TextStyle(
-                color: AppColors.accentLime,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
+        ],
       ],
     );
   }
@@ -946,17 +998,16 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
             width: 90,
             height: 90,
             child: CustomPaint(
-              painter: _RingPainter(progress: progress.toDouble()),
+              painter: StartSessionRingPainter(progress: progress.toDouble()),
               child: Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
                       '$_weekSessions',
-                      style: GoogleFonts.syne(
+                      style: AppTextStyles.h2.copyWith(
                         fontSize: 28,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.textV2Primary,
+                        color: AppColors.signal,
                         height: 1.0,
                       ),
                     ),
@@ -990,9 +1041,8 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                 const SizedBox(height: 6),
                 Text(
                   '$_weekSessions session${_weekSessions == 1 ? '' : 's'}',
-                  style: GoogleFonts.syne(
+                  style: AppTextStyles.h4.copyWith(
                     fontSize: 22,
-                    fontWeight: FontWeight.w800,
                     color: AppColors.textV2Primary,
                     height: 1.1,
                   ),
@@ -1001,22 +1051,13 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                 Row(
                   children: [
                     Text(
-                      '$_streakDays 🔥',
-                      style: GoogleFonts.syne(
+                      '$_streakDays',
+                      style: AppTextStyles.label.copyWith(
                         fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.accentLime,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Text(
-                      '$_totalSessions',
-                      style: GoogleFonts.syne(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
                         color: AppColors.textV2Primary,
                       ),
                     ),
+                    const SizedBox(width: 16),
                   ],
                 ),
                 Row(
@@ -1029,101 +1070,19 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                       ),
                     ),
                     const SizedBox(width: 25),
-                    Text(
-                      'total',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: AppColors.textV2Tertiary,
-                      ),
-                    ),
+                    // Text(
+                    //   'total',
+                    //   style: TextStyle(
+                    //     fontSize: 11,
+                    //     color: AppColors.textV2Tertiary,
+                    //   ),
+                    // ),
                   ],
                 ),
               ],
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildStartSessionCta({required bool canStart}) {
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _startButtonPressed = true),
-      onTapUp: (_) {
-        setState(() => _startButtonPressed = false);
-        if (_selectedType != null && !_isLoading) {
-          HapticManager.medium();
-          if (_selectedType == WorkoutType.gym) {
-            setState(() => _view = 'plan');
-          } else {
-            _handleStartSession();
-          }
-        }
-      },
-      onTapCancel: () => setState(() => _startButtonPressed = false),
-      child: AnimatedScale(
-        scale: _startButtonPressed ? 0.97 : 1.0,
-        duration: const Duration(milliseconds: 80),
-        curve: AppCurves.press,
-        child: Container(
-          height: 64,
-          decoration: BoxDecoration(
-            color: _selectedType == null
-                ? AppColors.surfaceV2Active
-                : AppColors.accentLime,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: _isLoading
-              ? const Center(
-                  child: SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      color: AppColors.backgroundV2,
-                    ),
-                  ),
-                )
-              : Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      _selectedType == null
-                          ? 'Select a workout type'
-                          : 'Start ${_getTypeLabel(_selectedType!)} Session',
-                      style: GoogleFonts.syne(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: _selectedType == null
-                            ? AppColors.textV2Tertiary
-                            : AppColors.backgroundV2,
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-                    if (_partnerMode == 'friends' && _selectedFriends.isNotEmpty)
-                      Text(
-                        'with ${_selectedFriends.length} friend${_selectedFriends.length > 1 ? 's' : ''}',
-                        style: GoogleFonts.outfit(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.backgroundV2.withValues(alpha: 0.7),
-                        ),
-                      ),
-                  ],
-                ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSectionLabel(String label) {
-    return Text(
-      label,
-      style: TextStyle(
-        color: AppColors.textV2Tertiary,
-        fontSize: 12,
-        fontWeight: FontWeight.w700,
-        letterSpacing: 1.6,
       ),
     );
   }
@@ -1137,110 +1096,44 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
     (type: WorkoutType.swimming, label: 'Swim'),
   ];
 
+  Future<void> _showPastWorkoutsPopup() async {
+    // Gather gym sessions that have at least one exercise in the summary.
+    final gymSessions = _recentSessions
+        .where(
+          (s) =>
+              s.type == 'gym' &&
+              s.summary != null &&
+              (s.summary!.exercises?.isNotEmpty ?? false),
+        )
+        .toList();
 
-  Widget _buildRecentList() {
-    if (_isLoadingStats) {
-      return Column(
-        children: List.generate(2, (_) => Container(
-          height: 64,
-          margin: const EdgeInsets.only(bottom: 8),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceV2,
-            borderRadius: BorderRadius.circular(14),
-          ),
-        )),
-      );
-    }
-    return Column(
-      children: _recentSessions.map((session) {
-        final color = _getTypeColorByString(session.type);
-        final icon = _getIconData(_workoutIconForType(session.type));
-        final ago = _formatAgo(session.createdAt);
-        final duration = session.endedAt != null
-            ? _formatDuration(session.endedAt!.difference(session.startedAt))
-            : '';
-        return Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceV2,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(11),
-                ),
-                child: Icon(icon, color: color, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      session.title.isNotEmpty ? session.title : session.type,
-                      style: TextStyle(
-                        color: AppColors.textV2Primary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    Text(
-                      duration.isNotEmpty ? '$ago · $duration' : ago,
-                      style: TextStyle(
-                        color: AppColors.textV2Tertiary,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      }).toList(),
+    if (gymSessions.isEmpty || !mounted) return;
+
+    final selected = await showModalBottomSheet<Session>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => StartSessionPastWorkoutsSheet(sessions: gymSessions),
     );
-  }
 
-  Color _getTypeColorByString(String type) {
-    switch (type) {
-      case 'gym': return const Color(0xFFC8FF00);
-      case 'running': return const Color(0xFF38BDF8);
-      case 'cycling': return const Color(0xFFA78BFA);
-      case 'swimming': return const Color(0xFF22D3EE);
-      case 'yoga': return const Color(0xFF34D399);
-      case 'hiit': return const Color(0xFFFF8C00);
-      default: return const Color(0xFF888888);
+    if (selected != null && mounted) {
+      _loadPlanFromSession(selected);
     }
   }
 
-  String _workoutIconForType(String type) {
-    switch (type) {
-      case 'running': return 'directions_run';
-      case 'cycling': return 'directions_bike';
-      case 'swimming': return 'pool';
-      case 'yoga': return 'self_improvement';
-      case 'hiit': return 'timer';
-      default: return 'fitness_center';
-    }
-  }
-
-  String _formatAgo(DateTime dt) {
-    final diff = DateTime.now().difference(dt);
-    if (diff.inDays >= 2) return '${diff.inDays} days ago';
-    if (diff.inDays == 1) return 'Yesterday';
-    if (diff.inHours >= 1) return '${diff.inHours}h ago';
-    return 'Just now';
-  }
-
-  String _formatDuration(Duration d) {
-    final m = d.inMinutes;
-    return '${m}m';
+  void _loadPlanFromSession(Session session) {
+    const uuid = Uuid();
+    final exercises = session.summary?.exercises ?? [];
+    final loaded = exercises.asMap().entries.map((entry) {
+      final ex = entry.value;
+      return PlannedExercise.custom(
+        id: uuid.v4(),
+        name: ex.name,
+        plannedSets: ex.sets > 0 ? ex.sets.clamp(1, 20) : 3,
+        order: entry.key,
+      );
+    }).toList();
+    setState(() => _plan = loaded);
   }
 
   Widget _buildPlanView() {
@@ -1248,8 +1141,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
     const s1 = AppColors.surfaceV2;
     const t1 = AppColors.textV2Primary;
     const t2 = AppColors.textV2Secondary;
-    const t3 = AppColors.textV2Tertiary;
-    final totalSets = _plan.fold<int>(0, (sum, e) => sum + e.sets);
+    final totalSets = _plan.fold<int>(0, (sum, e) => sum + e.plannedSets);
 
     return Scaffold(
       backgroundColor: bg,
@@ -1261,25 +1153,15 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
               child: Row(
                 children: [
-                  GestureDetector(
-                    onTap: () => setState(() => _view = 'home'),
-                    child: Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceV2,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(Icons.arrow_back_rounded, color: t2, size: 18),
-                    ),
+                  ZyntroBackButton(
+                    onPressed: () => setState(() => _view = 'home'),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Text(
                       'Plan Session',
-                      style: GoogleFonts.syne(
+                      style: AppTextStyles.h4.copyWith(
                         fontSize: 22,
-                        fontWeight: FontWeight.w800,
                         color: t1,
                         letterSpacing: -0.5,
                       ),
@@ -1287,10 +1169,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
                   ),
                   Text(
                     '$totalSets sets total',
-                    style: GoogleFonts.outfit(
-                      fontSize: 12,
-                      color: t2,
-                    ),
+                    style: AppTextStyles.caption.copyWith(color: t2),
                   ),
                 ],
               ),
@@ -1301,112 +1180,91 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
               child: ReorderableListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 itemCount: _plan.length,
-                onReorder: (oldIndex, newIndex) {
+                onReorderItem: (oldIndex, newIndex) {
                   setState(() {
-                    if (newIndex > oldIndex) newIndex -= 1;
                     final item = _plan.removeAt(oldIndex);
                     _plan.insert(newIndex, item);
                   });
                 },
                 itemBuilder: (context, index) {
                   final item = _plan[index];
-                  return _ExercisePlanRow(
+                  return StartSessionExercisePlanRow(
                     key: ValueKey(item.id),
                     item: item,
                     index: index,
                     onDelete: () => setState(() => _plan.removeAt(index)),
-                    onSetsChanged: (sets) => setState(() => item.sets = sets),
+                    onSetsChanged: (sets) => setState(() {
+                      // PlannedExercise is immutable — replace entry (T024).
+                      _plan[index] =
+                          _plan[index].copyWithPlanFields(plannedSets: sets);
+                    }),
                   );
                 },
               ),
             ),
-            // Add exercise input
+            // Add exercise button (T019 — replaces inline free-text field)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      color: s1,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: TextField(
-                      controller: _exerciseInputController,
-                      style: GoogleFonts.outfit(fontSize: 14, color: t1),
-                      decoration: InputDecoration(
-                        hintText: 'Add exercise...',
-                        hintStyle: GoogleFonts.outfit(color: t3),
-                        border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 12,
-                        ),
-                        suffixIcon: IconButton(
-                          icon: Icon(Icons.add, color: AppColors.accentLime),
-                          onPressed: _addExercise,
-                        ),
-                      ),
-                      onChanged: (value) {
-                        setState(() {
-                          _suggestions = value.isEmpty
-                              ? []
-                              : kExerciseSuggestions
-                                  .where((s) => s.toLowerCase().contains(value.toLowerCase()))
-                                  .take(4)
-                                  .toList();
-                        });
-                      },
-                      onSubmitted: (_) => _addExercise(),
-                    ),
+              child: GestureDetector(
+                onTap: _openExercisePicker,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: s1,
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  if (_suggestions.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 6,
-                      children: _suggestions.map((s) {
-                        return GestureDetector(
-                          onTap: () {
-                            _exerciseInputController.text = s;
-                            _addExercise();
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 5,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.accentLime.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              s,
-                              style: GoogleFonts.outfit(
-                                fontSize: 11,
-                                color: AppColors.accentLime,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ],
-                ],
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.add, color: AppColors.signal, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Add exercise',
+                        style: AppTextStyles.body.copyWith(color: t1),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 12),
             // Begin session button
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: ZyntroButton(
-                title: 'Begin Session ⚡  ($totalSets sets)',
-                fullWidth: true,
-                size: ZyntroButtonSize.lg,
-                variant: ZyntroButtonVariant.primary,
-                loading: _isLoading,
-                onPressed: _isLoading ? null : () {
-                  HapticManager.heavy();
-                  _handleStartSessionWithPlan();
-                },
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  children: [
+                    if (_plan.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(
+                          'Add at least one exercise to start',
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.textV2Tertiary,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ZyntroButton(
+                      title: _plan.isEmpty
+                          ? 'Begin Session ($totalSets sets)'
+                          : 'Begin Session ($totalSets sets)',
+                      fullWidth: true,
+                      size: ZyntroButtonSize.lg,
+                      variant: ZyntroButtonVariant.primary,
+                      loading: _isLoading,
+                      onPressed: _isLoading
+                          ? null
+                          : () {
+                              HapticManager.heavy();
+                              _handleStartSessionWithPlan();
+                            },
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -1415,220 +1273,36 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
     );
   }
 
-  void _addExercise() {
-    final name = _exerciseInputController.text.trim();
-    if (name.isEmpty) return;
+  Future<void> _openExercisePicker() async {
+    final uid = await _readCurrentUserId();
+    if (!mounted) return;
+
+    final selected = await showModalBottomSheet<List<PlannedExercise>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.85,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (_, scrollController) =>
+            GymExercisePickerSheet(userId: uid),
+      ),
+    );
+
+    if (!mounted || selected == null || selected.isEmpty) return;
     setState(() {
-      _plan.add(ExercisePlanItem(name: name, sets: 3));
-      _exerciseInputController.clear();
-      _suggestions = [];
+      final baseOrder = _plan.length;
+      for (var i = 0; i < selected.length; i++) {
+        // Rebuild with correct order index; preserve catalog/custom source (T025).
+        _plan.add(selected[i].copyWithPlanFields(order: baseOrder + i));
+      }
     });
     HapticManager.light();
   }
 
   Future<void> _handleStartSessionWithPlan() async {
-    final type = _selectedType;
-    if (type == null) return;
-    setState(() => _isLoading = true);
-
-    try {
-      final authState = ref.read(authSessionProvider);
-      final uid = authState.valueOrNull?.id;
-      if (uid == null) throw Exception('Not authenticated');
-
-      final sessionService = ref.read(sessionServiceProvider);
-
-      final invitedIds = _partnerMode == 'friends' && _selectedFriends.isNotEmpty
-          ? _selectedFriends.toList()
-          : null;
-
-      final sessionId = await sessionService.createSession(
-        hostId: uid,
-        type: type.value,
-        title: '${type.displayName} Session',
-        invitedUserIds: invitedIds,
-        phase: SessionPhase.live,
-      );
-
-      await HapticFeedback.mediumImpact();
-
-      if (mounted) {
-        final exerciseNames = _plan.map((e) => e.name).toList();
-        context.push(
-          AppRouteLocations.sessionRoom(sessionId, type: type.value),
-          extra: {'plannedExercises': exerciseNames},
-        );
-      }
-    } catch (e) {
-      debugPrint('[StartSessionPage] Failed to start session with plan: $e');
-      if (mounted) {
-        _showError(_mapStartSessionError(e));
-        await HapticFeedback.vibrate();
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
+    await _startSelectedSession(includeEmptyPlanExtra: true);
   }
-}
-
-class SectionHeader extends StatelessWidget {
-  final String title;
-  const SectionHeader({super.key, required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      title.toUpperCase(),
-      style: GoogleFonts.outfit(
-        fontSize: 10,
-        fontWeight: FontWeight.w700,
-        color: AppColors.textV2Tertiary,
-        letterSpacing: 2,
-      ),
-    );
-  }
-}
-
-class _ExercisePlanRow extends StatelessWidget {
-  final ExercisePlanItem item;
-  final int index;
-  final VoidCallback onDelete;
-  final ValueChanged<int> onSetsChanged;
-
-  const _ExercisePlanRow({
-    required super.key,
-    required this.item,
-    required this.index,
-    required this.onDelete,
-    required this.onSetsChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    const t1 = AppColors.textV2Primary;
-    const t3 = AppColors.textV2Tertiary;
-    const s1 = AppColors.surfaceV2;
-    const s3 = AppColors.surfaceV2Active;
-
-    return Dismissible(
-      key: ValueKey(item.id),
-      direction: DismissDirection.endToStart,
-      onDismissed: (_) => onDelete(),
-      background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
-        color: AppColors.errorV2,
-        child: const Icon(Icons.delete_outline, color: Colors.white),
-      ),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: s1,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          children: [
-            Text(
-              '${index + 1}',
-              style: GoogleFonts.syne(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: t3,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                item.name,
-                style: GoogleFonts.outfit(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: t1,
-                ),
-              ),
-            ),
-            // Sets pill picker 1–6
-            Row(
-              children: List.generate(6, (i) {
-                final n = i + 1;
-                final isActive = item.sets == n;
-                return GestureDetector(
-                  onTap: () => onSetsChanged(n),
-                  child: Container(
-                    width: 26,
-                    height: 26,
-                    margin: const EdgeInsets.only(left: 3),
-                    decoration: BoxDecoration(
-                      color: isActive ? AppColors.accentLime : s3,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Center(
-                      child: Text(
-                        '$n',
-                        style: GoogleFonts.syne(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: isActive ? AppColors.backgroundV2 : t3,
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              }),
-            ),
-            const SizedBox(width: 8),
-            Icon(Icons.drag_handle, color: t3, size: 18),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _RingPainter extends CustomPainter {
-  final double progress;
-
-  const _RingPainter({required this.progress});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = (size.width / 2) - 6;
-    const strokeWidth = 8.0;
-    const startAngle = -math.pi / 2;
-    const sweepFull = 2 * math.pi;
-
-    // Track
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius),
-      startAngle,
-      sweepFull,
-      false,
-      Paint()
-        ..color = const Color(0xFF2A2A2A)
-        ..strokeWidth = strokeWidth
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round,
-    );
-
-    if (progress > 0) {
-      // Progress arc
-      canvas.drawArc(
-        Rect.fromCircle(center: center, radius: radius),
-        startAngle,
-        sweepFull * progress,
-        false,
-        Paint()
-          ..color = const Color(0xFFC8FF00)
-          ..strokeWidth = strokeWidth
-          ..style = PaintingStyle.stroke
-          ..strokeCap = StrokeCap.round,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_RingPainter old) => old.progress != progress;
 }
 

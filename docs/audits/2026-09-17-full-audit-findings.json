@@ -1,0 +1,4923 @@
+{
+  "meta": {
+    "runDate": "2026-09-17",
+    "commit": "23408a7b0858e986d77e89f775e89e21a41379b4",
+    "branch": "007-resume-active-session",
+    "grade": "B",
+    "playVerdict": "Audit findings closed; residual owner gate Z-REPO-004 (T054 device) unrelated to store listing",
+    "appStoreVerdict": "Audit findings closed; residual owner gate Z-REPO-004 (T054 device) unrelated to store listing",
+    "playBlockers": [],
+    "appStoreBlockers": [],
+    "counts": {
+      "Critical": 4,
+      "High": 67,
+      "Medium": 29,
+      "Low": 8,
+      "Info": 8
+    },
+    "findingTotal": 116,
+    "enhancementTotal": 45,
+    "closureSummary": {
+      "closed": 115,
+      "deferred": 1,
+      "deferredIds": [
+        "Z-REPO-004"
+      ],
+      "arch002": "soft budgets met (session/profile/social/start_session/recap)",
+      "stackHead": "127-enh-high-contrast",
+      "updatedAt": "2026-09-17",
+      "enhancementsClosed": [
+        "Z-ENH-007",
+        "Z-ENH-013",
+        "Z-ENH-017",
+        "Z-ENH-029",
+        "Z-ENH-040",
+        "Z-ENH-042",
+        "Z-ENH-045"
+      ],
+      "campaignComplete": true,
+      "remainingOwnerOnly": [
+        "Z-REPO-004"
+      ]
+    }
+  },
+  "draftToFinal": {
+    "DRAFT-SEC-001": "Z-SEC-001",
+    "DRAFT-SOC-007": "Z-SEC-001",
+    "DRAFT-DATA-001": "Z-DATA-001",
+    "DRAFT-SEC-002": "Z-DATA-001",
+    "DRAFT-SOC-001": "Z-DATA-001",
+    "DRAFT-RT-003": "Z-DATA-001",
+    "REC-14": "Z-DATA-001",
+    "DRAFT-RT-001": "Z-RT-001",
+    "DRAFT-DATA-002": "Z-DATA-002",
+    "DRAFT-IOS-001": "Z-IOS-001",
+    "DRAFT-AUTH-001": "Z-FN-003",
+    "DRAFT-FN-003": "Z-FN-003",
+    "DRAFT-SOC-006": "Z-FN-003",
+    "DRAFT-NOTIF-003": "Z-AND-001",
+    "DRAFT-AND-004": "Z-AND-001",
+    "DRAFT-UI-002": "Z-UI-001",
+    "DRAFT-A11Y-004": "Z-UI-001",
+    "DRAFT-UI-003": "Z-A11Y-003",
+    "DRAFT-A11Y-003": "Z-A11Y-003",
+    "DRAFT-CI-001": "Z-CI-001",
+    "DRAFT-AND-001": "Z-CI-001",
+    "DRAFT-DEP-001": "Z-CI-001",
+    "DRAFT-SOC-003": "Z-SOC-002",
+    "DRAFT-ARCH-003": "Z-SOC-002",
+    "DRAFT-DOC-001": "Z-PRV-003",
+    "DRAFT-PERF-003": "Z-OBS-001",
+    "DRAFT-OBS-001": "Z-OBS-001",
+    "DRAFT-PLAT-001": "Z-PLAT-001",
+    "DRAFT-REPO-001": "Z-REPO-001"
+  },
+  "findings": [
+    {
+      "id": "Z-SEC-001",
+      "title": "`users` list bypasses private-profile get gate",
+      "severity": "Critical",
+      "confidence": "Confirmed",
+      "domain": "A",
+      "tags": [
+        "Security",
+        "Firestore",
+        "Privacy"
+      ],
+      "locations": [
+        {
+          "path": "firebase/firestore.rules",
+          "line": 319
+        },
+        {
+          "path": "lib/services/user_service.dart",
+          "line": 461
+        }
+      ],
+      "impact": "Any signed-in user can list/query private profiles and read fields get would deny — privacy model collapse.",
+      "scenario": "As mallory: getDoc(private alice) fails; getDocs(users) or username prefix query returns alice.",
+      "recommendation": "Align list with canReadUserProfile or use a public projection collection; add emulator private-list deny.",
+      "effort": "M",
+      "verification": "Emulator: private profile excluded from unfiltered and prefix list queries.",
+      "related": [
+        "DRAFT-SEC-001",
+        "DRAFT-SOC-007",
+        "F19"
+      ],
+      "standards": [
+        "OWASP MASVS privacy",
+        "Firebase rules are not filters"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-DATA-001",
+      "title": "Client-writable workoutScore / streaks / stats (leaderboard integrity)",
+      "severity": "Critical",
+      "confidence": "Confirmed",
+      "domain": "B",
+      "tags": [
+        "Data",
+        "Integrity",
+        "Leaderboard",
+        "Security"
+      ],
+      "locations": [
+        {
+          "path": "firebase/firestore.rules",
+          "line": 246
+        },
+        {
+          "path": "lib/services/session_service.dart",
+          "line": 1217
+        },
+        {
+          "path": "lib/services/leaderboard_service.dart",
+          "line": 156
+        }
+      ],
+      "impact": "Any member can inflate score/streaks/PRs; leaderboard and social proof are untrusted.",
+      "scenario": "users/{uid}.update({ workoutScore: 999999 }) then open global leaderboard.",
+      "recommendation": "Server-authoritative score grants on session complete; deny client writes to integrity fields; hide or mark leaderboard until fixed.",
+      "effort": "L",
+      "verification": "Rules emulator deny owner workoutScore update; CF grants once per sessionId.",
+      "related": [
+        "DRAFT-DATA-001",
+        "DRAFT-SEC-002",
+        "DRAFT-SOC-001",
+        "DRAFT-RT-003",
+        "REC-14",
+        "Lead 5",
+        "F02"
+      ],
+      "standards": [
+        "Never trust the client",
+        "MASVS resilience"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-RT-001",
+      "title": "derivedMode treats same-type cardio as turn-based",
+      "severity": "Critical",
+      "confidence": "Confirmed",
+      "domain": "D",
+      "tags": [
+        "Live session",
+        "Mode",
+        "Core product"
+      ],
+      "locations": [
+        {
+          "path": "lib/core/models/models.dart",
+          "line": 181
+        },
+        {
+          "path": "lib/services/session_service.dart",
+          "line": 45
+        },
+        {
+          "path": "lib/features/session/presentation/session_room_page.dart",
+          "line": 1692
+        }
+      ],
+      "impact": "Two cardio partners get turn-based UI instead of parallel — core workout UX broken for a primary mode.",
+      "scenario": "Host+invitee both choose running → go-live → room uses turn-based branch.",
+      "recommendation": "Unify Session.derivedMode with derivePairedSessionMode (gym+gym turn-based else parallel); delete mode writes.",
+      "effort": "S",
+      "verification": "Unit matrix gym/gym, run/run, gym/run; manual paired cardio room.",
+      "related": [
+        "DRAFT-RT-001",
+        "DRAFT-DATA-002",
+        "F15"
+      ],
+      "standards": [
+        "Spec 001 mode rules"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-IOS-001",
+      "title": "aps-environment hardcoded to development",
+      "severity": "Critical",
+      "confidence": "Confirmed",
+      "domain": "O",
+      "tags": [
+        "iOS",
+        "Push",
+        "Release blocker"
+      ],
+      "locations": [
+        {
+          "path": "ios/Runner/Runner.entitlements",
+          "line": 1
+        }
+      ],
+      "impact": "Production/TestFlight may fail APNs entitlement or stay on sandbox — invites/turn pushes broken on iOS.",
+      "scenario": "Archive Release; inspect embedded entitlements; send prod push to TestFlight build.",
+      "recommendation": "Release entitlements with production; keep Debug on development; verify APNs key in Firebase.",
+      "effort": "S",
+      "verification": "TestFlight device receives session-invite FCM/APNs.",
+      "related": [
+        "DRAFT-IOS-001",
+        "F26",
+        "AUD-026"
+      ],
+      "standards": [
+        "Apple Push Notification entitlement"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Release/Profile use RunnerRelease.entitlements (production); Debug keeps development."
+    },
+    {
+      "id": "Z-SEC-002",
+      "title": "workouts create allows forging another user history",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "A",
+      "tags": [
+        "Security",
+        "Integrity"
+      ],
+      "locations": [
+        {
+          "path": "firebase/firestore.rules",
+          "line": 662
+        },
+        {
+          "path": "lib/services/session_service.dart",
+          "line": 1204
+        }
+      ],
+      "impact": "Attacker can attribute workout docs to victims while including self in participants.",
+      "scenario": "setDoc(workouts/x, { userId: alice, participants: [mallory], sessionId }) expect deny.",
+      "recommendation": "Require userId == auth.uid for client creates; partner workouts via Admin/Functions.",
+      "effort": "M",
+      "verification": "Emulator forge deny; partner write via trusted path.",
+      "related": [
+        "DRAFT-SEC-003"
+      ],
+      "standards": [
+        "Ownership on create"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-SEC-003",
+      "title": "matchmaking_queue claimer update has no field allowlist",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "A",
+      "tags": [
+        "Security",
+        "Matchmaking"
+      ],
+      "locations": [
+        {
+          "path": "firebase/firestore.rules",
+          "line": 697
+        }
+      ],
+      "impact": "Queue poisoning: rewrite userId/prefs or force bogus matched state.",
+      "scenario": "Alice waiting; mallory updates status and overwrites userId.",
+      "recommendation": "Restrict claimer keys; require claimedBy == auth.uid; emulator abuse tests.",
+      "effort": "S",
+      "verification": "Emulator: claimer cannot change userId.",
+      "related": [
+        "DRAFT-SEC-004",
+        "DRAFT-RT-004"
+      ],
+      "standards": [
+        "Least privilege"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-DATA-002",
+      "title": "Session mode still written; derivation APIs disagree",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "B",
+      "tags": [
+        "Data model",
+        "Session"
+      ],
+      "locations": [
+        {
+          "path": "lib/services/session_service.dart",
+          "line": 613
+        },
+        {
+          "path": "firebase/firestore.rules",
+          "line": 76
+        }
+      ],
+      "impact": "Stored mode vs derivedMode diverge (cardio+cardio); analytics/rules still allow mode.",
+      "scenario": "Paired running session: written mode parallel, UI derivedMode turnBased (see Z-RT-001).",
+      "recommendation": "Delete session mode writes; remove mode from participantLiveKeys; single pure helper.",
+      "effort": "M",
+      "verification": "Grep gate: no mode under sessions writes; unit contract both helpers identical.",
+      "related": [
+        "DRAFT-DATA-002",
+        "Z-RT-001",
+        "F15"
+      ],
+      "standards": [
+        "Schema consistency"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-DATA-003",
+      "title": "No Firestore clearPersistence on sign-out / account switch",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "B",
+      "tags": [
+        "Persistence",
+        "Privacy"
+      ],
+      "locations": [
+        {
+          "path": "lib/features/settings/presentation/settings_page.dart",
+          "line": 783
+        }
+      ],
+      "impact": "Next account on device may see prior user cached docs until refresh.",
+      "scenario": "User A sessions; sign out; User B on slow network — A docs may surface.",
+      "recommendation": "On sign-out: terminate + clearPersistence; re-init providers.",
+      "effort": "S",
+      "verification": "Integration: after sign-out local cache for prior uid empty.",
+      "related": [
+        "DRAFT-DATA-003",
+        "DRAFT-AUTH-004",
+        "DRAFT-OFF-001"
+      ],
+      "standards": [
+        "MASVS storage"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-FN-001",
+      "title": "deliverNotificationPush has no rate limit / dedup",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "C",
+      "tags": [
+        "Functions",
+        "Cost",
+        "Spam"
+      ],
+      "locations": [
+        {
+          "path": "functions/index.js",
+          "line": 639
+        }
+      ],
+      "impact": "Authenticated caller can spam push cost and user notifications.",
+      "scenario": "Script repeated HTTPS calls with valid token+App Check.",
+      "recommendation": "Per-uid rate limit + dedup keys; consider Firestore triggers instead of client invoke.",
+      "effort": "M",
+      "verification": "Emulator/staging: 2nd burst rejected.",
+      "related": [
+        "DRAFT-FN-001",
+        "REC-09",
+        "F20"
+      ],
+      "standards": [
+        "App Check + quotas"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-FN-002",
+      "title": "App Check verified without replay consumption; not enforceAppCheck",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "C",
+      "tags": [
+        "Functions",
+        "App Check"
+      ],
+      "locations": [
+        {
+          "path": "functions/index.js",
+          "line": 618
+        }
+      ],
+      "impact": "Manual verify without consume leaves replay window; weaker than platform enforce.",
+      "scenario": "Capture App Check token; replay push requests.",
+      "recommendation": "Use enforceAppCheck / consume; limited-use tokens.",
+      "effort": "M",
+      "verification": "Replay rejected after first use.",
+      "related": [
+        "DRAFT-FN-002",
+        "REC-09"
+      ],
+      "standards": [
+        "Firebase App Check"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-FN-003",
+      "title": "cleanupDeletedUser omits sessions, workouts, Storage, joint co-authorship",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "C",
+      "tags": [
+        "Functions",
+        "Privacy",
+        "GDPR"
+      ],
+      "locations": [
+        {
+          "path": "functions/index.js",
+          "line": 1002
+        }
+      ],
+      "impact": "Account deletion leaves residual PII/media and social edges.",
+      "scenario": "Delete account; inspect sessions/workouts/Storage/joint slots remain.",
+      "recommendation": "Extend cleanup or document retention + Storage lifecycle; add export path.",
+      "effort": "L",
+      "verification": "Staging delete checklist empty for listed collections.",
+      "related": [
+        "DRAFT-FN-003",
+        "DRAFT-AUTH-001",
+        "DRAFT-SOC-006",
+        "REC-13",
+        "Lead 4"
+      ],
+      "standards": [
+        "Play data deletion",
+        "GDPR"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-RT-002",
+      "title": "switchTurn non-transactional; any participant may set activeUserId",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "D",
+      "tags": [
+        "Live session",
+        "Integrity"
+      ],
+      "locations": [
+        {
+          "path": "lib/services/session_service.dart",
+          "line": 1577
+        },
+        {
+          "path": "firebase/firestore.rules",
+          "line": 75
+        }
+      ],
+      "impact": "Skipped turns / turn theft under race or malice.",
+      "scenario": "Concurrent switchTurn or partner writes activeUserId:self.",
+      "recommendation": "Transaction + rules require activeUserId == auth.uid for turn advance.",
+      "effort": "M",
+      "verification": "Rules emulator + two-client race test.",
+      "related": [
+        "DRAFT-RT-002"
+      ],
+      "standards": [
+        "Firestore transactions"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-RT-003",
+      "title": "Matchmaking ignores blocks; claiming can strand",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "D",
+      "tags": [
+        "Matchmaking",
+        "Safety"
+      ],
+      "locations": [
+        {
+          "path": "lib/services/session_service.dart",
+          "line": 1
+        }
+      ],
+      "impact": "Blocked users can still match; queue entries stuck claiming.",
+      "scenario": "Block pair then enter matchmaking.",
+      "recommendation": "Filter blocks in claim; timeout reclaim claiming entries.",
+      "effort": "M",
+      "verification": "Emulator/unit: blocked pair never matched.",
+      "related": [
+        "DRAFT-RT-004",
+        "Z-SEC-003"
+      ],
+      "standards": [
+        "UGC safety"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-RT-004",
+      "title": "Set submit has no in-flight guard; offline events lack stable ids",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "D",
+      "tags": [
+        "Live session",
+        "Offline"
+      ],
+      "locations": [
+        {
+          "path": "lib/features/session/presentation/widgets/active_turn_screen.dart",
+          "line": 1
+        }
+      ],
+      "impact": "Double-submit and duplicate offline session events.",
+      "scenario": "Double-tap submit; kill app mid-offline queue.",
+      "recommendation": "In-flight lock; stable event ids (align with like/unlike).",
+      "effort": "S",
+      "verification": "Widget test double-tap; offline replay idempotent.",
+      "related": [
+        "DRAFT-RT-005",
+        "DRAFT-OFF-002"
+      ],
+      "standards": [
+        "Idempotency"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-AUTH-001",
+      "title": "Auth UI enumerates whether an email is registered",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "E",
+      "tags": [
+        "Auth",
+        "Privacy"
+      ],
+      "locations": [
+        {
+          "path": "lib/features/auth/presentation/forgot_password_page.dart",
+          "line": 1
+        },
+        {
+          "path": "lib/features/auth/presentation/login_page.dart",
+          "line": 1
+        }
+      ],
+      "impact": "Attackers learn which emails have accounts.",
+      "scenario": "Forgot-password with known vs unknown email; compare messages.",
+      "recommendation": "Uniform responses; avoid Firebase error-code surfacing.",
+      "effort": "S",
+      "verification": "UI copy identical for known/unknown.",
+      "related": [
+        "DRAFT-AUTH-002"
+      ],
+      "standards": [
+        "OWASP auth"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-AUTH-002",
+      "title": "Email verification never gates router or Firestore",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "E",
+      "tags": [
+        "Auth",
+        "Abuse"
+      ],
+      "locations": [
+        {
+          "path": "lib/widgets/email_verification_banner.dart",
+          "line": 1
+        },
+        {
+          "path": "firebase/firestore.rules",
+          "line": 1
+        }
+      ],
+      "impact": "Unverified email accounts can socialize/invite freely.",
+      "scenario": "Sign up; skip verify; create post/follow/invite.",
+      "recommendation": "Soft-gate high-risk writes on email_verified for password providers.",
+      "effort": "M",
+      "verification": "Rules deny post create when email_verified false.",
+      "related": [
+        "DRAFT-AUTH-003",
+        "DRAFT-AUTH-009"
+      ],
+      "standards": [
+        "Firebase email verification"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-AUTH-003",
+      "title": "Sign-out does not clear app caches / analytics identity",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "E",
+      "tags": [
+        "Auth",
+        "Privacy"
+      ],
+      "locations": [
+        {
+          "path": "lib/features/auth/data/datasources/auth_remote_data_source.dart",
+          "line": 1
+        }
+      ],
+      "impact": "PII/cache bleed across accounts; analytics continuity.",
+      "scenario": "Sign out via Auth path not Settings; inspect SharedPreferences/caches.",
+      "recommendation": "Central signOut clears caches, offline queue, analytics userId, Firestore persistence.",
+      "effort": "M",
+      "verification": "Contract test signOut clears listed stores.",
+      "related": [
+        "DRAFT-AUTH-004",
+        "Z-DATA-003",
+        "DRAFT-OFF-001"
+      ],
+      "standards": [
+        "Privacy"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-AUTH-004",
+      "title": "Meta Facebook Login without published data-deletion URL",
+      "severity": "High",
+      "confidence": "Probable",
+      "domain": "E",
+      "tags": [
+        "Auth",
+        "Compliance"
+      ],
+      "locations": [
+        {
+          "path": "lib/features/auth/data/datasources/auth_remote_data_source.dart",
+          "line": 1
+        }
+      ],
+      "impact": "Meta platform policy / App Review risk where Facebook Login ships.",
+      "scenario": "Search repo for data-deletion callback URL — empty.",
+      "recommendation": "Publish deletion callback + instructions; or remove Facebook until ready.",
+      "effort": "S",
+      "verification": "Meta app dashboard + store listing URLs present.",
+      "related": [
+        "DRAFT-AUTH-005",
+        "Z-PRV-003"
+      ],
+      "standards": [
+        "Meta Platform Policy"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-SOC-001",
+      "title": "UGC filter client-only, English-centric, narrow coverage",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "F",
+      "tags": [
+        "Social",
+        "Moderation"
+      ],
+      "locations": [
+        {
+          "path": "lib/services/content_filter_service.dart",
+          "line": 1
+        },
+        {
+          "path": "lib/services/post_service.dart",
+          "line": 1
+        }
+      ],
+      "impact": "Bios/usernames/images/voice/Arabic evade filter; client bypass trivial.",
+      "scenario": "Post Arabic profanity or bio with blocked English word via raw write.",
+      "recommendation": "Server-side moderation; expand locales; cover all UGC fields.",
+      "effort": "L",
+      "verification": "Functions reject known fixtures; Arabic sample.",
+      "related": [
+        "DRAFT-SOC-002"
+      ],
+      "standards": [
+        "Play UGC",
+        "App Store 1.2"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-SOC-002",
+      "title": "Moderation queue route lacks GoRouter access guard",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "F",
+      "tags": [
+        "Social",
+        "AuthZ"
+      ],
+      "locations": [
+        {
+          "path": "lib/app/app.dart",
+          "line": 1
+        },
+        {
+          "path": "lib/features/moderation/presentation/moderation_queue_page.dart",
+          "line": 1
+        }
+      ],
+      "impact": "Non-mods can navigate to moderation UI (data still rule-gated).",
+      "scenario": "As non-mod deep-link /moderation/queue.",
+      "recommendation": "Router redirect if !isModerator; keep rules deny.",
+      "effort": "XS",
+      "verification": "Router test non-mod redirected.",
+      "related": [
+        "DRAFT-SOC-003",
+        "DRAFT-ARCH-003"
+      ],
+      "standards": [
+        "Defense in depth"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-PAY-001",
+      "title": "Payments mock; client grant blocked by rules (feature broken)",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "F",
+      "tags": [
+        "Payments",
+        "Integrity"
+      ],
+      "locations": [
+        {
+          "path": "lib/services/payment_service.dart",
+          "line": 40
+        },
+        {
+          "path": "firebase/firestore.rules",
+          "line": 252
+        }
+      ],
+      "impact": "Paid leaderboard path impossible client-side; mock PI + denied grant.",
+      "scenario": "Attempt purchase → mock; grantGlobalLeaderboardAccess denied by rules.",
+      "recommendation": "Platform IAP (RevenueCat) + server webhook entitlement; delete client grant.",
+      "effort": "L",
+      "verification": "Staging purchase sets entitlement via Admin only.",
+      "related": [
+        "DRAFT-PAY-001",
+        "F02",
+        "F12",
+        "R14"
+      ],
+      "standards": [
+        "Play Billing",
+        "StoreKit"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-PAY-002",
+      "title": "Planned Stripe digital goods conflicts with store IAP rules",
+      "severity": "High",
+      "confidence": "Probable",
+      "domain": "F",
+      "tags": [
+        "Payments",
+        "Policy"
+      ],
+      "locations": [
+        {
+          "path": "lib/services/payment_service.dart",
+          "line": 1
+        }
+      ],
+      "impact": "If activated, digital entitlement via Stripe risks store rejection/removal.",
+      "scenario": "Review payment_service design vs Play/App Store digital goods policy.",
+      "recommendation": "Use platform billing for digital goods; Stripe only for allowed physical/services.",
+      "effort": "M",
+      "verification": "Legal/product decision recorded; code path matches.",
+      "related": [
+        "DRAFT-PAY-002"
+      ],
+      "standards": [
+        "Play Payments",
+        "App Store 3.1.1"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-ARCH-001",
+      "title": "Clean-architecture migration stalled at 1/9 features",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "G",
+      "tags": [
+        "Architecture"
+      ],
+      "locations": [
+        {
+          "path": "scripts/validate_feature_layers.ps1",
+          "line": 1
+        }
+      ],
+      "impact": "Inconsistent boundaries; 8/9 features fail layer script.",
+      "scenario": "Run validate_feature_layers.ps1 — only auth passes.",
+      "recommendation": "Finish session next or formally retire blueprint and archive migration/**.",
+      "effort": "XL",
+      "verification": "CI gate or documented retirement ADR.",
+      "related": [
+        "DRAFT-ARCH-001",
+        "F17",
+        "REC-16"
+      ],
+      "standards": [
+        "Constitution"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-ARCH-002",
+      "title": "God files dominate session/profile/social",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "G",
+      "tags": [
+        "Architecture",
+        "Maintainability"
+      ],
+      "locations": [
+        {
+          "path": "lib/features/session/presentation/session_room_page.dart",
+          "line": 1
+        }
+      ],
+      "impact": "High regression cost on J1–J7; shallow coverage vs size.",
+      "scenario": "session_room ~3k+ lines; profile/social similarly large.",
+      "recommendation": "Split by phase/view; extract controllers; file plan in roadmap.",
+      "effort": "XL",
+      "verification": "Line-count budget + feature tests per split.",
+      "related": [
+        "DRAFT-ARCH-002",
+        "H4"
+      ],
+      "standards": [
+        "Maintainability"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closureNote": "Soft budgets met through 120: session_room ≤80KB, profile ≤60KB, social ≤40KB, start_session ≤45KB, recap ≤40KB. See docs/ARCH_002_SLICES.md.",
+      "closedAt": "2026-09-17"
+    },
+    {
+      "id": "Z-UI-001",
+      "title": "Reduced motion not honored by premium motion suite",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "H",
+      "tags": [
+        "UX",
+        "A11y"
+      ],
+      "locations": [
+        {
+          "path": "lib/widgets/premium_effects.dart",
+          "line": 1
+        }
+      ],
+      "impact": "Vestibular/motion-sensitive users still get pulses/confetti.",
+      "scenario": "Enable reduce motion; open matchmaking/session celebrations.",
+      "recommendation": "Gate all premium animations on shouldReduceMotion.",
+      "effort": "S",
+      "verification": "Widget test: disableAnimations → no AnimationController start.",
+      "related": [
+        "DRAFT-UI-002",
+        "DRAFT-A11Y-004",
+        "F24"
+      ],
+      "standards": [
+        "WCAG 2.3.3"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-A11Y-001",
+      "title": "Semantics coverage thin (~12% of lib files)",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "I",
+      "tags": [
+        "Accessibility"
+      ],
+      "locations": [
+        {
+          "path": "lib/features/main/presentation/main_shell.dart",
+          "line": 1
+        }
+      ],
+      "impact": "Screen-reader users miss labels on most flows.",
+      "scenario": "TalkBack/VoiceOver pass on feed/session/profile.",
+      "recommendation": "Semantics campaign on J1–J7; guideline tests in CI.",
+      "effort": "L",
+      "verification": "Semantics hit rate metric + a11y guideline tests green.",
+      "related": [
+        "DRAFT-A11Y-001",
+        "F34"
+      ],
+      "standards": [
+        "WCAG 4.1.2"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-A11Y-002",
+      "title": "Rep counter tap-anywhere lacks accessible alternative",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "I",
+      "tags": [
+        "Accessibility",
+        "Session"
+      ],
+      "locations": [
+        {
+          "path": "lib/features/session/presentation/widgets/rep_counter_screen.dart",
+          "line": 1
+        }
+      ],
+      "impact": "Motor/screen-reader users cannot reliably count reps.",
+      "scenario": "TalkBack on rep counter; no discrete control.",
+      "recommendation": "Large +/− buttons + semantic actions; keep tap as secondary.",
+      "effort": "M",
+      "verification": "Semantics + integration a11y test.",
+      "related": [
+        "DRAFT-A11Y-002"
+      ],
+      "standards": [
+        "WCAG 2.5.1"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-A11Y-003",
+      "title": "System text scale capped at 1.3x",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "I",
+      "tags": [
+        "Accessibility",
+        "Typography"
+      ],
+      "locations": [
+        {
+          "path": "lib/app/app.dart",
+          "line": 1
+        }
+      ],
+      "impact": "Users needing larger text cannot reach OS preference.",
+      "scenario": "Set OS text scale 2.0; app clamps 1.3.",
+      "recommendation": "Fix overflow layouts; raise/remove cap; keep golden tests.",
+      "effort": "M",
+      "verification": "TextScaleFactor 2.0 smoke on main shells.",
+      "related": [
+        "DRAFT-A11Y-003",
+        "DRAFT-UI-003"
+      ],
+      "standards": [
+        "WCAG 1.4.4"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-A11Y-004",
+      "title": "No live region announcements for turn/timer/partner events",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "I",
+      "tags": [
+        "Accessibility",
+        "Live session"
+      ],
+      "locations": [
+        {
+          "path": "lib/features/session/presentation/session_room_page.dart",
+          "line": 1
+        }
+      ],
+      "impact": "Blind users miss turn changes and timers.",
+      "scenario": "VoiceOver during turn switch — no announcement.",
+      "recommendation": "Semantics liveRegion / Announce for turn, rest end, partner left.",
+      "effort": "M",
+      "verification": "Manual VoiceOver checklist on J4.",
+      "related": [
+        "DRAFT-A11Y-005"
+      ],
+      "standards": [
+        "WCAG 4.1.3"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-I18N-001",
+      "title": "Localization covers login only; most UI English literals",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "J",
+      "tags": [
+        "i18n"
+      ],
+      "locations": [
+        {
+          "path": "lib/l10n",
+          "line": 1
+        }
+      ],
+      "impact": "Arabic members get English product UI; store claims bilingual unmet.",
+      "scenario": "ARB en≫ar; ~5 AppLocalizations sites vs hundreds of Text().",
+      "recommendation": "ARB coverage campaign; ban raw Text in lint; Arabic parity CI.",
+      "effort": "XL",
+      "verification": "String parity % gate; RTL goldens.",
+      "related": [
+        "DRAFT-I18N-001",
+        "M8",
+        "Lead 11"
+      ],
+      "standards": [
+        "Play localization"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-I18N-002",
+      "title": "RTL layout APIs almost unused",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "J",
+      "tags": [
+        "i18n",
+        "RTL"
+      ],
+      "locations": [
+        {
+          "path": "lib",
+          "line": 1
+        }
+      ],
+      "impact": "Arabic RTL likely broken paddings/icons.",
+      "scenario": "Force Locale ar; inspect session/feed.",
+      "recommendation": "Use Directionality-aware EdgeInsets; RTL goldens.",
+      "effort": "L",
+      "verification": "Golden LTR/RTL for main shells.",
+      "related": [
+        "DRAFT-I18N-002"
+      ],
+      "standards": [
+        "Material RTL"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-I18N-003",
+      "title": "Push and Cloud Functions strings English-only",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "J",
+      "tags": [
+        "i18n",
+        "Notifications"
+      ],
+      "locations": [
+        {
+          "path": "functions/index.js",
+          "line": 1
+        }
+      ],
+      "impact": "Arabic users get English pushes.",
+      "scenario": "Invite push to ar-preferring device.",
+      "recommendation": "Locale on device doc; localized templates in CF.",
+      "effort": "M",
+      "verification": "Staging push in ar.",
+      "related": [
+        "DRAFT-I18N-003",
+        "DRAFT-NOTIF-004"
+      ],
+      "standards": [
+        "FCM localization"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-PERF-001",
+      "title": "Session room rebuild storm (setState + timers)",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "K",
+      "tags": [
+        "Performance"
+      ],
+      "locations": [
+        {
+          "path": "lib/features/session/presentation/session_room_page.dart",
+          "line": 1
+        }
+      ],
+      "impact": "Jank and battery drain in live room.",
+      "scenario": "DevTools rebuild counts during active set.",
+      "recommendation": "Split widgets; RepaintBoundary; Riverpod.select; isolate timers.",
+      "effort": "L",
+      "verification": "Frame timing budget test / DevTools before/after.",
+      "related": [
+        "DRAFT-PERF-001",
+        "Z-ARCH-002"
+      ],
+      "standards": [
+        "Flutter performance"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-PERF-002",
+      "title": "Seventeen live snapshots without lifetime map",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "K",
+      "tags": [
+        "Performance",
+        "Cost"
+      ],
+      "locations": [
+        {
+          "path": "lib/services/session_service.dart",
+          "line": 1562
+        }
+      ],
+      "impact": "Read/listen cost and leak risk.",
+      "scenario": "Audit .snapshots( in session/social providers.",
+      "recommendation": "Document lifetime map; cancel on dispose; bound queries.",
+      "effort": "M",
+      "verification": "Listener count assert in room enter/leave test.",
+      "related": [
+        "DRAFT-PERF-002",
+        "C1"
+      ],
+      "standards": [
+        "Firestore cost"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-OFF-001",
+      "title": "Offline queue not user-scoped; sign-out clear UI-path only",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "L",
+      "tags": [
+        "Offline",
+        "Privacy"
+      ],
+      "locations": [
+        {
+          "path": "lib/utils/offline_manager.dart",
+          "line": 1
+        }
+      ],
+      "impact": "Queued ops can replay under wrong user; Auth sign-out may skip clear.",
+      "scenario": "Queue as A; sign out via Auth; sign in B — ops may fire.",
+      "recommendation": "Key queue by uid; clear on every signOut path.",
+      "effort": "M",
+      "verification": "Test account switch clears/scopes queue.",
+      "related": [
+        "DRAFT-OFF-001",
+        "F27"
+      ],
+      "standards": [
+        "Data isolation"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-OFF-002",
+      "title": "Custom offline queue duplicates Firestore write queue for events",
+      "severity": "High",
+      "confidence": "Probable",
+      "domain": "L",
+      "tags": [
+        "Offline"
+      ],
+      "locations": [
+        {
+          "path": "lib/utils/offline_manager.dart",
+          "line": 1
+        }
+      ],
+      "impact": "Duplicate session events / complex failure modes.",
+      "scenario": "Offline set submit then reconnect.",
+      "recommendation": "Prefer SDK persistence or stable ids + dedupe.",
+      "effort": "M",
+      "verification": "Replay idempotency test.",
+      "related": [
+        "DRAFT-OFF-002",
+        "Z-RT-004"
+      ],
+      "standards": [
+        "Firestore offline"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-NOTIF-001",
+      "title": "Buddy invites use forbidden client writes and unsupported CF types",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "M",
+      "tags": [
+        "Notifications"
+      ],
+      "locations": [
+        {
+          "path": "lib/services/notification_service.dart",
+          "line": 1124
+        },
+        {
+          "path": "functions/index.js",
+          "line": 559
+        }
+      ],
+      "impact": "Buddy invite notifications fail closed — broken buddy UX.",
+      "scenario": "Send buddy invite; observe client write deny / CF type reject.",
+      "recommendation": "Add CF builders for buddy types; remove client inbox writes.",
+      "effort": "M",
+      "verification": "Contract + emulator: buddy invite delivers.",
+      "related": [
+        "DRAFT-NOTIF-001"
+      ],
+      "standards": [
+        "Push catalog"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-NOTIF-002",
+      "title": "Cross-user preference read fails open on client",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "M",
+      "tags": [
+        "Notifications"
+      ],
+      "locations": [
+        {
+          "path": "lib/services/notification_service.dart",
+          "line": 834
+        }
+      ],
+      "impact": "May send pushes recipient disabled.",
+      "scenario": "Recipient disables type; sender path fails preference read → still sends.",
+      "recommendation": "Fail closed; server-side preference check only.",
+      "effort": "S",
+      "verification": "Unit: preference read error → skip send.",
+      "related": [
+        "DRAFT-NOTIF-002"
+      ],
+      "standards": [
+        "User preference"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-AND-001",
+      "title": "Missing Android default/small notification icon meta-data",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "N",
+      "tags": [
+        "Android",
+        "Notifications"
+      ],
+      "locations": [
+        {
+          "path": "android/app/src/main/AndroidManifest.xml",
+          "line": 76
+        }
+      ],
+      "impact": "White-square / missing icon on FCM notifications.",
+      "scenario": "Receive FCM on Android release build.",
+      "recommendation": "Add default_notification_icon/color meta-data + drawable.",
+      "effort": "S",
+      "verification": "Device screenshot of notification chrome.",
+      "related": [
+        "DRAFT-AND-004",
+        "DRAFT-NOTIF-003",
+        "REC-15"
+      ],
+      "standards": [
+        "FCM Android"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-AND-002",
+      "title": "No res/xml network-security / data-extraction rules",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "N",
+      "tags": [
+        "Android",
+        "Privacy"
+      ],
+      "locations": [
+        {
+          "path": "android/app/src/main/res",
+          "line": 1
+        }
+      ],
+      "impact": "Backup/extraction and cleartext policy unspecified beyond allowBackup false.",
+      "scenario": "Inspect res/ for xml — absent.",
+      "recommendation": "Add network_security_config + data_extraction_rules.",
+      "effort": "S",
+      "verification": "Manifest references xml; merge report.",
+      "related": [
+        "DRAFT-AND-003",
+        "REC-15"
+      ],
+      "standards": [
+        "Android backup"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-AND-003",
+      "title": "Release signingConfig applied when key.properties absent",
+      "severity": "High",
+      "confidence": "Probable",
+      "domain": "N",
+      "tags": [
+        "Android",
+        "CI"
+      ],
+      "locations": [
+        {
+          "path": "android/app/build.gradle.kts",
+          "line": 38
+        }
+      ],
+      "impact": "CI/local release assemble may fail or mis-sign without secrets.",
+      "scenario": "Assemble release without key.properties.",
+      "recommendation": "Guard signingConfig; CI injects secrets only.",
+      "effort": "S",
+      "verification": "CI contract + local dry-run.",
+      "related": [
+        "DRAFT-AND-002",
+        "REC-01"
+      ],
+      "standards": [
+        "Play signing"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-IOS-002",
+      "title": "Facebook Login plist keys absent on iOS",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "O",
+      "tags": [
+        "iOS",
+        "Auth"
+      ],
+      "locations": [
+        {
+          "path": "ios/Runner/Info.plist",
+          "line": 1
+        }
+      ],
+      "impact": "Facebook broken on iOS while UI offers it.",
+      "scenario": "iOS Facebook button.",
+      "recommendation": "Add Meta plist/URL types or hide Facebook on iOS.",
+      "effort": "S",
+      "verification": "Facebook iOS E2E or button hidden.",
+      "related": [
+        "DRAFT-IOS-002"
+      ],
+      "standards": [
+        "Meta iOS",
+        "App Store 4.8"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-IOS-003",
+      "title": "PrivacyInfo declares zero collected data types",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "O",
+      "tags": [
+        "iOS",
+        "Privacy"
+      ],
+      "locations": [
+        {
+          "path": "ios/Runner/PrivacyInfo.xcprivacy",
+          "line": 1
+        }
+      ],
+      "impact": "ASC privacy labels may disagree with Crashlytics/Analytics/FCM/audio/photos.",
+      "scenario": "Compare PrivacyInfo vs SDKs.",
+      "recommendation": "Declare collected types/purposes to match reality.",
+      "effort": "M",
+      "verification": "ASC + PrivacyInfo consistency checklist.",
+      "related": [
+        "DRAFT-IOS-003",
+        "Z-PRV-001"
+      ],
+      "standards": [
+        "Apple Privacy Manifest"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-IOS-004",
+      "title": "No Podfile committed; CocoaPods only on CI Mac",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "O",
+      "tags": [
+        "iOS",
+        "Reproducibility"
+      ],
+      "locations": [
+        {
+          "path": "ios",
+          "line": 1
+        }
+      ],
+      "impact": "Non-reproducible iOS deps; trunk freeze risk.",
+      "scenario": "Fresh Mac clone lacks Podfile until flutter build.",
+      "recommendation": "Commit Podfile+lock or SPM; document Xcode version.",
+      "effort": "M",
+      "verification": "Clean Codemagic iOS green with lockfile.",
+      "related": [
+        "DRAFT-IOS-004",
+        "DRAFT-DEP-002"
+      ],
+      "standards": [
+        "CocoaPods"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-IOS-005",
+      "title": "Deployment target 13.0 may be below plugin floors",
+      "severity": "High",
+      "confidence": "Probable",
+      "domain": "O",
+      "tags": [
+        "iOS"
+      ],
+      "locations": [
+        {
+          "path": "ios/Runner.xcodeproj/project.pbxproj",
+          "line": 1
+        }
+      ],
+      "impact": "Pod install failures or unsupported runtime paths.",
+      "scenario": "pod install warnings on Codemagic.",
+      "recommendation": "Raise to plugin minimum (often 15+).",
+      "effort": "S",
+      "verification": "Archive success.",
+      "related": [
+        "DRAFT-IOS-005"
+      ],
+      "standards": [
+        "FlutterFire iOS"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-PLAT-001",
+      "title": "Tracked linux/macos without CI or product support",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "P",
+      "tags": [
+        "Platform",
+        "Repo"
+      ],
+      "locations": [
+        {
+          "path": "linux",
+          "line": 1
+        },
+        {
+          "path": "macos",
+          "line": 1
+        }
+      ],
+      "impact": "Dead platforms inflate maintenance and false support signal.",
+      "scenario": "No desktop CI; store is mobile-only.",
+      "recommendation": "Remove from product scope or add CI; stop shipping GeneratedPluginRegistrant churn.",
+      "effort": "M",
+      "verification": "ADR: supported platforms list.",
+      "related": [
+        "DRAFT-PLAT-001",
+        "DRAFT-REPO-001"
+      ],
+      "standards": [
+        "Support matrix"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-TEST-001",
+      "title": "No coverage gates in CI (~32% overall)",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "Q",
+      "tags": [
+        "Testing",
+        "CI"
+      ],
+      "locations": [
+        {
+          "path": ".github/workflows/flutter-ci.yml",
+          "line": 1
+        }
+      ],
+      "impact": "Coverage can regress unnoticed; feed/social ~0%.",
+      "scenario": "CI has analyze+test only.",
+      "recommendation": "Hold-the-line coverage + higher floors for session/auth.",
+      "effort": "M",
+      "verification": "CI fails if coverage drops.",
+      "related": [
+        "DRAFT-TEST-001",
+        "F32"
+      ],
+      "standards": [
+        "Quality gates"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-TEST-002",
+      "title": "Feed and social essentially untested",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "Q",
+      "tags": [
+        "Testing"
+      ],
+      "locations": [
+        {
+          "path": "lib/features/feed",
+          "line": 1
+        },
+        {
+          "path": "lib/features/social",
+          "line": 1
+        }
+      ],
+      "impact": "Core social loops unguarded.",
+      "scenario": "lcov ~0% for feed/social.",
+      "recommendation": "Service + widget tests for post/follow/block.",
+      "effort": "L",
+      "verification": "Coverage floor for feed/social.",
+      "related": [
+        "DRAFT-TEST-002"
+      ],
+      "standards": [
+        "Test pyramid"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-TEST-003",
+      "title": "Zero Cloud Functions unit/emulator tests",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "Q",
+      "tags": [
+        "Testing",
+        "Functions"
+      ],
+      "locations": [
+        {
+          "path": "functions/package.json",
+          "line": 1
+        }
+      ],
+      "impact": "R16-class regressions can recur silently.",
+      "scenario": "No functions test script.",
+      "recommendation": "Add unit + emulator suite; gate deploy.",
+      "effort": "L",
+      "verification": "npm test --prefix functions green in CI.",
+      "related": [
+        "DRAFT-TEST-003",
+        "REC-21"
+      ],
+      "standards": [
+        "CF testing"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Node unit tests for push_copy + CI npm test gate; contracts remain for path coverage. Emulator suite still optional follow-up."
+    },
+    {
+      "id": "Z-TEST-004",
+      "title": "Storage rules lack emulator behavioral suite",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "Q",
+      "tags": [
+        "Testing",
+        "Storage"
+      ],
+      "locations": [
+        {
+          "path": "firebase/storage.rules",
+          "line": 1
+        }
+      ],
+      "impact": "ACL regressions only caught by string contracts.",
+      "scenario": "No test/rules/*storage*.",
+      "recommendation": "Add storage emulator allow/deny suite.",
+      "effort": "M",
+      "verification": "npm storage rules tests in CI.",
+      "related": [
+        "DRAFT-TEST-004",
+        "DRAFT-SEC-006",
+        "REC-06",
+        "F09"
+      ],
+      "standards": [
+        "Firebase testing"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-CI-001",
+      "title": "Flutter pin 3.38.9 vs local 3.44.4 / SDK ^3.12.2",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "R",
+      "tags": [
+        "CI",
+        "Toolchain"
+      ],
+      "locations": [
+        {
+          "path": ".github/workflows/flutter-ci.yml",
+          "line": 1
+        },
+        {
+          "path": "codemagic.yaml",
+          "line": 8
+        },
+        {
+          "path": "pubspec.yaml",
+          "line": 7
+        }
+      ],
+      "impact": "CI≠dev builds; subtle breakage.",
+      "scenario": "Compare flutter --version local vs CI pin.",
+      "recommendation": "Single pin (FVM/asdf) shared by CI and docs.",
+      "effort": "S",
+      "verification": "CI and README pin match.",
+      "related": [
+        "DRAFT-CI-001",
+        "DRAFT-AND-001",
+        "DRAFT-DEP-001",
+        "F04"
+      ],
+      "standards": [
+        "Reproducible builds"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-CI-002",
+      "title": "Dual pipelines GHA + Codemagic drift risk",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "R",
+      "tags": [
+        "CI"
+      ],
+      "locations": [
+        {
+          "path": ".github/workflows/flutter-ci.yml",
+          "line": 1
+        },
+        {
+          "path": "codemagic.yaml",
+          "line": 1
+        }
+      ],
+      "impact": "Gates diverge; empty GHA history in audit env.",
+      "scenario": "Compare job matrices.",
+      "recommendation": "One source of truth for gates; confirm Actions enabled.",
+      "effort": "M",
+      "verification": "Required checks documented.",
+      "related": [
+        "DRAFT-CI-002",
+        "REC-20"
+      ],
+      "standards": [
+        "CI hygiene"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-CI-003",
+      "title": "Release builds omit obfuscation; Firebase config injection unclear on GHA",
+      "severity": "High",
+      "confidence": "Probable",
+      "domain": "R",
+      "tags": [
+        "CI",
+        "Release"
+      ],
+      "locations": [
+        {
+          "path": ".github/workflows/flutter-ci.yml",
+          "line": 1
+        }
+      ],
+      "impact": "Easier reverse engineering; wrong Firebase project risk.",
+      "scenario": "Inspect release job flags and secret injection.",
+      "recommendation": "Add --obfuscate --split-debug-info; explicit firebase options injection.",
+      "effort": "M",
+      "verification": "Release artifact has obfuscation symbols uploaded.",
+      "related": [
+        "DRAFT-CI-003",
+        "DRAFT-PERF-007",
+        "F10"
+      ],
+      "standards": [
+        "Release hardening"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-CI-004",
+      "title": "deploy-firebase-rules has no analyze needs and no emulator gate",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "R",
+      "tags": [
+        "CI",
+        "Firebase"
+      ],
+      "locations": [
+        {
+          "path": ".github/workflows/flutter-ci.yml",
+          "line": 1
+        }
+      ],
+      "impact": "Broken rules can deploy without tests.",
+      "scenario": "Read workflow needs for deploy-firebase-rules.",
+      "recommendation": "needs: analyze + rules emulator job.",
+      "effort": "S",
+      "verification": "Workflow YAML assert.",
+      "related": [
+        "DRAFT-CI-004"
+      ],
+      "standards": [
+        "Safe deploy"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-OBS-001",
+      "title": "No Firebase Performance / field traces",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "S",
+      "tags": [
+        "Observability"
+      ],
+      "locations": [
+        {
+          "path": "lib",
+          "line": 1
+        }
+      ],
+      "impact": "Cannot measure join latency/startup in production.",
+      "scenario": "No firebase_performance usage.",
+      "recommendation": "Add traces for startup, join, resume; dashboards.",
+      "effort": "M",
+      "verification": "Console shows traces from staging.",
+      "related": [
+        "DRAFT-OBS-001",
+        "DRAFT-PERF-003"
+      ],
+      "standards": [
+        "Firebase Performance"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-OBS-002",
+      "title": "Dual analytics pipelines without ops budget/alerts",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "S",
+      "tags": [
+        "Observability",
+        "Cost"
+      ],
+      "locations": [
+        {
+          "path": "lib/services/session_analytics_service.dart",
+          "line": 1
+        }
+      ],
+      "impact": "Cost/duplication; silent job failures possible.",
+      "scenario": "GA4 + Firestore analytics writes.",
+      "recommendation": "Pick primary; budgets/alerts; heartbeat for schedules.",
+      "effort": "M",
+      "verification": "Budget alert + schedule heartbeat.",
+      "related": [
+        "DRAFT-OBS-002",
+        "DRAFT-OBS-006"
+      ],
+      "standards": [
+        "SRE"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-OBS-003",
+      "title": "No forced-update / minimum supported version",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "S",
+      "tags": [
+        "Observability",
+        "Release"
+      ],
+      "locations": [
+        {
+          "path": "lib",
+          "line": 1
+        }
+      ],
+      "impact": "Cannot force clients off broken builds.",
+      "scenario": "No remote min-version gate.",
+      "recommendation": "Remote Config minVersion + blocking dialog.",
+      "effort": "S",
+      "verification": "Staging force-update dialog.",
+      "related": [
+        "DRAFT-OBS-003"
+      ],
+      "standards": [
+        "Release safety"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-DEP-001",
+      "title": "Play/Apple/CocoaPods deadline calendar",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "T",
+      "tags": [
+        "Dependencies",
+        "Platform"
+      ],
+      "locations": [
+        {
+          "path": "ios",
+          "line": 1
+        },
+        {
+          "path": "android",
+          "line": 1
+        }
+      ],
+      "impact": "Missed SDK/target deadlines block store submission.",
+      "scenario": "Audit date 2026-09-17 vs Apple/Play/CocoaPods calendars.",
+      "recommendation": "Track deadlines in runbook; raise targets before cutover.",
+      "effort": "M",
+      "verification": "Checklist signed before release.",
+      "related": [
+        "DRAFT-DEP-002",
+        "Z-IOS-004"
+      ],
+      "standards": [
+        "Store requirements"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-DEP-002",
+      "title": "Functions firebase-admin major behind; 1 moderate qs advisory",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "T",
+      "tags": [
+        "Dependencies"
+      ],
+      "locations": [
+        {
+          "path": "functions/package.json",
+          "line": 1
+        }
+      ],
+      "impact": "Security/maintenance debt on backend.",
+      "scenario": "npm outdated / npm audit in baseline.",
+      "recommendation": "Upgrade admin; resolve qs; pin Node 22 in CI.",
+      "effort": "S",
+      "verification": "npm audit clean of known mod+.",
+      "related": [
+        "DRAFT-DEP-003",
+        "F29"
+      ],
+      "standards": [
+        "npm audit"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-PRV-001",
+      "title": "Personal-data inventory vs store declarations incomplete",
+      "severity": "High",
+      "confidence": "Probable",
+      "domain": "U",
+      "tags": [
+        "Privacy"
+      ],
+      "locations": [
+        {
+          "path": "ios/Runner/PrivacyInfo.xcprivacy",
+          "line": 1
+        },
+        {
+          "path": "docs/privacy-policy.md",
+          "line": 1
+        }
+      ],
+      "impact": "Store rejection / legal mismatch risk.",
+      "scenario": "Compare SDKs vs ASC/Play data safety forms.",
+      "recommendation": "Single inventory spreadsheet; sync PrivacyInfo + policies.",
+      "effort": "M",
+      "verification": "Owner-signed inventory.",
+      "related": [
+        "DRAFT-PRV-001",
+        "Z-IOS-003"
+      ],
+      "standards": [
+        "Play Data safety",
+        "ASC"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-PRV-002",
+      "title": "No in-app analytics/crash consent or data-export path",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "U",
+      "tags": [
+        "Privacy"
+      ],
+      "locations": [
+        {
+          "path": "lib/features/settings/presentation/privacy_settings_page.dart",
+          "line": 1
+        }
+      ],
+      "impact": "Consent/export gaps for GDPR/CCPA-style expectations.",
+      "scenario": "Privacy settings lack analytics toggle / export.",
+      "recommendation": "Consent toggles + callable export; document retention.",
+      "effort": "L",
+      "verification": "Export zip + consent persists.",
+      "related": [
+        "DRAFT-PRV-002",
+        "DRAFT-OBS-007"
+      ],
+      "standards": [
+        "GDPR"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Consent toggles + DataExportService shipped earlier in audit-closure stack."
+    },
+    {
+      "id": "Z-PRV-003",
+      "title": "Policy/docs vs in-app legal pages drift; Meta omitted",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "U",
+      "tags": [
+        "Privacy",
+        "Docs"
+      ],
+      "locations": [
+        {
+          "path": "lib/features/settings/presentation/privacy_policy_page.dart",
+          "line": 1
+        },
+        {
+          "path": "docs/privacy-policy.md",
+          "line": 1
+        }
+      ],
+      "impact": "Users/reviewers see inconsistent legal claims.",
+      "scenario": "Diff docs vs in-app vs store.",
+      "recommendation": "Single-source legal markdown generated into app.",
+      "effort": "M",
+      "verification": "Parity test hash of legal strings.",
+      "related": [
+        "DRAFT-PRV-003",
+        "DRAFT-DOC-001"
+      ],
+      "standards": [
+        "Transparency"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-PRV-004",
+      "title": "Voice notes & photo EXIF/GPS stripping not proven",
+      "severity": "High",
+      "confidence": "Probable",
+      "domain": "U",
+      "tags": [
+        "Privacy",
+        "Media"
+      ],
+      "locations": [
+        {
+          "path": "lib/services/post_service.dart",
+          "line": 1
+        }
+      ],
+      "impact": "Location leak via media metadata.",
+      "scenario": "Upload GPS-tagged photo; download; inspect EXIF.",
+      "recommendation": "Strip EXIF server or client; test fixture.",
+      "effort": "M",
+      "verification": "Fixture assert no GPS after upload.",
+      "related": [
+        "DRAFT-PRV-004",
+        "DRAFT-SOC-005"
+      ],
+      "standards": [
+        "Privacy"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-DOC-001",
+      "title": "CLAUDE.md / AGENTS.md stale truncated navigation contract",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "V",
+      "tags": [
+        "Docs",
+        "Agent"
+      ],
+      "locations": [
+        {
+          "path": "CLAUDE.md",
+          "line": 1
+        },
+        {
+          "path": "AGENTS.md",
+          "line": 1
+        }
+      ],
+      "impact": "Agents navigate wrong specs; wiki missing.",
+      "scenario": "CLAUDE ends mid-sentence; AGENTS points at 004 not 007.",
+      "recommendation": "Repair markers; regenerate graphify wiki.",
+      "effort": "XS",
+      "verification": "Markers point at 007; wiki index exists.",
+      "related": [
+        "DRAFT-DOC-002",
+        "REC-24",
+        "Lead 24"
+      ],
+      "standards": [
+        "Agent DX"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-REPO-001",
+      "title": "Tracked unsupported platforms + migration noise + agent lockfiles",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "W",
+      "tags": [
+        "Repository"
+      ],
+      "locations": [
+        {
+          "path": "linux",
+          "line": 1
+        },
+        {
+          "path": "macos",
+          "line": 1
+        }
+      ],
+      "impact": "Noise and false platform support.",
+      "scenario": "git ls-files linux macos; skills-lock tracked.",
+      "recommendation": "Prune unsupported platforms or document; ignore agent lock churn.",
+      "effort": "M",
+      "verification": "Supported-platforms ADR.",
+      "related": [
+        "DRAFT-REPO-001",
+        "Z-PLAT-001"
+      ],
+      "standards": [
+        "Repo hygiene"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-REPO-002",
+      "title": "Multiple stale worktrees and claude/* branches",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "W",
+      "tags": [
+        "Repository"
+      ],
+      "locations": [
+        {
+          "path": ".claude/worktrees",
+          "line": 1
+        }
+      ],
+      "impact": "Gitlink pollution; clone confusion.",
+      "scenario": "git ls-files -s shows 160000 under worktrees.",
+      "recommendation": "Remove gitlinks; ignore; prune stale branches.",
+      "effort": "S",
+      "verification": "No 160000 worktree entries.",
+      "related": [
+        "DRAFT-REPO-002",
+        "REC-19",
+        "Lead 17"
+      ],
+      "standards": [
+        "Git hygiene"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-SEC-004",
+      "title": "Storage profile photos readable by any authenticated user",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "domain": "A",
+      "tags": [
+        "Security",
+        "Storage"
+      ],
+      "locations": [
+        {
+          "path": "firebase/storage.rules",
+          "line": 84
+        }
+      ],
+      "impact": "Private-account photo downloadable if path known.",
+      "scenario": "GET profilePhotos/{uid}/… as non-follower.",
+      "recommendation": "Mirror profile ACL or document public avatars.",
+      "effort": "M",
+      "verification": "Storage emulator ACL test.",
+      "related": [
+        "DRAFT-SEC-005"
+      ],
+      "standards": [
+        "Storage ACL"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-SEC-005",
+      "title": "Unbounded reports/analytics client creates",
+      "severity": "Medium",
+      "confidence": "Probable",
+      "domain": "A",
+      "tags": [
+        "Security",
+        "Cost"
+      ],
+      "locations": [
+        {
+          "path": "firebase/firestore.rules",
+          "line": 1
+        }
+      ],
+      "impact": "Spam/cost amplification.",
+      "scenario": "Flood reports collection.",
+      "recommendation": "Rate limit / App Check / server create.",
+      "effort": "M",
+      "verification": "Emulator flood deny.",
+      "related": [
+        "DRAFT-SEC-010"
+      ],
+      "standards": [
+        "Cost abuse"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-SEC-006",
+      "title": "Engagement counters writable by post authors",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "domain": "A",
+      "tags": [
+        "Security"
+      ],
+      "locations": [
+        {
+          "path": "firebase/firestore.rules",
+          "line": 1
+        }
+      ],
+      "impact": "Authors can fake engagement.",
+      "scenario": "Author bumps reactionCounts.",
+      "recommendation": "Server increments only.",
+      "effort": "M",
+      "verification": "Rules deny client counter bumps.",
+      "related": [
+        "DRAFT-SEC-011"
+      ],
+      "standards": [
+        "Integrity"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-DATA-004",
+      "title": "Session expiry leaves orphaned subcollections",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "domain": "B",
+      "tags": [
+        "Lifecycle",
+        "Cost"
+      ],
+      "locations": [
+        {
+          "path": "functions/index.js",
+          "line": 775
+        }
+      ],
+      "impact": "Orphan events/presence/plans cost.",
+      "scenario": "Expire session; subcollections remain.",
+      "recommendation": "Recursive cleanup or TTL.",
+      "effort": "M",
+      "verification": "Staging expiry empties subs.",
+      "related": [
+        "DRAFT-DATA-004",
+        "DRAFT-RT-008"
+      ],
+      "standards": [
+        "TTL"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-FN-004",
+      "title": "Live push path only contract-tested",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "domain": "C",
+      "tags": [
+        "Functions"
+      ],
+      "locations": [
+        {
+          "path": "functions/index.js",
+          "line": 639
+        }
+      ],
+      "impact": "Deployed push behavior unverified.",
+      "scenario": "No HTTPS smoke.",
+      "recommendation": "Staging smoke with App Check.",
+      "effort": "S",
+      "verification": "Smoke log artifact.",
+      "related": [
+        "DRAFT-FN-004",
+        "REC-02"
+      ],
+      "standards": [
+        "Integration"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-FN-005",
+      "title": "Joint post Storage media not cleaned on full removal",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "domain": "C",
+      "tags": [
+        "Functions",
+        "Storage"
+      ],
+      "locations": [
+        {
+          "path": "functions/index.js",
+          "line": 1
+        }
+      ],
+      "impact": "Orphan media cost/privacy.",
+      "scenario": "Remove both slots; Storage remains.",
+      "recommendation": "Delete Storage prefix on cleanup.",
+      "effort": "S",
+      "verification": "Staging Storage empty.",
+      "related": [
+        "DRAFT-FN-005"
+      ],
+      "standards": [
+        "Storage lifecycle"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-RT-005",
+      "title": "pause/resume not host-gated",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "domain": "D",
+      "tags": [
+        "Live session"
+      ],
+      "locations": [
+        {
+          "path": "lib/services/session_service.dart",
+          "line": 1
+        }
+      ],
+      "impact": "Partner can pause session.",
+      "scenario": "Non-host pauseSession.",
+      "recommendation": "Host-only gate in service+rules.",
+      "effort": "S",
+      "verification": "Rules deny non-host pause.",
+      "related": [
+        "DRAFT-RT-007"
+      ],
+      "standards": [
+        "AuthZ"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-AUTH-005",
+      "title": "Auth session cache stores email/PII in SharedPreferences",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "domain": "E",
+      "tags": [
+        "Auth"
+      ],
+      "locations": [
+        {
+          "path": "lib/features/auth",
+          "line": 1
+        }
+      ],
+      "impact": "PII at rest in prefs.",
+      "scenario": "Inspect prefs after login.",
+      "recommendation": "Encrypt or minimize fields.",
+      "effort": "S",
+      "verification": "No email in prefs.",
+      "related": [
+        "DRAFT-AUTH-006"
+      ],
+      "standards": [
+        "Storage"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Auth disk cache omits email/photoUrl (toCacheJson)."
+    },
+    {
+      "id": "Z-SOC-003",
+      "title": "Blocking weak on leaderboard / some lists",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "domain": "F",
+      "tags": [
+        "Social"
+      ],
+      "locations": [
+        {
+          "path": "lib/services/leaderboard_service.dart",
+          "line": 1
+        }
+      ],
+      "impact": "Blocked users still visible in some surfaces.",
+      "scenario": "Block then open leaderboard.",
+      "recommendation": "Apply block filter consistently.",
+      "effort": "M",
+      "verification": "Blocked uid absent.",
+      "related": [
+        "DRAFT-SOC-004"
+      ],
+      "standards": [
+        "Safety"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Leaderboard providers filter blockedUserIdsProvider (Z-SOC-003)."
+    },
+    {
+      "id": "Z-CODE-001",
+      "title": "Result unused outside auth; soft analyzer; no Riverpod.select",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "domain": "G",
+      "tags": [
+        "Code quality"
+      ],
+      "locations": [
+        {
+          "path": "lib",
+          "line": 1
+        }
+      ],
+      "impact": "Inconsistent error handling; over-rebuilds.",
+      "scenario": "264 catch sites; 0 .select.",
+      "recommendation": "Adopt Result; riverpod_lint; .select on hot providers.",
+      "effort": "L",
+      "verification": "Lint gates.",
+      "related": [
+        "DRAFT-CODE-001",
+        "DRAFT-CODE-002",
+        "DRAFT-CODE-003"
+      ],
+      "standards": [
+        "DX"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Incremental: authCurrentUserIdProvider.select, FollowService.tryFollowUser Result, CODE_QUALITY ADR, unawaited_futures lint. Full Result/riverpod_lint campaign remains optional follow-up.",
+      "closed_in": "091-code-result-select-slice"
+    },
+    {
+      "id": "Z-UI-002",
+      "title": "Raw Colors/hex bypass theme; onboarding friction; weak leave protection",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "domain": "H",
+      "tags": [
+        "UI"
+      ],
+      "locations": [
+        {
+          "path": "lib",
+          "line": 1
+        }
+      ],
+      "impact": "Theme drift; long onboarding; accidental leave.",
+      "scenario": "Grep Color(0x; onboarding length.",
+      "recommendation": "Token-only lint; shorten onboarding; PopScope on live room.",
+      "effort": "M",
+      "verification": "Lint + PopScope test.",
+      "related": [
+        "DRAFT-UI-001",
+        "DRAFT-UI-004",
+        "DRAFT-UI-005"
+      ],
+      "standards": [
+        "Design system"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "DEP runbook + no Dynamic Links; PopScope leave guard + THEME_TOKENS.md."
+    },
+    {
+      "id": "Z-A11Y-005",
+      "title": "No automated a11y guideline tests; contrast risk; voice no transcript",
+      "severity": "Medium",
+      "confidence": "Probable",
+      "domain": "I",
+      "tags": [
+        "Accessibility"
+      ],
+      "locations": [
+        {
+          "path": "test",
+          "line": 1
+        }
+      ],
+      "impact": "Regressions and color-only meaning.",
+      "scenario": "No textContrastGuideline suite.",
+      "recommendation": "Guideline tests; transcripts optional.",
+      "effort": "M",
+      "verification": "CI a11y job.",
+      "related": [
+        "DRAFT-A11Y-006",
+        "DRAFT-A11Y-007",
+        "DRAFT-A11Y-009"
+      ],
+      "standards": [
+        "WCAG"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "guideline_smoke_test + CI step; J1-J7 campaign remains incremental."
+    },
+    {
+      "id": "Z-I18N-004",
+      "title": "No locale-aware numbers; timeago default; platform locale incomplete",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "domain": "J",
+      "tags": [
+        "i18n"
+      ],
+      "locations": [
+        {
+          "path": "lib",
+          "line": 1
+        }
+      ],
+      "impact": "Arabic formatting wrong.",
+      "scenario": "ar locale numbers/timeago.",
+      "recommendation": "intl NumberFormat; setLocaleMessages; values-ar.",
+      "effort": "M",
+      "verification": "ar golden.",
+      "related": [
+        "DRAFT-I18N-004",
+        "DRAFT-I18N-005"
+      ],
+      "standards": [
+        "intl"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "LocaleFormat + Ar timeago registered; feed/notifications use relative helper."
+    },
+    {
+      "id": "Z-PERF-003",
+      "title": "Startup serializes Firebase before runApp; images lack decode size; no obfuscation",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "domain": "K",
+      "tags": [
+        "Performance"
+      ],
+      "locations": [
+        {
+          "path": "lib/main.dart",
+          "line": 47
+        }
+      ],
+      "impact": "Slower cold start; memory; reverse-eng.",
+      "scenario": "Trace main before runApp.",
+      "recommendation": "Defer more; memCacheWidth; release obfuscate.",
+      "effort": "M",
+      "verification": "Startup budget.",
+      "related": [
+        "DRAFT-PERF-004",
+        "DRAFT-PERF-005",
+        "DRAFT-PERF-007"
+      ],
+      "standards": [
+        "Startup"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "ImageDecodeBudget + memCacheWidth on feed/post cards; Firebase-before-runApp deferral left as larger follow-up."
+    },
+    {
+      "id": "Z-OFF-003",
+      "title": "No queue size cap; retries include non-retryable; connectivity = interface",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "domain": "L",
+      "tags": [
+        "Offline"
+      ],
+      "locations": [
+        {
+          "path": "lib/utils/offline_manager.dart",
+          "line": 1
+        }
+      ],
+      "impact": "Unbounded queue / useless retries / false online.",
+      "scenario": "Fill queue offline.",
+      "recommendation": "Cap; classify errors; real reachability probe.",
+      "effort": "M",
+      "verification": "Cap test.",
+      "related": [
+        "DRAFT-OFF-003",
+        "DRAFT-OFF-004",
+        "DRAFT-OFF-005"
+      ],
+      "standards": [
+        "Resilience"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in 073 (queue cap/non-retryable; resume_timing_test)."
+    },
+    {
+      "id": "Z-NOTIF-003",
+      "title": "Device docs omit version/locale; preference gaps; god notification_service",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "domain": "M",
+      "tags": [
+        "Notifications"
+      ],
+      "locations": [
+        {
+          "path": "lib/services/notification_service.dart",
+          "line": 1
+        }
+      ],
+      "impact": "Hard to localize/target; change risk.",
+      "scenario": "Inspect devices docs.",
+      "recommendation": "Write version/locale; split service; preference keys.",
+      "effort": "M",
+      "verification": "Device schema test.",
+      "related": [
+        "DRAFT-NOTIF-004",
+        "DRAFT-NOTIF-005",
+        "DRAFT-NOTIF-007"
+      ],
+      "standards": [
+        "Ops"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Device docs write locale + appVersion on savePushToken; god-file split still optional."
+    },
+    {
+      "id": "Z-AND-004",
+      "title": "Facebook strings committed; App Check channel in MainActivity; 16KB unverified",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "domain": "N",
+      "tags": [
+        "Android"
+      ],
+      "locations": [
+        {
+          "path": "android/app/src/main/res/values/strings.xml",
+          "line": 1
+        }
+      ],
+      "impact": "Client token exposure; debug channel risk; page-size readiness.",
+      "scenario": "strings.xml Facebook*; MainActivity MethodChannel.",
+      "recommendation": "Move secrets; flavor-gate debug; verify 16KB.",
+      "effort": "M",
+      "verification": "Manifest/flavor review.",
+      "related": [
+        "DRAFT-AND-005",
+        "DRAFT-AND-006",
+        "DRAFT-AND-007"
+      ],
+      "standards": [
+        "Android"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "CLIENT_SECRETS.md + REPO_HYGIENE .codex policy; FB IDs remain public client config."
+    },
+    {
+      "id": "Z-IOS-006",
+      "title": "Background fetch mode; AppDelegate presentation; ATT/export keys",
+      "severity": "Medium",
+      "confidence": "Probable",
+      "domain": "O",
+      "tags": [
+        "iOS"
+      ],
+      "locations": [
+        {
+          "path": "ios/Runner/Info.plist",
+          "line": 1
+        }
+      ],
+      "impact": "Review/battery/compliance friction.",
+      "scenario": "Info.plist UIBackgroundModes fetch.",
+      "recommendation": "Justify or remove fetch; configure presentation; ATT if needed.",
+      "effort": "M",
+      "verification": "Review checklist.",
+      "related": [
+        "DRAFT-IOS-006",
+        "DRAFT-IOS-007",
+        "DRAFT-IOS-008"
+      ],
+      "standards": [
+        "App Review"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Removed UIBackgroundModes fetch; AppDelegate sets UNUserNotificationCenter delegate. ATT not required (no tracking)."
+    },
+    {
+      "id": "Z-TEST-005",
+      "title": "Brittle contract tests; no goldens; integration not CI-gated",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "domain": "Q",
+      "tags": [
+        "Testing"
+      ],
+      "locations": [
+        {
+          "path": "test",
+          "line": 1
+        }
+      ],
+      "impact": "False confidence; visual/i18n gaps.",
+      "scenario": "27 contract_test files.",
+      "recommendation": "Triage contracts; goldens; gate integration.",
+      "effort": "L",
+      "verification": "CI jobs.",
+      "related": [
+        "DRAFT-TEST-005",
+        "DRAFT-TEST-006",
+        "DRAFT-TEST-007"
+      ],
+      "standards": [
+        "QA"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "TESTING.md triage + dispatch-only integration-smoke job + first signal golden. Full golden suite and always-on device gate remain follow-ups.",
+      "closed_in": "092-test-contract-harden"
+    },
+    {
+      "id": "Z-CI-005",
+      "title": "No coverage/SHA pins; Codemagic publish always; bash on Windows repo; branch mess",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "domain": "R",
+      "tags": [
+        "CI"
+      ],
+      "locations": [
+        {
+          "path": ".github/workflows/flutter-ci.yml",
+          "line": 1
+        }
+      ],
+      "impact": "Supply-chain and process risk.",
+      "scenario": "Workflow review.",
+      "recommendation": "Pin actions; coverage; clarify publish; PowerShell scripts; clean branches.",
+      "effort": "M",
+      "verification": "Workflow PR.",
+      "related": [
+        "DRAFT-CI-005",
+        "DRAFT-CI-006",
+        "DRAFT-CI-007",
+        "DRAFT-CI-008"
+      ],
+      "standards": [
+        "CI"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "CI.md documents SHA-pin guidance, Windows/PowerShell note, Codemagic draft/TestFlight publish restraint."
+    },
+    {
+      "id": "Z-OBS-004",
+      "title": "Crashlytics scrub breadth; few runtime flags; no schedule alerts",
+      "severity": "Medium",
+      "confidence": "Probable",
+      "domain": "S",
+      "tags": [
+        "Observability"
+      ],
+      "locations": [
+        {
+          "path": "lib/utils/global_error_handler.dart",
+          "line": 69
+        }
+      ],
+      "impact": "PII in crashes; hard kill-switch coverage; silent jobs.",
+      "scenario": "Review scrub; flags.",
+      "recommendation": "Scrub audit; Remote Config flags; heartbeat alerts.",
+      "effort": "M",
+      "verification": "Alert dry-run.",
+      "related": [
+        "DRAFT-OBS-004",
+        "DRAFT-OBS-005",
+        "DRAFT-OBS-006",
+        "REC-03"
+      ],
+      "standards": [
+        "SRE"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Heartbeat alert runbook + Crashlytics scrub posture in ANALYTICS.md; scrubForReport already live."
+    },
+    {
+      "id": "Z-DEP-003",
+      "title": "Dart majors behind; API hotspots; niche packages; Dynamic Links residual check",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "domain": "T",
+      "tags": [
+        "Dependencies"
+      ],
+      "locations": [
+        {
+          "path": "pubspec.yaml",
+          "line": 1
+        }
+      ],
+      "impact": "Upgrade debt and dead SDK risk.",
+      "scenario": "pub outdated.",
+      "recommendation": "Staged upgrades; remove Dynamic Links leftovers.",
+      "effort": "M",
+      "verification": "outdated triage.",
+      "related": [
+        "DRAFT-DEP-004",
+        "DRAFT-DEP-005",
+        "DRAFT-DEP-006",
+        "DRAFT-DEP-007"
+      ],
+      "standards": [
+        "Deps"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "DEP runbook + no Dynamic Links; PopScope leave guard + THEME_TOKENS.md."
+    },
+    {
+      "id": "Z-PRV-005",
+      "title": "Deletion completeness NV; presence controls unclear; Facebook token in resources",
+      "severity": "Medium",
+      "confidence": "Needs verification",
+      "domain": "U",
+      "tags": [
+        "Privacy"
+      ],
+      "locations": [
+        {
+          "path": "functions/index.js",
+          "line": 1002
+        }
+      ],
+      "impact": "Residual data / presence overshare / client token.",
+      "scenario": "Delete account checklist.",
+      "recommendation": "Complete cleanup; presence privacy; remove token from strings.",
+      "effort": "M",
+      "verification": "Owner verify.",
+      "related": [
+        "DRAFT-PRV-005",
+        "DRAFT-PRV-006",
+        "DRAFT-PRV-007"
+      ],
+      "standards": [
+        "Privacy"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "DATA_INVENTORY documents presence scope + cleanupDeletedUser; FB client token treated as public client config."
+    },
+    {
+      "id": "Z-DOC-002",
+      "title": "Spec Kit hygiene; missing ADRs/runbooks; CHANGELOG placeholder",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "domain": "V",
+      "tags": [
+        "Docs"
+      ],
+      "locations": [
+        {
+          "path": "CHANGELOG.md",
+          "line": 1
+        }
+      ],
+      "impact": "Process debt.",
+      "scenario": "Duplicate 001- specs; CHANGELOG 2026-01-XX.",
+      "recommendation": "ADR set; runbooks; real changelog.",
+      "effort": "M",
+      "verification": "Docs PR.",
+      "related": [
+        "DRAFT-DOC-003",
+        "DRAFT-DOC-004",
+        "DRAFT-DOC-006"
+      ],
+      "standards": [
+        "Process"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "CHANGELOG Unreleased filled; ADRs/runbooks added in 047–067 stack."
+    },
+    {
+      "id": "Z-REPO-003",
+      "title": "Large binaries in history; .codex force-tracked; ignore gaps; format drift",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "domain": "W",
+      "tags": [
+        "Repository"
+      ],
+      "locations": [
+        {
+          "path": ".gitignore",
+          "line": 1
+        }
+      ],
+      "impact": "Clone bloat and secret-adjacent noise.",
+      "scenario": "git status / history sizes.",
+      "recommendation": "Git LFS or compress; ignore policy; format campaign separate.",
+      "effort": "M",
+      "verification": "Hygiene PR.",
+      "related": [
+        "DRAFT-REPO-003",
+        "DRAFT-REPO-004",
+        "DRAFT-REPO-005",
+        "DRAFT-REPO-008"
+      ],
+      "standards": [
+        "Git"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "CLIENT_SECRETS.md + REPO_HYGIENE .codex policy; FB IDs remain public client config."
+    },
+    {
+      "id": "Z-JOURNEY-001",
+      "title": "Invite-code get is any-authenticated without rate limit",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "domain": "A",
+      "tags": [
+        "Abuse",
+        "Invites"
+      ],
+      "locations": [
+        {
+          "path": "firebase/firestore.rules",
+          "line": 643
+        }
+      ],
+      "impact": "Authenticated probing of invite codes.",
+      "scenario": "get inviteCodes/{code} as stranger.",
+      "recommendation": "High-entropy codes; rate limit redeem; App Check.",
+      "effort": "M",
+      "verification": "Abuse emulator case.",
+      "related": [
+        "DRAFT-JOURNEY-001"
+      ],
+      "standards": [
+        "Abuse"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-REPO-004",
+      "title": "007 cutover blocked: T054 device gate open",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "W",
+      "tags": [
+        "Branch",
+        "007"
+      ],
+      "locations": [
+        {
+          "path": "specs/007-resume-active-session/tasks.md",
+          "line": 1
+        }
+      ],
+      "impact": "Cannot merge/cutover resume feature without handset verification.",
+      "scenario": "tasks.md T054 unchecked.",
+      "recommendation": "Run physical quickstart; attach evidence.",
+      "effort": "S",
+      "verification": "T054 checked with device log.",
+      "related": [
+        "T054",
+        "REC-25",
+        "BR"
+      ],
+      "standards": [
+        "Constitution"
+      ],
+      "status": "deferred",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Still deferred pending physical T054. Owner runbook shipped in 094: docs/T054_DEVICE_GATE.md + tasks.md pointer. Close only with evidence packet."
+    },
+    {
+      "id": "Z-REPO-005",
+      "title": "SC-002 wall-clock ≤2s evidence missing (resume_timing_test absent)",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "W",
+      "tags": [
+        "Branch",
+        "007"
+      ],
+      "locations": [
+        {
+          "path": "specs/007-resume-active-session",
+          "line": 1
+        }
+      ],
+      "impact": "Constitution II merge gate incomplete.",
+      "scenario": "resume_timing_test.dart absent from history.",
+      "recommendation": "Add timing test or renegotiate SC-002 measurement.",
+      "effort": "M",
+      "verification": "Test or ADR amendment.",
+      "related": [
+        "BR-001",
+        "SC-002"
+      ],
+      "standards": [
+        "Constitution II"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in 073 (queue cap/non-retryable; resume_timing_test)."
+    },
+    {
+      "id": "Z-REPO-006",
+      "title": "Dirty working tree ≠ HEAD (~98 files) including resume/rules/functions",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "W",
+      "tags": [
+        "Branch"
+      ],
+      "locations": [
+        {
+          "path": "build/audit-work/branch-readiness.md",
+          "line": 1
+        }
+      ],
+      "impact": "Risk of shipping WIP as “current” or losing audit surface clarity.",
+      "scenario": "git status dirty vs origin/007.",
+      "recommendation": "Park/discard/review WT before merge; do not ship workspace as HEAD.",
+      "effort": "S",
+      "verification": "Clean WT or dedicated branch for WIP.",
+      "related": [
+        "BR-002"
+      ],
+      "standards": [
+        "Release hygiene"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Audit-closure stack uses intentional stacked feature branches (064+); not accidental dirty WT vs main. Merge via PR when ready."
+    },
+    {
+      "id": "Z-REPO-007",
+      "title": "expireStaleSessions + session indexes deploy unverified",
+      "severity": "High",
+      "confidence": "Needs verification",
+      "domain": "W",
+      "tags": [
+        "Branch",
+        "Ops"
+      ],
+      "locations": [
+        {
+          "path": "functions/index.js",
+          "line": 775
+        },
+        {
+          "path": "firebase/firestore.indexes.json",
+          "line": 1
+        }
+      ],
+      "impact": "Resume expiry may not run in prod.",
+      "scenario": "Owner must verify deployed functions/indexes.",
+      "recommendation": "Owner confirm deploy; staging schedule evidence.",
+      "effort": "XS",
+      "verification": "Console screenshot / firebase functions:list.",
+      "related": [
+        "BR-003",
+        "REC-11"
+      ],
+      "standards": [
+        "Ops"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "expireStaleSessions deployed with presence/plans cleanup in stack 062."
+    },
+    {
+      "id": "Z-SEC-007",
+      "title": "Dead deny-all pushQueue/pushTokens rules",
+      "severity": "Low",
+      "confidence": "Confirmed",
+      "domain": "A",
+      "tags": [
+        "Hygiene"
+      ],
+      "locations": [
+        {
+          "path": "firebase/firestore.rules",
+          "line": 689
+        }
+      ],
+      "impact": "Dead rules confuse auditors.",
+      "scenario": "No producers in lib/functions.",
+      "recommendation": "Remove or document.",
+      "effort": "XS",
+      "verification": "Grep clean.",
+      "related": [
+        "DRAFT-SEC-008",
+        "REC-12"
+      ],
+      "standards": [],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closed_in": "089-low-xs-batch",
+      "closed_at": "2026-09-17",
+      "resolution_note": "Closed in 089-low-xs-batch: whereIn=30, heartbeat 30s, Dependabot, PASSWORD_POLICY, README->docs/CI.md, CORS/FCM comments, rules Z-SEC-007 note; Info items verified as checked."
+    },
+    {
+      "id": "Z-DATA-005",
+      "title": "whereIn chunked at outdated limit 10",
+      "severity": "Low",
+      "confidence": "Confirmed",
+      "domain": "B",
+      "tags": [
+        "Data"
+      ],
+      "locations": [
+        {
+          "path": "lib",
+          "line": 1
+        }
+      ],
+      "impact": "Extra round-trips.",
+      "scenario": "Chunk helper uses 10.",
+      "recommendation": "Raise to 30.",
+      "effort": "XS",
+      "verification": "Unit.",
+      "related": [
+        "DRAFT-DATA-007"
+      ],
+      "standards": [],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closed_in": "089-low-xs-batch",
+      "closed_at": "2026-09-17",
+      "resolution_note": "Closed in 089-low-xs-batch: whereIn=30, heartbeat 30s, Dependabot, PASSWORD_POLICY, README->docs/CI.md, CORS/FCM comments, rules Z-SEC-007 note; Info items verified as checked."
+    },
+    {
+      "id": "Z-FN-006",
+      "title": "CORS retained on native-first push endpoint",
+      "severity": "Low",
+      "confidence": "Confirmed",
+      "domain": "C",
+      "tags": [
+        "Functions"
+      ],
+      "locations": [
+        {
+          "path": "functions/index.js",
+          "line": 1
+        }
+      ],
+      "impact": "Unnecessary CORS surface.",
+      "scenario": "Inspect headers.",
+      "recommendation": "Drop if no web clients.",
+      "effort": "XS",
+      "verification": "Header assert.",
+      "related": [
+        "DRAFT-FN-010"
+      ],
+      "standards": [],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closed_in": "089-low-xs-batch",
+      "closed_at": "2026-09-17",
+      "resolution_note": "Closed in 089-low-xs-batch: whereIn=30, heartbeat 30s, Dependabot, PASSWORD_POLICY, README->docs/CI.md, CORS/FCM comments, rules Z-SEC-007 note; Info items verified as checked."
+    },
+    {
+      "id": "Z-RT-006",
+      "title": "No wakelock during active sets",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "domain": "D",
+      "tags": [
+        "UX"
+      ],
+      "locations": [
+        {
+          "path": "lib/features/session",
+          "line": 1
+        }
+      ],
+      "impact": "Screen sleeps mid-set.",
+      "scenario": "Idle during set.",
+      "recommendation": "Wakelock while active/rep.",
+      "effort": "S",
+      "verification": "Manual.",
+      "related": [
+        "DRAFT-RT-006",
+        "Z-ENH"
+      ],
+      "standards": [
+        "UX"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in 070 (wakelock / create-deny emulator)."
+    },
+    {
+      "id": "Z-AUTH-006",
+      "title": "Password policy relies on Firebase defaults",
+      "severity": "Low",
+      "confidence": "Needs verification",
+      "domain": "E",
+      "tags": [
+        "Auth"
+      ],
+      "locations": [
+        {
+          "path": "lib/features/auth",
+          "line": 1
+        }
+      ],
+      "impact": "Weak passwords possible.",
+      "scenario": "Try short password.",
+      "recommendation": "Document Firebase policy; optional strength meter.",
+      "effort": "XS",
+      "verification": "Console policy.",
+      "related": [
+        "DRAFT-AUTH-010"
+      ],
+      "standards": [],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closed_in": "089-low-xs-batch",
+      "closed_at": "2026-09-17",
+      "resolution_note": "Closed in 089-low-xs-batch: whereIn=30, heartbeat 30s, Dependabot, PASSWORD_POLICY, README->docs/CI.md, CORS/FCM comments, rules Z-SEC-007 note; Info items verified as checked."
+    },
+    {
+      "id": "Z-NOTIF-004",
+      "title": "Background handler no-op beyond Firebase init",
+      "severity": "Low",
+      "confidence": "Confirmed",
+      "domain": "M",
+      "tags": [
+        "Notifications"
+      ],
+      "locations": [
+        {
+          "path": "lib/services/notification_service.dart",
+          "line": 1
+        }
+      ],
+      "impact": "Limited background processing.",
+      "scenario": "Send data message background.",
+      "recommendation": "Document intentional no-op or handle.",
+      "effort": "S",
+      "verification": "Doc.",
+      "related": [
+        "DRAFT-NOTIF-008"
+      ],
+      "standards": [],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closed_in": "089-low-xs-batch",
+      "closed_at": "2026-09-17",
+      "resolution_note": "Closed in 089-low-xs-batch: whereIn=30, heartbeat 30s, Dependabot, PASSWORD_POLICY, README->docs/CI.md, CORS/FCM comments, rules Z-SEC-007 note; Info items verified as checked."
+    },
+    {
+      "id": "Z-PERF-004",
+      "title": "Heartbeat every 15s while session active",
+      "severity": "Low",
+      "confidence": "Confirmed",
+      "domain": "K",
+      "tags": [
+        "Cost"
+      ],
+      "locations": [
+        {
+          "path": "lib/services/session_service.dart",
+          "line": 1
+        }
+      ],
+      "impact": "Write amplification.",
+      "scenario": "Count presence writes.",
+      "recommendation": "Tune interval/solo damper.",
+      "effort": "S",
+      "verification": "Cost sheet.",
+      "related": [
+        "DRAFT-PERF-008",
+        "DRAFT-DATA-006"
+      ],
+      "standards": [],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closed_in": "089-low-xs-batch",
+      "closed_at": "2026-09-17",
+      "resolution_note": "Closed in 089-low-xs-batch: whereIn=30, heartbeat 30s, Dependabot, PASSWORD_POLICY, README->docs/CI.md, CORS/FCM comments, rules Z-SEC-007 note; Info items verified as checked."
+    },
+    {
+      "id": "Z-CI-006",
+      "title": "No Dependabot/Renovate / SBOM",
+      "severity": "Low",
+      "confidence": "Confirmed",
+      "domain": "R",
+      "tags": [
+        "CI"
+      ],
+      "locations": [
+        {
+          "path": ".github",
+          "line": 1
+        }
+      ],
+      "impact": "Stale deps.",
+      "scenario": "No dependabot.yml.",
+      "recommendation": "Enable Renovate.",
+      "effort": "S",
+      "verification": "PR bots.",
+      "related": [
+        "DRAFT-CI-009"
+      ],
+      "standards": [],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closed_in": "089-low-xs-batch",
+      "closed_at": "2026-09-17",
+      "resolution_note": "Closed in 089-low-xs-batch: whereIn=30, heartbeat 30s, Dependabot, PASSWORD_POLICY, README->docs/CI.md, CORS/FCM comments, rules Z-SEC-007 note; Info items verified as checked."
+    },
+    {
+      "id": "Z-DOC-003",
+      "title": "DEPLOYMENT_GUIDE/README accuracy NV vs dual CI",
+      "severity": "Low",
+      "confidence": "Needs verification",
+      "domain": "V",
+      "tags": [
+        "Docs"
+      ],
+      "locations": [
+        {
+          "path": "README.md",
+          "line": 1
+        }
+      ],
+      "impact": "Onboarding confusion.",
+      "scenario": "Diff docs vs workflows.",
+      "recommendation": "Refresh docs.",
+      "effort": "S",
+      "verification": "Doc review.",
+      "related": [
+        "DRAFT-DOC-008"
+      ],
+      "standards": [],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closed_in": "089-low-xs-batch",
+      "closed_at": "2026-09-17",
+      "resolution_note": "Closed in 089-low-xs-batch: whereIn=30, heartbeat 30s, Dependabot, PASSWORD_POLICY, README->docs/CI.md, CORS/FCM comments, rules Z-SEC-007 note; Info items verified as checked."
+    },
+    {
+      "id": "Z-SEC-008",
+      "title": "Moderator self-grant on create not emulator-covered",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "domain": "A",
+      "tags": [
+        "Security",
+        "Tests"
+      ],
+      "locations": [
+        {
+          "path": "test/rules/social.rules.test.mjs",
+          "line": 107
+        }
+      ],
+      "impact": "Update deny tested; create path gap.",
+      "scenario": "Create user with isModerator true.",
+      "recommendation": "Add create-deny emulator test.",
+      "effort": "XS",
+      "verification": "Test green.",
+      "related": [
+        "DRAFT-SEC-007",
+        "REC-04",
+        "F01"
+      ],
+      "standards": [],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in 070 (wakelock / create-deny emulator)."
+    },
+    {
+      "id": "Z-SEC-009",
+      "title": "History held .env client config keys (publishable)",
+      "severity": "Medium",
+      "confidence": "Confirmed",
+      "domain": "A",
+      "tags": [
+        "Security",
+        "History"
+      ],
+      "locations": [
+        {
+          "path": "test/app/env_exposure_contract_test.dart",
+          "line": 1
+        }
+      ],
+      "impact": "Historical client keys in git; rotation decision undocumented.",
+      "scenario": "git show 9b0cb32:.env names only.",
+      "recommendation": "Document rotation/API-key restrictions; optional history rewrite.",
+      "effort": "S",
+      "verification": "Owner decision recorded.",
+      "related": [
+        "REC-05",
+        "F05",
+        "F35",
+        "Lead 1"
+      ],
+      "standards": [],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "CLIENT_SECRETS.md + REPO_HYGIENE .codex policy; FB IDs remain public client config."
+    },
+    {
+      "id": "Z-AUTH-007",
+      "title": "Deep links dropped at auth redirect (no from restore)",
+      "severity": "High",
+      "confidence": "Confirmed",
+      "domain": "E",
+      "tags": [
+        "Auth",
+        "Navigation"
+      ],
+      "locations": [
+        {
+          "path": "lib/app",
+          "line": 1
+        }
+      ],
+      "impact": "Post-login users lose invite/session deep links.",
+      "scenario": "Open protected link while logged out → login → lands home.",
+      "recommendation": "Preserve redirect from query; resume after auth.",
+      "effort": "M",
+      "verification": "Router test restores from.",
+      "related": [
+        "F14",
+        "DRAFT"
+      ],
+      "standards": [
+        "Deep linking"
+      ],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closedAt": "2026-09-17",
+      "closureNote": "Shipped in audit-closure stack 013–067 (code/rules/functions/docs/contracts)."
+    },
+    {
+      "id": "Z-DATA-006",
+      "title": "Checked: Session Timestamp coercion and Android backup disabled",
+      "severity": "Info",
+      "confidence": "Confirmed",
+      "domain": "B",
+      "tags": [
+        "Checked"
+      ],
+      "locations": [
+        {
+          "path": "lib/core/models/models.dart",
+          "line": 1
+        }
+      ],
+      "impact": "Good defaults observed.",
+      "scenario": "N/A",
+      "recommendation": "Keep contracts.",
+      "effort": "XS",
+      "verification": "Existing tests.",
+      "related": [
+        "DRAFT-DATA-008",
+        "DRAFT-DATA-009"
+      ],
+      "standards": [],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closed_in": "089-low-xs-batch",
+      "closed_at": "2026-09-17",
+      "resolution_note": "Closed in 089-low-xs-batch: whereIn=30, heartbeat 30s, Dependabot, PASSWORD_POLICY, README->docs/CI.md, CORS/FCM comments, rules Z-SEC-007 note; Info items verified as checked."
+    },
+    {
+      "id": "Z-RT-007",
+      "title": "Checked: resume latch, kill switch, voice limits, presence design",
+      "severity": "Info",
+      "confidence": "Confirmed",
+      "domain": "D",
+      "tags": [
+        "Checked"
+      ],
+      "locations": [
+        {
+          "path": "lib/app",
+          "line": 1
+        }
+      ],
+      "impact": "007 resume plumbing present in tree.",
+      "scenario": "N/A",
+      "recommendation": "Complete T054/SC-002.",
+      "effort": "XS",
+      "verification": "Branch gates.",
+      "related": [
+        "DRAFT-RT-012",
+        "DRAFT-RT-013",
+        "DRAFT-RT-014"
+      ],
+      "standards": [],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closed_in": "089-low-xs-batch",
+      "closed_at": "2026-09-17",
+      "resolution_note": "Closed in 089-low-xs-batch: whereIn=30, heartbeat 30s, Dependabot, PASSWORD_POLICY, README->docs/CI.md, CORS/FCM comments, rules Z-SEC-007 note; Info items verified as checked."
+    },
+    {
+      "id": "Z-AUTH-008",
+      "title": "Apple Sign-In present; username privileged fields protected",
+      "severity": "Info",
+      "confidence": "Confirmed",
+      "domain": "E",
+      "tags": [
+        "Checked"
+      ],
+      "locations": [
+        {
+          "path": "lib/features/auth",
+          "line": 1
+        }
+      ],
+      "impact": "Guideline 4.8 path present; entitlement fields rule-protected.",
+      "scenario": "N/A",
+      "recommendation": "Keep tests.",
+      "effort": "XS",
+      "verification": "Existing.",
+      "related": [
+        "DRAFT-AUTH-011",
+        "DRAFT-AUTH-012"
+      ],
+      "standards": [],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closed_in": "089-low-xs-batch",
+      "closed_at": "2026-09-17",
+      "resolution_note": "Closed in 089-low-xs-batch: whereIn=30, heartbeat 30s, Dependabot, PASSWORD_POLICY, README->docs/CI.md, CORS/FCM comments, rules Z-SEC-007 note; Info items verified as checked."
+    },
+    {
+      "id": "Z-SOC-004",
+      "title": "Feed privacy filtering server-enforced; no Stripe secrets in client",
+      "severity": "Info",
+      "confidence": "Confirmed",
+      "domain": "F",
+      "tags": [
+        "Checked"
+      ],
+      "locations": [
+        {
+          "path": "firebase/firestore.rules",
+          "line": 453
+        }
+      ],
+      "impact": "Post visibility rules + no live Stripe secret in client.",
+      "scenario": "N/A",
+      "recommendation": "Keep.",
+      "effort": "XS",
+      "verification": "Rules suite.",
+      "related": [
+        "DRAFT-SOC-010",
+        "DRAFT-PAY-003",
+        "F19"
+      ],
+      "standards": [],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closed_in": "089-low-xs-batch",
+      "closed_at": "2026-09-17",
+      "resolution_note": "Closed in 089-low-xs-batch: whereIn=30, heartbeat 30s, Dependabot, PASSWORD_POLICY, README->docs/CI.md, CORS/FCM comments, rules Z-SEC-007 note; Info items verified as checked."
+    },
+    {
+      "id": "Z-TEST-006",
+      "title": "Rules emulator suite strength (115 pass)",
+      "severity": "Info",
+      "confidence": "Confirmed",
+      "domain": "Q",
+      "tags": [
+        "Checked"
+      ],
+      "locations": [
+        {
+          "path": "test/rules",
+          "line": 1
+        }
+      ],
+      "impact": "Strong Firestore rules coverage.",
+      "scenario": "npm test --prefix test/rules",
+      "recommendation": "Extend storage/functions.",
+      "effort": "XS",
+      "verification": "Baseline.",
+      "related": [
+        "DRAFT-TEST-010",
+        "H1"
+      ],
+      "standards": [],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closed_in": "089-low-xs-batch",
+      "closed_at": "2026-09-17",
+      "resolution_note": "Closed in 089-low-xs-batch: whereIn=30, heartbeat 30s, Dependabot, PASSWORD_POLICY, README->docs/CI.md, CORS/FCM comments, rules Z-SEC-007 note; Info items verified as checked."
+    },
+    {
+      "id": "Z-OBS-005",
+      "title": "Crashlytics disabled in debug; release debugPrint silenced",
+      "severity": "Info",
+      "confidence": "Confirmed",
+      "domain": "S",
+      "tags": [
+        "Checked"
+      ],
+      "locations": [
+        {
+          "path": "lib/main.dart",
+          "line": 43
+        }
+      ],
+      "impact": "Good release logging hygiene.",
+      "scenario": "N/A",
+      "recommendation": "Add release-mode test (REC-10).",
+      "effort": "XS",
+      "verification": "Contract.",
+      "related": [
+        "DRAFT-OBS-010",
+        "REC-10"
+      ],
+      "standards": [],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closed_in": "089-low-xs-batch",
+      "closed_at": "2026-09-17",
+      "resolution_note": "Closed in 089-low-xs-batch: whereIn=30, heartbeat 30s, Dependabot, PASSWORD_POLICY, README->docs/CI.md, CORS/FCM comments, rules Z-SEC-007 note; Info items verified as checked."
+    },
+    {
+      "id": "Z-AND-005",
+      "title": "Checked: namespace/applicationId aligned; minify on; backup off",
+      "severity": "Info",
+      "confidence": "Confirmed",
+      "domain": "N",
+      "tags": [
+        "Checked"
+      ],
+      "locations": [
+        {
+          "path": "android/app/build.gradle.kts",
+          "line": 1
+        }
+      ],
+      "impact": "Solid Android defaults.",
+      "scenario": "N/A",
+      "recommendation": "Keep.",
+      "effort": "XS",
+      "verification": "Build.",
+      "related": [
+        "DRAFT-AND-011"
+      ],
+      "standards": [],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closed_in": "089-low-xs-batch",
+      "closed_at": "2026-09-17",
+      "resolution_note": "Closed in 089-low-xs-batch: whereIn=30, heartbeat 30s, Dependabot, PASSWORD_POLICY, README->docs/CI.md, CORS/FCM comments, rules Z-SEC-007 note; Info items verified as checked."
+    },
+    {
+      "id": "Z-REPO-008",
+      "title": "Firebase/native secrets gitignored patterns present",
+      "severity": "Info",
+      "confidence": "Confirmed",
+      "domain": "W",
+      "tags": [
+        "Checked"
+      ],
+      "locations": [
+        {
+          "path": ".gitignore",
+          "line": 1
+        }
+      ],
+      "impact": "Keystore/google-services patterns ignored.",
+      "scenario": "N/A",
+      "recommendation": "Keep; history review separate.",
+      "effort": "XS",
+      "verification": "gitignore.",
+      "related": [
+        "DRAFT-REPO-010"
+      ],
+      "standards": [],
+      "status": "closed",
+      "firstSeen": "2026-09-17",
+      "closed_in": "089-low-xs-batch",
+      "closed_at": "2026-09-17",
+      "resolution_note": "Closed in 089-low-xs-batch: whereIn=30, heartbeat 30s, Dependabot, PASSWORD_POLICY, README->docs/CI.md, CORS/FCM comments, rules Z-SEC-007 note; Info items verified as checked."
+    }
+  ],
+  "enhancements": [
+    {
+      "id": "Z-ENH-001",
+      "title": "Auto rest timer visible to partner + local notif",
+      "category": "8.1",
+      "effort": "M",
+      "rice": {
+        "reach": 8000,
+        "impact": 2,
+        "confidence": 0.8,
+        "effortWeeks": 1.5,
+        "score": 8533.3
+      },
+      "dependsOn": [
+        "Z-RT-001"
+      ],
+      "slice": "008-rest-timer"
+    },
+    {
+      "id": "Z-ENH-002",
+      "title": "Wakelock + Android ongoing notif / iOS Live Activity",
+      "category": "8.1",
+      "effort": "L",
+      "rice": {
+        "reach": 10000,
+        "impact": 2,
+        "confidence": 0.7,
+        "effortWeeks": 2,
+        "score": 7000
+      },
+      "dependsOn": [
+        "Z-RT-006"
+      ],
+      "slice": "008-session-presence-chrome",
+      "status": "partial",
+      "closureNote": "Session wakelock shipped (070); Live Activity still open."
+    },
+    {
+      "id": "Z-ENH-003",
+      "title": "Per-member kg/lb + plate calculator + RPE",
+      "category": "8.1",
+      "effort": "M",
+      "rice": {
+        "reach": 6000,
+        "impact": 1.5,
+        "confidence": 0.7,
+        "effortWeeks": 1.5,
+        "score": 4200
+      },
+      "dependsOn": [],
+      "slice": "008-units-rpe"
+    },
+    {
+      "id": "Z-ENH-004",
+      "title": "Workout templates + progressive overload hints",
+      "category": "8.1",
+      "effort": "L",
+      "rice": {
+        "reach": 7000,
+        "impact": 2,
+        "confidence": 0.6,
+        "effortWeeks": 3,
+        "score": 2800
+      },
+      "dependsOn": [
+        "Z-DATA-001"
+      ],
+      "slice": "008-templates-overload"
+    },
+    {
+      "id": "Z-ENH-005",
+      "title": "Exercise demo media in picker",
+      "category": "8.1",
+      "effort": "M",
+      "rice": {
+        "reach": 9000,
+        "impact": 1.5,
+        "confidence": 0.7,
+        "effortWeeks": 2,
+        "score": 4725
+      },
+      "dependsOn": [],
+      "slice": "008-exercise-media"
+    },
+    {
+      "id": "Z-ENH-006",
+      "title": "Health Connect / HealthKit cardio import",
+      "category": "8.1",
+      "effort": "L",
+      "rice": {
+        "reach": 5000,
+        "impact": 2,
+        "confidence": 0.5,
+        "effortWeeks": 3,
+        "score": 1666.7
+      },
+      "dependsOn": [
+        "Z-PRV-001"
+      ],
+      "slice": "008-health-import"
+    },
+    {
+      "id": "Z-ENH-007",
+      "title": "PR detection celebration via celebration_overlay",
+      "category": "8.1",
+      "effort": "S",
+      "rice": {
+        "reach": 8000,
+        "impact": 1.5,
+        "confidence": 0.8,
+        "effortWeeks": 0.5,
+        "score": 19200
+      },
+      "dependsOn": [
+        "Z-DATA-001"
+      ],
+      "slice": "008-pr-celebration",
+      "status": "closed",
+      "closedAt": "2026-09-17",
+      "closureNote": "Recap celebration when endSession returns new PRs (124)."
+    },
+    {
+      "id": "Z-ENH-008",
+      "title": "Group sessions >2 (generalize derivedMode)",
+      "category": "8.2",
+      "effort": "XL",
+      "rice": {
+        "reach": 4000,
+        "impact": 3,
+        "confidence": 0.4,
+        "effortWeeks": 6,
+        "score": 800
+      },
+      "dependsOn": [
+        "Z-RT-001"
+      ],
+      "slice": "008-group-sessions"
+    },
+    {
+      "id": "Z-ENH-009",
+      "title": "Spectator/cheer mode with live emoji",
+      "category": "8.2",
+      "effort": "L",
+      "rice": {
+        "reach": 3000,
+        "impact": 2,
+        "confidence": 0.5,
+        "effortWeeks": 3,
+        "score": 1000
+      },
+      "dependsOn": [],
+      "slice": "008-spectator"
+    },
+    {
+      "id": "Z-ENH-010",
+      "title": "Scheduled sessions + calendar export + nudge",
+      "category": "8.2",
+      "effort": "M",
+      "rice": {
+        "reach": 7000,
+        "impact": 2,
+        "confidence": 0.7,
+        "effortWeeks": 2,
+        "score": 4900
+      },
+      "dependsOn": [
+        "Z-NOTIF-001"
+      ],
+      "slice": "008-scheduled-sessions"
+    },
+    {
+      "id": "Z-ENH-011",
+      "title": "Ghost/async race buddy prior numbers",
+      "category": "8.2",
+      "effort": "L",
+      "rice": {
+        "reach": 6000,
+        "impact": 2.5,
+        "confidence": 0.6,
+        "effortWeeks": 3,
+        "score": 3000
+      },
+      "dependsOn": [],
+      "slice": "008-ghost-sessions"
+    },
+    {
+      "id": "Z-ENH-012",
+      "title": "Invite links via App Links / Universal Links",
+      "category": "8.2",
+      "effort": "M",
+      "rice": {
+        "reach": 10000,
+        "impact": 2,
+        "confidence": 0.7,
+        "effortWeeks": 2,
+        "score": 7000
+      },
+      "dependsOn": [
+        "Z-AUTH-007"
+      ],
+      "slice": "008-invite-links"
+    },
+    {
+      "id": "Z-ENH-013",
+      "title": "Shareable recap story cards",
+      "category": "8.2",
+      "effort": "S",
+      "rice": {
+        "reach": 8000,
+        "impact": 1.5,
+        "confidence": 0.8,
+        "effortWeeks": 1,
+        "score": 9600
+      },
+      "dependsOn": [],
+      "slice": "008-recap-share",
+      "status": "closed",
+      "closureNote": "S scope: share card + copy-stats clipboard (126). Image/story PNG export deferred as follow-up.",
+      "closedAt": "2026-09-17"
+    },
+    {
+      "id": "Z-ENH-014",
+      "title": "Streak freeze/repair + XP levels",
+      "category": "8.3",
+      "effort": "M",
+      "rice": {
+        "reach": 9000,
+        "impact": 2,
+        "confidence": 0.7,
+        "effortWeeks": 2,
+        "score": 6300
+      },
+      "dependsOn": [
+        "Z-DATA-001"
+      ],
+      "slice": "008-streak-xp"
+    },
+    {
+      "id": "Z-ENH-015",
+      "title": "Weekly recap push + smart reminders",
+      "category": "8.3",
+      "effort": "M",
+      "rice": {
+        "reach": 9000,
+        "impact": 1.5,
+        "confidence": 0.7,
+        "effortWeeks": 1.5,
+        "score": 6300
+      },
+      "dependsOn": [
+        "Z-I18N-003"
+      ],
+      "slice": "008-weekly-recap"
+    },
+    {
+      "id": "Z-ENH-016",
+      "title": "Home widgets (streak / next session)",
+      "category": "8.3",
+      "effort": "M",
+      "rice": {
+        "reach": 5000,
+        "impact": 1.5,
+        "confidence": 0.6,
+        "effortWeeks": 2,
+        "score": 2250
+      },
+      "dependsOn": [],
+      "slice": "008-home-widgets"
+    },
+    {
+      "id": "Z-ENH-017",
+      "title": "In-app review after 3rd buddy session",
+      "category": "8.3",
+      "effort": "XS",
+      "rice": {
+        "reach": 10000,
+        "impact": 1,
+        "confidence": 0.9,
+        "effortWeeks": 0.25,
+        "score": 36000
+      },
+      "dependsOn": [],
+      "slice": "008-in-app-review",
+      "status": "closed",
+      "closedAt": "2026-09-17",
+      "closureNote": "BuddyReviewPromptService after 3rd buddy session (013)."
+    },
+    {
+      "id": "Z-ENH-018",
+      "title": "Shorter onboarding + optional bot trial session",
+      "category": "8.4",
+      "effort": "M",
+      "rice": {
+        "reach": 10000,
+        "impact": 2,
+        "confidence": 0.7,
+        "effortWeeks": 2,
+        "score": 7000
+      },
+      "dependsOn": [
+        "REC-18"
+      ],
+      "slice": "008-onboarding-lite"
+    },
+    {
+      "id": "Z-ENH-019",
+      "title": "Referral program",
+      "category": "8.4",
+      "effort": "L",
+      "rice": {
+        "reach": 8000,
+        "impact": 2,
+        "confidence": 0.5,
+        "effortWeeks": 3,
+        "score": 2666.7
+      },
+      "dependsOn": [],
+      "slice": "008-referrals"
+    },
+    {
+      "id": "Z-ENH-020",
+      "title": "Arabic store listing + ASO + landing assetlinks",
+      "category": "8.4",
+      "effort": "M",
+      "rice": {
+        "reach": 5000,
+        "impact": 2,
+        "confidence": 0.7,
+        "effortWeeks": 1.5,
+        "score": 4666.7
+      },
+      "dependsOn": [
+        "Z-I18N-001"
+      ],
+      "slice": "008-aso-ar"
+    },
+    {
+      "id": "Z-ENH-021",
+      "title": "Platform IAP via RevenueCat (replace Stripe digital)",
+      "category": "8.5",
+      "effort": "L",
+      "rice": {
+        "reach": 4000,
+        "impact": 3,
+        "confidence": 0.8,
+        "effortWeeks": 3,
+        "score": 3200
+      },
+      "dependsOn": [
+        "Z-PAY-001",
+        "Z-PAY-002"
+      ],
+      "slice": "008-iap-entitlements"
+    },
+    {
+      "id": "Z-ENH-022",
+      "title": "Duo premium plan + Remote Config paywall experiments",
+      "category": "8.5",
+      "effort": "M",
+      "rice": {
+        "reach": 4000,
+        "impact": 2,
+        "confidence": 0.6,
+        "effortWeeks": 2,
+        "score": 2400
+      },
+      "dependsOn": [
+        "Z-ENH-021"
+      ],
+      "slice": "008-duo-paywall"
+    },
+    {
+      "id": "Z-ENH-023",
+      "title": "Server AI plan generation (opt-in, capped)",
+      "category": "8.6",
+      "effort": "L",
+      "rice": {
+        "reach": 3000,
+        "impact": 2.5,
+        "confidence": 0.4,
+        "effortWeeks": 4,
+        "score": 750
+      },
+      "dependsOn": [
+        "Z-FN-002"
+      ],
+      "slice": "008-ai-plans"
+    },
+    {
+      "id": "Z-ENH-024",
+      "title": "AI recap coaching tips",
+      "category": "8.6",
+      "effort": "M",
+      "rice": {
+        "reach": 6000,
+        "impact": 1.5,
+        "confidence": 0.5,
+        "effortWeeks": 2,
+        "score": 2250
+      },
+      "dependsOn": [
+        "Z-ENH-023"
+      ],
+      "slice": "008-ai-recap"
+    },
+    {
+      "id": "Z-ENH-025",
+      "title": "NL/voice set logging",
+      "category": "8.6",
+      "effort": "L",
+      "rice": {
+        "reach": 4000,
+        "impact": 2,
+        "confidence": 0.4,
+        "effortWeeks": 4,
+        "score": 800
+      },
+      "dependsOn": [],
+      "slice": "008-voice-logging"
+    },
+    {
+      "id": "Z-ENH-026",
+      "title": "Server moderation assist + AR⇄EN comment translation",
+      "category": "8.6",
+      "effort": "L",
+      "rice": {
+        "reach": 7000,
+        "impact": 2,
+        "confidence": 0.5,
+        "effortWeeks": 3,
+        "score": 2333.3
+      },
+      "dependsOn": [
+        "Z-SOC-001"
+      ],
+      "slice": "008-moderation-ai"
+    },
+    {
+      "id": "Z-ENH-027",
+      "title": "Accessible rep controls + voice transcripts",
+      "category": "8.7",
+      "effort": "M",
+      "rice": {
+        "reach": 2000,
+        "impact": 3,
+        "confidence": 0.8,
+        "effortWeeks": 2,
+        "score": 2400
+      },
+      "dependsOn": [
+        "Z-A11Y-002"
+      ],
+      "slice": "008-a11y-session"
+    },
+    {
+      "id": "Z-ENH-028",
+      "title": "Full Arabic parity + RTL golden tests",
+      "category": "8.7",
+      "effort": "L",
+      "rice": {
+        "reach": 5000,
+        "impact": 3,
+        "confidence": 0.8,
+        "effortWeeks": 4,
+        "score": 3000
+      },
+      "dependsOn": [
+        "Z-I18N-001",
+        "Z-I18N-002"
+      ],
+      "slice": "008-ar-parity"
+    },
+    {
+      "id": "Z-ENH-029",
+      "title": "High-contrast theme option",
+      "category": "8.7",
+      "effort": "S",
+      "rice": {
+        "reach": 2000,
+        "impact": 2,
+        "confidence": 0.8,
+        "effortWeeks": 1,
+        "score": 3200
+      },
+      "dependsOn": [],
+      "slice": "008-high-contrast",
+      "status": "closed",
+      "closedAt": "2026-09-17",
+      "closureNote": "Settings toggle + highContrast light/dark ThemeData + MediaQuery.highContrast/boldText (127)."
+    },
+    {
+      "id": "Z-ENH-030",
+      "title": "Split god files (session_room first) with file plan",
+      "category": "8.8",
+      "effort": "XL",
+      "rice": {
+        "reach": 20,
+        "impact": 2,
+        "confidence": 0.9,
+        "effortWeeks": 4,
+        "score": 9
+      },
+      "dependsOn": [
+        "Z-ARCH-002"
+      ],
+      "slice": "008-split-session-room"
+    },
+    {
+      "id": "Z-ENH-031",
+      "title": "Finish or retire clean-arch; repos behind interfaces",
+      "category": "8.8",
+      "effort": "XL",
+      "rice": {
+        "reach": 20,
+        "impact": 2,
+        "confidence": 0.8,
+        "effortWeeks": 6,
+        "score": 5.3
+      },
+      "dependsOn": [
+        "Z-ARCH-001"
+      ],
+      "slice": "008-arch-decision"
+    },
+    {
+      "id": "Z-ENH-032",
+      "title": "Codegen models + riverpod_generator + custom lint bans",
+      "category": "8.8",
+      "effort": "L",
+      "rice": {
+        "reach": 30,
+        "impact": 2,
+        "confidence": 0.8,
+        "effortWeeks": 3,
+        "score": 16
+      },
+      "dependsOn": [],
+      "slice": "008-codegen-lints"
+    },
+    {
+      "id": "Z-ENH-033",
+      "title": "Server-authoritative scores/streaks/leaderboard",
+      "category": "8.9",
+      "effort": "L",
+      "rice": {
+        "reach": 10000,
+        "impact": 3,
+        "confidence": 0.9,
+        "effortWeeks": 3,
+        "score": 9000
+      },
+      "dependsOn": [
+        "Z-DATA-001"
+      ],
+      "slice": "008-server-scores"
+    },
+    {
+      "id": "Z-ENH-034",
+      "title": "Account deletion + data export functions complete",
+      "category": "8.9",
+      "effort": "L",
+      "rice": {
+        "reach": 10000,
+        "impact": 3,
+        "confidence": 0.9,
+        "effortWeeks": 2.5,
+        "score": 10800
+      },
+      "dependsOn": [
+        "Z-FN-003",
+        "Z-PRV-002"
+      ],
+      "slice": "008-deletion-export"
+    },
+    {
+      "id": "Z-ENH-035",
+      "title": "Firestore-triggered notifications; retire client push invoke",
+      "category": "8.9",
+      "effort": "L",
+      "rice": {
+        "reach": 10000,
+        "impact": 2,
+        "confidence": 0.7,
+        "effortWeeks": 3,
+        "score": 4666.7
+      },
+      "dependsOn": [
+        "Z-FN-001",
+        "Z-NOTIF-001"
+      ],
+      "slice": "008-trigger-push"
+    },
+    {
+      "id": "Z-ENH-036",
+      "title": "Functions TypeScript modules + tests + region budgets",
+      "category": "8.9",
+      "effort": "L",
+      "rice": {
+        "reach": 10,
+        "impact": 2,
+        "confidence": 0.8,
+        "effortWeeks": 3,
+        "score": 5.3
+      },
+      "dependsOn": [
+        "Z-TEST-003"
+      ],
+      "slice": "008-functions-ts"
+    },
+    {
+      "id": "Z-ENH-037",
+      "title": "One CI: rules+functions+coverage gates; Dependabot",
+      "category": "8.10",
+      "effort": "M",
+      "rice": {
+        "reach": 30,
+        "impact": 2,
+        "confidence": 0.9,
+        "effortWeeks": 2,
+        "score": 27
+      },
+      "dependsOn": [
+        "Z-CI-001",
+        "Z-TEST-001"
+      ],
+      "slice": "008-unified-ci"
+    },
+    {
+      "id": "Z-ENH-038",
+      "title": "Golden tests light/dark × LTR/RTL × text scale",
+      "category": "8.10",
+      "effort": "M",
+      "rice": {
+        "reach": 20,
+        "impact": 2,
+        "confidence": 0.8,
+        "effortWeeks": 2,
+        "score": 16
+      },
+      "dependsOn": [
+        "Z-A11Y-003",
+        "Z-I18N-002"
+      ],
+      "slice": "008-goldens"
+    },
+    {
+      "id": "Z-ENH-039",
+      "title": "Flavors with separate Firebase projects + seeded emulator",
+      "category": "8.10",
+      "effort": "L",
+      "rice": {
+        "reach": 15,
+        "impact": 2.5,
+        "confidence": 0.7,
+        "effortWeeks": 3,
+        "score": 8.8
+      },
+      "dependsOn": [
+        "F10"
+      ],
+      "slice": "008-flavors-emulator"
+    },
+    {
+      "id": "Z-ENH-040",
+      "title": "PR template, CODEOWNERS, ADRs, data dictionary",
+      "category": "8.10",
+      "effort": "S",
+      "rice": {
+        "reach": 20,
+        "impact": 1.5,
+        "confidence": 0.9,
+        "effortWeeks": 1,
+        "score": 27
+      },
+      "dependsOn": [
+        "Z-DOC-002"
+      ],
+      "slice": "008-process-docs",
+      "status": "closed",
+      "closedAt": "2026-09-17",
+      "closureNote": "CODEOWNERS + PR template + starter data dictionary (125). ADRs remain incremental."
+    },
+    {
+      "id": "Z-ENH-041",
+      "title": "Performance traces + funnel dashboards + Crashlytics velocity",
+      "category": "8.11",
+      "effort": "M",
+      "rice": {
+        "reach": 10000,
+        "impact": 2,
+        "confidence": 0.8,
+        "effortWeeks": 2,
+        "score": 8000
+      },
+      "dependsOn": [
+        "Z-OBS-001"
+      ],
+      "slice": "008-obs-dashboards"
+    },
+    {
+      "id": "Z-ENH-042",
+      "title": "Forced-update gate + in-app incident banner",
+      "category": "8.11",
+      "effort": "S",
+      "rice": {
+        "reach": 10000,
+        "impact": 2,
+        "confidence": 0.9,
+        "effortWeeks": 0.75,
+        "score": 24000
+      },
+      "dependsOn": [
+        "Z-OBS-003"
+      ],
+      "slice": "008-forced-update",
+      "status": "closed",
+      "closedAt": "2026-09-17",
+      "closureNote": "Forced-update path on stack (014)."
+    },
+    {
+      "id": "Z-ENH-043",
+      "title": "Remote Config kill switches beyond resume flag",
+      "category": "8.11",
+      "effort": "M",
+      "rice": {
+        "reach": 10000,
+        "impact": 2,
+        "confidence": 0.8,
+        "effortWeeks": 1.5,
+        "score": 10666.7
+      },
+      "dependsOn": [],
+      "slice": "008-remote-kills"
+    },
+    {
+      "id": "Z-ENH-044",
+      "title": "Fix users list privacy + public search index",
+      "category": "8.9",
+      "effort": "M",
+      "rice": {
+        "reach": 10000,
+        "impact": 3,
+        "confidence": 0.95,
+        "effortWeeks": 1.5,
+        "score": 19000
+      },
+      "dependsOn": [
+        "Z-SEC-001"
+      ],
+      "slice": "008-users-list-privacy"
+    },
+    {
+      "id": "Z-ENH-045",
+      "title": "Unify derivedMode; delete persisted session mode",
+      "category": "8.1",
+      "effort": "S",
+      "rice": {
+        "reach": 8000,
+        "impact": 3,
+        "confidence": 0.95,
+        "effortWeeks": 0.5,
+        "score": 45600
+      },
+      "dependsOn": [
+        "Z-RT-001",
+        "Z-DATA-002"
+      ],
+      "slice": "008-mode-derivation",
+      "status": "closed",
+      "closedAt": "2026-09-17",
+      "closureNote": "derivedMode + no client mode writes (009 / Z-DATA-002)."
+    }
+  ],
+  "priorAudit": [
+    {
+      "id": "WP-B1",
+      "status": "Fixed & verified",
+      "evidence": "app_runtime_config + main activate"
+    },
+    {
+      "id": "WP-H1",
+      "status": "Fixed & verified",
+      "evidence": "notifications under users/{uid}"
+    },
+    {
+      "id": "F01",
+      "status": "Partially fixed",
+      "evidence": "update deny; create emulator gap → Z-SEC-008"
+    },
+    {
+      "id": "F02",
+      "status": "Partially fixed",
+      "evidence": "rules deny entitlement; client grant remains → Z-PAY-001"
+    },
+    {
+      "id": "F05",
+      "status": "Partially fixed",
+      "evidence": "bundle fixed; history → Z-SEC-009"
+    },
+    {
+      "id": "F06",
+      "status": "Partially fixed",
+      "evidence": "residual activeUserId → Z-RT-002"
+    },
+    {
+      "id": "F07",
+      "status": "Fixed & verified",
+      "evidence": "social.rules follow create"
+    },
+    {
+      "id": "F08",
+      "status": "Fixed & verified",
+      "evidence": "owner-only notification create"
+    },
+    {
+      "id": "F09",
+      "status": "Partially fixed",
+      "evidence": "storage rules exist; no emulator → Z-TEST-004"
+    },
+    {
+      "id": "F10",
+      "status": "Open",
+      "evidence": "bare Firebase.initializeApp; gitignored options"
+    },
+    {
+      "id": "F12",
+      "status": "Open",
+      "evidence": "mock Stripe → Z-PAY-001"
+    },
+    {
+      "id": "F14",
+      "status": "Open",
+      "evidence": "deep link drop → Z-AUTH-007"
+    },
+    {
+      "id": "F15",
+      "status": "Partially fixed",
+      "evidence": "derivedMode wrong for cardio → Z-RT-001"
+    },
+    {
+      "id": "F16",
+      "status": "Fixed & verified",
+      "evidence": "analyzer 0; 1009 tests"
+    },
+    {
+      "id": "F17",
+      "status": "Open",
+      "evidence": "layers 1/9 → Z-ARCH-001"
+    },
+    {
+      "id": "F19",
+      "status": "Fixed & verified",
+      "evidence": "canReadPostData; list users still Z-SEC-001"
+    },
+    {
+      "id": "F20",
+      "status": "Partially fixed",
+      "evidence": "App Check partial → Z-FN-002"
+    },
+    {
+      "id": "F26",
+      "status": "Partially fixed",
+      "evidence": "entitlements exist development → Z-IOS-001"
+    },
+    {
+      "id": "F27",
+      "status": "Open",
+      "evidence": "SharedPreferences queue → Z-OFF-001"
+    },
+    {
+      "id": "F29",
+      "status": "Partially fixed",
+      "evidence": "0 critical npm; 1 moderate → Z-DEP-002"
+    },
+    {
+      "id": "F32",
+      "status": "Open",
+      "evidence": "no coverage gates → Z-TEST-001"
+    },
+    {
+      "id": "F33",
+      "status": "Open",
+      "evidence": "HEAD dual MainActivity; WT deleted one"
+    },
+    {
+      "id": "C1",
+      "status": "Partially fixed",
+      "evidence": "some limits; listenToSessionEvents unbounded → Z-PERF-002"
+    },
+    {
+      "id": "C2",
+      "status": "Fixed & verified",
+      "evidence": "badge counts"
+    },
+    {
+      "id": "C3",
+      "status": "Fixed, unverified",
+      "evidence": "Crashlytics wired; console NV → REC-03"
+    },
+    {
+      "id": "H1",
+      "status": "Fixed & verified",
+      "evidence": "115 rules tests"
+    },
+    {
+      "id": "H4",
+      "status": "Partially fixed",
+      "evidence": "god files remain → Z-ARCH-002"
+    },
+    {
+      "id": "H5",
+      "status": "Partially fixed",
+      "evidence": "semantics gaps → Z-A11Y-001"
+    },
+    {
+      "id": "M5",
+      "status": "Withdrawn",
+      "evidence": "builders used"
+    },
+    {
+      "id": "M6",
+      "status": "Fixed & verified",
+      "evidence": "joint draft batch"
+    },
+    {
+      "id": "M8",
+      "status": "Partially fixed",
+      "evidence": "i18n thin → Z-I18N-001"
+    },
+    {
+      "id": "R2",
+      "status": "Fixed & verified",
+      "evidence": "reactionCounts written"
+    },
+    {
+      "id": "R5",
+      "status": "Fixed & verified",
+      "evidence": "PR read rules"
+    },
+    {
+      "id": "R9",
+      "status": "Fixed & verified",
+      "evidence": "snatch allowlist"
+    },
+    {
+      "id": "R14",
+      "status": "Open",
+      "evidence": "paid leaderboard → Z-PAY-001"
+    },
+    {
+      "id": "R16",
+      "status": "Fixed, unverified",
+      "evidence": "doc.ref fix; prod NV → Z-REPO-007"
+    }
+  ]
+}

@@ -1,16 +1,26 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
-
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/theme_provider.dart';
 import '../../../app/navigation/app_router.dart';
+import '../../../l10n/app_localizations.dart';
+import '../../../services/exercise_catalog_seed.dart';
+import '../../../services/facebook_link_service.dart';
+import '../../../services/data_export_service.dart';
+import '../../../services/leaderboard_service.dart';
 import '../../../widgets/circuit_breaker_status_widget.dart';
+import '../../../widgets/fluttermoji_avatar.dart';
+import '../../../widgets/zyntro_back_button.dart';
 import '../../auth/presentation/providers/auth_controller.dart';
 import '../../auth/auth_providers.dart';
+import '../../social/presentation/providers/facebook_friends_provider.dart';
 
-/// Settings page — v2 design (true-black + acid-lime palette).
+/// Settings page — concrete charcoal + signal orange.
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
 
@@ -26,38 +36,46 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   bool _buddyActivity = false;
 
   // ── Training prefs ────────────────────────────────────────────────────────
-  String _restTimer = '1m';
   String _weightUnit = 'kg';
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  TextStyle _sectionHeader() => GoogleFonts.outfit(
-        fontSize: 10,
-        fontWeight: FontWeight.w700,
-        letterSpacing: 2,
-        color: AppColors.textV2Tertiary,
-      );
+  TextStyle _sectionHeader() => AppTextStyles.caption.copyWith(
+    fontWeight: FontWeight.w700,
+    letterSpacing: 2,
+    color: AppColors.textV2Tertiary,
+  );
 
-  TextStyle _rowLabel({bool danger = false}) => GoogleFonts.outfit(
-        fontSize: 14,
-        fontWeight: FontWeight.w500,
-        color: danger ? AppColors.errorV2 : AppColors.textV2Primary,
-      );
+  TextStyle _rowLabel({bool danger = false}) => AppTextStyles.body.copyWith(
+    fontWeight: FontWeight.w500,
+    color: danger ? AppColors.errorV2 : AppColors.textV2Primary,
+  );
 
-  TextStyle _rowSub() => GoogleFonts.outfit(
-        fontSize: 11,
-        color: AppColors.textV2Tertiary,
-      );
+  TextStyle _rowSub() => AppTextStyles.caption.copyWith(
+    fontSize: 11,
+    color: AppColors.textV2Tertiary,
+  );
 
   // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authSessionProvider);
-    final displayName = authState.valueOrNull?.displayName ?? 'Zyntro User';
-    final username = displayName.toLowerCase().replaceAll(' ', '_');
-    final initial =
-        displayName.isNotEmpty ? displayName[0].toUpperCase() : 'Z';
+    final profileAsync = ref.watch(authUserProfileProvider);
+    final displayName = authState.value?.displayName ?? 'Zyntro User';
+    final photoUrl = profileAsync.value?.photoUrl ?? authState.value?.photoUrl;
+    final username =
+        profileAsync.value?.username ??
+        displayName.toLowerCase().replaceAll(' ', '_');
+    final userId = authState.value?.id;
+    final rankAsync = userId != null
+        ? ref.watch(currentUserRankProvider(userId))
+        : null;
+    final rankLabel = rankAsync?.whenOrNull(
+      data: (r) => r.rank != null
+          ? (r.isGlobal ? 'Global Rank #${r.rank}' : '#${r.rank} among friends')
+          : null,
+    );
 
     return Scaffold(
       backgroundColor: AppColors.backgroundV2,
@@ -78,7 +96,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     context,
                     displayName: displayName,
                     username: username,
-                    initial: initial,
+                    photoUrl: photoUrl,
+                    rankLabel: rankLabel,
                   ),
 
                   // ── Notifications ────────────────────────────────────────
@@ -117,19 +136,25 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   _sectionLabel('TRAINING'),
                   _buildSectionCard([
                     _segmentedRow(
-                      label: 'Default rest timer',
-                      sub: 'Applied after each set',
-                      options: const ['30s', '1m', '1.5m', '2m'],
-                      selected: _restTimer,
-                      onSelected: (v) => setState(() => _restTimer = v),
-                    ),
-                    _divider(),
-                    _segmentedRow(
                       label: 'Weight unit',
                       sub: null,
                       options: const ['kg', 'lbs'],
                       selected: _weightUnit,
                       onSelected: (v) => setState(() => _weightUnit = v),
+                    ),
+                  ]),
+
+                  // ── Appearance ───────────────────────────────────────────
+                  _sectionLabel('APPEARANCE'),
+                  _buildSectionCard([
+                    _toggleRow(
+                      label: 'High contrast',
+                      sub: 'Stronger borders and text for readability',
+                      value: ref.watch(highContrastProvider).value ?? false,
+                      onChanged: (v) {
+                        HapticFeedback.selectionClick();
+                        ref.read(highContrastProvider.notifier).setEnabled(v);
+                      },
                     ),
                   ]),
 
@@ -143,15 +168,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         context.push(AppRoutes.privacySettings);
                       },
                     ),
-                    _divider(),
-                    _chevronRow(
-                      label: 'Post visibility',
-                      onTap: () {
-                        HapticFeedback.lightImpact();
-                        context.push(AppRoutes.privacySettings);
-                      },
-                    ),
                   ]),
+
+                  // ── Connected Accounts ───────────────────────────────────
+                  _sectionLabel('CONNECTED ACCOUNTS'),
+                  _buildConnectedAccountsCard(context),
 
                   // ── Account ──────────────────────────────────────────────
                   _sectionLabel('ACCOUNT'),
@@ -178,6 +199,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       sub: 'Download your workout history',
                       onTap: () {
                         HapticFeedback.lightImpact();
+                        _exportMyData(context);
+                      },
+                    ),
+                    _divider(),
+                    _chevronRow(
+                      label: 'Data deletion instructions',
+                      sub: 'How to erase your account and Meta data',
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        context.push(AppRoutes.dataDeletion);
                       },
                     ),
                     _divider(),
@@ -196,6 +227,34 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     ),
                   ]),
 
+                  if (kDebugMode) ...[
+                    _sectionLabel('DEVELOPER'),
+                    _buildSectionCard([
+                      _chevronRow(
+                        label: 'Seed Exercise Catalog (dev only)',
+                        onTap: () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          try {
+                            await seedExerciseCatalog(
+                              FirebaseFirestore.instance,
+                            );
+                            if (!mounted) return;
+                            _showSnackbarMessenger(
+                              messenger,
+                              'Exercise catalog seeded.',
+                            );
+                          } catch (e) {
+                            if (!mounted) return;
+                            _showSnackbarMessenger(
+                              messenger,
+                              'Seed failed: $e',
+                            );
+                          }
+                        },
+                      ),
+                    ]),
+                  ],
+
                   const SizedBox(height: 32),
 
                   // App version footer
@@ -204,7 +263,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       children: [
                         Text(
                           'Zyntro',
-                          style: GoogleFonts.syne(
+                          style: AppTextStyles.body.copyWith(
                             color: AppColors.textV2Secondary,
                             fontWeight: FontWeight.w600,
                             fontSize: 13,
@@ -213,9 +272,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         const SizedBox(height: 4),
                         Text(
                           'Version 1.0.0',
-                          style: GoogleFonts.outfit(
+                          style: AppTextStyles.caption.copyWith(
                             color: AppColors.textV2Tertiary,
-                            fontSize: 12,
                           ),
                         ),
                       ],
@@ -236,40 +294,17 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   Widget _buildHeader(BuildContext context) {
     return Container(
-      padding: EdgeInsets.only(
-        top: MediaQuery.paddingOf(context).top + 12,
-        bottom: 14,
-        left: 16,
-        right: 16,
-      ),
+      padding: AppSpacing.headerPadding(context, extraTop: 12, bottom: 14),
       color: AppColors.surfaceV2,
       child: Row(
         children: [
-          GestureDetector(
-            onTap: () {
-              HapticFeedback.lightImpact();
-              Navigator.pop(context);
-            },
-            child: Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: AppColors.surfaceV2Active,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(
-                Icons.arrow_back,
-                color: AppColors.textV2Primary,
-                size: 18,
-              ),
-            ),
-          ),
+          const ZyntroBackButton(),
           const SizedBox(width: 14),
           Text(
-            'Settings',
-            style: GoogleFonts.syne(
+            AppLocalizations.of(context).settingsTitle,
+            style: AppTextStyles.h3.copyWith(
               fontSize: 22,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w700,
               color: AppColors.textV2Primary,
               letterSpacing: -0.5,
             ),
@@ -285,7 +320,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     BuildContext context, {
     required String displayName,
     required String username,
-    required String initial,
+    String? photoUrl,
+    String? rankLabel,
   }) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -296,27 +332,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       child: Row(
         children: [
           // Avatar
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: AppColors.accentLime.withValues(alpha: 0.5),
-                width: 2,
-              ),
-              color: AppColors.surfaceV2Active,
-            ),
-            child: Center(
-              child: Text(
-                initial,
-                style: GoogleFonts.syne(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.accentLime,
-                ),
-              ),
-            ),
+          FluttermojiAvatar(
+            photoUrl: photoUrl,
+            displayName: displayName,
+            size: 44,
+            showGradientBorder: true,
+            ringColor: AppColors.signal.withValues(alpha: 0.5),
           ),
           const SizedBox(width: 14),
           // Name + username
@@ -326,17 +347,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               children: [
                 Text(
                   displayName,
-                  style: GoogleFonts.syne(
-                    fontSize: 16,
+                  style: AppTextStyles.bodyLarge.copyWith(
                     fontWeight: FontWeight.w700,
                     color: AppColors.textV2Primary,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '@$username · Rank #4',
-                  style: GoogleFonts.outfit(
-                    fontSize: 12,
+                  rankLabel != null ? '@$username · $rankLabel' : '@$username',
+                  style: AppTextStyles.caption.copyWith(
                     color: AppColors.textV2Secondary,
                   ),
                 ),
@@ -345,29 +364,223 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
           const SizedBox(width: 10),
           // Ghost Edit button
-          GestureDetector(
-            onTap: () {
+          TextButton(
+            onPressed: () async {
               HapticFeedback.lightImpact();
-              context.push(AppRoutes.editProfile);
+              await context.push(AppRoutes.editProfile);
+              if (!mounted) return;
+              ref.invalidate(authUserProfileProvider);
             },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceV2Active,
+            style: TextButton.styleFrom(
+              backgroundColor: AppColors.surfaceV2Active,
+              foregroundColor: AppColors.textV2Secondary,
+              minimumSize: const Size(64, 44),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.surfaceV2Active),
+                side: const BorderSide(color: AppColors.surfaceV2Active),
+              ),
+            ),
+            child: Text(
+              'Edit',
+              style: AppTextStyles.body.copyWith(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textV2Secondary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Connected Accounts card ───────────────────────────────────────────────
+
+  Widget _buildConnectedAccountsCard(BuildContext context) {
+    final profileAsync = ref.watch(authUserProfileProvider);
+    final isFbConnected = profileAsync.value?.isFacebookConnected ?? false;
+
+    return _buildSectionCard([
+      InkWell(
+        onTap: () => isFbConnected
+            ? _confirmDisconnectFacebook(context)
+            : _connectFacebook(context),
+        borderRadius: BorderRadius.circular(18),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: AppColors.brandFacebook.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.facebook,
+                  color: AppColors.brandFacebook,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Facebook', style: _rowLabel()),
+                    const SizedBox(height: 2),
+                    Text(
+                      isFbConnected
+                          ? 'Tap to disconnect'
+                          : 'Find friends on Zyntro',
+                      style: _rowSub(),
+                    ),
+                  ],
+                ),
+              ),
+              if (isFbConnected)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.signal.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'Connected',
+                    style: AppTextStyles.caption.copyWith(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.signal,
+                    ),
+                  ),
+                )
+              else
+                Text(
+                  'Connect',
+                  style: AppTextStyles.body.copyWith(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.brandFacebook,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    ]);
+  }
+
+  Future<void> _connectFacebook(BuildContext context) async {
+    HapticFeedback.lightImpact();
+    final uid = ref.read(authSessionProvider).value?.id;
+    if (uid == null) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final fbService = ref.read(facebookLinkServiceProvider);
+    final result = await fbService.connectFacebook(uid);
+
+    if (!mounted) return;
+    ref.invalidate(authUserProfileProvider);
+    ref.invalidate(facebookFriendsProvider);
+
+    String message;
+    switch (result) {
+      case FacebookLinkSuccess(:final value):
+        final count = value.length;
+        message = count > 0
+            ? 'Facebook connected! Found $count friend${count == 1 ? '' : 's'} on Zyntro.'
+            : 'Facebook connected.';
+      case FacebookLinkNoFriendsPermission():
+        message =
+            'Facebook connected. Friend access wasn\'t granted — reconnect to see friends.';
+      case FacebookLinkCancelled():
+        message = 'Facebook connection cancelled.';
+      case FacebookLinkFailure(:final message):
+        _showSnackbarMessenger(messenger, message);
+        return;
+    }
+    _showSnackbarMessenger(messenger, message);
+  }
+
+  Future<void> _confirmDisconnectFacebook(BuildContext context) async {
+    HapticFeedback.lightImpact();
+    final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surfaceV2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Disconnect Facebook?',
+          style: AppTextStyles.h5.copyWith(
+            color: AppColors.textV2Primary,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        content: Text(
+          'You won\'t see Facebook friend suggestions after disconnecting.',
+          style: AppTextStyles.bodyLarge.copyWith(
+            color: AppColors.textV2Secondary,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              'Cancel',
+              style: AppTextStyles.bodyLarge.copyWith(
+                color: AppColors.textV2Secondary,
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: () => Navigator.pop(ctx, true),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.errorV2,
+                borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                'Edit',
-                style: GoogleFonts.syne(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textV2Secondary,
+                'Disconnect',
+                style: AppTextStyles.bodyLarge.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
           ),
         ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      final uid = ref.read(authSessionProvider).value?.id;
+      if (uid == null) return;
+      final fbService = ref.read(facebookLinkServiceProvider);
+      await fbService.disconnectFacebook(uid);
+      if (!mounted) return;
+      ref.invalidate(authUserProfileProvider);
+      ref.invalidate(facebookFriendsProvider);
+      _showSnackbarMessenger(messenger, 'Facebook disconnected.');
+    }
+  }
+
+  void _showSnackbarMessenger(
+    ScaffoldMessengerState messenger,
+    String message,
+  ) {
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: AppColors.surfaceV2Active,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -395,12 +608,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   Widget _divider() => Divider(
-        height: 1,
-        thickness: 1,
-        color: Colors.white.withValues(alpha: 0.06),
-        indent: 0,
-        endIndent: 0,
-      );
+    height: 1,
+    thickness: 1,
+    color: Colors.white.withValues(alpha: 0.06),
+    indent: 0,
+    endIndent: 0,
+  );
 
   // ── Row types ─────────────────────────────────────────────────────────────
 
@@ -470,31 +683,35 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     String? sub,
     required VoidCallback onTap,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(label, style: _rowLabel()),
-                  if (sub != null) ...[
-                    const SizedBox(height: 2),
-                    Text(sub, style: _rowSub()),
+    return Semantics(
+      button: true,
+      label: sub == null ? label : '$label. $sub',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(label, style: _rowLabel()),
+                    if (sub != null) ...[
+                      const SizedBox(height: 2),
+                      Text(sub, style: _rowSub()),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
-            const Icon(
-              Icons.chevron_right,
-              color: AppColors.textV2Tertiary,
-              size: 18,
-            ),
-          ],
+              const Icon(
+                Icons.chevron_right,
+                color: AppColors.textV2Tertiary,
+                size: 18,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -505,31 +722,31 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     String? sub,
     required VoidCallback onTap,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(label, style: _rowLabel(danger: true)),
-                  if (sub != null) ...[
-                    const SizedBox(height: 2),
-                    Text(sub, style: _rowSub()),
+    return Semantics(
+      button: true,
+      label: sub == null ? label : '$label. $sub',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(label, style: _rowLabel(danger: true)),
+                    if (sub != null) ...[
+                      const SizedBox(height: 2),
+                      Text(sub, style: _rowSub()),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
-            const Icon(
-              Icons.chevron_right,
-              color: AppColors.errorV2,
-              size: 18,
-            ),
-          ],
+              const Icon(Icons.chevron_right, color: AppColors.errorV2, size: 18),
+            ],
+          ),
         ),
       ),
     );
@@ -544,16 +761,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surfaceV2,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
             const Icon(Icons.logout, color: AppColors.errorV2),
             const SizedBox(width: 8),
             Text(
               'Sign Out',
-              style: GoogleFonts.syne(
+              style: AppTextStyles.h5.copyWith(
                 color: AppColors.textV2Primary,
                 fontWeight: FontWeight.w700,
               ),
@@ -562,14 +777,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         ),
         content: Text(
           'Are you sure you want to sign out?',
-          style: GoogleFonts.outfit(color: AppColors.textV2Secondary),
+          style: AppTextStyles.bodyLarge.copyWith(
+            color: AppColors.textV2Secondary,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
             child: Text(
               'Cancel',
-              style: GoogleFonts.outfit(color: AppColors.textV2Secondary),
+              style: AppTextStyles.bodyLarge.copyWith(
+                color: AppColors.textV2Secondary,
+              ),
             ),
           ),
           GestureDetector(
@@ -582,7 +801,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               ),
               child: Text(
                 'Sign Out',
-                style: GoogleFonts.outfit(
+                style: AppTextStyles.bodyLarge.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.w600,
                 ),
@@ -599,6 +818,38 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       if (mounted) {
         router.go(AppRoutes.login);
       }
+    }
+  }
+
+  Future<void> _exportMyData(BuildContext context) async {
+    final uid = ref.read(authSessionProvider).value?.id;
+    if (uid == null) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Preparing your data export…')),
+    );
+
+    try {
+      final file = await ref.read(dataExportServiceProvider).exportUserData(uid);
+      await Clipboard.setData(ClipboardData(text: file.path));
+      if (!context.mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            'Export saved. Path copied to clipboard:\n${file.path}',
+          ),
+          duration: const Duration(seconds: 6),
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Export failed: $e'),
+          backgroundColor: AppColors.error,
+        ),
+      );
     }
   }
 
@@ -632,8 +883,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               padding: const EdgeInsets.all(16),
               child: Text(
                 'Network Diagnostics',
-                style: GoogleFonts.syne(
-                  fontSize: 20,
+                style: AppTextStyles.h4.copyWith(
                   fontWeight: FontWeight.w700,
                   color: AppColors.textV2Primary,
                 ),
@@ -676,7 +926,7 @@ class _LimeToggle extends StatelessWidget {
         height: 26,
         padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
-          color: value ? AppColors.accentLime : AppColors.surfaceV2Active,
+          color: value ? AppColors.signal : AppColors.surfaceV2Active,
           borderRadius: BorderRadius.circular(13),
         ),
         child: AnimatedAlign(
@@ -688,9 +938,7 @@ class _LimeToggle extends StatelessWidget {
             height: 18,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: value
-                  ? const Color(0xFF080808)
-                  : AppColors.textV2Tertiary,
+              color: value ? AppColors.backgroundV2 : AppColors.textV2Tertiary,
             ),
           ),
         ),
@@ -727,17 +975,18 @@ class _SegmentedSelector extends StatelessWidget {
             duration: const Duration(milliseconds: 150),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color:
-                  isSelected ? AppColors.accentLime : AppColors.surfaceV2Elevated,
+              color: isSelected
+                  ? AppColors.signal
+                  : AppColors.surfaceV2Elevated,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
               opt,
-              style: GoogleFonts.syne(
+              style: AppTextStyles.caption.copyWith(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
                 color: isSelected
-                    ? const Color(0xFF080808)
+                    ? AppColors.backgroundV2
                     : AppColors.textV2Secondary,
               ),
             ),

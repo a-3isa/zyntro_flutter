@@ -20,7 +20,8 @@ void main() {
         'debugImplementation("com.google.firebase:firebase-appcheck-debug:19.0.1")',
       ),
     );
-    expect(runtimeConfig, contains('return AndroidProvider.debug;'));
+    expect(runtimeConfig, contains('return const AndroidDebugProvider();'));
+    expect(runtimeConfig, contains('usesAndroidDebugAppCheckProvider'));
     expect(
       mainActivity,
       contains('const val APP_CHECK_DEBUG_CHANNEL = "zyntro/debug"'),
@@ -31,6 +32,17 @@ void main() {
       contains('com.google.firebase.appcheck.debug.DEBUG_SECRET'),
     );
     expect(mainDart, contains('const MethodChannel('));
-    expect(mainDart, contains('[AppCheck] Android debug secret:'));
+    expect(mainDart, contains('bool.fromEnvironment('));
+    expect(mainDart, contains('LOG_APP_CHECK_DEBUG_SECRET'));
+    expect(
+      mainDart,
+      isNot(contains(r'[AppCheck] Android debug secret: $secret')),
+    );
+    expect(
+      mainDart,
+      isNot(contains(
+        "debugPrint('[AppCheck] Android debug secret for allowlisting: \$secret');",
+      )),
+    );
   });
 }

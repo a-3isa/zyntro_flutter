@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:google_fonts/google_fonts.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../widgets/reauthentication_dialog.dart';
 import '../../../widgets/widgets.dart';
@@ -146,12 +146,7 @@ class _ChangePasswordPageState extends ConsumerState<ChangePasswordPage> {
         children: [
           // Custom Header
           Container(
-            padding: EdgeInsets.only(
-              top: MediaQuery.paddingOf(context).top + 8,
-              bottom: 8,
-              left: 16,
-              right: 16,
-            ),
+            padding: AppSpacing.headerPadding(context),
             decoration: BoxDecoration(
               color: AppColors.surfaceV2,
               border: Border(
@@ -160,29 +155,11 @@ class _ChangePasswordPageState extends ConsumerState<ChangePasswordPage> {
             ),
             child: Row(
               children: [
-                GestureDetector(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    Navigator.pop(context);
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceV2Elevated,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.arrow_back,
-                      color: AppColors.textV2Primary,
-                      size: 20,
-                    ),
-                  ),
-                ),
+                const ZyntroBackButton(),
                 const SizedBox(width: 16),
                 Text(
                   'Change Password',
-                  style: GoogleFonts.syne(
-                    fontSize: 20,
+                  style: AppTextStyles.h4.copyWith(
                     fontWeight: FontWeight.w700,
                     color: AppColors.textV2Primary,
                   ),

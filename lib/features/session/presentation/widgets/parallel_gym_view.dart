@@ -1,9 +1,12 @@
-﻿import 'dart:async';
+import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../domain/turn_eligibility.dart';
+import '../live_participant_progress.dart';
+import 'participant_avatar.dart';
 import 'rep_counter_screen.dart';
 
 /// Partner metrics shown in the compact partner card while training
@@ -27,10 +30,18 @@ class ParallelPartnerData {
   final int totalSets;
   final double totalVolume; // kg
 
+  /// Whether the partner is present, temporarily away, or gone for good.
+  ///
+  /// Away and left must never render alike: one stepped out and is coming back,
+  /// the other has finished. Showing a partner who took a phone call as though
+  /// they had quit is its own kind of wrong.
+  final ParticipantStanding standing;
+
   const ParallelPartnerData({
     required this.name,
     this.photoUrl,
     required this.workoutType,
+    this.standing = ParticipantStanding.active,
     this.totalDistance = 0,
     this.averagePace,
     this.elapsedTime = Duration.zero,
@@ -38,6 +49,29 @@ class ParallelPartnerData {
     this.totalSets = 0,
     this.totalVolume = 0,
   });
+
+  /// Maps live progress into the parallel partner card model (Z-ARCH-002).
+  factory ParallelPartnerData.fromProgress({
+    required LiveParticipantProgress? progress,
+    required String workoutType,
+    required Duration elapsedTime,
+    required ParticipantStanding standing,
+    String name = 'Partner',
+    String? photoUrl,
+  }) {
+    return ParallelPartnerData(
+      name: name,
+      photoUrl: photoUrl,
+      workoutType: workoutType,
+      totalDistance: progress?.totalDistance ?? 0,
+      averagePace: progress?.averagePace,
+      elapsedTime: elapsedTime,
+      currentExercise: progress?.currentExercise,
+      totalSets: progress?.totalSets ?? 0,
+      totalVolume: progress?.totalVolume ?? 0,
+      standing: standing,
+    );
+  }
 
   bool get isCardioPartner =>
       workoutType == 'running' ||
@@ -60,7 +94,8 @@ class ParallelGymView extends StatefulWidget {
     required int reps,
     required double weight,
     required int durationSeconds,
-  }) onSetSubmit;
+  })
+  onSetSubmit;
 
   /// Partner's real-time data (cardio partner or gym partner).
   final ParallelPartnerData partner;
@@ -90,6 +125,7 @@ class _ParallelGymViewState extends State<ParallelGymView> {
   // Captured results as the user moves through the flow.
   int _reps = 0;
   int _capturedDuration = 0;
+  bool _submitting = false;
 
   // Weight entry.
   final TextEditingController _weightController = TextEditingController();
@@ -129,7 +165,9 @@ class _ParallelGymViewState extends State<ParallelGymView> {
   }
 
   void _submit() {
+    if (_submitting) return;
     final double weight = double.tryParse(_weightController.text.trim()) ?? 0;
+    _submitting = true;
     widget.onSetSubmit(
       reps: _reps,
       weight: weight,
@@ -137,6 +175,7 @@ class _ParallelGymViewState extends State<ParallelGymView> {
     );
     // Reset for next set.
     setState(() {
+      _submitting = false;
       _phase = _GymPhase.idle;
       _elapsedSeconds = 0;
       _reps = 0;
@@ -162,10 +201,7 @@ class _ParallelGymViewState extends State<ParallelGymView> {
           final double partnerHeight = constraints.maxHeight * 0.40;
           return Column(
             children: [
-              SizedBox(
-                height: ownHeight,
-                child: _buildOwnSection(),
-              ),
+              SizedBox(height: ownHeight, child: _buildOwnSection()),
               SizedBox(
                 height: partnerHeight,
                 child: _PartnerCard(
@@ -252,15 +288,14 @@ class _ParallelGymViewState extends State<ParallelGymView> {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: AppColors.surfaceV2,
-              border: Border.all(color: AppColors.primary, width: 3),
+              border: Border.all(color: AppColors.signal, width: 3),
             ),
             alignment: Alignment.center,
             child: Text(
               _formatDuration(_elapsedSeconds),
-              style: TextStyle(
+              style: AppTextStyles.sessionStat.copyWith(
                 color: AppColors.textV2Primary,
                 fontSize: 48,
-                fontWeight: FontWeight.w700,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),
@@ -305,8 +340,7 @@ class _ParallelGymViewState extends State<ParallelGymView> {
           const SizedBox(height: 8),
           TextField(
             controller: _weightController,
-            keyboardType:
-                const TextInputType.numberWithOptions(decimal: true),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
             autofocus: true,
             style: TextStyle(color: AppColors.textV2Primary, fontSize: 22),
             decoration: InputDecoration(
@@ -341,10 +375,7 @@ class _PartnerCard extends StatelessWidget {
   final ParallelPartnerData partner;
   final Color accentColor;
 
-  const _PartnerCard({
-    required this.partner,
-    required this.accentColor,
-  });
+  const _PartnerCard({required this.partner, required this.accentColor});
 
   String _formatDuration(Duration d) {
     final int totalSeconds = d.inSeconds;
@@ -387,26 +418,21 @@ class _PartnerCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const Text(
+              'Partner progress',
+              style: TextStyle(
+                color: AppColors.textV2Secondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 10),
             Row(
               children: [
-                CircleAvatar(
-                  radius: 18,
-                  backgroundColor: AppColors.surfaceV2,
-                  backgroundImage: partner.photoUrl != null &&
-                          partner.photoUrl!.isNotEmpty
-                      ? CachedNetworkImageProvider(partner.photoUrl!)
-                      : null,
-                  child: partner.photoUrl == null || partner.photoUrl!.isEmpty
-                      ? Text(
-                          partner.name.isNotEmpty
-                              ? partner.name[0].toUpperCase()
-                              : '?',
-                          style: TextStyle(
-                            color: AppColors.textV2Primary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        )
-                      : null,
+                ParticipantAvatar(
+                  name: partner.name,
+                  photoUrl: partner.photoUrl,
+                  standing: partner.standing,
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -449,6 +475,15 @@ class _PartnerCard extends StatelessWidget {
               _buildCardioStats()
             else
               _buildGymStats(),
+            const SizedBox(height: 8),
+            const Text(
+              'Shared time',
+              style: TextStyle(
+                color: AppColors.textV2Tertiary,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ],
         ),
       ),
@@ -466,10 +501,7 @@ class _PartnerCard extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: _MetricTile(
-            label: 'PACE',
-            value: partner.averagePace ?? '—',
-          ),
+          child: _MetricTile(label: 'PACE', value: partner.averagePace ?? '—'),
         ),
         const SizedBox(width: 8),
         Expanded(

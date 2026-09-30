@@ -1,12 +1,13 @@
-buildscript {
-    repositories {
-        google()
-        mavenCentral()
-    }
-    dependencies {
-        classpath("com.google.gms:google-services:4.4.0")
-    }
-}
+// No buildscript{} classpath for google-services here on purpose.
+//
+// The plugin is resolved through the plugins{} block in settings.gradle.kts,
+// which is what actually applies. A second declaration here resolved nothing
+// but was free to drift out of step with it — and did: this file pinned 4.4.0
+// while settings.gradle.kts pinned 4.3.15, leaving the effective version below
+// the 4.4.1 floor that Crashlytics 3.x requires and breaking every release
+// build with an error naming neither file.
+//
+// One declaration, in settings.gradle.kts. Version changes go there.
 
 allprojects {
     repositories {

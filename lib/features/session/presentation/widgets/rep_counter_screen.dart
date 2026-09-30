@@ -1,8 +1,8 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
-
+import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/models/models.dart';
 
 /// Full-screen tap-to-count rep counter.
 ///
@@ -11,11 +11,13 @@ import '../../../../core/theme/app_theme.dart';
 class RepCounterScreen extends StatefulWidget {
   final int initialCount;
   final void Function(int reps) onDone;
+  final BotFriend? botFriend;
 
   const RepCounterScreen({
     super.key,
     this.initialCount = 0,
     required this.onDone,
+    this.botFriend,
   });
 
   @override
@@ -37,19 +39,18 @@ class _RepCounterScreenState extends State<RepCounterScreen>
       vsync: this,
       duration: const Duration(milliseconds: 220),
     );
-    _bounceAnimation = TweenSequence<double>(<TweenSequenceItem<double>>[
-      TweenSequenceItem<double>(
-        tween: Tween<double>(begin: 1.0, end: 1.18),
-        weight: 40,
-      ),
-      TweenSequenceItem<double>(
-        tween: Tween<double>(begin: 1.18, end: 1.0),
-        weight: 60,
-      ),
-    ]).animate(CurvedAnimation(parent: _bounceController, curve: AppCurves.spring));
+    // CurveTween.transform(0.0) short-circuits to 0.0 in Flutter, which would
+    // make the pre-filled count invisible (scale=0) until the first tap fires
+    // forward(from:0). Starting at 1.0 keeps the number visible at rest.
+    if (widget.initialCount > 0) {
+      _bounceController.value = 1.0;
+    }
+    _bounceAnimation = _bounceController.drive(
+      CurveTween(curve: const _RepBounceScaleCurve()),
+    );
     _repColorAnim = ColorTween(
       begin: AppColors.textV2Primary,
-      end: AppColors.accentLime,
+      end: AppColors.signal,
     ).animate(CurvedAnimation(parent: _bounceController, curve: Curves.easeOut));
   }
 
@@ -74,6 +75,7 @@ class _RepCounterScreenState extends State<RepCounterScreen>
   @override
   Widget build(BuildContext context) {
     final bool canFinish = _repCount > 0;
+    final bot = widget.botFriend;
 
     return ColoredBox(
       color: AppColors.backgroundV2,
@@ -84,7 +86,11 @@ class _RepCounterScreenState extends State<RepCounterScreen>
               behavior: HitTestBehavior.opaque,
               onTap: _handleTap,
               child: Center(
-                child: Column(
+                child: Semantics(
+                  liveRegion: true,
+                  label: 'Rep count',
+                  value: '$_repCount reps',
+                  child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
                     AnimatedBuilder(
@@ -95,9 +101,7 @@ class _RepCounterScreenState extends State<RepCounterScreen>
                           child: _repCount == 0
                               ? Text(
                                   'TAP',
-                                  style: GoogleFonts.syne(
-                                    fontSize: 40,
-                                    fontWeight: FontWeight.w900,
+                                  style: AppTextStyles.h1.copyWith(
                                     color: AppColors.textV2Tertiary,
                                     letterSpacing: -3,
                                     height: 1,
@@ -105,17 +109,24 @@ class _RepCounterScreenState extends State<RepCounterScreen>
                                 )
                               : Text(
                                   '$_repCount',
-                                  style: GoogleFonts.syne(
-                                    fontSize: 80,
-                                    fontWeight: FontWeight.w900,
-                                    color: _repColorAnim.value ?? AppColors.textV2Primary,
-                                    letterSpacing: -3,
-                                    height: 1,
+                                  style: AppTextStyles.sessionStat.copyWith(
+                                    color: _repColorAnim.value ??
+                                        AppColors.textV2Primary,
                                   ),
                                 ),
                         );
                       },
                     ),
+                    if (_repCount == 0) ...<Widget>[
+                      const SizedBox(height: 12),
+                      Text(
+                        'tap to enter reps, or use +1',
+                        style: TextStyle(
+                          color: AppColors.textV2Tertiary,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
                     if (_repCount > 0) ...<Widget>[
                       const SizedBox(height: 8),
                       Text(
@@ -126,7 +137,18 @@ class _RepCounterScreenState extends State<RepCounterScreen>
                         ),
                       ),
                     ],
+                    if (bot != null) ...<Widget>[
+                      const SizedBox(height: 16),
+                      Text(
+                        'Bot completed ${bot.gymReps} reps @ ${_formatWeight(bot.gymWeightKg)} kg',
+                        style: AppTextStyles.body.copyWith(
+                          color: AppColors.signal,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
                   ],
+                ),
                 ),
               ),
             ),
@@ -179,37 +201,123 @@ class _RepCounterScreenState extends State<RepCounterScreen>
           Align(
             alignment: Alignment.bottomCenter,
             child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: FilledButton(
-                    onPressed: canFinish ? () => widget.onDone(_repCount) : null,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      disabledBackgroundColor:
-                          AppColors.surfaceV2Elevated,
-                      foregroundColor: AppColors.backgroundV2,
-                      disabledForegroundColor: AppColors.textV2Tertiary,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    child: Text(
-                      canFinish
-                          ? 'Save — $_repCount ${_repCount == 1 ? "rep" : "reps"} ✓'
-                          : 'Save reps',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
+              child: Row(
+                children: <Widget>[
+                  SizedBox(
+                    width: 64,
+                    height: 56,
+                    child: Semantics(
+                      button: true,
+                      label: 'Decrease reps by one',
+                      enabled: _repCount > 0,
+                      child: FilledButton(
+                        onPressed: _repCount > 0 ? _undo : null,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.surfaceV2Elevated,
+                          disabledBackgroundColor:
+                              AppColors.surfaceV2Elevated.withValues(alpha: 0.4),
+                          foregroundColor: AppColors.textV2Primary,
+                          disabledForegroundColor: AppColors.textV2Tertiary,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: const Text(
+                          '-1',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
+                  const SizedBox(width: 12),
+                  SizedBox(
+                    width: 64,
+                    height: 56,
+                    child: Semantics(
+                      button: true,
+                      label: 'Increase reps by one',
+                      child: FilledButton(
+                        onPressed: _handleTap,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.surfaceV2Elevated,
+                          foregroundColor: AppColors.textV2Primary,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: const Text(
+                          '+1',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: SizedBox(
+                      height: 56,
+                      child: Semantics(
+                        button: true,
+                        label: canFinish
+                            ? 'Save $_repCount reps'
+                            : 'Save reps disabled until count is at least one',
+                        enabled: canFinish,
+                        child: FilledButton(
+                          onPressed:
+                              canFinish ? () => widget.onDone(_repCount) : null,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.signal,
+                            disabledBackgroundColor: AppColors.surfaceV2Elevated,
+                            foregroundColor: AppColors.backgroundV2,
+                            disabledForegroundColor: AppColors.textV2Tertiary,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          child: Text(
+                            canFinish
+                                ? 'Save $_repCount ${_repCount == 1 ? "rep" : "reps"}'
+                                : 'Save reps',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
+            ),
           ),
         ],
       ),
     );
+  }
+
+  String _formatWeight(double weight) {
+    if (weight == weight.truncateToDouble()) return weight.toInt().toString();
+    return weight.toString();
+  }
+}
+
+class _RepBounceScaleCurve extends Curve {
+  const _RepBounceScaleCurve();
+
+  @override
+  double transformInternal(double t) {
+    if (t <= 0.4) {
+      return 1 + (Curves.easeOut.transform(t / 0.4) * 0.18);
+    }
+
+    return 1.18 - (Curves.easeOut.transform((t - 0.4) / 0.6) * 0.18);
   }
 }

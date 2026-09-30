@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../widgets/widgets.dart';
 import '../../../core/models/models.dart';
 import '../../auth/auth_providers.dart';
 import '../../../services/follow_service.dart';
 import '../../../services/user_service.dart';
-import '../../../utils/haptic_manager.dart';
 
 /// Follow requests page for managing pending follow requests.
 /// Migrated from React Native FollowRequestsScreen.
@@ -28,7 +28,7 @@ class _FollowRequestsPageState extends ConsumerState<FollowRequestsPage> {
     setState(() => _processingIds.add(requester.id));
 
     try {
-      final currentUser = ref.read(authSessionProvider).valueOrNull;
+      final currentUser = ref.read(authSessionProvider).value;
       await ref
           .read(followServiceProvider)
           .acceptFollowRequest(
@@ -100,7 +100,7 @@ class _FollowRequestsPageState extends ConsumerState<FollowRequestsPage> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
     final requestsAsync = ref.watch(pendingFollowRequestsProvider);
 
     return Scaffold(
@@ -123,29 +123,11 @@ class _FollowRequestsPageState extends ConsumerState<FollowRequestsPage> {
             ),
             child: Row(
               children: [
-                GestureDetector(
-                  onTap: () {
-                    HapticManager.light();
-                    context.pop();
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceV2Elevated,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.arrow_back,
-                      color: AppColors.textV2Primary,
-                      size: 20,
-                    ),
-                  ),
-                ),
+                ZyntroBackButton(onPressed: () => context.pop()),
                 const SizedBox(width: 16),
                 Text(
                   'Follow Requests',
-                  style: GoogleFonts.syne(
-                    fontSize: 20,
+                  style: AppTextStyles.h4.copyWith(
                     fontWeight: FontWeight.w700,
                     color: AppColors.textV2Primary,
                   ),
@@ -177,7 +159,7 @@ class _FollowRequestsPageState extends ConsumerState<FollowRequestsPage> {
                       );
                     },
                     loading: () =>
-                        const Center(child: CircularProgressIndicator()),
+                        const Center(child: CircularProgressIndicator(semanticsLabel: 'Loading follow requests')),
                     error: (e, _) => Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -200,37 +182,10 @@ class _FollowRequestsPageState extends ConsumerState<FollowRequestsPage> {
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.xxl),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.person_add_disabled,
-              size: 80,
-              color: Colors.grey.shade400,
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            const Text(
-              'No pending requests',
-              style: TextStyle(
-                fontSize: AppFontSize.xl,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              'When someone requests to follow you, they\'ll appear here',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.grey.shade600,
-                fontSize: AppFontSize.md,
-              ),
-            ),
-          ],
-        ),
-      ),
+    return const AppEmptyState(
+      icon: Icons.person_add_disabled,
+      title: 'No pending requests',
+      message: "When someone requests to follow you, they'll appear here",
     );
   }
 
@@ -255,10 +210,10 @@ class _FollowRequestsPageState extends ConsumerState<FollowRequestsPage> {
                       user.displayName.isNotEmpty
                           ? user.displayName[0].toUpperCase()
                           : 'U',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.primary,
+                        color: AppColors.signal,
                       ),
                     )
                   : null,
@@ -323,7 +278,7 @@ class _FollowRequestsPageState extends ConsumerState<FollowRequestsPage> {
 /// Provider for pending follow requests list.
 final pendingFollowRequestsProvider = FutureProvider<List<User>>((ref) async {
   final authState = ref.watch(authSessionProvider);
-  final uid = authState.valueOrNull?.id;
+  final uid = authState.value?.id;
   if (uid == null) return [];
 
   return ref.watch(followServiceProvider).getPendingFollowRequests(uid);

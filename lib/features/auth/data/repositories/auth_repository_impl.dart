@@ -10,22 +10,40 @@ class AuthRepositoryImpl implements AuthRepository {
   final AuthLocalDataSource _localDataSource;
 
   AuthRepositoryImpl({
-    required AuthRemoteDataSource remoteDataSource,
-    required AuthLocalDataSource localDataSource,
-  }) : _remoteDataSource = remoteDataSource,
-       _localDataSource = localDataSource;
+    required this._remoteDataSource,
+    required this._localDataSource,
+  });
 
   @override
   Stream<AuthUserEntity?> authStateChanges() {
-    return _remoteDataSource.authStateChanges().asyncMap((model) async {
-      if (model == null) {
-        await _localDataSource.clearCachedUser();
-        return null;
-      }
+    // Snapshot the sync state before the stream opens. If Firebase already has
+    // a user in memory (restored from disk after initializeApp), the first null
+    // the stream emits is a transient cold-start emission — skip it entirely so
+    // it never reaches the router or cache logic.
+    final hasSyncUser = _remoteDataSource.hasCurrentUser;
 
-      await _localDataSource.cacheUser(model);
-      return model.toEntity();
-    });
+    return _remoteDataSource
+        .authStateChanges()
+        .skipWhile((model) => model == null && hasSyncUser)
+        .asyncMap((model) async {
+          if (model != null) {
+            await _localDataSource.cacheUser(model);
+            return model.toEntity();
+          }
+
+          // Firebase emitted null. Before treating this as a sign-out, check the
+          // local cache. This covers network-offline cold starts and other edge
+          // cases where skipWhile doesn't apply (hasSyncUser was already false).
+          // signOut() clears the cache before Firebase emits null, so a non-empty
+          // cache here means the null is still transient (not a real logout).
+          final cached = await _localDataSource.getCachedUser();
+          if (cached != null) {
+            return cached.toEntity();
+          }
+
+          await _localDataSource.clearCachedUser();
+          return null;
+        });
   }
 
   @override
@@ -85,6 +103,15 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<AuthUserEntity?> signInWithApple() async {
+    final model = await _remoteDataSource.signInWithApple();
+    if (model == null) return null;
+
+    await _localDataSource.cacheUser(model);
+    return model.toEntity();
+  }
+
+  @override
   Future<void> signOut() async {
     await _remoteDataSource.signOut();
     await _localDataSource.clearCachedUser();
@@ -125,6 +152,7 @@ class AuthRepositoryImpl implements AuthRepository {
     String? photoUrl,
     String? avatarConfig,
     String? authProvider,
+    int? trainingDaysPerWeek,
   }) {
     return _remoteDataSource.createUserProfile(
       userId: userId,
@@ -134,6 +162,7 @@ class AuthRepositoryImpl implements AuthRepository {
       photoUrl: photoUrl,
       avatarConfig: avatarConfig,
       authProvider: authProvider,
+      trainingDaysPerWeek: trainingDaysPerWeek,
     );
   }
 

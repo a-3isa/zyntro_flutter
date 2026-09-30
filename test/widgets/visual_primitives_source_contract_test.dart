@@ -15,7 +15,7 @@ void main() {
     expect(glow.blurRadius, 0);
     expect(pulse.glowColor, Colors.transparent);
     expect(pulse.maxRadius, 0);
-    expect(text.colors, const [AppColors.textDark, AppColors.neonGreen]);
+    expect(text.colors, const [AppColors.textV2Primary, AppColors.signal]);
     expect(border.gradientColors, AppColors.primaryGradient);
   });
 
@@ -43,12 +43,25 @@ void main() {
     expect(button.contains('AppColors.premiumGlow.withValues'), isFalse);
     expect(button.contains('AppColors.cardGradient'), isFalse);
     expect(button.contains('AppColors.premiumGradient'), isTrue);
-    expect(button.contains('AppColors.textDark'), isTrue);
+    expect(button.contains('AppColors.textV2Primary'), isTrue);
     expect(streakCard.contains('AppColors.secondaryGlow'), isFalse);
     expect(streakCard.contains('AppColors.warmBorder'), isTrue);
     expect(startSessionPage.contains('ZyntroButtonVariant.premium'), isFalse);
     expect(startSessionPage.contains('ZyntroButtonVariant.primary'), isTrue);
     expect(sessionPage.contains('ZyntroButtonVariant.premium'), isTrue);
     expect(sessionPage.contains('ZyntroButtonVariant.primary'), isTrue);
+  });
+
+  test('start session button content has horizontal breathing room', () {
+    final startSessionPage =
+        File('lib/features/session/presentation/start_session_page.dart')
+            .readAsStringSync();
+
+    expect(
+      startSessionPage.contains(
+        'padding: const EdgeInsets.symmetric(horizontal: 20),',
+      ),
+      isTrue,
+    );
   });
 }

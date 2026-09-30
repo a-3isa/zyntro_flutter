@@ -2,13 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:google_fonts/google_fonts.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/feature_flags.dart';
 import '../../auth/auth_providers.dart';
 import '../../../widgets/widgets.dart';
 import '../../../services/notification_service.dart';
-import 'package:flutter/services.dart';
 
 /// Notification preferences page for managing notification settings.
 /// Allows users to enable/disable different notification types.
@@ -33,7 +32,7 @@ class _NotificationPreferencesPageState
 
   Future<void> _loadPreferences() async {
     final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
     if (uid == null) return;
 
     final prefs = await ref
@@ -50,7 +49,7 @@ class _NotificationPreferencesPageState
 
   Future<void> _updatePreference(NotificationPreferences newPrefs) async {
     final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
     if (uid == null) return;
 
     // Optimistic update
@@ -79,12 +78,7 @@ class _NotificationPreferencesPageState
         children: [
           // Custom Header
           Container(
-            padding: EdgeInsets.only(
-              top: MediaQuery.paddingOf(context).top + 8,
-              bottom: 8,
-              left: 16,
-              right: 16,
-            ),
+            padding: AppSpacing.headerPadding(context),
             decoration: BoxDecoration(
               color: AppColors.surfaceV2,
               border: Border(
@@ -93,29 +87,11 @@ class _NotificationPreferencesPageState
             ),
             child: Row(
               children: [
-                GestureDetector(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    context.pop();
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceV2Elevated,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.arrow_back,
-                      color: AppColors.textV2Primary,
-                      size: 20,
-                    ),
-                  ),
-                ),
+                ZyntroBackButton(onPressed: () => context.pop()),
                 const SizedBox(width: 16),
                 Text(
                   'Notification Settings',
-                  style: GoogleFonts.syne(
-                    fontSize: 20,
+                  style: AppTextStyles.h4.copyWith(
                     fontWeight: FontWeight.w700,
                     color: AppColors.textV2Primary,
                   ),
@@ -125,7 +101,7 @@ class _NotificationPreferencesPageState
           ),
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const Center(child: CircularProgressIndicator(semanticsLabel: 'Loading notification settings'))
                 : _preferences == null
                 ? const Center(child: Text('Error loading preferences'))
                 : SingleChildScrollView(
@@ -155,12 +131,12 @@ class _NotificationPreferencesPageState
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.1),
+                color: AppColors.signal.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.notifications_active,
-                color: AppColors.primary,
+                color: AppColors.signal,
               ),
             ),
             const SizedBox(width: AppSpacing.md),
@@ -192,7 +168,7 @@ class _NotificationPreferencesPageState
               onChanged: (value) {
                 _updatePreference(_preferences!.copyWith(pushEnabled: value));
               },
-              activeThumbColor: AppColors.primary,
+              activeThumbColor: AppColors.signal,
             ),
           ],
         ),
@@ -230,7 +206,7 @@ class _NotificationPreferencesPageState
                 children: [
                   _buildPreferenceItem(
                     icon: Icons.fitness_center,
-                    iconColor: AppColors.primary,
+                    iconColor: AppColors.signal,
                     title: 'Session Invites',
                     description:
                         'When someone invites you to a workout session',
@@ -398,7 +374,7 @@ class _NotificationPreferencesPageState
           Switch(
             value: value,
             onChanged: onChanged,
-            activeThumbColor: AppColors.primary,
+            activeThumbColor: AppColors.signal,
           ),
         ],
       ),

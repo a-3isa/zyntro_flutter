@@ -1,19 +1,22 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import '../../../app/navigation/app_route_locations.dart';
-import '../../../core/models/models.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../auth/auth_providers.dart';
+import '../../../services/facebook_link_service.dart';
 import '../../../services/follow_service.dart';
-import '../../../services/leaderboard_service.dart';
 import '../../../services/user_service.dart';
 import '../../../services/user_cache_service.dart';
 import '../../../utils/haptic_manager.dart';
-import '../../../utils/image_cache_manager.dart';
+import 'providers/facebook_friends_provider.dart';
+import 'widgets/social_buddy_widgets.dart';
+import 'widgets/social_board_widgets.dart';
+import 'widgets/social_find_widgets.dart';
 
 /// Social page with Board, Buddies, and Find tabs.
 class SocialPage extends ConsumerStatefulWidget {
@@ -43,6 +46,7 @@ class _SocialPageState extends ConsumerState<SocialPage>
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   final Set<String> _followedInFind = {};
+  bool _fbBannerDismissed = false;
 
   @override
   void initState() {
@@ -177,10 +181,7 @@ class _SocialPageState extends ConsumerState<SocialPage>
               children: [
                 Text(
                   'Social',
-                  style: GoogleFonts.syne(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.7,
+                  style: AppTextStyles.h2.copyWith(
                     color: AppColors.textV2Primary,
                   ),
                 ),
@@ -201,18 +202,16 @@ class _SocialPageState extends ConsumerState<SocialPage>
                     ),
                     indicatorSize: TabBarIndicatorSize.tab,
                     dividerColor: Colors.transparent,
-                    labelStyle: GoogleFonts.outfit(
-                      fontWeight: FontWeight.w600,
+                    labelStyle: AppTextStyles.label.copyWith(
                       fontSize: 13,
                     ),
-                    unselectedLabelStyle: GoogleFonts.outfit(
-                      fontWeight: FontWeight.w400,
+                    unselectedLabelStyle: AppTextStyles.body.copyWith(
                       fontSize: 13,
                     ),
-                    tabs: const [
-                      Tab(text: 'Board'),
-                      Tab(text: 'Buddies'),
-                      Tab(text: 'Find'),
+                    tabs: [
+                      Tab(text: AppLocalizations.of(context).socialTabBoard),
+                      Tab(text: AppLocalizations.of(context).socialTabBuddies),
+                      Tab(text: AppLocalizations.of(context).socialTabFind),
                     ],
                   ),
                 ),
@@ -235,8 +234,8 @@ class _SocialPageState extends ConsumerState<SocialPage>
   }
 
   Widget _buildBoardTab() {
-    final userId = ref.watch(authSessionProvider).value?.id ?? '';
-    return _BoardContent(userId: userId);
+    final userId = ref.watch(authCurrentUserIdProvider) ?? '';
+    return SocialBoardContent(userId: userId);
   }
 
   // ── Buddies tab ────────────────────────────────────────────────────────────
@@ -244,10 +243,10 @@ class _SocialPageState extends ConsumerState<SocialPage>
   Widget _buildBuddiesTab() {
     return RefreshIndicator(
       onRefresh: () async {
-        HapticManager.medium();
+        unawaited(HapticManager.medium());
         await _loadBuddies(refresh: true);
       },
-      color: AppColors.primary,
+      color: AppColors.signal,
       backgroundColor: AppColors.surfaceV2,
       child: ListView(
         controller: _buddiesScrollController,
@@ -257,22 +256,22 @@ class _SocialPageState extends ConsumerState<SocialPage>
         padding: const EdgeInsets.symmetric(vertical: 12),
         children: [
           if (_isInitialLoad)
-            ...List.generate(5, (_) => _buildBuddySkeleton())
+            ...List.generate(5, (_) => const SocialBuddySkeleton())
           else if (_buddies.isEmpty)
             Padding(
               padding: const EdgeInsets.all(48),
               child: Center(
                 child: Text(
                   'No buddies yet.\nSearch for people to follow!',
-                  style: GoogleFonts.outfit(color: AppColors.textV2Secondary),
+                  style: AppTextStyles.body.copyWith(color: AppColors.textV2Secondary),
                   textAlign: TextAlign.center,
                 ),
               ),
             )
           else
-            ..._buddies.map(_buildBuddyRow),
+            ..._buddies.map((b) => SocialBuddyRow(buddy: b)),
           if (_isLoadingMoreBuddies && !_isInitialLoad)
-            const Padding(
+            Padding(
               padding: EdgeInsets.all(16),
               child: Center(
                 child: SizedBox(
@@ -280,178 +279,11 @@ class _SocialPageState extends ConsumerState<SocialPage>
                   height: 24,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: AppColors.primary,
+                    color: AppColors.signal,
                   ),
                 ),
               ),
             ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBuddyRow(BuddyWithPresence buddy) {
-    return GestureDetector(
-      onTap: () {
-        HapticManager.light();
-        context.push('/user/${buddy.id}');
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        child: Row(
-          children: [
-            Stack(
-              children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.surfaceV2Elevated,
-                  ),
-                  child: ClipOval(
-                    child: buddy.photoURL != null
-                        ? CachedNetworkImage(
-                            imageUrl: buddy.photoURL!,
-                            cacheManager: ZyntroImageCacheManager(),
-                            fit: BoxFit.cover,
-                          )
-                        : Center(
-                            child: Text(
-                              buddy.displayName.isNotEmpty
-                                  ? buddy.displayName[0].toUpperCase()
-                                  : '?',
-                              style: GoogleFonts.syne(
-                                color: AppColors.textV2Primary,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 16,
-                              ),
-                            ),
-                          ),
-                  ),
-                ),
-                if (buddy.isOnline)
-                  Positioned(
-                    right: 0,
-                    bottom: 0,
-                    child: Container(
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        color: AppColors.success,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: AppColors.backgroundV2,
-                          width: 2,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    buddy.displayName,
-                    style: GoogleFonts.syne(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 15,
-                      color: AppColors.textV2Primary,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    buddy.isOnline ? 'Online now' : 'Offline',
-                    style: GoogleFonts.outfit(
-                      fontSize: 12,
-                      color: buddy.isOnline
-                          ? AppColors.success
-                          : AppColors.textV2Secondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            GestureDetector(
-              onTap: () {
-                HapticManager.light();
-                context.push('/user/${buddy.id}');
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 7,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceV2,
-                  border: Border.all(color: AppColors.surfaceV2Active),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  'Following',
-                  style: GoogleFonts.outfit(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textV2Secondary,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBuddySkeleton() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      child: Row(
-        children: [
-          Container(
-            width: 46,
-            height: 46,
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppColors.surfaceV2,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  height: 13,
-                  width: 110,
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceV2,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Container(
-                  height: 11,
-                  width: 70,
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceV2,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            width: 82,
-            height: 32,
-            decoration: BoxDecoration(
-              color: AppColors.surfaceV2,
-              borderRadius: BorderRadius.circular(20),
-            ),
-          ),
         ],
       ),
     );
@@ -460,8 +292,26 @@ class _SocialPageState extends ConsumerState<SocialPage>
   // ── Find tab ───────────────────────────────────────────────────────────────
 
   Widget _buildFindTab() {
+    final profile = ref.watch(authUserProfileProvider).value;
+    final isFbConnected = profile?.isFacebookConnected ?? false;
+
     return Column(
       children: [
+        // Facebook connect banner (shown when not connected and not dismissed)
+        if (!isFbConnected && !_fbBannerDismissed)
+          SocialFacebookConnectBanner(
+            onConnect: _connectFacebookFromFind,
+            onDismiss: () => setState(() => _fbBannerDismissed = true),
+          ),
+
+        // People You May Know (shown when FB connected)
+        if (isFbConnected)
+          SocialPeopleYouMayKnow(
+            followedIds: _followedInFind,
+            onFollow: _followFacebookFriend,
+          ),
+
+        // Search bar
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
           child: Container(
@@ -471,18 +321,16 @@ class _SocialPageState extends ConsumerState<SocialPage>
             ),
             child: TextField(
               controller: _searchController,
-              style: GoogleFonts.outfit(
+              style: AppTextStyles.body.copyWith(
                 color: AppColors.textV2Primary,
-                fontSize: 14,
               ),
               decoration: InputDecoration(
-                hintText: 'Find athletes by name…',
-                hintStyle: GoogleFonts.outfit(
+                hintText: 'Find buddies by username…',
+                hintStyle: AppTextStyles.body.copyWith(
                   color: AppColors.textV2Tertiary,
-                  fontSize: 14,
                 ),
                 prefixIcon: const Icon(
-                  Icons.search_rounded,
+                  Icons.alternate_email_rounded,
                   color: AppColors.textV2Tertiary,
                   size: 20,
                 ),
@@ -500,800 +348,95 @@ class _SocialPageState extends ConsumerState<SocialPage>
           child: _searchQuery.isEmpty
               ? Center(
                   child: Text(
-                    'Search for athletes to follow',
-                    style: GoogleFonts.outfit(color: AppColors.textV2Tertiary),
+                    'Search by @username to add buddies',
+                    style: AppTextStyles.body.copyWith(color: AppColors.textV2Tertiary),
                   ),
                 )
-              : _SearchResultsWidget(
+              : SocialSearchResults(
                   query: _searchQuery,
                   followedIds: _followedInFind,
                   onFollow: (userId) =>
                       setState(() => _followedInFind.add(userId)),
-                  currentUserId:
-                      ref.watch(authSessionProvider).value?.id,
+                  currentUserId: ref.watch(authCurrentUserIdProvider),
                 ),
         ),
       ],
     );
   }
-}
 
-// ── Board tab ─────────────────────────────────────────────────────────────────
+  Future<void> _followFacebookFriend(String targetUserId) async {
+    final currentUserId = ref.read(authCurrentUserIdProvider);
+    if (currentUserId == null) return;
 
-class _BoardContent extends ConsumerStatefulWidget {
-  final String userId;
-  const _BoardContent({required this.userId});
+    final targetProfile = ref.read(facebookFriendsProvider).value
+        ?.firstWhere((u) => u.id == targetUserId);
+    if (targetProfile == null) return;
 
-  @override
-  ConsumerState<_BoardContent> createState() => _BoardContentState();
-}
+    setState(() => _followedInFind.add(targetUserId));
 
-class _BoardContentState extends ConsumerState<_BoardContent> {
-  bool _isFriends = true;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // Friends / Global toggle
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-          child: Container(
-            decoration: BoxDecoration(
-              color: AppColors.surfaceV2,
+    final result = await ref.read(followServiceProvider).tryFollowUser(
+      followerId: currentUserId,
+      followeeId: targetUserId,
+      isPrivate: targetProfile.isPrivate,
+    );
+    if (!mounted) return;
+    result.when(
+      success: (_) {},
+      failure: (message) {
+        setState(() => _followedInFind.remove(targetUserId));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: AppColors.surfaceV2Active,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
-            padding: const EdgeInsets.all(3),
-            child: Row(
-              children: [
-                _toggleBtn('Friends', _isFriends, () {
-                  HapticManager.selection();
-                  setState(() => _isFriends = true);
-                }),
-                _toggleBtn('Global', !_isFriends, () {
-                  HapticManager.selection();
-                  setState(() => _isFriends = false);
-                }),
-              ],
-            ),
-          ),
-        ),
-        Expanded(
-          child: _isFriends
-              ? _FriendsLeaderboard(userId: widget.userId)
-              : const _GlobalUpsell(),
-        ),
-      ],
-    );
-  }
-
-  Widget _toggleBtn(String label, bool active, VoidCallback onTap) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: active ? AppColors.surfaceV2Active : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: GoogleFonts.outfit(
-              fontWeight: FontWeight.w600,
-              fontSize: 13,
-              color: active
-                  ? AppColors.textV2Primary
-                  : AppColors.textV2Secondary,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Friends leaderboard ───────────────────────────────────────────────────────
-
-class _FriendsLeaderboard extends ConsumerWidget {
-  final String userId;
-  const _FriendsLeaderboard({required this.userId});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    if (userId.isEmpty) {
-      return Center(
-        child: Text(
-          'Please sign in to view leaderboard',
-          style: GoogleFonts.outfit(color: AppColors.textV2Secondary),
-        ),
-      );
-    }
-
-    final leaderboardAsync = ref.watch(friendsLeaderboardProvider(userId));
-
-    return leaderboardAsync.when(
-      data: (entries) {
-        if (entries.isEmpty) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.people_outline,
-                    size: 56,
-                    color: AppColors.textV2Tertiary,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No friends yet',
-                    style: GoogleFonts.syne(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textV2Primary,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Follow people to see your friends leaderboard',
-                    style: GoogleFonts.outfit(
-                      color: AppColors.textV2Secondary,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-        return _buildLeaderboardList(context, entries);
-      },
-      loading: () => const Center(
-        child: CircularProgressIndicator(
-          color: AppColors.primary,
-          strokeWidth: 2,
-        ),
-      ),
-      error: (e, _) => Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, size: 48, color: AppColors.error),
-            const SizedBox(height: 12),
-            Text(
-              'Failed to load leaderboard',
-              style: GoogleFonts.outfit(color: AppColors.textV2Secondary),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLeaderboardList(
-    BuildContext context,
-    List<LeaderboardEntry> entries,
-  ) {
-    final top3 = entries.take(3).toList();
-    final rest = entries.skip(3).toList();
-    final me = entries.firstWhere(
-      (e) => e.isCurrentUser,
-      orElse: () => entries.isNotEmpty ? entries.first : _emptyEntry(),
-    );
-
-    return ListView(
-      physics: const BouncingScrollPhysics(
-        parent: AlwaysScrollableScrollPhysics(),
-      ),
-      padding: const EdgeInsets.only(bottom: 24),
-      children: [
-        // Podium
-        if (top3.isNotEmpty) ...[
-          const SizedBox(height: 16),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                if (top3.length > 1)
-                  _PodiumSpot(entry: top3[1], rank: 2, height: 90),
-                if (top3.isNotEmpty)
-                  _PodiumSpot(entry: top3[0], rank: 1, height: 116),
-                if (top3.length > 2)
-                  _PodiumSpot(entry: top3[2], rank: 3, height: 74),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-        ],
-        // My rank card
-        if (entries.any((e) => e.isCurrentUser)) ...[
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 14,
-              ),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceV2,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: AppColors.accentLime.withValues(alpha: 0.40),
-                  width: 1.5,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Text(
-                    '#${me.rank}',
-                    style: GoogleFonts.syne(
-                      fontSize: 32,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.accentLime,
-                      height: 1,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          me.displayName,
-                          style: GoogleFonts.syne(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 15,
-                            color: AppColors.textV2Primary,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${me.score} pts · 🔥${me.streak}',
-                          style: GoogleFonts.outfit(
-                            fontSize: 12,
-                            color: AppColors.textV2Secondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Text(
-                    'You',
-                    style: GoogleFonts.outfit(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.accentLime,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-        ],
-        // Remaining rows (rank 4+)
-        ...rest.map((entry) => _LeaderboardRow(entry: entry)),
-      ],
-    );
-  }
-
-  LeaderboardEntry _emptyEntry() => LeaderboardEntry(
-    userId: '',
-    displayName: '',
-    score: 0,
-    rank: 0,
-  );
-}
-
-// ── Podium spot ───────────────────────────────────────────────────────────────
-
-class _PodiumSpot extends StatelessWidget {
-  final LeaderboardEntry entry;
-  final int rank;
-  final double height;
-
-  const _PodiumSpot({
-    required this.entry,
-    required this.rank,
-    required this.height,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    const podiumColors = {
-      1: Color(0xFFFFD700),
-      2: Color(0xFFC0C0C0),
-      3: Color(0xFFCD7F32),
-    };
-    final podiumColor = podiumColors[rank]!;
-    final avatarRadius = rank == 1 ? 30.0 : 24.0;
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 6),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          if (rank == 1)
-            const Padding(
-              padding: EdgeInsets.only(bottom: 4),
-              child: Text('👑', style: TextStyle(fontSize: 22)),
-            )
-          else
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Container(
-                width: 22,
-                height: 22,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: podiumColor.withValues(alpha: 0.20),
-                ),
-                child: Center(
-                  child: Text(
-                    '$rank',
-                    style: TextStyle(
-                      color: podiumColor,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          Container(
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: entry.isCurrentUser
-                    ? AppColors.accentLime
-                    : podiumColor.withValues(alpha: 0.60),
-                width: entry.isCurrentUser ? 2.5 : 2,
-              ),
-            ),
-            child: CircleAvatar(
-              radius: avatarRadius,
-              backgroundColor: podiumColor.withValues(alpha: 0.25),
-              backgroundImage: entry.photoURL != null
-                  ? CachedNetworkImageProvider(entry.photoURL!)
-                  : null,
-              child: entry.photoURL == null
-                  ? Text(
-                      entry.displayName.isNotEmpty
-                          ? entry.displayName[0].toUpperCase()
-                          : '?',
-                      style: TextStyle(
-                        color: podiumColor,
-                        fontWeight: FontWeight.w800,
-                        fontSize: rank == 1 ? 20 : 16,
-                      ),
-                    )
-                  : null,
-            ),
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: 76,
-            child: Text(
-              entry.displayName,
-              style: GoogleFonts.syne(
-                fontWeight: FontWeight.w700,
-                fontSize: 12,
-                color: entry.isCurrentUser
-                    ? AppColors.accentLime
-                    : AppColors.textV2Primary,
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          Text(
-            '${entry.score} pts',
-            style: GoogleFonts.outfit(
-              fontSize: 11,
-              color: AppColors.textV2Tertiary,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Container(
-            width: 76,
-            height: height,
-            decoration: BoxDecoration(
-              color: podiumColor.withValues(alpha: 0.14),
-              border: Border.all(
-                color: podiumColor.withValues(alpha: 0.45),
-                width: 1.5,
-              ),
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(8),
-              ),
-            ),
-            child: Center(
-              child: Text(
-                '#$rank',
-                style: GoogleFonts.syne(
-                  fontWeight: FontWeight.w800,
-                  color: podiumColor,
-                  fontSize: 15,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Leaderboard row (rank 4+) ─────────────────────────────────────────────────
-
-class _LeaderboardRow extends StatelessWidget {
-  final LeaderboardEntry entry;
-  const _LeaderboardRow({required this.entry});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: entry.isCurrentUser
-            ? AppColors.accentLime.withValues(alpha: 0.08)
-            : AppColors.surfaceV2,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: entry.isCurrentUser
-              ? AppColors.accentLime.withValues(alpha: 0.35)
-              : AppColors.surfaceV2Elevated,
-          width: 1,
-        ),
-      ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 36,
-            child: Text(
-              '#${entry.rank}',
-              style: GoogleFonts.syne(
-                fontWeight: FontWeight.w700,
-                fontSize: 14,
-                color: entry.isCurrentUser
-                    ? AppColors.accentLime
-                    : AppColors.textV2Tertiary,
-              ),
-            ),
-          ),
-          CircleAvatar(
-            radius: 18,
-            backgroundColor: AppColors.surfaceV2Elevated,
-            backgroundImage: entry.photoURL != null
-                ? CachedNetworkImageProvider(entry.photoURL!)
-                : null,
-            child: entry.photoURL == null
-                ? Text(
-                    entry.displayName.isNotEmpty
-                        ? entry.displayName[0].toUpperCase()
-                        : '?',
-                    style: GoogleFonts.syne(
-                      color: AppColors.textV2Primary,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                    ),
-                  )
-                : null,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  entry.displayName,
-                  style: GoogleFonts.syne(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                    color: entry.isCurrentUser
-                        ? AppColors.accentLime
-                        : AppColors.textV2Primary,
-                  ),
-                ),
-                Text(
-                  '🔥${entry.streak} streak',
-                  style: GoogleFonts.outfit(
-                    fontSize: 11,
-                    color: AppColors.textV2Secondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Text(
-            '${entry.score} pts',
-            style: GoogleFonts.syne(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textV2Primary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Global upsell ─────────────────────────────────────────────────────────────
-
-class _GlobalUpsell extends StatelessWidget {
-  const _GlobalUpsell();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Container(
-          padding: const EdgeInsets.all(28),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceV2,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: AppColors.accentLime.withValues(alpha: 0.30),
-              width: 1.5,
-            ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  color: AppColors.accentLime.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.public_rounded,
-                  size: 32,
-                  color: AppColors.accentLime,
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                'Global Leaderboard',
-                style: GoogleFonts.syne(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.textV2Primary,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Compete with athletes worldwide and see where you rank globally.',
-                style: GoogleFonts.outfit(
-                  fontSize: 14,
-                  color: AppColors.textV2Secondary,
-                  height: 1.5,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                decoration: BoxDecoration(
-                  color: AppColors.accentLime,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  'Unlock for \$5',
-                  style: GoogleFonts.syne(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.black,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Find tab — search results ─────────────────────────────────────────────────
-
-class _SearchResultsWidget extends ConsumerWidget {
-  final String query;
-  final Set<String> followedIds;
-  final void Function(String) onFollow;
-  final String? currentUserId;
-
-  const _SearchResultsWidget({
-    required this.query,
-    required this.followedIds,
-    required this.onFollow,
-    this.currentUserId,
-  });
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final resultsAsync = ref.watch(userSearchProvider(query));
-
-    return resultsAsync.when(
-      data: (users) {
-        final filtered = users.where((u) => u.id != currentUserId).toList();
-        if (filtered.isEmpty) {
-          return Center(
-            child: Text(
-              'No athletes found',
-              style: GoogleFonts.outfit(color: AppColors.textV2Secondary),
-            ),
-          );
-        }
-        return ListView.builder(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          itemCount: filtered.length,
-          itemBuilder: (ctx, i) => _UserSearchRow(
-            user: filtered[i],
-            isFollowed: followedIds.contains(filtered[i].id),
-            currentUserId: currentUserId,
-            onFollow: () => onFollow(filtered[i].id),
           ),
         );
       },
-      loading: () => const Center(
-        child: CircularProgressIndicator(
-          color: AppColors.primary,
-          strokeWidth: 2,
-        ),
-      ),
-      error: (e, _) => Center(
-        child: Text(
-          'Search failed',
-          style: GoogleFonts.outfit(color: AppColors.textV2Secondary),
-        ),
-      ),
     );
+  }
+
+  Future<void> _connectFacebookFromFind() async {
+    final uid = ref.read(authSessionProvider).value?.id;
+    if (uid == null) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final fbService = ref.read(facebookLinkServiceProvider);
+    final result = await fbService.connectFacebook(uid);
+
+    if (!mounted) return;
+    ref.invalidate(authUserProfileProvider);
+    ref.invalidate(facebookFriendsProvider);
+
+    String snack;
+    switch (result) {
+      case FacebookLinkSuccess(:final value):
+        final count = value.length;
+        snack = count > 0
+            ? 'Facebook connected! Found $count friend${count == 1 ? '' : 's'} on Zyntro.'
+            : 'Facebook connected.';
+      case FacebookLinkNoFriendsPermission():
+        snack = 'Facebook connected. Grant friend access to see friends.';
+      case FacebookLinkCancelled():
+        snack = 'Facebook connection cancelled.';
+      case FacebookLinkFailure(:final message):
+        messenger.showSnackBar(SnackBar(
+          content: Text(message),
+          backgroundColor: AppColors.surfaceV2Active,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ));
+        return;
+    }
+
+    messenger.showSnackBar(SnackBar(
+      content: Text(snack),
+      backgroundColor: AppColors.surfaceV2Active,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ));
   }
 }
 
-class _UserSearchRow extends ConsumerWidget {
-  final User user;
-  final bool isFollowed;
-  final String? currentUserId;
-  final VoidCallback onFollow;
-
-  const _UserSearchRow({
-    required this.user,
-    required this.isFollowed,
-    this.currentUserId,
-    required this.onFollow,
-  });
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return GestureDetector(
-      onTap: () {
-        HapticManager.light();
-        context.push('/user/${user.id}');
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.surfaceV2Elevated,
-              ),
-              child: ClipOval(
-                child: user.photoURL != null
-                    ? CachedNetworkImage(
-                        imageUrl: user.photoURL!,
-                        fit: BoxFit.cover,
-                      )
-                    : Center(
-                        child: Text(
-                          user.displayName.isNotEmpty
-                              ? user.displayName[0].toUpperCase()
-                              : '?',
-                          style: GoogleFonts.syne(
-                            color: AppColors.textV2Primary,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    user.displayName,
-                    style: GoogleFonts.syne(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                      color: AppColors.textV2Primary,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${user.totalWorkouts} workouts',
-                    style: GoogleFonts.outfit(
-                      fontSize: 12,
-                      color: AppColors.textV2Secondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (!isFollowed)
-              GestureDetector(
-                onTap: () async {
-                  if (currentUserId == null) return;
-                  HapticManager.light();
-                  onFollow();
-                  await ref.read(followServiceProvider).followUser(
-                    followerId: currentUserId!,
-                    followeeId: user.id,
-                    isPrivate: user.isPrivate,
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 7,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.accentLime,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    'Follow',
-                    style: GoogleFonts.outfit(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.black,
-                    ),
-                  ),
-                ),
-              )
-            else
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 7,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceV2,
-                  border: Border.all(color: AppColors.surfaceV2Active),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  'Following',
-                  style: GoogleFonts.outfit(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textV2Secondary,
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}

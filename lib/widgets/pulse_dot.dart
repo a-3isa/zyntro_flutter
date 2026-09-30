@@ -4,12 +4,12 @@ import '../core/theme/app_theme.dart';
 /// A pulsing dot that visually indicates a live / active state.
 /// Inner dot is static; outer ring pulses from scale 1.0→2.2, opacity 0.7→0.0.
 class PulseDot extends StatefulWidget {
-  final Color color;
+  final Color? color;
   final double size;
 
   const PulseDot({
     super.key,
-    this.color = AppColors.accentLime,
+    this.color, // defaults to the user's accent at build time
     this.size = 8,
   });
 
@@ -47,6 +47,7 @@ class _PulseDotState extends State<PulseDot>
 
   @override
   Widget build(BuildContext context) {
+    final color = widget.color ?? AppColors.signal;
     return SizedBox(
       width: widget.size * 3,
       height: widget.size * 3,
@@ -56,7 +57,7 @@ class _PulseDotState extends State<PulseDot>
           // Pulsing outer ring
           AnimatedBuilder(
             animation: _controller,
-            builder: (_, __) => Opacity(
+            builder: (context, _) => Opacity(
               opacity: _opacityAnim.value,
               child: Transform.scale(
                 scale: _scaleAnim.value,
@@ -65,7 +66,7 @@ class _PulseDotState extends State<PulseDot>
                   height: widget.size,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: widget.color,
+                    color: color,
                   ),
                 ),
               ),
@@ -77,7 +78,7 @@ class _PulseDotState extends State<PulseDot>
             height: widget.size,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: widget.color,
+              color: color,
             ),
           ),
         ],

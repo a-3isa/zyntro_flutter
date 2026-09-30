@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/session_service.dart';
@@ -41,12 +42,30 @@ OfflineErrorCategory categorizeError(Object error) {
   return OfflineErrorCategory.unknown;
 }
 
+void _debugPrintStack(StackTrace stack) {
+  if (kDebugMode) {
+    debugPrint('[OfflineHandlers] Stack: $stack');
+  }
+}
+
+void _debugPrintLocalPath(String localPath) {
+  if (kDebugMode) {
+    debugPrint('[OfflineHandlers] Local path: $localPath');
+  }
+}
+
 /// Register offline operation handlers.
 Future<void> registerOfflineHandlers(ProviderContainer container) async {
   final offlineManager = container.read(offlineManagerProvider);
 
   // Initialize manager
   await offlineManager.init();
+
+  // Scope the queue to the signed-in user (Z-OFF-001).
+  offlineManager.bindUser(FirebaseAuth.instance.currentUser?.uid);
+  FirebaseAuth.instance.authStateChanges().listen((user) {
+    offlineManager.bindUser(user?.uid);
+  });
 
   // Register batch handler for session events
   offlineManager.registerBatchHandler('session_event', (operations) async {
@@ -86,6 +105,8 @@ Future<void> registerOfflineHandlers(ProviderContainer container) async {
             'userId': payload['userId'] as String,
             'text': payload['text'] as String,
             'data': payload['data'] as Map<String, dynamic>?,
+            if (payload['clientEventId'] != null)
+              'clientEventId': payload['clientEventId'],
           };
         }).toList();
 
@@ -101,7 +122,7 @@ Future<void> registerOfflineHandlers(ProviderContainer container) async {
         debugPrint(
           '[OfflineHandlers] Batch sync failed for session $sessionId: $e (category: $errorCategory)',
         );
-        debugPrint('[OfflineHandlers] Stack: $stack');
+        _debugPrintStack(stack);
 
         // If batch fails, mark all as failed for re-queue with individual retry
         for (var i = 0; i < sessionOps.length; i++) {
@@ -145,6 +166,7 @@ Future<void> registerOfflineHandlers(ProviderContainer container) async {
             userId: userId,
             text: text,
             data: payload['data'] as Map<String, dynamic>?,
+            clientEventId: payload['clientEventId'] as String? ?? op.id,
           );
     } catch (e, stack) {
       final errorCategory = categorizeError(e);
@@ -157,7 +179,7 @@ Future<void> registerOfflineHandlers(ProviderContainer container) async {
       debugPrint(
         '[OfflineHandlers] Payload summary: sessionId=$sessionId, type=$type',
       );
-      debugPrint('[OfflineHandlers] Stack: $stack');
+      _debugPrintStack(stack);
 
       // For validation errors after 3 retries, just log and don't rethrow
       // to allow discarding
@@ -192,7 +214,7 @@ Future<void> registerOfflineHandlers(ProviderContainer container) async {
         '[OfflineHandlers] Session end failed: $e (category: $errorCategory)',
       );
       debugPrint('[OfflineHandlers] Operation ID: ${op.id}');
-      debugPrint('[OfflineHandlers] Stack: $stack');
+      _debugPrintStack(stack);
       rethrow;
     }
   });
@@ -224,12 +246,107 @@ Future<void> registerOfflineHandlers(ProviderContainer container) async {
         '[OfflineHandlers] Post create failed: $e (category: $errorCategory)',
       );
       debugPrint('[OfflineHandlers] Operation ID: ${op.id}');
-      debugPrint('[OfflineHandlers] Stack: $stack');
+      _debugPrintStack(stack);
       rethrow;
     }
   });
 
-  // 4. Voice Note Upload
+  // 4. Like Post (T026)
+  offlineManager.registerHandler('like_post', (op) async {
+    final payload = op.payload;
+    final postId = payload['postId'] as String?;
+    final userId = payload['userId'] as String?;
+    final userName = payload['userName'] as String?;
+
+    if (postId == null || postId.isEmpty) {
+      throw ArgumentError('Missing required field: postId');
+    }
+    if (userId == null || userId.isEmpty) {
+      throw ArgumentError('Missing required field: userId');
+    }
+
+    try {
+      await container
+          .read(postServiceProvider)
+          .likePost(postId, userId, userName: userName);
+    } catch (e, stack) {
+      final errorCategory = categorizeError(e);
+      debugPrint(
+        '[OfflineHandlers] Like post failed: $e (category: $errorCategory)',
+      );
+      debugPrint('[OfflineHandlers] Operation ID: ${op.id}');
+      _debugPrintStack(stack);
+      rethrow;
+    }
+  });
+
+  // 5. Unlike Post (T027)
+  offlineManager.registerHandler('unlike_post', (op) async {
+    final payload = op.payload;
+    final postId = payload['postId'] as String?;
+    final userId = payload['userId'] as String?;
+
+    if (postId == null || postId.isEmpty) {
+      throw ArgumentError('Missing required field: postId');
+    }
+    if (userId == null || userId.isEmpty) {
+      throw ArgumentError('Missing required field: userId');
+    }
+
+    try {
+      await container.read(postServiceProvider).unlikePost(postId, userId);
+    } catch (e, stack) {
+      final errorCategory = categorizeError(e);
+      debugPrint(
+        '[OfflineHandlers] Unlike post failed: $e (category: $errorCategory)',
+      );
+      debugPrint('[OfflineHandlers] Operation ID: ${op.id}');
+      _debugPrintStack(stack);
+      rethrow;
+    }
+  });
+
+  // 6. Add Comment (T028)
+  offlineManager.registerHandler('add_comment', (op) async {
+    final payload = op.payload;
+    final postId = payload['postId'] as String?;
+    final userId = payload['userId'] as String?;
+    final userName = payload['userName'] as String?;
+    final text = payload['text'] as String?;
+
+    if (postId == null || postId.isEmpty) {
+      throw ArgumentError('Missing required field: postId');
+    }
+    if (userId == null || userId.isEmpty) {
+      throw ArgumentError('Missing required field: userId');
+    }
+    if (text == null || text.isEmpty) {
+      throw ArgumentError('Missing required field: text');
+    }
+
+    try {
+      await container
+          .read(postServiceProvider)
+          // ignore: deprecated_member_use_from_same_package
+          .addComment(
+            postId: postId,
+            userId: userId,
+            userName: userName ?? 'Unknown',
+            userPhotoURL: payload['userPhotoURL'] as String?,
+            text: text,
+          );
+    } catch (e, stack) {
+      final errorCategory = categorizeError(e);
+      debugPrint(
+        '[OfflineHandlers] Add comment failed: $e (category: $errorCategory)',
+      );
+      debugPrint('[OfflineHandlers] Operation ID: ${op.id}');
+      _debugPrintStack(stack);
+      rethrow;
+    }
+  });
+
+  // 7. Voice Note Upload
   offlineManager.registerHandler('voice_note_upload', (op) async {
     final payload = op.payload;
     final String localPath = payload['filePath'];
@@ -251,7 +368,7 @@ Future<void> registerOfflineHandlers(ProviderContainer container) async {
             sessionId: sessionId,
             type: SessionEventType.voiceNote,
             userId: userId,
-            text: '🎤 Sent a voice note',
+            text: 'Sent a voice note',
             data: {'audioUrl': audioUrl},
           );
     } catch (e, stack) {
@@ -260,8 +377,8 @@ Future<void> registerOfflineHandlers(ProviderContainer container) async {
         '[OfflineHandlers] Voice note upload failed: $e (category: $errorCategory)',
       );
       debugPrint('[OfflineHandlers] Operation ID: ${op.id}');
-      debugPrint('[OfflineHandlers] Local path: $localPath');
-      debugPrint('[OfflineHandlers] Stack: $stack');
+      _debugPrintLocalPath(localPath);
+      _debugPrintStack(stack);
       rethrow;
     }
   });

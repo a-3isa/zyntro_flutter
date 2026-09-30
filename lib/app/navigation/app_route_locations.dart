@@ -36,10 +36,7 @@ enum SocialTab {
 class AppRouteLocations {
   static const String main = '/';
 
-  static String mainTab(
-    MainShellTab tab, {
-    SocialTab? socialTab,
-  }) {
+  static String mainTab(MainShellTab tab, {SocialTab? socialTab}) {
     final queryParts = <String>[];
     if (tab != MainShellTab.feed) {
       queryParts.add('tab=${tab.value}');
@@ -66,15 +63,8 @@ class AppRouteLocations {
     return '/session/setup/$sessionId';
   }
 
-  static String sessionRoom(
-    String sessionId, {
-    required String type,
-    String? audioUrl,
-  }) {
+  static String sessionRoom(String sessionId, {required String type}) {
     final queryParameters = <String, String>{'type': type};
-    if (audioUrl != null && audioUrl.isNotEmpty) {
-      queryParameters['audioUrl'] = audioUrl;
-    }
 
     return Uri(
       path: '/session/room/$sessionId',
@@ -86,6 +76,16 @@ class AppRouteLocations {
     return '/session/recap/$sessionId';
   }
 
+  static String postDetail(String postId) {
+    return '/post/$postId';
+  }
+
+  /// The invited partner's composer for an unpublished joint draft. Distinct
+  /// from [postDetail], which is for published posts only.
+  static String jointPostComposer(String postId) {
+    return '/joint-post/$postId';
+  }
+
   static String userFollowers(String userId) {
     return '/user/$userId/followers';
   }
@@ -94,19 +94,14 @@ class AppRouteLocations {
     return '/user/$userId/following';
   }
 
-  static String sessionAccept(String sessionId) {
-    return '/session/accept/$sessionId';
-  }
-
   static String sessionEntry({
     required String sessionId,
     required String type,
     required SessionPhase phase,
-    String? audioUrl,
   }) {
     if (type == WorkoutType.gym.value && phase == SessionPhase.setup) {
       return gymSessionSetup(sessionId);
     }
-    return sessionRoom(sessionId, type: type, audioUrl: audioUrl);
+    return sessionRoom(sessionId, type: type);
   }
 }

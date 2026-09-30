@@ -1,16 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:timeago/timeago.dart' as timeago;
-import 'package:google_fonts/google_fonts.dart';
-
 import '../../../app/navigation/app_route_locations.dart';
 import '../../../core/constants/constants.dart';
+import '../../../core/l10n/locale_format.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../widgets/widgets.dart';
 import '../../auth/auth_providers.dart';
+import '../../../services/follow_service.dart';
 import '../../../services/notification_service.dart';
 import '../../../services/session_service.dart';
 import '../../../utils/haptic_manager.dart';
+
+final _notifFollowStatusProvider =
+    FutureProvider.family<FollowStatus?, (String, String)>((ref, ids) async {
+      return ref.read(followServiceProvider).getFollowStatus(ids.$1, ids.$2);
+    });
 
 /// Notifications page showing all user notifications grouped by date.
 class NotificationsPage extends ConsumerStatefulWidget {
@@ -25,7 +31,9 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     String sessionId, {
     required String fallbackType,
   }) async {
-    final session = await ref.read(sessionServiceProvider).getSession(sessionId);
+    final session = await ref
+        .read(sessionServiceProvider)
+        .getSession(sessionId);
     if (!mounted) return;
 
     final location = session == null
@@ -42,7 +50,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
 
     if (uid == null) {
       return const Scaffold(
@@ -58,7 +66,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
 
     final notificationsAsync = ref.watch(userNotificationsProvider(uid));
     final unreadCount =
-        notificationsAsync.valueOrNull?.where((n) => !n.read).length ?? 0;
+        notificationsAsync.value?.where((n) => !n.read).length ?? 0;
 
     return Scaffold(
       backgroundColor: AppColors.backgroundV2,
@@ -76,39 +84,21 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
               color: AppColors.surfaceV2,
               border: Border(
                 bottom: BorderSide(
-                  color: AppColors.accentLime.withValues(alpha: 0.20),
+                  color: AppColors.signal.withValues(alpha: 0.20),
                   width: 1,
                 ),
               ),
             ),
             child: Row(
               children: [
-                GestureDetector(
-                  onTap: () {
-                    HapticManager.light();
-                    context.pop();
-                  },
-                  child: Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceV2Elevated,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.arrow_back_rounded,
-                      color: AppColors.textV2Primary,
-                      size: 20,
-                    ),
-                  ),
-                ),
+                ZyntroBackButton(onPressed: () => context.pop()),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Text(
                     'Notifications',
-                    style: GoogleFonts.syne(
+                    style: AppTextStyles.h3.copyWith(
                       fontSize: 22,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w700,
                       color: AppColors.textV2Primary,
                       letterSpacing: -0.5,
                     ),
@@ -121,7 +111,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.accentLime,
+                      color: AppColors.signal,
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
@@ -142,10 +132,10 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                         .read(notificationServiceProvider)
                         .markAllNotificationsAsRead(uid);
                   },
-                  child: const Text(
+                  child: Text(
                     'Read All',
                     style: TextStyle(
-                      color: AppColors.accentLime,
+                      color: AppColors.signal,
                       fontWeight: FontWeight.w700,
                       fontSize: 13,
                     ),
@@ -160,7 +150,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                 HapticManager.medium();
                 ref.invalidate(userNotificationsProvider(uid));
               },
-              color: AppColors.accentLime,
+              color: AppColors.signal,
               backgroundColor: AppColors.surfaceV2,
               child: notificationsAsync.when(
                 data: (notifications) {
@@ -196,7 +186,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                       const SizedBox(height: AppSpacing.md),
                       Text(
                         'Failed to load notifications',
-                        style: GoogleFonts.outfit(
+                        style: AppTextStyles.bodyLarge.copyWith(
                           color: AppColors.textV2Secondary,
                         ),
                       ),
@@ -209,7 +199,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                         icon: const Icon(Icons.refresh),
                         label: const Text('Retry'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
+                          backgroundColor: AppColors.signal,
                           foregroundColor: Colors.black,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -273,8 +263,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: Text(
         label,
-        style: GoogleFonts.outfit(
-          fontSize: 10,
+        style: AppTextStyles.caption.copyWith(
           fontWeight: FontWeight.w700,
           color: AppColors.textV2Tertiary,
           letterSpacing: 2,
@@ -284,41 +273,10 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(28),
-            decoration: BoxDecoration(
-              color: AppColors.accentLime.withValues(alpha: 0.10),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: AppColors.accentLime.withValues(alpha: 0.25),
-              ),
-            ),
-            child: const Icon(
-              Icons.notifications_none_rounded,
-              size: 56,
-              color: AppColors.accentLime,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          Text(
-            'All clear',
-            style: GoogleFonts.syne(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              color: AppColors.textV2Primary,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            "You'll see updates here when they arrive",
-            style: GoogleFonts.outfit(color: AppColors.textV2Secondary),
-          ),
-        ],
-      ),
+    return const AppEmptyState(
+      icon: Icons.notifications_none_rounded,
+      title: 'All clear',
+      message: "You'll see updates here when they arrive",
     );
   }
 
@@ -354,7 +312,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
               backgroundColor: AppColors.surfaceV2,
               action: SnackBarAction(
                 label: 'Undo',
-                textColor: AppColors.primary,
+                textColor: AppColors.signal,
                 onPressed: () async {
                   HapticManager.medium();
                   if (!mounted) return;
@@ -391,7 +349,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
               border: Border.all(
                 color: notification.read
                     ? AppColors.surfaceV2Active
-                    : AppColors.accentLime.withValues(alpha: 0.25),
+                    : AppColors.signal.withValues(alpha: 0.25),
                 width: 1,
               ),
             ),
@@ -411,14 +369,14 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                   border: notification.read
                       ? null
                       : Border.all(
-                          color: AppColors.accentLime.withValues(alpha: 0.18),
+                          color: AppColors.signal.withValues(alpha: 0.18),
                         ),
                 ),
                 child: Icon(icon, color: color, size: 22),
               ),
               title: Text(
                 notification.title,
-                style: GoogleFonts.syne(
+                style: AppTextStyles.body.copyWith(
                   fontWeight: notification.read
                       ? FontWeight.w500
                       : FontWeight.w600,
@@ -434,7 +392,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                     notification.message,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.outfit(
+                    style: AppTextStyles.caption.copyWith(
                       color: AppColors.textV2Secondary,
                       fontSize: 11,
                       height: 1.3,
@@ -442,21 +400,33 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    timeago.format(notification.createdAt),
+                    LocaleFormat.relative(notification.createdAt),
                     style: const TextStyle(
                       fontSize: 11,
                       color: AppColors.textV2Tertiary,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
+                  if (notification.type == NotificationType.followRequest) ...[
+                    Builder(
+                      builder: (_) {
+                        final uid = ref
+                            .read(authSessionProvider)
+                            .value
+                            ?.id;
+                        if (uid == null) return const SizedBox.shrink();
+                        return _buildFollowRequestActions(notification, uid);
+                      },
+                    ),
+                  ],
                 ],
               ),
               trailing: !notification.read
                   ? Container(
                       width: 7,
                       height: 7,
-                      decoration: const BoxDecoration(
-                        color: AppColors.accentLime,
+                      decoration: BoxDecoration(
+                        color: AppColors.signal,
                         shape: BoxShape.circle,
                       ),
                     )
@@ -465,6 +435,143 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildFollowRequestActions(
+    AppNotification notification,
+    String currentUserId,
+  ) {
+    final fromUserId = notification.data?['fromUserId'] as String?;
+    if (fromUserId == null) return const SizedBox.shrink();
+
+    final actionTaken = notification.data?['actionTaken'] as String?;
+    if (actionTaken != null) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Text(
+          'Request handled',
+          style: AppTextStyles.caption.copyWith(
+            color: AppColors.textV2Tertiary,
+            fontSize: 11,
+          ),
+        ),
+      );
+    }
+
+    final followStatusAsync = ref.watch(
+      _notifFollowStatusProvider((currentUserId, fromUserId)),
+    );
+    final isAlreadyFollowing =
+        followStatusAsync.value == FollowStatus.approved;
+
+    final isPrivate = ref
+        .watch(authUserProfileProvider)
+        .when(
+          data: (p) => p?.isPrivate ?? false,
+          loading: () => false,
+          error: (_, _) => false,
+        );
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Wrap(
+        spacing: 8,
+        children: [
+          if (!isAlreadyFollowing)
+            _notifActionButton(
+              label: 'Follow back',
+              filled: true,
+              onPressed: () async {
+                await ref
+                    .read(followServiceProvider)
+                    .followUser(
+                      followerId: currentUserId,
+                      followeeId: fromUserId,
+                      isPrivate: false,
+                    );
+                await ref
+                    .read(notificationServiceProvider)
+                    .updateNotificationData(notification.id, currentUserId, {
+                      'actionTaken': 'followedBack',
+                    });
+                ref.invalidate(
+                  _notifFollowStatusProvider((currentUserId, fromUserId)),
+                );
+              },
+            ),
+          if (isPrivate) ...[
+            _notifActionButton(
+              label: 'Accept',
+              filled: false,
+              onPressed: () async {
+                await ref
+                    .read(followServiceProvider)
+                    .acceptFollowRequest(fromUserId, currentUserId);
+                await ref
+                    .read(notificationServiceProvider)
+                    .updateNotificationData(notification.id, currentUserId, {
+                      'actionTaken': 'accepted',
+                    });
+              },
+            ),
+            _notifActionButton(
+              label: 'Decline',
+              filled: false,
+              onPressed: () async {
+                await ref
+                    .read(followServiceProvider)
+                    .declineFollowRequest(fromUserId, currentUserId);
+                await ref
+                    .read(notificationServiceProvider)
+                    .updateNotificationData(notification.id, currentUserId, {
+                      'actionTaken': 'declined',
+                    });
+              },
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _notifActionButton({
+    required String label,
+    required bool filled,
+    required VoidCallback onPressed,
+  }) {
+    const shape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.all(Radius.circular(8)),
+    );
+    const textStyle = TextStyle(fontSize: 12, fontWeight: FontWeight.w700);
+    const minSize = Size(0, 30);
+    const hPad = EdgeInsets.symmetric(horizontal: 12);
+
+    if (filled) {
+      return FilledButton(
+        onPressed: onPressed,
+        style: FilledButton.styleFrom(
+          backgroundColor: AppColors.signal,
+          foregroundColor: Colors.black,
+          minimumSize: minSize,
+          padding: hPad,
+          textStyle: textStyle,
+          shape: shape,
+        ),
+        child: Text(label),
+      );
+    }
+    return OutlinedButton(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.textV2Primary,
+        minimumSize: minSize,
+        padding: hPad,
+        textStyle: textStyle,
+        side: const BorderSide(color: AppColors.surfaceV2Active),
+        shape: shape,
+      ),
+      child: Text(label),
     );
   }
 
@@ -486,14 +593,14 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         break;
       case NotificationType.sessionInvite:
       case NotificationType.buddySession:
+      // A partner leaving opens the same place: the session, which is still
+      // live for this member and theirs to finish or leave.
+      case NotificationType.partnerLeft:
         final sessionId = data?['sessionId'] as String?;
         final sessionType =
             data?['sessionType'] as String? ?? WorkoutType.gym.value;
         if (sessionId != null) {
-          await _openSessionNotification(
-            sessionId,
-            fallbackType: sessionType,
-          );
+          await _openSessionNotification(sessionId, fallbackType: sessionType);
         }
         break;
 
@@ -502,15 +609,16 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         final sessionType =
             data?['sessionType'] as String? ?? WorkoutType.gym.value;
         if (sessionId != null) {
-          await _openSessionNotification(
-            sessionId,
-            fallbackType: sessionType,
-          );
+          await _openSessionNotification(sessionId, fallbackType: sessionType);
         }
         break;
 
+      case NotificationType.newFollower:
       case NotificationType.followRequest:
-        context.push('/profile/follow-requests');
+        final fromUserId = data?['fromUserId'] as String?;
+        if (fromUserId != null) {
+          context.push('/user/$fromUserId');
+        }
         break;
 
       case NotificationType.followAccepted:
@@ -561,10 +669,22 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         final sessionType =
             data?['sessionType'] as String? ?? WorkoutType.gym.value;
         if (sessionId != null) {
-          await _openSessionNotification(
-            sessionId,
-            fallbackType: sessionType,
-          );
+          await _openSessionNotification(sessionId, fallbackType: sessionType);
+        }
+        break;
+      case NotificationType.jointPostInvite:
+        // An invite points at an unpublished draft the recipient still has to
+        // complete — open the composer, not the (unpublishable) post detail.
+        final invitePostId = data?['postId'] as String?;
+        if (invitePostId != null) {
+          context.push(AppRouteLocations.jointPostComposer(invitePostId));
+        }
+        break;
+      case NotificationType.jointPostExpired:
+        // Expiry offers go to post detail, where the solo-repost flow lives.
+        final expiredPostId = data?['postId'] as String?;
+        if (expiredPostId != null) {
+          context.push(AppRouteLocations.postDetail(expiredPostId));
         }
         break;
     }
@@ -578,6 +698,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         return Icons.fitness_center_rounded;
       case NotificationType.voiceNote:
         return Icons.mic_rounded;
+      case NotificationType.newFollower:
+        return Icons.person_add_alt_1_rounded;
       case NotificationType.followRequest:
         return Icons.person_add_rounded;
       case NotificationType.followAccepted:
@@ -599,6 +721,12 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         return Icons.heart_broken_rounded;
       case NotificationType.turnChange:
         return Icons.swap_horiz_rounded;
+      case NotificationType.partnerLeft:
+        return Icons.person_remove_rounded;
+      case NotificationType.jointPostInvite:
+        return Icons.group_add_rounded;
+      case NotificationType.jointPostExpired:
+        return Icons.hourglass_bottom_rounded;
     }
   }
 
@@ -608,9 +736,11 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         return AppColors.textV2Secondary;
       case NotificationType.sessionInvite:
       case NotificationType.buddySession:
-        return AppColors.primary;
+        return AppColors.signal;
       case NotificationType.voiceNote:
         return AppColors.secondary;
+      case NotificationType.newFollower:
+        return AppColors.signal;
       case NotificationType.followRequest:
       case NotificationType.buddyInvite:
         return Colors.blue;
@@ -628,7 +758,14 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       case NotificationType.friendStreakBroken:
         return Colors.grey;
       case NotificationType.turnChange:
-        return AppColors.primary;
+        return AppColors.signal;
+      case NotificationType.partnerLeft:
+        // Informational, not an alert — the member's own session is unaffected.
+        return AppColors.textV2Secondary;
+      case NotificationType.jointPostInvite:
+        return AppColors.signal;
+      case NotificationType.jointPostExpired:
+        return Colors.orange;
     }
   }
 }

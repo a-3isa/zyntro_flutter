@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../core/theme/app_theme.dart';
@@ -104,15 +106,14 @@ class _ReactionButtonsState extends State<ReactionButtons>
     });
   }
 
-  // Get gradient colors for selected reaction — stays on the navy + neon system.
   List<Color> _getGradientColors(ReactionType type) {
     switch (type) {
       case ReactionType.fire:
-        return [AppColors.neonGreen, AppColors.action];
+        return [AppColors.signal, AppColors.navy700];
       case ReactionType.strong:
         return [AppColors.navy700, AppColors.navy800];
       case ReactionType.clap:
-        return [AppColors.warmBorder, AppColors.neonGreenHover];
+        return [AppColors.navy800, AppColors.signal];
     }
   }
 
@@ -141,7 +142,7 @@ class _ReactionButtonsState extends State<ReactionButtons>
           _buildReactionButton(
             type: ReactionType.fire,
             emoji: '🔥',
-            color: AppColors.neonGreen,
+            color: AppColors.signal,
             label: 'Fire',
             buttonPadding: buttonPadding,
             emojiSize: emojiSize,
@@ -159,7 +160,7 @@ class _ReactionButtonsState extends State<ReactionButtons>
           _buildReactionButton(
             type: ReactionType.clap,
             emoji: '👏',
-            color: AppColors.warmBorder,
+            color: AppColors.signal,
             label: 'Clap',
             buttonPadding: buttonPadding,
             emojiSize: emojiSize,
@@ -181,63 +182,64 @@ class _ReactionButtonsState extends State<ReactionButtons>
     final count = widget.reactionCounts[type] ?? 0;
     final isAnimating = _animatingType == type;
 
-    Widget button = GestureDetector(
-      onTap: () => _handleTap(type),
-      child: AnimatedBuilder(
-        animation: _scaleAnimation,
-        builder: (context, child) {
-          final scale = isAnimating ? _scaleAnimation.value : 1.0;
-          return Transform.scale(scale: scale, child: child);
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          padding: buttonPadding,
-          decoration: BoxDecoration(
-            gradient: isSelected
-                ? LinearGradient(
-                    colors: [
-                      AppColors.neonGreen.withValues(alpha: 0.14),
-                      AppColors.neonGreen.withValues(alpha: 0.05),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  )
-                : null,
-            color: isSelected ? null : Colors.transparent,
-            borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-            border: Border.all(
-              color: isSelected
-                  ? AppColors.neonGreen
-                  : AppColors.gray400.withValues(alpha: 0.3),
-              width: isSelected ? 2 : 1,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                emoji,
-                style: TextStyle(
-                  fontSize: emojiSize,
-                  color: isSelected ? color : null,
-                ),
+    Widget button = ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
+      child: GestureDetector(
+        onTap: () => _handleTap(type),
+        child: AnimatedBuilder(
+          animation: _scaleAnimation,
+          builder: (context, child) {
+            final scale = isAnimating ? _scaleAnimation.value : 1.0;
+            return Transform.scale(scale: scale, child: child);
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            padding: buttonPadding,
+            decoration: BoxDecoration(
+              gradient: isSelected
+                  ? LinearGradient(
+                      colors: [
+                        AppColors.signal.withValues(alpha: 0.14),
+                        AppColors.signal.withValues(alpha: 0.05),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    )
+                  : null,
+              color: isSelected ? null : Colors.transparent,
+              borderRadius: BorderRadius.circular(AppBorderRadius.lg),
+              border: Border.all(
+                color: isSelected
+                    ? AppColors.signal
+                    : AppColors.gray400.withValues(alpha: 0.3),
+                width: isSelected ? 2 : 1,
               ),
-              if (count > 0) ...[
-                const SizedBox(width: AppSpacing.xs),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
                 Text(
-                  '$count',
+                  emoji,
                   style: TextStyle(
-                    fontSize: AppFontSize.sm,
-                    fontWeight: isSelected
-                        ? FontWeight.bold
-                        : FontWeight.normal,
-                    color: isSelected
-                        ? color
-                        : AppColors.textV2Secondary,
+                    fontSize: emojiSize,
+                    color: isSelected ? color : null,
                   ),
                 ),
+                if (count > 0) ...[
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(
+                    '$count',
+                    style: TextStyle(
+                      fontSize: AppFontSize.sm,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                      color: isSelected ? color : AppColors.textV2Secondary,
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -301,13 +303,13 @@ class _ParticleBurstState extends State<_ParticleBurst>
       builder: (context, child) {
         return Stack(
           children: List.generate(_particleCount, (index) {
-            final angle = (index / _particleCount) * 2 * 3.14159;
+            final angle = (index / _particleCount) * 2 * math.pi;
             final radius = _animation.value * _maxRadius;
             final opacity = 1.0 - _animation.value;
 
             return Positioned(
-              left: widget.center.dx + radius * cos(angle) - 4,
-              top: widget.center.dy + radius * sin(angle) - 4,
+              left: widget.center.dx + radius * math.cos(angle) - 4,
+              top: widget.center.dy + radius * math.sin(angle) - 4,
               child: Opacity(
                 opacity: opacity,
                 child: Container(
@@ -330,25 +332,5 @@ class _ParticleBurstState extends State<_ParticleBurst>
         );
       },
     );
-  }
-
-  double cos(double radians) => _cos(radians);
-  double sin(double radians) => _sin(radians);
-
-  // Lightweight trig without importing dart:math
-  static double _cos(double x) {
-    x = x % (2 * 3.14159);
-    return 1 -
-        (x * x) / 2 +
-        (x * x * x * x) / 24 -
-        (x * x * x * x * x * x) / 720;
-  }
-
-  static double _sin(double x) {
-    x = x % (2 * 3.14159);
-    return x -
-        (x * x * x) / 6 +
-        (x * x * x * x * x) / 120 -
-        (x * x * x * x * x * x * x) / 5040;
   }
 }

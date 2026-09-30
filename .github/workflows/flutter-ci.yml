@@ -1,10 +1,16 @@
+# Quality-gate source of truth — see docs/CI.md (Z-CI-002).
 name: Flutter CI/CD
 
 on:
   push:
-    branches: [main, dev, staging]
+    branches:
+      - main
+      - dev
+      - staging
+      - "001-clean-architecture-migration"
+      - "007-resume-active-session"
   pull_request:
-    branches: [main, dev, staging]
+  workflow_dispatch:
 
 jobs:
   analyze:
@@ -17,7 +23,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.38.9'
+          flutter-version: '3.44.4'
           channel: 'stable'
 
       - name: Get dependencies
@@ -26,12 +32,117 @@ jobs:
       - name: Analyze code
         run: flutter analyze
 
-      - name: Run tests
-        run: flutter test
+      - name: Run tests with coverage
+        run: flutter test --coverage
+
+      - name: Accessibility guideline smoke (Z-A11Y-005)
+        run: flutter test test/a11y/guideline_smoke_test.dart
+
+      - name: Enforce coverage floor (Z-TEST-001)
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('coverage/lcov.info')
+          assert p.exists(), 'coverage/lcov.info missing'
+          lf = lh = 0
+          for line in p.read_text(encoding='utf-8', errors='ignore').splitlines():
+              if line.startswith('LF:'):
+                  lf += int(line[3:])
+              elif line.startswith('LH:'):
+                  lh += int(line[3:])
+          pct = (100.0 * lh / lf) if lf else 0.0
+          print(f'Line coverage: {pct:.2f}% ({lh}/{lf})')
+          # Floor matches the ~32% baseline from the audit; ratchet up later.
+          assert pct >= 30.0, f'coverage {pct:.2f}% below 30% floor'
+          PY
+
+  functions-test:
+    name: Cloud Functions Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Install functions deps
+        working-directory: functions
+        run: npm ci
+
+      - name: Run functions unit tests
+        working-directory: functions
+        run: npm test
+
+  rules-test:
+    name: Firestore Rules Emulator Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Java (rules emulator)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Install rules test deps
+        working-directory: test/rules
+        run: npm ci
+
+      - name: Run Firestore rules emulator tests
+        working-directory: test/rules
+        run: npm test
+
+  # Z-TEST-005: device/emulator smoke — not a PR gate (see docs/TESTING.md).
+  integration-smoke:
+    name: Integration Smoke (manual)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.4'
+          channel: 'stable'
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger
+          sudo apt-get update
+          sudo apt-get install -y bridge-utils
+
+      - name: Run integration smoke on Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          arch: x86_64
+          script: flutter test integration_test/smoke_test.dart
 
   build-android:
     name: Build Android Release
-    needs: analyze
+    needs: [analyze, functions-test, rules-test]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     steps:
@@ -41,7 +152,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.38.9'
+          flutter-version: '3.44.4'
           channel: 'stable'
 
       - name: Setup Java
@@ -64,10 +175,22 @@ jobs:
         run: flutter pub get
 
       - name: Build APK
-        run: flutter build apk --dart-define=ENV=prod --dart-define=STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }} --release
+        run: >
+          flutter build apk
+          --dart-define=ENV=prod
+          --dart-define=STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+          --release
+          --obfuscate
+          --split-debug-info=build/app/outputs/symbols
 
       - name: Build App Bundle
-        run: flutter build appbundle --dart-define=ENV=prod --dart-define=STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }} --release
+        run: >
+          flutter build appbundle
+          --dart-define=ENV=prod
+          --dart-define=STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+          --release
+          --obfuscate
+          --split-debug-info=build/app/outputs/symbols
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -81,9 +204,15 @@ jobs:
           name: android-aab-release
           path: build/app/outputs/bundle/release/app-release.aab
 
+      - name: Upload Android debug symbols
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-debug-symbols
+          path: build/app/outputs/symbols
+
   build-ios:
     name: Build iOS Release
-    needs: analyze
+    needs: [analyze, functions-test, rules-test]
     runs-on: macos-latest
     if: github.ref == 'refs/heads/main'
     steps:
@@ -93,7 +222,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.38.9'
+          flutter-version: '3.44.4'
           channel: 'stable'
 
       - name: Install Apple Certificate
@@ -111,7 +240,14 @@ jobs:
         run: flutter pub get
 
       - name: Build iOS (no codesign)
-        run: flutter build ios --dart-define=ENV=prod --dart-define=STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }} --release --no-codesign
+        run: >
+          flutter build ios
+          --dart-define=ENV=prod
+          --dart-define=STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+          --release
+          --no-codesign
+          --obfuscate
+          --split-debug-info=build/ios/symbols
 
       - name: Upload iOS artifact
         uses: actions/upload-artifact@v4
@@ -119,10 +255,17 @@ jobs:
           name: ios-release
           path: build/ios/iphoneos/Runner.app
 
+      - name: Upload iOS debug symbols
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-debug-symbols
+          path: build/ios/symbols
+
   deploy-firebase-rules:
     name: Deploy Firebase Rules
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
+    needs: [analyze, functions-test, rules-test]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -130,10 +273,10 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
       - name: Deploy Firestore and Storage rules
-        run: firebase deploy --only firestore:rules,firestore:indexes,storage --token ${{ secrets.FIREBASE_TOKEN }} --project ${{ secrets.FIREBASE_PROJECT_ID }}
+        run: firebase deploy --only "firestore:rules,firestore:indexes,storage" --token ${{ secrets.FIREBASE_TOKEN }} --project ${{ secrets.FIREBASE_PROJECT_ID }}

@@ -2,8 +2,9 @@ import 'dart:async';
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
+import '../core/theme/app_text_styles.dart';
 import '../core/theme/app_theme.dart';
+import '../utils/animation_utils.dart';
 
 class CelebrationOverlay extends StatefulWidget {
   final String title;
@@ -29,11 +30,12 @@ class _CelebrationOverlayState extends State<CelebrationOverlay>
   late AnimationController _slideController;
   late Animation<Offset> _slideAnim;
   Timer? _autoDismiss;
+  bool _motionStarted = false;
 
   @override
   void initState() {
     super.initState();
-    _confetti = ConfettiController(duration: const Duration(seconds: 3))..play();
+    _confetti = ConfettiController(duration: const Duration(seconds: 3));
     HapticFeedback.heavyImpact();
 
     _slideController = AnimationController(
@@ -44,9 +46,21 @@ class _CelebrationOverlayState extends State<CelebrationOverlay>
       begin: const Offset(0, 1),
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _slideController, curve: AppCurves.spring));
-    _slideController.forward();
 
     _autoDismiss = Timer(const Duration(seconds: 4), widget.onDismiss);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_motionStarted) return;
+    _motionStarted = true;
+    if (PerformanceMonitor.shouldReduceMotion(context)) {
+      _slideController.value = 1;
+    } else {
+      _confetti.play();
+      _slideController.forward();
+    }
   }
 
   @override
@@ -59,6 +73,7 @@ class _CelebrationOverlayState extends State<CelebrationOverlay>
 
   @override
   Widget build(BuildContext context) {
+    final reduceMotion = PerformanceMonitor.shouldReduceMotion(context);
     return GestureDetector(
       onTap: widget.onDismiss,
       child: Stack(
@@ -67,15 +82,16 @@ class _CelebrationOverlayState extends State<CelebrationOverlay>
           // Dim background
           Container(color: Colors.black.withValues(alpha: 0.6)),
 
-          // Confetti
-          ConfettiWidget(
-            confettiController: _confetti,
-            blastDirectionality: BlastDirectionality.explosive,
-            colors: const [AppColors.accentLime, AppColors.warnV2, Colors.white],
-            numberOfParticles: 30,
-            maxBlastForce: 20,
-            minBlastForce: 8,
-          ),
+          // Confetti (skipped when OS reduce-motion is on — Z-UI-001)
+          if (!reduceMotion)
+            ConfettiWidget(
+              confettiController: _confetti,
+              blastDirectionality: BlastDirectionality.explosive,
+              colors: [AppColors.signal, AppColors.warnV2, Colors.white],
+              numberOfParticles: 30,
+              maxBlastForce: 20,
+              minBlastForce: 8,
+            ),
 
           // Achievement card slides up from bottom
           Positioned(
@@ -102,9 +118,9 @@ class _CelebrationOverlayState extends State<CelebrationOverlay>
                     const SizedBox(height: 16),
                     Text(
                       widget.title,
-                      style: GoogleFonts.syne(
+                      style: AppTextStyles.h2.copyWith(
                         fontSize: 28,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w700,
                         color: AppColors.textV2Primary,
                         letterSpacing: -0.5,
                       ),
@@ -113,7 +129,7 @@ class _CelebrationOverlayState extends State<CelebrationOverlay>
                     const SizedBox(height: 8),
                     Text(
                       widget.subtitle,
-                      style: GoogleFonts.outfit(
+                      style: AppTextStyles.bodyLarge.copyWith(
                         fontSize: 15,
                         color: AppColors.textV2Secondary,
                         height: 1.5,
@@ -123,8 +139,7 @@ class _CelebrationOverlayState extends State<CelebrationOverlay>
                     const SizedBox(height: 24),
                     Text(
                       'Tap anywhere to continue',
-                      style: GoogleFonts.outfit(
-                        fontSize: 12,
+                      style: AppTextStyles.caption.copyWith(
                         color: AppColors.textV2Tertiary,
                       ),
                     ),

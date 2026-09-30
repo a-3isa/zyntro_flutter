@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:timeago/timeago.dart' as timeago;
 
 import '../core/theme/app_theme.dart';
 import '../core/constants/feature_flags.dart';
+import '../core/l10n/locale_format.dart';
+import '../core/ui/image_decode_budget.dart';
 
 import '../core/models/models.dart';
 import '../features/auth/auth_providers.dart';
@@ -40,6 +41,12 @@ class PostCardWidget extends ConsumerStatefulWidget {
   final bool showReactions;
   final bool showOverflowMenu;
 
+  /// Which co-author's slot a co-authored post should render in the compact
+  /// grid. Profile grids pass the profile owner so the tile shows *their*
+  /// photo and caption; defaults to the signed-in viewer's own slot, then to
+  /// the first remaining author.
+  final String? slotUserId;
+
   const PostCardWidget({
     super.key,
     required this.post,
@@ -48,6 +55,7 @@ class PostCardWidget extends ConsumerStatefulWidget {
     this.showAuthorHeader = true,
     this.showReactions = true,
     this.showOverflowMenu = true,
+    this.slotUserId,
   });
 
   @override
@@ -69,7 +77,7 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
 
   Future<void> _fetchReactionData() async {
     final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
     final postService = ref.read(postServiceProvider);
 
     try {
@@ -108,8 +116,12 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
   }
 
   Widget _buildFullCard(BuildContext context) {
+    if (widget.post.coAuthored) {
+      return _buildJointFullCard(context);
+    }
+
     final authState = ref.read(authSessionProvider);
-    final currentUserId = authState.valueOrNull?.id;
+    final currentUserId = authState.value?.id;
     final isOwnPost = currentUserId == widget.post.authorId;
 
     final author = ref
@@ -135,14 +147,20 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
                       GestureDetector(
                         onTap: () =>
                             context.push('/user/${widget.post.authorId}'),
-                        child: Hero(
-                          tag: 'avatar-${widget.post.authorId}',
-                          child: FluttermojiAvatar(
-                            avatarConfig: author?.avatarConfig,
-                            photoUrl: author?.photoURL,
-                            displayName: authorName,
-                            size: 40,
-                            showGradientBorder: false,
+                        child: Semantics(
+                          button: true,
+                          // The name beside it is labelled separately; without
+                          // this the avatar is an unlabelled tap target that
+                          // navigates somewhere a screen reader cannot name.
+                          label: 'View profile of $authorName',
+                          child: Hero(
+                            tag: 'avatar-${widget.post.authorId}',
+                            child: FluttermojiAvatar(
+                              photoUrl: author?.photoURL,
+                              displayName: authorName,
+                              size: 40,
+                              showGradientBorder: false,
+                            ),
                           ),
                         ),
                       ),
@@ -164,7 +182,7 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
                                   ),
                                 ),
                                 Text(
-                                  timeago.format(widget.post.createdAt),
+                                  LocaleFormat.relative(widget.post.createdAt),
                                   style: TextStyle(
                                     fontSize: AppFontSize.sm,
                                     color: Theme.of(context)
@@ -287,6 +305,11 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
                                   cacheManager: ZyntroImageCacheManager(),
                                   imageUrl: widget.post.mediaURLs!.first,
                                   fit: BoxFit.cover,
+                                  memCacheWidth:
+                                      ImageDecodeBudget.memCacheWidthFor(
+                                    context,
+                                    MediaQuery.sizeOf(context).width,
+                                  ),
                                   placeholder: (context, url) => Container(
                                     decoration: BoxDecoration(
                                       color: AppColors.surfaceV2,
@@ -433,10 +456,10 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
                                     ),
                                     child: Row(
                                       children: [
-                                        const Icon(
+                                        Icon(
                                           Icons.fitness_center,
                                           size: 14,
-                                          color: AppColors.primary,
+                                          color: AppColors.signal,
                                         ),
                                         const SizedBox(width: AppSpacing.xs),
                                         Expanded(
@@ -505,6 +528,7 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
+                              tooltip: 'View comments',
                               icon: const Icon(Icons.comment_outlined),
                               onPressed: () =>
                                   context.push('/post/${widget.post.id}'),
@@ -522,14 +546,428 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
     );
   }
 
+  /// Renders a co-authored ("joint") post: a "{A} with {B}" header with
+  /// stacked avatars, both authors' photos side by side, both captions
+  /// attributed to their author, and an expandable "Session activity"
+  /// section with both authors' summaries. Authors marked `removed` on
+  /// their slot are skipped entirely.
+  Widget _buildJointFullCard(BuildContext context) {
+    final userCache = ref.watch(userCacheServiceProvider);
+
+    final allAuthorIds = widget.post.authorIds.isNotEmpty
+        ? widget.post.authorIds
+        : widget.post.authors.keys.toList();
+    final activeAuthorIds = allAuthorIds
+        .where((uid) => widget.post.authors[uid]?.removed != true)
+        .toList();
+
+    final authState = ref.read(authSessionProvider);
+    final currentUserId = authState.value?.id;
+    final isActiveAuthor =
+        currentUserId != null && activeAuthorIds.contains(currentUserId);
+
+    String nameFor(String uid) =>
+        userCache.getUserSync(uid)?.displayName ?? 'User';
+
+    final headerTitle = activeAuthorIds.isEmpty
+        ? widget.post.title
+        : activeAuthorIds.length == 1
+            ? nameFor(activeAuthorIds.first)
+            : '${nameFor(activeAuthorIds.first)} with '
+                '${activeAuthorIds.skip(1).map(nameFor).join(', ')}';
+
+    return RepaintBoundary(
+      child: Card(
+        key: const ValueKey('joint_post_card'),
+        margin: const EdgeInsets.only(bottom: AppSpacing.lg),
+        child: InkWell(
+          onTap:
+              widget.onTap ?? () => context.push('/post/${widget.post.id}'),
+          borderRadius: BorderRadius.circular(AppBorderRadius.md),
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (widget.showAuthorHeader)
+                  Row(
+                    children: [
+                      SizedBox(
+                        width: 40 + 24.0 * (activeAuthorIds.length - 1),
+                        height: 40,
+                        child: Stack(
+                          children: [
+                            for (var i = 0; i < activeAuthorIds.length; i++)
+                              Positioned(
+                                left: 24.0 * i,
+                                child: FluttermojiAvatar(
+                                  photoUrl: userCache
+                                      .getUserSync(activeAuthorIds[i])
+                                      ?.photoURL,
+                                  displayName: nameFor(activeAuthorIds[i]),
+                                  size: 40,
+                                  showGradientBorder: false,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.md),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              headerTitle,
+                              key: const ValueKey('joint_post_card_header'),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              LocaleFormat.relative(widget.post.createdAt),
+                              style: TextStyle(
+                                fontSize: AppFontSize.sm,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurface
+                                    .withValues(alpha: 0.6),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Overflow menu. It ALWAYS renders on a joint card: an
+                      // author gets the "remove my slot" soft-leave, and
+                      // anyone else (e.g. a stranger seeing a matchmaking
+                      // pair's photos in the public feed) gets the same
+                      // report/block actions the solo card offers — moderation
+                      // must never be unreachable on a UGC surface.
+                      if (widget.showOverflowMenu)
+                        Semantics(
+                          label: 'Post Options',
+                          button: true,
+                          child: PopupMenuButton<String>(
+                            key: const ValueKey('joint_post_card_menu'),
+                            icon: const Icon(Icons.more_vert),
+                            onSelected: (value) => _onJointMenuSelected(
+                              value: value,
+                              currentUserId: currentUserId,
+                              nameFor: nameFor,
+                            ),
+                            itemBuilder: (context) => isActiveAuthor
+                                ? const [
+                                    PopupMenuItem(
+                                      value: 'remove_author_slot',
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.remove_circle_outline,
+                                            size: 20,
+                                            color: Colors.red,
+                                          ),
+                                          SizedBox(width: 8),
+                                          Flexible(
+                                            child: Text(
+                                              'Remove from my profile',
+                                              style: TextStyle(
+                                                color: Colors.red,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ]
+                                : [
+                                    const PopupMenuItem(
+                                      value: 'report_post',
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.flag_outlined, size: 20),
+                                          SizedBox(width: 8),
+                                          Text('Report Post'),
+                                        ],
+                                      ),
+                                    ),
+                                    // One entry per co-author: a joint post
+                                    // has two people behind it, so "report the
+                                    // user" / "block the user" have to be
+                                    // explicit about which one.
+                                    for (final uid in activeAuthorIds)
+                                      PopupMenuItem(
+                                        value: 'report_user:$uid',
+                                        child: Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.person_off_outlined,
+                                              size: 20,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Flexible(
+                                              child: Text(
+                                                'Report ${nameFor(uid)}',
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    for (final uid in activeAuthorIds)
+                                      PopupMenuItem(
+                                        value: 'block_user:$uid',
+                                        child: Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.block,
+                                              size: 20,
+                                              color: Colors.red,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Flexible(
+                                              child: Text(
+                                                'Block ${nameFor(uid)}',
+                                                style: const TextStyle(
+                                                  color: Colors.red,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                  ],
+                          ),
+                        ),
+                    ],
+                  ),
+
+                if (widget.showAuthorHeader)
+                  const SizedBox(height: AppSpacing.md),
+
+                // Title
+                Text(
+                  widget.post.title,
+                  style: const TextStyle(
+                    fontSize: AppFontSize.lg,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+
+                // Both authors' photos, side by side.
+                Row(
+                  children: [
+                    for (final uid in activeAuthorIds)
+                      _buildJointPhotoTile(context, uid),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.md),
+
+                // Both authors' captions, attributed.
+                for (final uid in activeAuthorIds) _buildJointCaption(uid),
+                if (activeAuthorIds.isNotEmpty)
+                  const SizedBox(height: AppSpacing.sm),
+
+                // Expandable "Session activity" showing both summaries.
+                Theme(
+                  data: Theme.of(context).copyWith(
+                    dividerColor: Colors.transparent,
+                  ),
+                  child: ExpansionTile(
+                    key: const ValueKey('joint_post_card_activity'),
+                    tilePadding: EdgeInsets.zero,
+                    title: const Text('Session activity'),
+                    children: [
+                      for (final uid in activeAuthorIds)
+                        ListTile(
+                          key: ValueKey('joint_post_card_activity_$uid'),
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(nameFor(uid)),
+                          subtitle: Text(
+                            _jointSummaryLine(
+                              widget.post.authors[uid]?.summary,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: AppSpacing.md),
+
+                // Actions - Reaction buttons
+                if (widget.showReactions)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _isLoadingReactions
+                            ? const SizedBox(height: 40)
+                            : ReactionButtons(
+                                postId: widget.post.id,
+                                currentReaction: _userReaction,
+                                reactionCounts: _reactionCounts,
+                                onReactionTap: _handleReaction,
+                              ),
+                      ),
+                      const SizedBox(width: AppSpacing.md),
+                      if (FeatureFlags.isCommentsEnabled)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              tooltip: 'View comments',
+                              icon: const Icon(Icons.comment_outlined),
+                              onPressed: () =>
+                                  context.push('/post/${widget.post.id}'),
+                            ),
+                            Text('${widget.post.commentsCount}'),
+                          ],
+                        ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// A single author's photo tile in the joint card's side-by-side media
+  /// row: their `authors[uid].photoUrl` when set, otherwise their profile
+  /// picture (via [FluttermojiAvatar], same fallback used for the solo
+  /// header avatar) so the tile is never left blank.
+  Widget _buildJointPhotoTile(BuildContext context, String uid) {
+    final userCache = ref.watch(userCacheServiceProvider);
+    final user = userCache.getUserSync(uid);
+    final displayName = user?.displayName ?? 'User';
+    final photoUrl = widget.post.authors[uid]?.photoUrl;
+    final height = context.responsive(mobile: 180.0, desktop: 220.0);
+    final hasPhoto = photoUrl != null && photoUrl.isNotEmpty;
+
+    return Expanded(
+      child: Container(
+        key: ValueKey('joint_post_card_photo_$uid'),
+        height: height,
+        margin: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceV2Elevated,
+          borderRadius: BorderRadius.circular(AppBorderRadius.md),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(AppBorderRadius.md),
+          child: hasPhoto
+              ? CachedNetworkImage(
+                  cacheManager: ZyntroImageCacheManager(),
+                  imageUrl: photoUrl,
+                  fit: BoxFit.cover,
+                  placeholder: (context, url) => Container(
+                    color: AppColors.surfaceV2,
+                  ),
+                  errorWidget: (context, url, error) => Center(
+                    child: FluttermojiAvatar(
+                      photoUrl: user?.photoURL,
+                      displayName: displayName,
+                      size: 56,
+                      showGradientBorder: false,
+                    ),
+                  ),
+                )
+              : Center(
+                  child: FluttermojiAvatar(
+                    photoUrl: user?.photoURL,
+                    displayName: displayName,
+                    size: 56,
+                    showGradientBorder: false,
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+
+  /// One author's attributed caption line in the joint card. Renders
+  /// nothing when that author left no caption.
+  Widget _buildJointCaption(String uid) {
+    final userCache = ref.watch(userCacheServiceProvider);
+    final name = userCache.getUserSync(uid)?.displayName ?? 'User';
+    final caption = widget.post.authors[uid]?.caption;
+    if (caption == null || caption.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      key: ValueKey('joint_post_card_caption_$uid'),
+      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+      child: RichText(
+        text: TextSpan(
+          style: DefaultTextStyle.of(context).style,
+          children: [
+            TextSpan(
+              text: '$name: ',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            TextSpan(text: caption),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Short human-readable summary of one author's session slot, for the
+  /// "Session activity" expandable section.
+  String _jointSummaryLine(SessionSummary? summary) {
+    if (summary == null) return 'No activity recorded';
+    final parts = <String>[];
+    if (summary.totalExercises != null) {
+      parts.add('${summary.totalExercises} exercises');
+    }
+    if (summary.totalSets != null) {
+      parts.add('${summary.totalSets} sets');
+    }
+    if (summary.duration != null) {
+      parts.add(summary.duration!);
+    }
+    if (summary.distance != null) {
+      parts.add('${summary.distance} km');
+    }
+    return parts.isEmpty ? 'No activity recorded' : parts.join(' • ');
+  }
+
+  /// The co-author whose slot this card should render, for the display modes
+  /// that only have room for one. Prefers the caller-supplied [slotUserId]
+  /// (a profile grid passes the profile owner), then the signed-in viewer,
+  /// then the first author who has not removed their slot.
+  String? _resolveSlotAuthorId() {
+    final allAuthorIds = widget.post.authorIds.isNotEmpty
+        ? widget.post.authorIds
+        : widget.post.authors.keys.toList();
+    final activeAuthorIds = allAuthorIds
+        .where((uid) => widget.post.authors[uid]?.removed != true)
+        .toList();
+    if (activeAuthorIds.isEmpty) return null;
+
+    final preferred = [
+      widget.slotUserId,
+      ref.read(authSessionProvider).value?.id,
+    ];
+    for (final uid in preferred) {
+      if (uid != null && activeAuthorIds.contains(uid)) return uid;
+    }
+    return activeAuthorIds.first;
+  }
+
   Widget _buildCompactCard(BuildContext context) {
+    if (widget.post.coAuthored) {
+      return _buildJointCompactCard(context);
+    }
+
     final hasImage =
         widget.post.mediaURLs != null && widget.post.mediaURLs!.isNotEmpty;
     final typeIcon = widget.post.type == 'strength'
         ? Icons.fitness_center
         : Icons.directions_run;
     final typeColor = widget.post.type == 'strength'
-        ? AppColors.primary
+        ? AppColors.signal
         : AppColors.secondary;
 
     return RepaintBoundary(
@@ -612,6 +1050,133 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
     );
   }
 
+  /// Compact grid tile for a co-authored post.
+  ///
+  /// A joint post's photos live in `authors.<uid>.photoUrl`, never in the
+  /// top-level `mediaURLs` the solo compact tile reads — so without this
+  /// branch a joint post rendered as a blank placeholder with no hint that it
+  /// was co-authored. This renders the relevant author's own slot photo
+  /// (falling back to their profile picture, same as the full card) plus a
+  /// small co-author badge. The full side-by-side treatment stays in
+  /// [_buildJointFullCard].
+  Widget _buildJointCompactCard(BuildContext context) {
+    final userCache = ref.watch(userCacheServiceProvider);
+    final slotUserId = _resolveSlotAuthorId();
+    final slot = slotUserId == null ? null : widget.post.authors[slotUserId];
+    final user = slotUserId == null ? null : userCache.getUserSync(slotUserId);
+    final displayName = user?.displayName ?? 'User';
+    final photoUrl = slot?.photoUrl;
+    final hasImage = photoUrl != null && photoUrl.isNotEmpty;
+
+    final typeColor = widget.post.type == 'strength'
+        ? AppColors.signal
+        : AppColors.secondary;
+    final fallback = Container(
+      color: typeColor.withValues(alpha: 0.1),
+      child: Center(
+        child: FluttermojiAvatar(
+          photoUrl: user?.photoURL,
+          displayName: displayName,
+          size: 48,
+          showGradientBorder: false,
+        ),
+      ),
+    );
+
+    return RepaintBoundary(
+      child: Card(
+        key: const ValueKey('joint_post_compact_card'),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: widget.onTap ?? () => context.push('/post/${widget.post.id}'),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AspectRatio(
+                aspectRatio: 1,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (hasImage)
+                      CachedNetworkImage(
+                        cacheManager: ZyntroImageCacheManager(),
+                        imageUrl: photoUrl,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) =>
+                            Container(color: typeColor.withValues(alpha: 0.1)),
+                        errorWidget: (context, url, error) => fallback,
+                      )
+                    else
+                      fallback,
+                    // Co-author badge, so a joint post is distinguishable from
+                    // a solo one at grid size.
+                    Positioned(
+                      top: AppSpacing.xs,
+                      right: AppSpacing.xs,
+                      child: Container(
+                        key: const ValueKey('joint_post_compact_badge'),
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.55),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.people_alt,
+                          size: 14,
+                          color: Colors.white,
+                          semanticLabel: 'Co-authored post',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(AppSpacing.sm),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.post.title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: AppFontSize.sm,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.fitness_center,
+                          size: 12,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withValues(alpha: 0.6),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${slot?.summary.totalSets ?? widget.post.summary.totalSets ?? 0} sets',
+                          style: TextStyle(
+                            fontSize: AppFontSize.xs,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withValues(alpha: 0.6),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildMinimalCard(BuildContext context) {
     final hasImage =
         widget.post.mediaURLs != null && widget.post.mediaURLs!.isNotEmpty;
@@ -619,7 +1184,7 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
         ? Icons.fitness_center
         : Icons.directions_run;
     final typeColor = widget.post.type == 'strength'
-        ? AppColors.primary
+        ? AppColors.signal
         : AppColors.secondary;
 
     return AspectRatio(
@@ -686,6 +1251,24 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
                     ),
                   ),
                 ),
+                // Private (unshared) workout indicator - visible only to owner.
+                if (widget.post.visibility == 'private')
+                  Positioned(
+                    top: AppSpacing.sm,
+                    right: AppSpacing.sm,
+                    child: Container(
+                      padding: const EdgeInsets.all(5),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.55),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.lock,
+                        size: 12,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -719,7 +1302,7 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
 
   Future<void> _handleReaction(ReactionType type) async {
     final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
     if (uid == null) return;
 
     final currentReaction = _userReaction;
@@ -768,13 +1351,19 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
     }
   }
 
+  /// Report/block actions for a post. [targetUserId] defaults to the post's
+  /// single author; the joint card passes the specific co-author the viewer
+  /// picked, since a co-authored post has two people behind it.
   Future<void> _handlePostAction({
     required String action,
     required String authorName,
+    String? targetUserId,
   }) async {
     final authState = ref.read(authSessionProvider);
-    final currentUserId = authState.valueOrNull?.id;
+    final currentUserId = authState.value?.id;
     if (currentUserId == null) return;
+
+    final reportedUserId = targetUserId ?? widget.post.authorId;
 
     switch (action) {
       case 'report_post':
@@ -789,7 +1378,7 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
       case 'report_user':
         await ReportDialog.show(
           context,
-          reportedUserId: widget.post.authorId,
+          reportedUserId: reportedUserId,
           reportedUserName: authorName,
         );
         break;
@@ -821,7 +1410,7 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
           try {
             await ref
                 .read(moderationServiceProvider)
-                .blockUser(currentUserId, widget.post.authorId);
+                .blockUser(currentUserId, reportedUserId);
             ref.invalidate(blockedUserIdsProvider);
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -840,6 +1429,102 @@ class _PostCardWidgetState extends ConsumerState<PostCardWidget> {
                 ),
               );
             }
+          }
+        }
+        break;
+    }
+  }
+
+  /// Routes a joint-card overflow selection. Author-only actions go to
+  /// [_handleJointPostAction]; report/block reuse the solo card's
+  /// [_handlePostAction], with the co-author uid carried in the menu value
+  /// as `<action>:<uid>`.
+  void _onJointMenuSelected({
+    required String value,
+    required String? currentUserId,
+    required String Function(String uid) nameFor,
+  }) {
+    if (value == 'remove_author_slot') {
+      if (currentUserId == null) return;
+      _handleJointPostAction(action: value, currentUserId: currentUserId);
+      return;
+    }
+
+    final separator = value.indexOf(':');
+    if (separator < 0) {
+      // 'report_post' — the post itself, attributed to its primary author.
+      _handlePostAction(
+        action: value,
+        authorName: nameFor(widget.post.authorId),
+      );
+      return;
+    }
+
+    final targetUserId = value.substring(separator + 1);
+    _handlePostAction(
+      action: value.substring(0, separator),
+      authorName: nameFor(targetUserId),
+      targetUserId: targetUserId,
+    );
+  }
+
+  /// Handles the joint-post overflow menu. The only action currently
+  /// offered is "remove my slot" - a soft-leave that hides the post from
+  /// this caller's own profile/feed via [PostService.removeAuthorSlot]. The
+  /// post remains visible to the other author; the Cloud Function
+  /// (`cleanupFullyRemovedJointPosts`) deletes the underlying doc once every
+  /// author slot has been removed.
+  Future<void> _handleJointPostAction({
+    required String action,
+    required String currentUserId,
+  }) async {
+    switch (action) {
+      case 'remove_author_slot':
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Remove from my profile'),
+            content: const Text(
+              'This post will no longer appear on your profile or feed. '
+              'It stays visible to your co-author until they remove it too.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text('Remove'),
+              ),
+            ],
+          ),
+        );
+
+        if (confirmed != true || !mounted) return;
+
+        try {
+          await ref.read(postServiceProvider).removeAuthorSlot(
+                postId: widget.post.id,
+                userId: currentUserId,
+              );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Removed from your profile'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Failed to remove: $e'),
+                backgroundColor: Colors.red,
+              ),
+            );
           }
         }
         break;

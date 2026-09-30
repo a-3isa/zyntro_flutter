@@ -33,6 +33,7 @@ migrate_working_dir/
 /build/
 /coverage/
 functions/node_modules/
+test/rules/node_modules/
 
 # Symbolication related
 app.*.symbols
@@ -51,6 +52,7 @@ android/key.properties
 *.keystore
 *.properties
 # Firebase service files (download fresh for each environment)
+lib/firebase_options.dart
 android/app/google-services.json
 android/app/src/*/google-services.json
 ios/Runner/GoogleService-Info.plist
@@ -76,6 +78,28 @@ codemagic.secrets
 .worktrees/
 .superpowers/
 .claude/skills/
+.specify/
+.agents/
 Thumbs.db
 *.tmp
 
+# Kotlin incremental-build cache (regenerated on every build)
+android/.kotlin/
+keytool_report.txt
+android/android_keys.txt
+android_keys.txt
+
+.claude/
+.codex/
+
+# Knowledge-graph and Obsidian tooling output — generated, not source
+graphify-out/
+.obsidian/
+zyntro/
+
+# Desktop Flutter scaffolding is not product-supported (see docs/SUPPORTED_PLATFORMS.md).
+# Ignore generated plugin registrants so they stop polluting diffs.
+linux/flutter/generated_plugin_registrant.cc
+linux/flutter/generated_plugin_registrant.h
+linux/flutter/generated_plugins.cmake
+macos/Flutter/GeneratedPluginRegistrant.swift

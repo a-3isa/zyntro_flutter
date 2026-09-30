@@ -106,7 +106,6 @@ void main() {
           workoutPreference: WorkoutType.other,
           beginnerFlag: false,
           photoUrl: null,
-          avatarConfig: null,
           authProvider: null,
         ),
       );
@@ -124,12 +123,25 @@ void main() {
   });
 
   group('AuthenticationUseCase.reauthenticate', () {
-    test('returns validation failure when password is empty', () async {
+    test('forwards an empty password so OAuth reauth can run', () async {
+      when(() => repository.reauthenticate('')).thenAnswer((_) async {});
+
       final result = await useCase.reauthenticate('');
 
-      expect(result.isFailure, isTrue);
-      expect(result.errorOrNull?.code, 'invalid-password');
-      verifyNever(() => repository.reauthenticate(''));
+      expect(result.isSuccess, isTrue);
+      verify(() => repository.reauthenticate('')).called(1);
+    });
+  });
+
+  group('AuthenticationUseCase.signInWithApple', () {
+    test('forwards to the repository', () async {
+      when(() => repository.signInWithApple()).thenAnswer((_) async => null);
+
+      final result = await useCase.signInWithApple();
+
+      expect(result.isSuccess, isTrue);
+      expect(result.valueOrNull, isNull);
+      verify(() => repository.signInWithApple()).called(1);
     });
   });
 

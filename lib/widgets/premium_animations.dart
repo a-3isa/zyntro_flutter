@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../core/theme/app_theme.dart';
 import '../utils/haptic_manager.dart';
+import '../utils/animation_utils.dart';
 
 /// Shimmer loading effect for a container or card.
 /// More configurable than ShimmerLoader, suitable for wrapping content.
@@ -38,7 +39,15 @@ class _ShimmerLoadingState extends State<ShimmerLoading>
     _animation = Tween<double>(begin: -1, end: 2).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOutSine),
     );
-    if (widget.isLoading) {
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reduce = PerformanceMonitor.shouldReduceMotion(context);
+    if (reduce || !widget.isLoading) {
+      _controller.stop();
+    } else if (!_controller.isAnimating) {
       _controller.repeat();
     }
   }
@@ -46,9 +55,10 @@ class _ShimmerLoadingState extends State<ShimmerLoading>
   @override
   void didUpdateWidget(ShimmerLoading oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.isLoading && !_controller.isAnimating) {
+    final reduce = PerformanceMonitor.shouldReduceMotion(context);
+    if (widget.isLoading && !reduce && !_controller.isAnimating) {
       _controller.repeat();
-    } else if (!widget.isLoading && _controller.isAnimating) {
+    } else if ((!widget.isLoading || reduce) && _controller.isAnimating) {
       _controller.stop();
     }
   }

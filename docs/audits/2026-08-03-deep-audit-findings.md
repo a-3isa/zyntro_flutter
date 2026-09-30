@@ -1,0 +1,496 @@
+# Zyntro Deep Audit — Findings
+
+**Date:** 2026-08-03
+**Branch:** `006-offline-cache-sync` (at `a0a70cd`)
+**Scope:** whole project — architecture, performance, Firestore cost, UI/UX, accessibility, i18n, security, build, tests, hygiene
+**Plan:** [2026-08-03-project-wide-audit-optimization.md](../superpowers/plans/2026-08-03-project-wide-audit-optimization.md)
+
+Every finding below is backed by a counted grep or a `file:line` reference. Impressions are excluded.
+
+## Baseline
+
+| Metric | Value |
+|---|---|
+| Dart source | 171 files · 62,935 lines |
+| Tests | 84 files · 523 passing |
+| `flutter analyze` | **No issues found** |
+| Firestore rules | 537 lines · 17 composite indexes |
+| Cloud Functions | 826 lines · 5 exports |
+| Shipped assets | 3.0 MB |
+| Direct dependencies | 40 |
+
+**Already healthy — do not regress:** R8/ProGuard minify + resource shrink enabled with no debug-signing fallback; App Check hardened via `app_runtime_config.dart`; no `if true` grants in Firestore rules; `.env*` no longer bundled; analyzer clean.
+
+---
+
+## Critical
+
+### C1 — Unbounded Firestore reads on collections that grow forever
+
+The dominant cost and latency defect in the app. These queries have no `.limit()` and read **every** matching document, so cost and latency grow linearly with a user's history for as long as they use the app.
+
+| Site | Reads | Growth driver |
+|---|---|---|
+| `lib/services/workout_service.dart:224` | every workout a user has ever logged | every session |
+| `lib/services/workout_service.dart:234` | every workout of one type, ever | every session |
+| `lib/services/user_service.dart:203` | every completed session (streak calc) | every session |
+| `lib/services/user_service.dart:591` | every completed session, **again**, inside a loop | every session |
+| `lib/services/user_service.dart:605` | every cheer event in a session | every cheer |
+| `lib/services/session_analytics_service.dart:391` | every `photo_upload_completed` analytics row, ever | every upload |
+| `lib/services/session_analytics_service.dart:397` | every `photo_upload_failed` analytics row, ever | every failure |
+| `lib/services/session_service.dart:1350` | every `setLogged` event in a session | every set |
+| `lib/services/session_service.dart:1371` | every `setLogged` event, again | every set |
+| `lib/services/session_service.dart:1395` | every event in a session | every action |
+| `lib/services/post_service.dart:861` | every reaction on a post | every like |
+| `lib/services/post_service.dart:899` | every reaction on a post, again | every like |
+| `lib/services/moderation_service.dart:88` | every report a user filed | every report |
+| `lib/services/moderation_service.dart:184` | every pending report, globally | platform-wide |
+
+**Live listeners on unbounded sets** — worse than a one-shot read, because they re-bill on every write to the set:
+
+| Site | Listener over |
+|---|---|
+| `lib/services/follow_service.dart:349` | all approved followers |
+| `lib/services/follow_service.dart:370` | all approved followees |
+| `lib/services/presence_service.dart:185` | all presence docs in a session |
+| `lib/services/presence_service.dart:155` | all online users |
+| `lib/services/post_service.dart:1009` | all comments on a post |
+| `lib/services/session_service.dart:1269` | all events in a session |
+
+`post_service.dart:899` (`getPostLikes`) is unbounded while its own sibling `getPostReactions` at `:875` correctly caps at `limit: 100` — the inconsistency is inside one file, twenty lines apart.
+
+`getReactionCounts` (`post_service.dart:857`) reads every reaction document only to count them. The codebase already knows the fix — `follow_service.dart:339` uses `.count()` aggregation, which bills as a single read regardless of set size.
+
+`user_cache_service.dart:192` carries the comment `// This costs reads!` — the cost was noticed and never addressed.
+
+**Fix:** `.limit()` + pagination on every one-shot read; `.count()` aggregation wherever the result is only used for a count; bounded windows on every live listener.
+
+---
+
+### C2 — N+1 Firestore query inside the badge-award loop
+
+`lib/services/user_service.dart:558-612`. The loop iterates `availableBadges` and issues a **full unbounded collection query per badge**:
+
+- `BadgeCriteriaType.buddySessions` (`:588-593`) re-reads *every completed session the user has ever had* — once per badge of that type.
+- `BadgeCriteriaType.cheersSent` (`:600-606`) queries session events — once per badge of that type.
+
+`calculateUserStreak` at `:556` has *already* read the same full session history one line earlier. So ending a single workout can re-scan a user's entire session history three or more times.
+
+Compounding: the whole block ends in
+
+```dart
+} catch (e) {
+  // Silent fail for badge checks
+}
+```
+
+Any failure — including a quota error caused by this very pattern — is swallowed with no log, no metric, and no user signal.
+
+**Fix:** hoist the session query out of the loop and compute all criteria from one snapshot; replace the silent catch with a logged non-fatal.
+
+---
+
+### C3 — Crash reporting is not wired
+
+`lib/utils/global_error_handler.dart:44` — `// TODO: Report to Crashlytics`, with the implementation commented out beneath it. No Crashlytics, no Sentry, no alternative anywhere in `lib/` or `pubspec.yaml`.
+
+Production failures are currently invisible. Every other finding in this document is a hypothesis that cannot be confirmed against real user impact until this is fixed. The prior audit (2026-03-30) listed this as a residual risk; it is still open.
+
+The existing `return false` from `PlatformDispatcher.instance.onError` is correct and must stay — errors are rethrown rather than swallowed.
+
+---
+
+## High
+
+### H1 — Firestore rules are 537 lines with essentially no behavioral test coverage
+
+`test/rules/` contains exactly one emulator test file: `posts_joint.rules.test.mjs`. Everything else is covered by `test/firebase/firestore_rules_contract_test.dart`, which asserts the *text* of the rules file, not its *behavior*. A rule can be rewritten to grant strictly more access and still pass a string-contract test.
+
+Uncovered, security-relevant collections: `users`, `sessions`, `buddyPairs`, `notifications`, `leaderboard`, `follows`, `blocks`, `reports`.
+
+Flagged as "Cleanup" in the 2026-03-30 audit; it is the largest remaining security-verification gap and belongs at High.
+
+### H2 — 98 providers, 4 `autoDispose`; 28 of them are `StreamProvider`s
+
+A non-disposing `StreamProvider` keeps its Firestore listener alive for the entire app session, billing for every write to the watched set, long after the screen that needed it is gone.
+
+Worst concentration — `lib/features/profile/presentation/profile_page.dart:838-842` watches **five** `StreamProvider`s in a single `build()`:
+
+```dart
+final streakAsync    = ref.watch(userStreakProvider(targetUserId));
+final sessionsAsync  = ref.watch(userSessionsProvider(targetUserId));
+final followersAsync = ref.watch(followersCountProvider(targetUserId));
+final followingAsync = ref.watch(followingCountProvider(targetUserId));
+final postsAsync     = ref.watch(userPostsProvider(targetUserId));
+```
+
+All five are `.family` providers keyed by user id, so **visiting N profiles leaves 5N live listeners running**. Two of them (`followersCountProvider`, `followingCountProvider`) are backed by the unbounded listeners in C1.
+
+`session_room_page.dart:2881-2885` watches three providers at the top of a 3,750-line widget's `build()` — any one Firestore event rebuilds the entire screen.
+
+**Fix:** `autoDispose` on every screen-scoped provider; keep app-lifetime providers (auth, connectivity, offline manager) non-disposing with a comment stating why. Push `ref.watch` down into `Consumer`s wrapping only the dependent subtree.
+
+### H3 — Cold start blocks first frame on three deferrable initializations
+
+`lib/main.dart:28-101` awaits eight things before `runApp()`. Three of them do not gate the first frame:
+
+- `:76` `notificationServiceProvider.init()`
+- `:83` `storageServiceProvider.init()`
+- `:90` `registerOfflineHandlers(container)`
+
+They run **serially**, each in its own `try`/`await`. Firebase init, `.env` load, App Check activation and `SharedPreferences` legitimately precede `runApp()`; these three do not.
+
+**Fix:** move all three after `runApp()`, or run them concurrently via `Future.wait` — the user sees UI while they complete.
+
+### H4 — Eight god files concentrate the app's complexity
+
+| File | Lines |
+|---|---|
+| `lib/features/session/presentation/session_room_page.dart` | 3,750 |
+| `lib/features/profile/presentation/profile_page.dart` | 3,006 |
+| `lib/features/session/presentation/start_session_page.dart` | 1,805 |
+| `lib/features/session/presentation/recap_page.dart` | 1,755 |
+| `lib/services/session_service.dart` | 1,745 |
+| `lib/features/social/presentation/social_page.dart` | 1,523 |
+| `lib/widgets/post_card_widget.dart` | 1,518 |
+| `lib/features/feed/presentation/post_detail_page.dart` | 1,472 |
+
+Together, 8 of 171 files hold 25% of the codebase. These are also the files where the last three features landed, so they are actively growing. `session_room_page.dart` alone exceeds what can be held in context for reliable editing.
+
+The tree already has the right precedent — `active_turn_screen.dart` (711) and `waiting_turn_screen.dart` were extracted from the session flow. The pattern exists; it just was not continued.
+
+### H5 — Accessibility is effectively absent
+
+13 `Semantics(` and 13 `tooltip:` across 62,935 lines. Icon-only buttons, avatars, progress rings, and chart widgets carry no semantic labels, so a screen-reader user gets unlabeled tap targets.
+
+Only 14 `MediaQuery.of(context)` call sites exist in the whole app, which strongly suggests `textScaler` was never considered — layouts are unverified at large text sizes, an accessibility setting with real adoption.
+
+---
+
+## Medium
+
+### M1 — ~1.9 MB of unused art ships in every build
+
+`pubspec.yaml` declares assets with a wholesale `- assets/` glob, so the entire directory ships:
+
+| File | Size | Referenced? |
+|---|---|---|
+| `app_icon.png` | 532K | build-time only (`flutter_launcher_icons`) |
+| `splash_option_3.png` | 508K | no |
+| `splash_logo.png` | 508K | no |
+| `splash_human_v3.png` | 468K | no |
+| `splash_z_v4.png` | 400K | no (superseded by v5) |
+| `splash_z_v5.png` | 336K | **yes** |
+| `splash_background.png` | 184K | **yes** |
+
+Roughly 1.9 MB of the 3.0 MB asset payload is dead weight in every download.
+
+### M2 — Design system is bypassed in 145 places
+
+145 raw `Color(0x…)` literals despite a 687-line `lib/core/theme/app_theme.dart` and a dedicated "Design Tokens & Theme System" module. Every literal is a place a future theme change silently fails to reach.
+
+### M3 — Two state paradigms coexist
+
+343 `setState` calls alongside 178 `ref.watch` calls in a Riverpod app with 98 providers. Some `setState` use is legitimate (local ephemeral UI state); the risk is state that is *also* in a provider being mutated locally, which produces stale reads that are hard to trace. Needs per-site classification, not a blanket migration.
+
+### M4 — Async UI states are unevenly handled
+
+63 async providers (28 `StreamProvider` + 35 `FutureProvider`) but only 26 `.when(` call sites and 23 `error:` handlers. Only 6 files reference any empty-state widget. Loading is well covered (143 indicators); **empty and error states are not**.
+
+### M5 — Long lists render eagerly
+
+32 `SingleChildScrollView` and 5 non-builder `ListView(` versus 14 `ListView.builder`. Where a `SingleChildScrollView` + `Column` renders a Firestore-backed list, every child is built and laid out up front regardless of viewport — the classic source of scroll jank on the feed and profile screens. Each site needs classification: static content is fine, data-driven content is not.
+
+### M6 — `expireStaleJointPostDrafts` processes serially
+
+`functions/index.js:782-806`. The query is correctly bounded at `.limit(400)`, but the body then `await`s per document *and* per confirmed author inside nested loops. At the 400-document cap that is 400+ sequential round-trips in one invocation, which risks the function timeout and delays expiry past the 15-minute schedule.
+
+The sibling `expireStalePairedInvites` (`:671`) does this correctly with a single batched commit.
+
+**Both schedulers are otherwise well built** — bounded, status-guarded (idempotent), and they log their counts.
+
+### M7 — 11 of 26 services have no test file
+
+Untested: `payment_service`, `media_service`, `moderation_service`, `presence_service`, `storage_service`, `matchmaking_service`, `workout_service`, `user_service`, `buddy_service`, `content_filter_service`, `username_service`, `voice_recording_service`.
+
+`user_service` (C2's N+1 lives there), `buddy_service` (pairing transactions), and `payment_service` are the highest-risk gaps.
+
+### M8 — Zero internationalization
+
+200 `Text('…')` literals; zero hits for `AppLocalizations` or `S.of(context)`; no `l10n` configuration. Not a defect today if English-only is intentional, but every screen shipped without the pattern raises the eventual cost.
+
+---
+
+## Low
+
+### L1 — Dead compatibility shim still present
+`lib/services/auth_service.dart` — 12 lines, 1 remaining reference. Open item from the 2026-03-30 audit.
+
+### L2 — Repo root polluted with shell-redirect artifacts
+~20 untracked files with names like `(value`, `,+`, `!author.removed)`, `[]`, `_isLoading`, `p.id)` — malformed redirects from prior sessions. `.gitignore` would not have caught them because the names are arbitrary.
+
+### L3 — `debugPrint` usage unverified for release
+227 call sites. `debugPrint` is not automatically stripped in release builds; only `kDebugMode`-guarded calls are. Needs a check for user data (emails, display names, tokens) reaching release logs.
+
+### L4 — Animation disposal unverified
+89 `AnimationController` versus 62 `void dispose()`. Not necessarily a leak — one `dispose()` can free several controllers — but the gap warrants per-file verification.
+
+### L5 — `exerciseCatalog` fetched unbounded
+`exercise_catalog_service.dart:290` reads the full active catalog. Bounded in practice by catalog size, but it is a good caching candidate rather than a repeated network read.
+
+---
+
+## Explicitly Not Findings
+
+- **`.doc(id).get()` sites.** 102 `.get()` calls exist, but the large majority are single-document reads, which are correctly bounded. Only the collection queries listed in C1 are defects.
+- **`whereIn: chunk` queries.** `follow_service.dart:255`, `user_cache_service.dart:118`, `leaderboard_service.dart:85`, `facebook_link_service.dart:179` all chunk correctly and are bounded by design.
+- **Dependency versions.** 40 direct dependencies recorded; no upgrade is proposed here. `cloud_firestore` is pinned at `6.6.0` deliberately. Upgrades belong in their own plan with their own regression pass.
+- **Comment-related dead code.** `post_service.dart` comment APIs are `@Deprecated` with an explicit "disabled for MVP" note — intentional, not rot.
+
+---
+
+## Resolution Status
+
+Updated as remediation lands. Commits are on `006-offline-cache-sync`.
+
+| Finding | Status | Commit |
+|---|---|---|
+| C1 — unbounded reads | **Mostly fixed** | `b71acef`, `6bbe17c`, `21d7234` |
+| C2 — badge N+1 | **Fixed** | `6dd5096` |
+| C3 — crash reporting | **Fixed** (console enablement pending) | `4498399` |
+| H1 — rules untested | **Fixed** (47 new emulator cases, 67/67 pass) | `717e409` |
+| H2 — provider lifecycle | **Fixed** | `e36dc2f` |
+| H3 — cold start | **Fixed** | `b8c85d2` |
+| H5 — accessibility | **Partial** — see correction below | `b015371` |
+| M1 — asset bloat | **Fixed** (3.0 MB → 128 KB) | `bbc219c` |
+| L1 — dead auth shim | **Fixed** | `b712780` |
+| L2 — repo junk | **Fixed** (35 files) | `829eb37` |
+| M2 — design tokens | **Fixed** — see correction below | `d2a708d` |
+| M5 — eager lists | **Withdrawn** — not a real defect, see below | — |
+| M6 — serial scheduler | **Fixed** | `540abe7` |
+| R5 — PR privacy | **Fixed** | `bd61927` |
+| L3 — release log leaks | **Fixed** | `c5f9f93` |
+| L4 — animation disposal | **Verified clean**, guarded by test | `07706f9` |
+| L5 — catalog reads | **Fixed** (worse than graded) | `634b6be` |
+| M4 — error states | **Fixed** (narrower than graded) | `9fac562` |
+| M7 — untested services | **Partial** (3 of 9 covered) | `15f7a55` |
+| M8 — i18n | **Fixed** — Arabic + RTL shipped | `f27aba4` |
+| R2 — reactionCounts | **Fixed** | `6663e23` |
+| H4 — god files | **Partial** — first cut, collisions resolved | `82a52c7` |
+| H5 — accessibility | **Fixed** (loading states labelled) | `f08e361` |
+
+### Re-graded during remediation
+
+**L5 was under-graded.** Filed as Low, "a good caching candidate". In fact the
+picker's search field had no debounce, so every keystroke re-read the whole
+`exerciseCatalog` collection *and* the user's `personalExercises`. Typing
+"bench press" cost 22 collection scans. Both the cache and the debounce were
+missing. This belonged at High.
+
+**M4 was over-graded and mis-derived.** "63 async providers but only 26
+`.when()` call sites" conflated `AsyncValue.when` with the sealed `Result.when`
+in `auth_providers.dart`, which handles both branches. Every list screen already
+had an empty state. The genuine defects were two raw-exception renders and one
+dead-end error branch.
+
+**L4 was a non-finding**, as the finding itself allowed. All 27
+`AnimationController` fields across 20 files are disposed; the 89-vs-62 gap was
+one `dispose()` freeing several controllers. A scan now guards it.
+
+**H5's text-scaling claim was wrong.** `app.dart` already clamps scaling with
+`MediaQuery.withClampedTextScaling(maxScaleFactor: 1.3)`. Worth noting that the
+1.3 ceiling does cap what a user who sets 200% system text actually gets —
+a deliberate layout-safety trade-off, not an oversight.
+
+## Found During Remediation (second pass)
+
+### R8 — `debugPrint` is not stripped from release builds
+Flutter's `debugPrint` writes to the platform log in release. The app had 227 call sites, 97 interpolating a caught exception (whose `toString()` embeds user content) and 13 interpolating a `userId` directly. Fixed in `c5f9f93` by reassigning the sink in release, which closes all of them at once. Startup failures now route to Crashlytics so silencing the sink does not cost observability.
+
+### R9 — "Snatch" was blocked as profanity
+`ContentFilterService` used a general-purpose word list with no domain allowlist, so the Olympic lift "snatch" was rejected. In a workout app, a user could not title a post after the exercise they had just done. Found by writing the first tests for that service; fixed in `15f7a55` with a narrow gym-term allowlist, plus a test proving real profanity beside an allowlisted word is still caught.
+
+### R10 — Four classes were shadowed by same-named locals
+`session_room_page.dart` declared `ParticipantProgress`, `AnimatedProgressBar`, `PulseAnimation` and `BounceAnimation`, all of which already existed elsewhere — and two of those files are imported by the page. A locally declared class shadows an imported one, so each local version silently won.
+
+The `ParticipantProgress` case was the worst: the model in `core/models` is the persisted document shape, while the local one was a UI view model with entirely different fields. Resolved in `82a52c7` by extracting and renaming.
+
+### R11 — Telemetry could kill the exercise search
+`FirebaseAnalytics.instance` throws when Firebase is not initialized, and `ExerciseCatalogService.search` called it unguarded — taking the whole search down with it, and making `search` untestable without a live Firebase. Guarded in `634b6be`.
+
+### R12 — A transaction read followed a write
+Caught by tests while implementing `reactionCounts`: the first version of `removeReaction` read the post document *after* deleting the reaction. Firestore requires every read in a transaction to precede every write, so it would have thrown against the real backend. Fixed before commit in `6663e23`.
+
+### R13 — Emulator rules suites needed serialising
+See R6. Worth repeating that `fake_cloud_firestore` has its own gap: it ignores `SetOptions(merge: true)` inside a transaction while honouring it outside one. A test asserting merge behaviour there would be testing the fake, not the backend — documented inline in `username_service_test.dart`.
+
+**Two changes are committed but NOT yet live:** `bd61927` (rules) and `540abe7`
+(functions) both require a deploy to take effect in production.
+
+### Correction to M2
+
+"145 hardcoded `Color(0x…)` literals" counted the token definitions inside
+`app_theme.dart` itself, which is where colour literals belong. The real figure
+was 75.
+
+Of those, 22 were byte-identical duplicates of an existing token and are now
+routed through it (`d2a708d`). The remaining ~53 are genuine one-offs with no
+token to route through — Facebook brand blue on the Facebook button, silver and
+bronze medal colours, chart palette entries. Turning those into "design tokens"
+would be dressing up one-offs, so they were deliberately left alone.
+
+### Withdrawn: M5
+
+The finding counted 32 `SingleChildScrollView` and 5 non-builder `ListView(`
+without distinguishing static layout scrollers from data-driven lists. On
+inspection only two scrollers render a mapped collection at all: a row of four
+hardcoded filter chips in `workout_history_page.dart`, and a form-style column
+in `active_turn_screen.dart`. Neither grows with user data.
+
+Every list that actually grows — the feed, profile sessions, both profile
+grids, notifications — already uses `ListView.builder` or `GridView.builder`.
+There is no defect here. The finding was an artefact of counting instead of
+reading.
+
+### Correction to H5
+
+The "13 `Semantics` across 62,935 lines" count is accurate but understated what
+exists. `reaction_buttons.dart`, `zyntro_button.dart`, `zyntro_card.dart` and
+`auth_error_surface.dart` already carry proper `Semantics` with labels, button
+roles and selected state — the app's core interactive widgets are labelled.
+
+The genuine gaps are narrower than the raw count implies:
+- 69 `CircularProgressIndicator`s, one of which has a `semanticsLabel`. A screen
+  reader user gets no announcement of what the app is loading.
+- Layouts unverified at large `textScaler` values (only 14 `MediaQuery.of` call
+  sites app-wide).
+- Icon-only navigation chrome — addressed in `b015371`.
+
+Accessibility is patchy rather than absent. That distinction changes the fix
+from "add semantics everywhere" to "label loading states and verify text
+scaling", which is a much smaller and better-targeted job.
+
+C1 residue: the live listeners in `follow_service` and `presence_service` are still unbounded. Bounding them needs a pagination design for the follower lists, not just a `.limit()`, so they stay open.
+
+M7 progress: `user_service`, `post_service` reactions and `workout_streak` gained test files (523 → 577 tests). `payment_service`, `media_service`, `presence_service`, `storage_service`, `matchmaking_service`, `buddy_service`, `content_filter_service`, `username_service`, `voice_recording_service` still have none.
+
+## Found During Remediation
+
+### R1 — Local Gradle builds are broken by JDK 25 (pre-existing, blocks the pending release)
+`java -version` reports OpenJDK 25.0.1. Android Gradle Plugin 8.11.1 cannot parse that version and fails with `java.lang.IllegalArgumentException: 25.0.1` on any direct `gradlew` invocation. Confirmed pre-existing — it reproduces with all audit changes stashed.
+
+`flutter build` is unaffected because it selects Android Studio's bundled JDK, and `flutter build apk --debug` completes successfully. Only raw `gradlew` is broken. Worth fixing (JDK 21 for `JAVA_HOME`, or an AGP upgrade) before anyone tries to script a release build outside the Flutter tool.
+
+### R2 — `Post.reactionCounts` is a field nothing ever writes
+The `Post` model declares `reactionCounts` as "Optional cached reaction counts by type", but the write path (`reactToPost`, `removeReaction`) only ever maintains `likesCount`. The denormalized field exists and is dead, which is why the UI paid for a subcollection read instead.
+
+The aggregate fix in `b71acef` cuts that read to three per post card. Actually maintaining `reactionCounts` at write time would cut it to zero, since the value would already be on the post document the feed has loaded. That needs per-type increments in `reactToPost`, a reaction-type read in `removeReaction`, and a legacy-post fallback — worth doing, not done.
+
+### R3 — `AvatarConstants` pointed at a directory that does not exist
+Declared twenty asset paths under `assets/avatars/`; no such directory exists anywhere in the repo. Only referenced from inside its own file. Deleted in `bbc219c`. Anything that had rendered those avatars would have thrown at runtime.
+
+### R5 — Any signed-in user can read any other user's personal records
+`firebase/firestore.rules` — `users/{userId}/stats/{statId}` is `allow read: if isAuthenticated()`. Personal records (Epley 1RM estimates per exercise, cardio best speeds) are therefore readable by anyone with an account, not just the owner or their followers.
+
+Writes are correctly owner-only. This may well be intentional — PRs arguably belong on a public profile — but it is not stated anywhere, and it sits oddly beside the private-account and block features. Pinned by a test in `social.rules.test.mjs` that documents current behavior rather than asserting a preference. **Product decision, not fixed here.**
+
+### R6 — Emulator rules suites wiped each other's fixtures
+`test/rules/package.json` ran `node --test` without `--test-concurrency=1`. Test *files* run in parallel by default, and every suite calls `clearFirestore()` in `beforeEach` against one shared emulator — so adding a second suite made two pre-existing joint-post tests fail for reasons unrelated to the rules. Fixed in `717e409`. Anyone adding a third suite would have hit the same thing.
+
+### R7 — `ref.keepAlive()` was a no-op in `userWorkoutsProvider`
+`workout_service.dart` carried the comment "Cache for 2 minutes to prevent repeated fetches on tab switch", implemented with `ref.keepAlive()` plus a timer. `keepAlive()` does nothing on a provider that never auto-disposes, and Riverpod 3 still defaults `isAutoDispose` to `false` — so it cached forever, not for two minutes. Fixed in `e36dc2f` by making the provider `autoDispose`, which is what gives the window meaning.
+
+### R4 — Three pure helpers orphaned by dead-code removal
+`calculatePerUserVolume`, `calculatePerUserExercises` and `calculateActiveCalories` in `session_analytics_service.dart` lost their only caller when `getSessionComparison` was deleted in `b71acef`. They are pure, have no runtime cost, and represent real domain logic a session-comparison feature would want, so they were kept rather than removed. They remain untested.
+
+## Found During Remediation (third pass)
+
+### R14 — The paid global-leaderboard feature cannot work client-side
+**Every write the payment flow makes targets a field the security rules forbid.**
+
+`privilegedUserFields()` in `firebase/firestore.rules` denies client writes to
+`hasGlobalLeaderboardAccess`, `globalAccessGrantedAt` and `transactions`. Those
+are exactly — and only — the fields the payment path writes:
+
+- `PaymentService.grantGlobalLeaderboardAccess` writes `hasGlobalLeaderboardAccess` + `globalAccessGrantedAt` → denied
+- `PaymentService.recordPaymentTransaction` writes `transactions` → denied, and it catches the failure silently
+- `LeaderboardService.grantGlobalLeaderboardAccess` is a **second copy** of the same method, with the same problem
+
+So a user could pay and never receive access, and the audit row recording that
+they paid would fail without surfacing anything. The rules are right; the
+client code predates them and was never moved server-side. Granting entitlement
+after payment belongs in a Cloud Function, which is also where the Stripe
+intent should be created — `createGlobalLeaderboardPaymentIntent` currently
+returns a mock secret with the real implementation commented out.
+
+Not fixed here: it needs a Cloud Function and a Stripe decision, not a patch.
+The existing emulator rules test already pins that a user cannot grant
+themselves access, so the security side is covered — it is the client
+expectation that is wrong.
+
+### R16 — `expireStalePairedInvites` never expired anything (FIXED, verified in production)
+Found in Cloud Logging immediately after the 2026-08-04 deploy, and **pre-existing** — the failures run from at least 13:57 UTC, well before the deploy landed at ~15:44.
+
+Every 15-minute invocation ends in:
+
+```
+Error: Value for argument "documentRef" is not a valid DocumentReference.
+    at entryFromArgs (firebase-functions/lib/logger/index.js:120:13)
+    at Object.error (firebase-functions/lib/logger/index.js:109:8)
+    at httpFunc (firebase-functions/lib/v2/providers/scheduler.js:65:25)
+```
+
+The function's own `logger.info("Expired stale paired-session invites.")` never appears, so it is failing before completion on every run. **Pending paired-session invites are therefore never being flipped to `expired` in production** — the 24h invite TTL is not being enforced, and users keep seeing invites that should have lapsed.
+
+The stack is the v2 scheduler wrapper catching a handler error and logging it, so the message is the underlying Firestore rejection surfacing through the logger, not a logging bug. The handler's only `DocumentReference` use is `batch.update(doc.reference, …)` over `snapshot.docs`, which should never be invalid — pointing at a library-level mismatch rather than the function's own logic. The deploy also warned that `package.json` pins an outdated `firebase-functions`, and the deployed tree installs from `^` ranges so it need not match the local `@google-cloud/firestore` 7.11.6.
+
+**Root cause:** `functions/index.js` called `batch.update(doc.reference, …)`. `reference` is the **Dart/Flutter** property for a document snapshot — the Node SDK exposes `ref` and declares no `reference` at all, so `undefined` reached `batch.update`. A Dart-ism carried into JavaScript.
+
+The stack was actively misleading. The v2 scheduler logs `err.message` as a plain **string**, and `entryFromArgs` wraps a bare string in `new Error(message)` to obtain a stack — so every reported frame pointed at `firebase-functions/lib/logger` while the *message* was the real Firestore rejection. The trace was fabricated at log time, not captured at the fault.
+
+**Fixed** in `2565a7b` (one line) and deployed. Verified by forcing the Cloud Scheduler job: the success log appeared for the first time —
+`{"message":"Expired stale paired-session invites.","count":13}` — clearing 13 invites that had been stuck pending. No errors since.
+
+The contract test now rejects `.reference` and the other Dart-only snapshot names across `functions/index.js`. Nothing else caught this: it is valid JavaScript, so `node --check` passes, and there is no Cloud Functions test harness.
+
+### R15 — `fake_cloud_firestore` does not implement cursors
+`startAfterDocument` returns an empty result for any cursored query, including one ordered on an ordinary field. Cursor continuation therefore cannot be asserted against the fake; the pagination tests verify page size, `hasMore` and cursor presence instead, and say so inline. Together with the `SetOptions(merge:)`-inside-transaction gap (R13), worth knowing before writing tests that depend on either.
+
+## What Is Still Open
+
+- **H4 (partial)** — `session_room_page.dart` is 3,362 lines and `profile_page.dart` 2,388, both down from ~3,000-3,750. The remaining bulk is the session room's input-section builders (~550 lines), which read about twenty pieces of page state; extracting them correctly means first lifting that state into a controller object, which is a behaviour-carrying refactor rather than a file split.
+- **M7 — closed.** Every service in `lib/services` now has tests. Voice recording and storage are deliberately thin (platform channel and live FirebaseStorage respectively), and say so inline.
+- **M8 (foundation only)** — Arabic and RTL ship, proven on the login screen. The other ~190 English literals are not extracted.
+- **C1 — closed for follow_service.** Lists paginate and counts use aggregates. The `presence_service` half of that finding was **wrong**: every presence listener is scoped to `sessions/{id}/presence`, and sessions are hard-capped at two participants, so they read at most two documents.
+- **R14** — the paid global-leaderboard flow needs moving to a Cloud Function before it can work at all.
+- **H5 residue** — the 1.3 text-scale ceiling still caps what a user setting 200% system text receives. Shared widgets are verified to 2.0x; raising it is gated on covering the large screens.
+- **R1** — JDK 25 still breaks raw `gradlew`. `flutter build` is unaffected.
+- **Deployed 2026-08-04**: `bd61927` (rules) and `540abe7` (functions) are both live on `zynrto`, verified against the live ruleset and the deployed function list.
+
+## Method Note
+
+Five of the original findings were mis-graded, all for the same reason: they
+were derived from counting rather than reading. H5, M2 and M5 were overstated
+(M5 withdrawn outright); L5 was understated — filed Low, it was a read storm;
+and C1's presence half was simply wrong, because a session-scoped collection
+cannot grow past two documents. Counting located the right areas — every fix in this document
+started from one of those counts — but it consistently mis-graded them. A raw
+`Color(0x…)` count included the token definitions; a `Semantics` count missed
+that the core widgets were already labelled; a `SingleChildScrollView` count did
+not distinguish static layout from data lists; a "caching candidate" note missed
+that there was no debounce at all.
+
+Anyone using this document to plan further work should treat the counts as a
+map, not a verdict.
+
+## Priority Order
+
+1. **C3** — crash reporting, because it makes everything else measurable.
+2. **C1 + C2** — unbounded reads and the N+1, the direct cost and latency defects.
+3. **M1** — asset bloat, a zero-risk 1.9 MB win.
+4. **H2 + H3** — provider lifecycle and cold start.
+5. **H1** — behavioral rules tests.
+6. **H5 + M2 + M4** — accessibility, design tokens, empty/error states.
+7. **H4 + M3** — god-file splits, once the tests above exist to catch regressions.
+8. **M6, M7, L1-L5** — hardening and hygiene.
+9. **M8** — i18n foundation, pending the user's answer on whether a second language is planned.

@@ -52,7 +52,7 @@ class ModerationService {
       'reportedUserId': postAuthorId,
       'reportedPostId': postId,
       'reason': reason.value,
-      if (description != null) 'description': description,
+      'description': ?description,
       'status': ReportStatus.pending.value,
       'createdAt': FieldValue.serverTimestamp(),
     });
@@ -72,19 +72,24 @@ class ModerationService {
       'reportedUserId': commentAuthorId,
       'reportedCommentId': commentId,
       'reason': reason.value,
-      if (description != null) 'description': description,
+      'description': ?description,
       'status': ReportStatus.pending.value,
       'createdAt': FieldValue.serverTimestamp(),
     });
     debugPrint('[ModerationService] Comment reported: $commentId');
   }
 
-  /// Get reports submitted by a user.
+  /// How many of a user's own reports to show. Ordered newest-first, so this
+  /// is a recency window rather than a truncated set.
+  static const int myReportsLimit = 50;
+
+  /// Get reports submitted by a user, newest first.
   Future<List<Report>> getMyReports(String userId) async {
     final snapshot = await _firestore
         .collection('reports')
         .where('reporterId', isEqualTo: userId)
         .orderBy('createdAt', descending: true)
+        .limit(myReportsLimit)
         .get();
 
     return snapshot.docs.map((doc) => Report.fromFirestore(doc)).toList();
@@ -94,14 +99,14 @@ class ModerationService {
   // Block Methods
   // ============================================================
 
-  /// Generate block document ID.
-  String _getBlockId(String blockerId, String blockedUserId) {
+  /// Generate block document ID (`blockerId_blockedUserId`).
+  static String blockDocId(String blockerId, String blockedUserId) {
     return '${blockerId}_$blockedUserId';
   }
 
   /// Block a user.
   Future<void> blockUser(String blockerId, String blockedUserId) async {
-    final blockId = _getBlockId(blockerId, blockedUserId);
+    final blockId = blockDocId(blockerId, blockedUserId);
 
     await _firestore.collection('blocks').doc(blockId).set({
       'blockerId': blockerId,
@@ -123,7 +128,7 @@ class ModerationService {
 
   /// Unblock a user.
   Future<void> unblockUser(String blockerId, String blockedUserId) async {
-    final blockId = _getBlockId(blockerId, blockedUserId);
+    final blockId = blockDocId(blockerId, blockedUserId);
     await _firestore.collection('blocks').doc(blockId).delete();
     debugPrint('[ModerationService] User unblocked: $blockedUserId');
   }
@@ -133,6 +138,7 @@ class ModerationService {
     final snapshot = await _firestore
         .collection('blocks')
         .where('blockerId', isEqualTo: userId)
+        .limit(blockedUsersLimit)
         .get();
 
     final blockedUserIds = snapshot.docs
@@ -152,12 +158,29 @@ class ModerationService {
     return users;
   }
 
+  /// Ceiling on how many blocks are read at once.
+  ///
+  /// Deliberately far above any realistic blocklist rather than a display
+  /// window: this list filters blocked users out of the feed, so quietly
+  /// truncating it would let blocked users' content back through. The cap
+  /// exists to bound worst-case cost, and hitting it is logged rather than
+  /// silently tolerated.
+  static const int blockedUsersLimit = 1000;
+
   /// Get list of blocked user IDs (for filtering).
   Future<List<String>> getBlockedUserIds(String userId) async {
     final snapshot = await _firestore
         .collection('blocks')
         .where('blockerId', isEqualTo: userId)
+        .limit(blockedUsersLimit)
         .get();
+
+    if (snapshot.docs.length == blockedUsersLimit) {
+      debugPrint(
+        '[ModerationService] $userId has at least $blockedUsersLimit blocks; '
+        'the block filter is now truncated and needs pagination.',
+      );
+    }
 
     return snapshot.docs
         .map((doc) => doc.data()['blockedUserId'] as String)
@@ -166,7 +189,7 @@ class ModerationService {
 
   /// Check if a user is blocked.
   Future<bool> isUserBlocked(String blockerId, String blockedUserId) async {
-    final blockId = _getBlockId(blockerId, blockedUserId);
+    final blockId = blockDocId(blockerId, blockedUserId);
     final doc = await _firestore.collection('blocks').doc(blockId).get();
     return doc.exists;
   }
@@ -175,12 +198,17 @@ class ModerationService {
   // Moderation Methods (Admin only)
   // ============================================================
 
-  /// Get pending reports (for moderators).
+  /// One page of the moderation queue. The queue is worked newest-first and is
+  /// global, so it must not read every pending report ever filed.
+  static const int pendingReportsLimit = 100;
+
+  /// Get pending reports (for moderators), newest first.
   Future<List<Report>> getPendingReports() async {
     final snapshot = await _firestore
         .collection('reports')
         .where('status', isEqualTo: 'pending')
         .orderBy('createdAt', descending: true)
+        .limit(pendingReportsLimit)
         .get();
 
     return snapshot.docs.map((doc) => Report.fromFirestore(doc)).toList();
@@ -252,7 +280,7 @@ final moderationServiceProvider = Provider<ModerationService>((ref) {
 /// Blocked user IDs provider.
 final blockedUserIdsProvider = FutureProvider<List<String>>((ref) async {
   final authState = ref.watch(authSessionProvider);
-  final uid = authState.valueOrNull?.id;
+  final uid = authState.value?.id;
   if (uid == null) return [];
 
   return ref.watch(moderationServiceProvider).getBlockedUserIds(uid);
@@ -261,7 +289,7 @@ final blockedUserIdsProvider = FutureProvider<List<String>>((ref) async {
 /// Blocked users list provider.
 final blockedUsersProvider = FutureProvider<List<User>>((ref) async {
   final authState = ref.watch(authSessionProvider);
-  final uid = authState.valueOrNull?.id;
+  final uid = authState.value?.id;
   if (uid == null) return [];
 
   return ref.watch(moderationServiceProvider).getBlockedUsers(uid);
@@ -271,4 +299,3 @@ final blockedUsersProvider = FutureProvider<List<User>>((ref) async {
 final pendingReportsProvider = FutureProvider<List<Report>>((ref) async {
   return ref.watch(moderationServiceProvider).getPendingReports();
 });
-

@@ -1,25 +1,24 @@
 import 'package:flutter/material.dart';
-import 'package:avatar_plus/avatar_plus.dart';
 
 import '../core/theme/app_theme.dart';
 
-/// Unified avatar widget that supports both custom avatars and fallback to photoURL/initials
+/// Unified avatar widget — photoUrl with initials fallback.
 class FluttermojiAvatar extends StatelessWidget {
   final String? photoUrl;
-  final String? avatarConfig;
   final String displayName;
   final double size;
   final VoidCallback? onTap;
   final bool showGradientBorder;
+  final Color? ringColor;
 
   const FluttermojiAvatar({
     super.key,
     this.photoUrl,
-    this.avatarConfig,
     required this.displayName,
     this.size = 40,
     this.onTap,
     this.showGradientBorder = true,
+    this.ringColor,
   });
 
   @override
@@ -28,25 +27,15 @@ class FluttermojiAvatar extends StatelessWidget {
 
     Widget avatarWidget;
 
-    // Priority: avatarConfig > photoUrl > initials
-    if (avatarConfig != null && avatarConfig!.isNotEmpty) {
-      // Use custom avatar from config (avatar_plus generated)
-      avatarWidget = ClipOval(
-        child: AvatarPlus(avatarConfig!, height: size, width: size),
-      );
-    } else if (photoUrl != null && photoUrl!.isNotEmpty) {
-      // Use network image (for social auth or uploaded photos)
+    if (photoUrl != null && photoUrl!.isNotEmpty) {
       avatarWidget = CircleAvatar(
         radius: size / 2,
         backgroundColor: AppColors.surfaceV2Elevated,
         backgroundImage: NetworkImage(photoUrl!),
-        onBackgroundImageError: (exception, stackTrace) {
-          // Fallback handled by child
-        },
+        onBackgroundImageError: (_, _) {},
         child: null,
       );
     } else {
-      // Fallback to text initials
       avatarWidget = CircleAvatar(
         radius: size / 2,
         backgroundColor: AppColors.surfaceV2Elevated,
@@ -61,12 +50,11 @@ class FluttermojiAvatar extends StatelessWidget {
       );
     }
 
-    // Wrap with gradient border if enabled
     if (showGradientBorder) {
       avatarWidget = Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: AppColors.accentLime,
+          color: ringColor ?? AppColors.userAccent,
         ),
         padding: const EdgeInsets.all(2),
         child: Container(
@@ -80,7 +68,6 @@ class FluttermojiAvatar extends StatelessWidget {
       );
     }
 
-    // Wrap with GestureDetector if onTap provided
     if (onTap != null) {
       return GestureDetector(onTap: onTap, child: avatarWidget);
     }

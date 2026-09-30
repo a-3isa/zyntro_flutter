@@ -28,13 +28,80 @@ service firebase.storage {
           firestore.get(/databases/(default)/documents/sessions/$(sessionId)).data.participants;
     }
 
+    function isPostOwner(postId) {
+      return isAuthenticated() &&
+        firestore.exists(/databases/(default)/documents/posts/$(postId)) &&
+        firestore.get(/databases/(default)/documents/posts/$(postId)).data.authorId == request.auth.uid;
+    }
+
+    function isPostMediaReadable(postId) {
+      let postPath = /databases/(default)/documents/posts/$(postId);
+      return isAuthenticated() &&
+        firestore.exists(postPath) &&
+        isPostMediaReadableData(firestore.get(postPath).data);
+    }
+
+    function isPostMediaReadableData(post) {
+      return post.authorId == request.auth.uid ||
+        (
+          post.keys().hasAny(['authorIds']) &&
+          request.auth.uid in post.authorIds
+        ) ||
+        (
+          !firestore.exists(
+            /databases/(default)/documents/blocks/$(request.auth.uid + '_' + post.authorId)
+          ) &&
+          !firestore.exists(
+            /databases/(default)/documents/blocks/$(post.authorId + '_' + request.auth.uid)
+          ) &&
+          (
+            (
+              post.get('visibility', 'public') == 'public' &&
+              firestore.exists(/databases/(default)/documents/users/$(post.authorId)) &&
+              firestore.get(/databases/(default)/documents/users/$(post.authorId))
+                .data.isPrivate != true
+            ) ||
+            (
+              post.get('visibility', 'public') != 'private' &&
+              firestore.exists(
+                /databases/(default)/documents/follows/$(
+                  request.auth.uid + '_' + post.authorId)
+              ) &&
+              firestore.get(
+                /databases/(default)/documents/follows/$(
+                  request.auth.uid + '_' + post.authorId)
+              ).data.status == 'approved'
+            )
+          )
+        );
+    }
+
+    // Mirror Firestore canReadUserProfile for avatars (Z-SEC-004).
+    function canReadProfilePhoto(userId) {
+      let userPath = /databases/(default)/documents/users/$(userId);
+      let followPath = /databases/(default)/documents/follows/$(
+        request.auth.uid + '_' + userId);
+      return isOwner(userId) ||
+        (
+          isAuthenticated() &&
+          firestore.exists(userPath) &&
+          (
+            firestore.get(userPath).data.isPrivate != true ||
+            (
+              firestore.exists(followPath) &&
+              firestore.get(followPath).data.status == 'approved'
+            )
+          )
+        );
+    }
+
     match /posts/{postId}/{fileName} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && isImageContent() && isUnder5Mb();
+      allow read: if isPostMediaReadable(postId);
+      allow write: if isPostOwner(postId) && isImageContent() && isUnder5Mb();
     }
 
     match /profilePhotos/{userId}/{fileName} {
-      allow read: if isAuthenticated();
+      allow read: if canReadProfilePhoto(userId);
       allow write: if isOwner(userId) && isImageContent() && isUnder5Mb();
     }
 

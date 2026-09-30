@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/constants/constants.dart';
+import '../core/auth/email_verification_gate.dart';
 import '../features/auth/auth_providers.dart';
 import 'session_service.dart';
 
@@ -25,8 +26,9 @@ class WaitingForMatch extends MatchmakingOutcome {
 class MatchmakingService {
   final FirebaseFirestore _firestore;
   final SessionService _sessionService;
+  final Ref _ref;
 
-  MatchmakingService(this._firestore, this._sessionService);
+  MatchmakingService(this._firestore, this._sessionService, this._ref);
 
   /// Enter the matchmaking queue for a given workout type.
   ///
@@ -37,6 +39,7 @@ class MatchmakingService {
     required String userId,
     required WorkoutType workoutType,
   }) async {
+    ensureEmailVerifiedForSocial(_ref.read(authSessionProvider).value);
     // Write our own entry first so we're discoverable to others.
     final myDocRef = _firestore.collection('matchmaking_queue').doc();
     await myDocRef.set({
@@ -63,6 +66,13 @@ class MatchmakingService {
     for (final partnerDoc in snapshot.docs) {
       try {
         final partnerId = partnerDoc.data()['userId'] as String;
+
+        // Skip partners we have blocked (Z-RT-003). Reverse blocks are enforced
+        // by isNotBlockedPair on the claimer update rule.
+        if (await _callerBlocks(userId, partnerId)) {
+          debugPrint('[Matchmaking] Skipping blocked partner $partnerId');
+          continue;
+        }
 
         // Optimistic claim: mark partner as 'claiming' so no one else takes them.
         await _firestore.runTransaction<void>((tx) async {
@@ -136,6 +146,16 @@ class MatchmakingService {
         .snapshots()
         .map((doc) => doc.exists ? doc.data() : null);
   }
+
+  /// True when [blockerId] has blocked [blockedId]. Callers can only read their
+  /// own outgoing block edges under current rules.
+  Future<bool> _callerBlocks(String blockerId, String blockedId) async {
+    final doc = await _firestore
+        .collection('blocks')
+        .doc('${blockerId}_$blockedId')
+        .get();
+    return doc.exists;
+  }
 }
 
 class _AlreadyClaimedException implements Exception {
@@ -146,5 +166,6 @@ final matchmakingServiceProvider = Provider<MatchmakingService>((ref) {
   return MatchmakingService(
     ref.watch(authFirestoreProvider),
     ref.watch(sessionServiceProvider),
+    ref,
   );
 });

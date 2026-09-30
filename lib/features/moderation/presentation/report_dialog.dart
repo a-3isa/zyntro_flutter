@@ -86,7 +86,7 @@ class _ReportDialogState extends ConsumerState<ReportDialog> {
 
     try {
       final authState = ref.read(authSessionProvider);
-      final reporterId = authState.valueOrNull?.id;
+      final reporterId = authState.value?.id;
       if (reporterId == null) throw Exception('Not authenticated');
 
       final moderationService = ref.read(moderationServiceProvider);

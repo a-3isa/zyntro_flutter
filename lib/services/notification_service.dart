@@ -3,18 +3,22 @@ import 'dart:convert';
 import 'dart:io' show Platform;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show WidgetsBinding;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
+import '../app/launch_intent.dart';
 import '../app/navigation/app_route_locations.dart';
 import '../app/navigation/app_router.dart';
 import '../core/constants/constants.dart';
@@ -26,6 +30,7 @@ enum NotificationType {
   unknown,
   sessionInvite,
   voiceNote,
+  newFollower,
   followRequest,
   followAccepted,
   buddyInvite,
@@ -38,6 +43,9 @@ enum NotificationType {
   friendStreakBroken,
   friendStreakExtended,
   turnChange,
+  jointPostInvite,
+  jointPostExpired,
+  partnerLeft,
 }
 
 extension NotificationTypeExtension on NotificationType {
@@ -49,6 +57,8 @@ extension NotificationTypeExtension on NotificationType {
         return 'session_invite';
       case NotificationType.voiceNote:
         return 'voice_note';
+      case NotificationType.newFollower:
+        return 'new_follower';
       case NotificationType.followRequest:
         return 'follow_request';
       case NotificationType.followAccepted:
@@ -73,6 +83,12 @@ extension NotificationTypeExtension on NotificationType {
         return 'friend_streak_extended';
       case NotificationType.turnChange:
         return 'turn_change';
+      case NotificationType.jointPostInvite:
+        return 'joint_post_invite';
+      case NotificationType.jointPostExpired:
+        return 'joint_post_expired';
+      case NotificationType.partnerLeft:
+        return 'partner_left';
     }
   }
 
@@ -84,6 +100,8 @@ extension NotificationTypeExtension on NotificationType {
         return NotificationType.sessionInvite;
       case 'voice_note':
         return NotificationType.voiceNote;
+      case 'new_follower':
+        return NotificationType.newFollower;
       case 'follow_request':
         return NotificationType.followRequest;
       case 'follow_accepted':
@@ -108,6 +126,12 @@ extension NotificationTypeExtension on NotificationType {
         return NotificationType.friendStreakExtended;
       case 'turn_change':
         return NotificationType.turnChange;
+      case 'joint_post_invite':
+        return NotificationType.jointPostInvite;
+      case 'joint_post_expired':
+        return NotificationType.jointPostExpired;
+      case 'partner_left':
+        return NotificationType.partnerLeft;
       default:
         return NotificationType.unknown;
     }
@@ -252,6 +276,25 @@ class NotificationService {
        _localNotifications = FlutterLocalNotificationsPlugin(),
        _messaging = FirebaseMessaging.instance;
 
+  static Map<String, dynamic> sessionInvitePayload({
+    required String sessionId,
+    required String hostId,
+    required String hostName,
+    required String sessionType,
+    required DateTime expiresAt,
+  }) {
+    return {
+      'type': NotificationType.sessionInvite.value,
+      'sessionId': sessionId,
+      'hostId': hostId,
+      'hostName': hostName,
+      'byUserName': hostName,
+      'sessionType': sessionType,
+      'expiresAt': expiresAt.toIso8601String(),
+      'context': 'one_to_one',
+    };
+  }
+
   String get _pushDeliveryUrl {
     final projectId = Firebase.app().options.projectId;
     return 'https://us-central1-$projectId.cloudfunctions.net/deliverNotificationPush';
@@ -289,7 +332,10 @@ class NotificationService {
     );
 
     await _localNotifications.initialize(
-      const InitializationSettings(android: androidSettings, iOS: iosSettings),
+      settings: const InitializationSettings(
+        android: androidSettings,
+        iOS: iosSettings,
+      ),
       onDidReceiveNotificationResponse: _onNotificationTapped,
     );
 
@@ -310,19 +356,55 @@ class NotificationService {
     // Listen to foreground messages
     FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
 
-    // Handle notification tap when app is in background/terminated
+    // Handle notification tap while app was in background
     FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationOpen);
+
+    // Handle notification tap that launched the app from terminated state.
+    // onMessageOpenedApp does NOT fire for this case — only getInitialMessage does.
+    // init() is called before runApp(), so defer navigation one frame.
+    final initialMessage = await _messaging.getInitialMessage();
+
+    // Record that this launch already has a destination, BEFORE runApp() builds
+    // the router. Session-resume reads this and stands down.
+    //
+    // Without it the two race: this navigation runs from a post-frame callback
+    // while the resume redirect runs from GoRouter's redirect callback, both
+    // driving the same navigator with nothing sequencing them — so a member who
+    // tapped a notification while holding a live session would land wherever
+    // the scheduler happened to finish last. init() running before runApp()
+    // turns that race into an ordering fact.
+    LaunchIntent.instance.hasExplicitDestination = initialMessage != null;
+
+    if (initialMessage != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(_navigateBasedOnData(initialMessage.data));
+      });
+    }
+
+    // Re-save the FCM token whenever it rotates (reinstall, clear data, etc.).
+    // Without this, push silently breaks for users whose token has changed.
+    _messaging.onTokenRefresh.listen(_onTokenRefresh);
+  }
+
+  Future<void> _onTokenRefresh(String newToken) async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    final deviceId = prefs.getString('device_id');
+    if (deviceId != null) {
+      await savePushToken(user.uid, newToken, deviceId);
+    }
   }
 
   void _onNotificationTapped(NotificationResponse response) {
-    debugPrint(
-      '[NotificationService] Notification tapped: ${response.payload}',
-    );
+    debugPrint('[NotificationService] Notification tapped');
     // Handle navigation based on payload
     if (response.payload != null) {
       try {
         final data = jsonDecode(response.payload!) as Map<String, dynamic>;
-        debugPrint('[NotificationService] Payload data: $data');
+        debugPrint(
+          '[NotificationService] Payload data: ${_redactedNotificationDataForLog(data)}',
+        );
         _navigateBasedOnData(data);
       } catch (e) {
         debugPrint('[NotificationService] Error parsing payload: $e');
@@ -338,7 +420,9 @@ class NotificationService {
   }
 
   void _handleNotificationOpen(RemoteMessage message) {
-    debugPrint('[NotificationService] Notification opened: ${message.data}');
+    debugPrint(
+      '[NotificationService] Notification opened: ${_redactedNotificationDataForLog(message.data)}',
+    );
     unawaited(_navigateBasedOnData(message.data));
   }
 
@@ -350,33 +434,102 @@ class NotificationService {
       return;
     }
 
+    // Follow request taps → deep-link to requester's profile
+    if (data['type'] == 'follow_request') {
+      final fromUserId = data['fromUserId'] as String?;
+      if (fromUserId != null && navigatorContext.mounted) {
+        navigatorContext.push('/user/$fromUserId');
+        return;
+      }
+    }
+
     // Navigate based on data contents
     if (data.containsKey('sessionId')) {
       final sessionId = data['sessionId'] as String;
       final notificationType = data['type'] as String?;
       final sessionType =
           data['sessionType'] as String? ?? WorkoutType.gym.value;
-      final audioUrl = data['audioUrl'] as String?;
 
       // Session invites go to the acceptance page so the friend can choose
       // their workout type and plan before joining.
       if (notificationType == 'session_invite') {
+        // Mark the invite doc read first so SessionInviteListener doesn't also
+        // pop its in-app dialog on top of the page we're about to open.
+        final uid = _auth.currentUser?.uid;
+        if (uid != null) {
+          try {
+            await _userNotificationRef(
+              uid,
+              'session_invite_$sessionId',
+            ).update({'read': true});
+          } catch (_) {
+            // Doc may not exist yet (push-only path) — safe to ignore.
+          }
+        }
+        if (!navigatorContext.mounted) return;
+        navigatorContext.push(AppRouteLocations.gymSessionSetup(sessionId));
+        return;
+      }
+
+      // A partner leaving points at a session that is still live for the
+      // recipient — they are mid-workout and get to decide whether to carry on.
+      // Mark it read on the way in so the notification list does not keep
+      // nagging about something they have now seen; the finish-or-continue
+      // choice itself comes from the session document, not from this doc, so
+      // clearing it costs them nothing.
+      if (notificationType == 'partner_left') {
+        final uid = _auth.currentUser?.uid;
+        final leaverId = data['leaverId'] as String?;
+        if (uid != null && leaverId != null) {
+          try {
+            await _userNotificationRef(
+              uid,
+              'partner_left_${sessionId}_$leaverId',
+            ).update({'read': true});
+          } catch (_) {
+            // Push-only path — the doc may not exist yet. Safe to ignore.
+          }
+        }
         if (!navigatorContext.mounted) return;
         navigatorContext.push(
-          AppRouteLocations.sessionAccept(sessionId),
-          extra: data,
+          AppRouteLocations.sessionRoom(
+            sessionId,
+            type: (data['sessionType'] as String?) ?? WorkoutType.gym.value,
+          ),
         );
+        return;
+      }
+
+      // Joint-post invite/expiry offers also carry sessionId (for context),
+      // but must never fall through to the generic live-session route below
+      // — the session itself may be long finished. Route to the post instead.
+      //
+      // An *invite* points at an unpublished draft the recipient still has to
+      // complete, so it opens the composer route; only the *expired* offer
+      // goes to post detail, where the solo-repost flow lives.
+      if (notificationType == 'joint_post_invite' ||
+          notificationType == 'joint_post_expired') {
+        final postId = data['postId'] as String?;
+        if (postId != null && navigatorContext.mounted) {
+          navigatorContext.push(
+            notificationType == 'joint_post_invite'
+                ? AppRouteLocations.jointPostComposer(postId)
+                : AppRouteLocations.postDetail(postId),
+          );
+        }
         return;
       }
 
       String location = AppRouteLocations.sessionRoom(
         sessionId,
         type: sessionType,
-        audioUrl: audioUrl,
       );
 
       try {
-        final sessionDoc = await _firestore.collection('sessions').doc(sessionId).get();
+        final sessionDoc = await _firestore
+            .collection('sessions')
+            .doc(sessionId)
+            .get();
         final sessionData = sessionDoc.data();
         if (sessionDoc.exists && sessionData != null) {
           location = AppRouteLocations.sessionEntry(
@@ -385,7 +538,6 @@ class NotificationService {
             phase: SessionPhase.fromString(
               sessionData['phase'] as String? ?? SessionPhase.live.value,
             ),
-            audioUrl: audioUrl,
           );
         }
       } catch (error) {
@@ -428,10 +580,13 @@ class NotificationService {
     );
 
     await _localNotifications.show(
-      message.hashCode,
-      message.notification?.title ?? 'Zyntro',
-      message.notification?.body ?? '',
-      const NotificationDetails(android: androidDetails, iOS: iosDetails),
+      id: message.hashCode,
+      title: message.notification?.title ?? 'Zyntro',
+      body: message.notification?.body ?? '',
+      notificationDetails: const NotificationDetails(
+        android: androidDetails,
+        iOS: iosDetails,
+      ),
       payload: jsonEncode(message.data),
     );
   }
@@ -455,6 +610,15 @@ class NotificationService {
     String deviceId,
   ) async {
     try {
+      String appVersion = 'unknown';
+      try {
+        final info = await PackageInfo.fromPlatform();
+        appVersion = '${info.version}+${info.buildNumber}';
+      } catch (_) {}
+
+      final locale =
+          WidgetsBinding.instance.platformDispatcher.locale.languageCode;
+
       await _firestore
           .collection('users')
           .doc(userId)
@@ -463,8 +627,11 @@ class NotificationService {
           .set({
             'token': token,
             'platform': Platform.operatingSystem,
+            // Ops targeting / push localization (Z-NOTIF-003).
+            'locale': locale,
+            'appVersion': appVersion,
             'updatedAt': FieldValue.serverTimestamp(),
-          });
+          }, SetOptions(merge: true));
     } catch (e) {
       debugPrint('[NotificationService] Error saving token: $e');
     }
@@ -552,6 +719,20 @@ class NotificationService {
     await _userNotificationRef(notification.userId, notification.id).delete();
   }
 
+  Future<void> updateNotificationData(
+    String notificationId,
+    String userId,
+    Map<String, dynamic> dataUpdate,
+  ) async {
+    final docRef = _userNotificationRef(userId, notificationId);
+    final snap = await docRef.get();
+    final existing = Map<String, dynamic>.from(
+      snap.data()?['data'] as Map? ?? {},
+    );
+    existing.addAll(dataUpdate);
+    await docRef.update({'data': existing});
+  }
+
   Stream<List<AppNotification>> listenToNotifications(String userId) {
     return _userNotificationsRef(userId)
         .where('userId', isEqualTo: userId)
@@ -579,22 +760,28 @@ class NotificationService {
     required NotificationType type,
     required String recipientId,
     Map<String, dynamic>? data,
+    bool rethrowOnFailure = false,
   }) async {
     try {
       final currentUser = _auth.currentUser;
       if (currentUser == null) {
-        debugPrint(
-          '[NotificationService] Skipping push delivery because no authenticated user is available.',
-        );
+        const error =
+            'No authenticated user is available for notification delivery.';
+        if (rethrowOnFailure) throw StateError(error);
+        debugPrint('[NotificationService] $error');
         return;
       }
 
       final idToken = await currentUser.getIdToken();
-      final appCheckToken = await FirebaseAppCheck.instance.getToken(false);
-      if (appCheckToken == null || appCheckToken.isEmpty) {
-        debugPrint(
-          '[NotificationService] Skipping push delivery because no App Check token is available.',
-        );
+      // Limited-use token so the Cloud Function can consume it and block
+      // replay of captured App Check headers (Z-FN-002).
+      final appCheckToken =
+          await FirebaseAppCheck.instance.getLimitedUseToken();
+      if (appCheckToken.isEmpty) {
+        const error =
+            'No App Check token is available for notification delivery.';
+        if (rethrowOnFailure) throw StateError(error);
+        debugPrint('[NotificationService] $error');
         return;
       }
 
@@ -613,13 +800,15 @@ class NotificationService {
       );
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        debugPrint(
-          '[NotificationService] Push delivery failed '
-          '(${response.statusCode}): ${response.body}',
+        final error = StateError(
+          'Notification delivery failed (${response.statusCode}): ${response.body}',
         );
+        if (rethrowOnFailure) throw error;
+        debugPrint('[NotificationService] $error');
       }
     } catch (e) {
       debugPrint('[NotificationService] Error delivering push: $e');
+      if (rethrowOnFailure) rethrow;
     }
   }
 
@@ -660,7 +849,21 @@ class NotificationService {
     String userId,
     NotificationType type,
   ) async {
-    final preferences = await getNotificationPreferences(userId);
+    final NotificationPreferences preferences;
+    try {
+      preferences = await getNotificationPreferences(userId);
+    } catch (error) {
+      // users/{id}/settings is owner-only, so a cross-user read (e.g. the host
+      // checking the recipient before a turn_change) is denied by rules.
+      // Fail closed (Z-NOTIF-002): do not create client-side inbox noise when
+      // preferences are unknown. Trusted Cloud Functions re-check with Admin
+      // SDK before push delivery.
+      debugPrint(
+        '[NotificationService] Preference read failed for $userId; '
+        'suppressing client notification (fail-closed): $error',
+      );
+      return false;
+    }
 
     if (!preferences.pushEnabled) return false;
 
@@ -672,6 +875,7 @@ class NotificationService {
       case NotificationType.voiceNote:
         return preferences.voiceNotes;
       case NotificationType.followRequest:
+      case NotificationType.newFollower:
         return preferences.followRequests;
       case NotificationType.followAccepted:
         return preferences.followAccepted;
@@ -690,7 +894,20 @@ class NotificationService {
       case NotificationType.friendStreakExtended:
         return preferences.streakNotifications;
       case NotificationType.turnChange:
-        return preferences.sessionInvites;
+        // Turn alerts are core in-session gameplay, not a promotional bucket —
+        // honour only the global pushEnabled switch (already checked above).
+        return true;
+      case NotificationType.jointPostInvite:
+      case NotificationType.jointPostExpired:
+        // No dedicated preference bucket exists yet for joint-post
+        // notifications — mirrors the Cloud Function's recipientAllowsPush
+        // default (honour only the global pushEnabled switch checked above).
+        return true;
+      case NotificationType.partnerLeft:
+        // Core in-session information, like turn alerts: the member is mid
+        // workout and their partner has just walked out. Honour only the global
+        // pushEnabled switch (already checked above).
+        return true;
     }
   }
 
@@ -703,58 +920,97 @@ class NotificationService {
     required String inviterName,
     required String sessionId,
     required String sessionType,
+    String? hostId,
+    DateTime? expiresAt,
     int groupSize = 0,
     String? otherParticipantNames,
   }) async {
-    final shouldSend = await shouldSendNotification(
-      recipientId,
-      NotificationType.sessionInvite,
+    final data = sessionInvitePayload(
+      sessionId: sessionId,
+      hostId: hostId ?? '',
+      hostName: inviterName,
+      sessionType: sessionType,
+      expiresAt: expiresAt ?? DateTime.now().add(pairedInviteTimeout),
+    )..['groupSize'] = groupSize;
+
+    // CF-authoritative: the Cloud Function writes the in-app invite doc (with
+    // server-validated content, under the deterministic session_invite_<id> key)
+    // AND dispatches the push. Clients cannot write cross-user notifications
+    // directly (owner-only rule). rethrowOnFailure: true so a real delivery
+    // failure fails the invite instead of silently half-succeeding — the caller
+    // (createSession) rolls back the orphaned session on this throw.
+    await _deliverPushNotification(
+      type: NotificationType.sessionInvite,
+      recipientId: recipientId,
+      data: data,
+      rethrowOnFailure: true,
     );
-    if (!shouldSend) return;
+  }
 
-    // Build message with group context if applicable
-    String message;
-    final otherCount = groupSize > 0
-        ? groupSize - 2
-        : 0; // -1 for self, -1 for host
+  /// Tell the remaining participants that a partner has left the session.
+  ///
+  /// This is the fast route only. The finish-or-continue choice itself renders
+  /// from `endedParticipants` on the session document, so a member whose phone
+  /// was off, who had no signal, or who dismissed this still gets the choice
+  /// the next time they open the session. Never make the decision depend on
+  /// delivery.
+  ///
+  /// CF-authoritative like [notifySessionInvite]: the Cloud Function writes the
+  /// in-app doc (clients cannot create cross-user notifications — owner-only
+  /// rule) under the deterministic `partner_left_<sessionId>_<leaverId>` key,
+  /// so one departure yields exactly one notification however many times it is
+  /// retried.
+  ///
+  /// Not `rethrowOnFailure`: unlike an invite, a failed send here must not undo
+  /// anything. The member has already left, and the session record is the
+  /// source of truth regardless.
+  Future<void> notifyPartnerLeft({
+    required String recipientId,
+    required String sessionId,
+    required String leaverId,
+    required String leaverName,
+  }) async {
+    await _deliverPushNotification(
+      type: NotificationType.partnerLeft,
+      recipientId: recipientId,
+      data: {
+        'type': NotificationType.partnerLeft.value,
+        'sessionId': sessionId,
+        'leaverId': leaverId,
+        'leaverName': leaverName,
+        'byUserName': leaverName,
+      },
+    );
+  }
 
-    if (groupSize > 2 &&
-        otherParticipantNames != null &&
-        otherParticipantNames.isNotEmpty) {
-      // "Host invited you to a Type session with A, B and X others"
-      message =
-          '$inviterName invited you to a $sessionType session with $otherParticipantNames';
-      if (otherCount > 0) {
-        message += ' and $otherCount others';
-      }
-    } else if (groupSize > 2) {
-      message =
-          '$inviterName invited you to a $sessionType session with ${groupSize - 1} others';
-    } else {
-      message = '$inviterName invited you to a $sessionType session!';
-    }
-
+  /// Notify a co-author's partner that a joint (two-author) session post is
+  /// ready for them to review and confirm.
+  /// CF-authoritative, same as [notifySessionInvite]: the Cloud Function is
+  /// the only writer of the in-app doc (clients cannot create cross-user
+  /// notifications directly — owner-only rule) and persists it under the
+  /// deterministic `joint_post_invite_<postId>` key, so a re-sent invite
+  /// refreshes the existing doc instead of duplicating it. `data` carries
+  /// `postId` + `sessionId` for the tap deep-link to the joint-post
+  /// confirmation screen.
+  Future<void> sendJointPostInvite({
+    required String recipientId,
+    required String fromName,
+    required String postId,
+    required String sessionId,
+  }) async {
     final data = {
+      'type': NotificationType.jointPostInvite.value,
+      'postId': postId,
       'sessionId': sessionId,
-      'sessionType': sessionType,
-      'byUserName': inviterName,
-      'groupSize': groupSize,
+      'fromName': fromName,
+      'byUserName': fromName,
     };
 
-    await Future.wait([
-      createNotification(
-        userId: recipientId,
-        type: NotificationType.sessionInvite,
-        title: 'Session Invite',
-        message: message,
-        data: data,
-      ),
-      _deliverPushNotification(
-        type: NotificationType.sessionInvite,
-        recipientId: recipientId,
-        data: data,
-      ),
-    ]);
+    await _deliverPushNotification(
+      type: NotificationType.jointPostInvite,
+      recipientId: recipientId,
+      data: data,
+    );
   }
 
   /// Notify user when it's their turn in a multi-participant session.
@@ -775,20 +1031,12 @@ class NotificationService {
       'action': 'open_session',
     };
 
-    await Future.wait([
-      createNotification(
-        userId: recipientId,
-        type: NotificationType.turnChange,
-        title: 'Your Turn!',
-        message: "It's your turn to log a set in the $sessionType session",
-        data: data,
-      ),
-      _deliverPushNotification(
-        type: NotificationType.turnChange,
-        recipientId: recipientId,
-        data: data,
-      ),
-    ]);
+    // CF-authoritative: the Cloud Function persists the in-app doc and pushes.
+    await _deliverPushNotification(
+      type: NotificationType.turnChange,
+      recipientId: recipientId,
+      data: data,
+    );
   }
 
   /// Notify user of voice note - OPTIMIZED for <2s delivery.
@@ -811,22 +1059,35 @@ class NotificationService {
       'autoPlay': true, // Added for auto-play trigger
     };
 
-    unawaited(
-      createNotification(
-        userId: recipientId,
-        type: NotificationType.voiceNote,
-        title: 'Voice Note',
-        message: '$senderName sent you a voice note',
-        data: data,
-      ),
-    );
-
+    // CF-authoritative: the Cloud Function persists the in-app doc and pushes.
     unawaited(
       _deliverPushNotification(
         type: NotificationType.voiceNote,
         recipientId: recipientId,
         data: data,
       ),
+    );
+  }
+
+  /// Notify user of follow request.
+  Future<void> notifyNewFollower({
+    required String recipientId,
+    required String followerId,
+    required String followerName,
+  }) async {
+    final shouldSend = await shouldSendNotification(
+      recipientId,
+      NotificationType.newFollower,
+    );
+    if (!shouldSend) return;
+
+    final data = {'fromUserId': followerId, 'byUserName': followerName};
+
+    // CF-authoritative: the Cloud Function persists the in-app doc and pushes.
+    await _deliverPushNotification(
+      type: NotificationType.newFollower,
+      recipientId: recipientId,
+      data: data,
     );
   }
 
@@ -844,20 +1105,13 @@ class NotificationService {
 
     final data = {'fromUserId': requesterId, 'byUserName': requesterName};
 
-    await Future.wait([
-      createNotification(
-        userId: recipientId,
-        type: NotificationType.followRequest,
-        title: 'New Follow Request',
-        message: '$requesterName wants to follow you',
-        data: data,
-      ),
-      _deliverPushNotification(
-        type: NotificationType.followRequest,
-        recipientId: recipientId,
-        data: data,
-      ),
-    ]);
+    // CF-authoritative: the Cloud Function persists the in-app doc and pushes.
+    await _deliverPushNotification(
+      type: NotificationType.followRequest,
+      recipientId: recipientId,
+      data: data,
+    );
+    FirebaseAnalytics.instance.logEvent(name: 'follow_notification_delivered');
   }
 
   /// Notify user that their follow request was accepted.
@@ -874,55 +1128,34 @@ class NotificationService {
 
     final data = {'byUserId': acceptorId, 'byUserName': acceptorName};
 
-    await Future.wait([
-      createNotification(
-        userId: recipientId,
-        type: NotificationType.followAccepted,
-        title: 'Follow Request Accepted',
-        message: '$acceptorName accepted your follow request',
-        data: data,
-      ),
-      _deliverPushNotification(
-        type: NotificationType.followAccepted,
-        recipientId: recipientId,
-        data: data,
-      ),
-    ]);
+    // CF-authoritative: the Cloud Function persists the in-app doc and pushes.
+    await _deliverPushNotification(
+      type: NotificationType.followAccepted,
+      recipientId: recipientId,
+      data: data,
+    );
   }
 
   /// Notify user of buddy invite.
+  ///
+  /// CF-authoritative (Z-NOTIF-001): clients cannot write another user's inbox.
   Future<void> notifyBuddyInvite({
     required String recipientId,
     required String inviterId,
     required String inviterName,
     required String buddyPairId,
   }) async {
-    final shouldSend = await shouldSendNotification(
-      recipientId,
-      NotificationType.buddyInvite,
-    );
-    if (!shouldSend) return;
-
     final data = {
       'buddyPairId': buddyPairId,
       'fromUserId': inviterId,
       'byUserName': inviterName,
     };
 
-    await Future.wait([
-      createNotification(
-        userId: recipientId,
-        type: NotificationType.buddyInvite,
-        title: 'Buddy Invite',
-        message: '$inviterName wants to be your workout buddy!',
-        data: data,
-      ),
-      _deliverPushNotification(
-        type: NotificationType.buddyInvite,
-        recipientId: recipientId,
-        data: data,
-      ),
-    ]);
+    await _deliverPushNotification(
+      type: NotificationType.buddyInvite,
+      recipientId: recipientId,
+      data: data,
+    );
   }
 
   Future<void> notifyBuddyAccepted({
@@ -931,33 +1164,17 @@ class NotificationService {
     required String acceptorName,
     required String buddyPairId,
   }) async {
-    // Implementation similar to original
-    final shouldSend = await shouldSendNotification(
-      recipientId,
-      NotificationType.buddyAccepted,
-    );
-    if (!shouldSend) return;
-
     final data = {
       'buddyPairId': buddyPairId,
       'byUserId': acceptorId,
       'byUserName': acceptorName,
     };
 
-    await Future.wait([
-      createNotification(
-        userId: recipientId,
-        type: NotificationType.buddyAccepted,
-        title: 'Buddy Request Accepted',
-        message: '$acceptorName is now your workout buddy!',
-        data: data,
-      ),
-      _deliverPushNotification(
-        type: NotificationType.buddyAccepted,
-        recipientId: recipientId,
-        data: data,
-      ),
-    ]);
+    await _deliverPushNotification(
+      type: NotificationType.buddyAccepted,
+      recipientId: recipientId,
+      data: data,
+    );
   }
 
   Future<void> notifyBuddySession({
@@ -966,32 +1183,17 @@ class NotificationService {
     required String sessionId,
     required String sessionType,
   }) async {
-    final shouldSend = await shouldSendNotification(
-      recipientId,
-      NotificationType.buddySession,
-    );
-    if (!shouldSend) return;
-
     final data = {
       'sessionId': sessionId,
       'sessionType': sessionType,
       'byUserName': buddyName,
     };
 
-    await Future.wait([
-      createNotification(
-        userId: recipientId,
-        type: NotificationType.buddySession,
-        title: 'Buddy Session',
-        message: '$buddyName started a $sessionType session with you!',
-        data: data,
-      ),
-      _deliverPushNotification(
-        type: NotificationType.buddySession,
-        recipientId: recipientId,
-        data: data,
-      ),
-    ]);
+    await _deliverPushNotification(
+      type: NotificationType.buddySession,
+      recipientId: recipientId,
+      data: data,
+    );
   }
 
   /// Notify user that someone liked/reacted to their post.
@@ -1016,35 +1218,13 @@ class NotificationService {
       'reactionType': type.value,
     };
 
-    // Customize message based on type
-    String message;
-    String title = 'New Reaction';
-    switch (type) {
-      case ReactionType.fire:
-        message = '$likerName reacted 🔥 to your post';
-        break;
-      case ReactionType.strong:
-        message = '$likerName reacted 💪 to your post';
-        break;
-      case ReactionType.clap:
-        message = '$likerName reacted 👏 to your post';
-        break;
-    }
-
-    await Future.wait([
-      createNotification(
-        userId: recipientId,
-        type: NotificationType.postLike,
-        title: title,
-        message: message,
-        data: data,
-      ),
-      _deliverPushNotification(
-        type: NotificationType.postLike,
-        recipientId: recipientId,
-        data: data,
-      ),
-    ]);
+    // CF-authoritative: the Cloud Function builds the title/body (per reaction
+    // type), persists the in-app doc, and pushes.
+    await _deliverPushNotification(
+      type: NotificationType.postLike,
+      recipientId: recipientId,
+      data: data,
+    );
   }
 
   /// Notify user that someone commented on their post.
@@ -1062,10 +1242,6 @@ class NotificationService {
     );
     if (!shouldSend) return;
 
-    final truncatedComment = commentText.length > 50
-        ? '${commentText.substring(0, 50)}...'
-        : commentText;
-
     final data = {
       'postId': postId,
       'commentId': commentId,
@@ -1073,20 +1249,13 @@ class NotificationService {
       'byUserName': commenterName,
     };
 
-    await Future.wait([
-      createNotification(
-        userId: recipientId,
-        type: NotificationType.postComment,
-        title: 'New Comment',
-        message: '$commenterName: "$truncatedComment"',
-        data: data,
-      ),
-      _deliverPushNotification(
-        type: NotificationType.postComment,
-        recipientId: recipientId,
-        data: data,
-      ),
-    ]);
+    // CF-authoritative: the Cloud Function builds the body from the stored
+    // comment, persists the in-app doc, and pushes.
+    await _deliverPushNotification(
+      type: NotificationType.postComment,
+      recipientId: recipientId,
+      data: data,
+    );
   }
 
   /// Notify user of a session milestone (e.g. "Work out today!").
@@ -1126,7 +1295,7 @@ class NotificationService {
     );
     if (!shouldSend) return;
 
-    final title = 'Streak Milestone! 🔥';
+    final title = 'Streak Milestone!';
     final message = "You've reached a $streakDays-day streak! Keep it up!";
 
     await Future.wait([
@@ -1158,7 +1327,7 @@ class NotificationService {
     );
     if (!shouldSend) return;
 
-    final title = 'Oh no! Streak Broken 😢';
+    final title = 'Oh no! Streak Broken';
     final message =
         "$friendName lost their $previousStreak-day streak. Cheer them up!";
 
@@ -1197,7 +1366,7 @@ class NotificationService {
     );
     if (!shouldSend) return;
 
-    final title = 'Streak Extended! 🔥';
+    final title = 'Streak Extended!';
     final message = "$friendName just hit a $newStreak-day streak!";
 
     final data = {
@@ -1223,6 +1392,23 @@ class NotificationService {
   }
 }
 
+const _notificationLogRedactions = <String, String>{
+  'audioUrl': '<redacted>',
+  'token': '<redacted>',
+  'idToken': '<redacted>',
+  'appCheckToken': '<redacted>',
+  'Authorization': '<redacted>',
+  'X-Firebase-AppCheck': '<redacted>',
+};
+
+Map<String, dynamic> _redactedNotificationDataForLog(
+  Map<String, dynamic> data,
+) {
+  return data.map((key, value) {
+    return MapEntry(key, _notificationLogRedactions[key] ?? value);
+  });
+}
+
 Future<String> getDeviceId() async {
   final prefs = await SharedPreferences.getInstance();
   String? deviceId = prefs.getString('device_id');
@@ -1235,7 +1421,14 @@ Future<String> getDeviceId() async {
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  debugPrint('[FCM] Background message: ${message.messageId}');
+  // Background isolate: Firebase must be re-initialised before any Firebase call.
+  await Firebase.initializeApp();
+  debugPrint(
+    '[FCM] Background message received: ${message.messageId} type=${message.data['type']}',
+  );
+  // Z-NOTIF-004: intentional no-op beyond init. Notification-field messages are
+  // displayed by the OS; durable in-app docs are written by Cloud Functions
+  // before FCM dispatch. Do not duplicate UI work here.
 }
 
 /// Notification service provider.
@@ -1245,14 +1438,26 @@ final notificationServiceProvider = Provider<NotificationService>((ref) {
 
 /// User notifications stream provider.
 final userNotificationsProvider =
-    StreamProvider.family<List<AppNotification>, String>((ref, userId) {
+    StreamProvider.autoDispose.family<List<AppNotification>, String>((ref, userId) {
       return ref
           .watch(notificationServiceProvider)
           .listenToNotifications(userId);
     });
 
 /// Unread notification count stream provider.
-final unreadCountProvider = StreamProvider.family<int, String>((ref, userId) {
+///
+/// autoDispose with a grace window rather than plain autoDispose: this backs
+/// the notification badge in the app shell, so a momentary drop to zero
+/// listeners during a navigation transition would otherwise tear down the
+/// listener and re-subscribe, making the badge flicker.
+final unreadCountProvider = StreamProvider.autoDispose.family<int, String>((
+  ref,
+  userId,
+) {
+  final link = ref.keepAlive();
+  final timer = Timer(const Duration(minutes: 2), link.close);
+  ref.onDispose(timer.cancel);
+
   return ref.watch(notificationServiceProvider).listenToUnreadCount(userId);
 });
 

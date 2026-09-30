@@ -1,10 +1,10 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
-
+import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/models/models.dart';
 import 'rep_counter_screen.dart';
 
 enum _ActiveTurnPhase { ready, timing, reps, weight }
@@ -17,12 +17,17 @@ enum _ActiveTurnPhase { ready, timing, reps, weight }
 class ActiveTurnScreen extends StatefulWidget {
   final String exerciseName;
   final int setNumber;
-  final void Function({
+  final FutureOr<void> Function({
     required int reps,
     required double weight,
     required int durationSeconds,
-  }) onSetSubmit;
+  })
+  onSetSubmit;
   final VoidCallback? onTurnEnd;
+  final FutureOr<void> Function()? onTimerStart;
+  final BotFriend? botFriend;
+  final int lastReps;
+  final double lastWeight;
 
   const ActiveTurnScreen({
     super.key,
@@ -30,6 +35,10 @@ class ActiveTurnScreen extends StatefulWidget {
     required this.setNumber,
     required this.onSetSubmit,
     this.onTurnEnd,
+    this.onTimerStart,
+    this.botFriend,
+    this.lastReps = 0,
+    this.lastWeight = 0.0,
   });
 
   @override
@@ -46,9 +55,15 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen>
 
   double _weight = 0.0;
   final FocusNode _weightFocus = FocusNode();
+  bool _submitting = false;
 
   // Pulse state for TIMING phase (toggled by the same ticking [_timer]).
   bool _pulseOn = false;
+
+  // Rest timer — counts up after each submitted set, resets on START tap.
+  Timer? _restTimer;
+  Duration _restElapsed = Duration.zero;
+  bool _isResting = false;
 
   late AnimationController _repBounceController;
   late Animation<double> _repBounceAnim;
@@ -60,33 +75,27 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen>
   @override
   void initState() {
     super.initState();
+    _weight = widget.lastWeight;
     _repBounceController = AnimationController(
       duration: const Duration(milliseconds: 220),
       vsync: this,
     );
-    _repBounceAnim = TweenSequence<double>(<TweenSequenceItem<double>>[
-      TweenSequenceItem<double>(
-        tween: Tween<double>(begin: 1.0, end: 1.18),
-        weight: 40,
-      ),
-      TweenSequenceItem<double>(
-        tween: Tween<double>(begin: 1.18, end: 1.0),
-        weight: 60,
-      ),
-    ]).animate(
-      CurvedAnimation(parent: _repBounceController, curve: AppCurves.spring),
+    _repBounceAnim = _repBounceController.drive(
+      CurveTween(curve: const _RepBounceScaleCurve()),
     );
-    _repColorAnim = ColorTween(
-      begin: AppColors.textV2Primary,
-      end: AppColors.accentLime,
-    ).animate(
-      CurvedAnimation(parent: _repBounceController, curve: Curves.easeOut),
-    );
+    _repColorAnim =
+        ColorTween(
+          begin: AppColors.textV2Primary,
+          end: AppColors.signal,
+        ).animate(
+          CurvedAnimation(parent: _repBounceController, curve: Curves.easeOut),
+        );
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _restTimer?.cancel();
     _weightFocus.dispose();
     _repBounceController.dispose();
     super.dispose();
@@ -94,9 +103,20 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen>
 
   void _startTimer() {
     HapticFeedback.mediumImpact();
+    final onTimerStart = widget.onTimerStart;
+    if (onTimerStart != null) {
+      unawaited(Future<void>.sync(onTimerStart));
+    }
+    // Stop rest timer and reset.
+    _restTimer?.cancel();
+    _restTimer = null;
     _elapsed = Duration.zero;
     _pulseOn = false;
-    setState(() => _phase = _ActiveTurnPhase.timing);
+    setState(() {
+      _isResting = false;
+      _restElapsed = Duration.zero;
+      _phase = _ActiveTurnPhase.timing;
+    });
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (Timer t) {
       if (!mounted) return;
@@ -118,7 +138,6 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen>
   void _onRepsDone(int reps) {
     setState(() {
       _reps = reps;
-      _weight = 0.0;
       _phase = _ActiveTurnPhase.weight;
     });
     HapticFeedback.mediumImpact();
@@ -128,18 +147,42 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen>
     });
   }
 
-  void _submitSet() {
+  Future<void> _submitSet() async {
+    if (_submitting) return;
+    if (_weight <= 0) {
+      HapticFeedback.heavyImpact();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a weight before saving')),
+      );
+      return;
+    }
+    setState(() => _submitting = true);
     HapticFeedback.mediumImpact();
-    widget.onSetSubmit(
-      reps: _reps,
-      weight: _weight,
-      durationSeconds: _elapsed.inSeconds,
-    );
+    try {
+      await widget.onSetSubmit(
+        reps: _reps,
+        weight: _weight,
+        durationSeconds: _elapsed.inSeconds,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
+    }
+    if (!mounted) return;
+    // Start rest timer between sets.
+    _restTimer?.cancel();
+    _restElapsed = Duration.zero;
+    _isResting = true;
+    _restTimer = Timer.periodic(const Duration(seconds: 1), (Timer t) {
+      if (!mounted) return;
+      setState(() => _restElapsed = Duration(seconds: _restElapsed.inSeconds + 1));
+    });
     setState(() {
       _reps = 0;
-      _weight = 0.0;
       _elapsed = Duration.zero;
       _phase = _ActiveTurnPhase.ready;
+      // Keep _weight for the next set so the user doesn't re-enter it
     });
   }
 
@@ -157,7 +200,11 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen>
   @override
   Widget build(BuildContext context) {
     if (_phase == _ActiveTurnPhase.reps) {
-      return RepCounterScreen(onDone: _onRepsDone);
+      return RepCounterScreen(
+        initialCount: widget.lastReps,
+        onDone: _onRepsDone,
+        botFriend: widget.botFriend,
+      );
     }
 
     return ColoredBox(
@@ -187,25 +234,6 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen>
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          if (widget.onTurnEnd != null)
-            TextButton(
-              onPressed: widget.onTurnEnd,
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.textV2Secondary,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  side: BorderSide(
-                    color: AppColors.surfaceV2Active,
-                  ),
-                ),
-              ),
-              child: const Text(
-                'Pass Turn',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-              ),
-            ),
         ],
       ),
     );
@@ -225,84 +253,133 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen>
   }
 
   Widget _buildReady() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 48),
-      child: Column(
-        children: <Widget>[
-          Expanded(
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Text(
-                    'SET ${widget.setNumber}',
-                    style: GoogleFonts.syne(
-                      color: AppColors.textV2Tertiary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 3,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    widget.exerciseName,
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.syne(
-                      color: AppColors.textV2Primary,
-                      fontSize: 32,
-                      fontWeight: FontWeight.w800,
-                      height: 1.1,
-                    ),
-                  ),
-                  const SizedBox(height: 48),
-                  GestureDetector(
-                    onTap: _startTimer,
-                    child: Container(
-                      width: 140,
-                      height: 140,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: AppColors.accentLime,
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.accentLime.withValues(alpha: 0.35),
-                            blurRadius: 60,
-                            spreadRadius: 0,
-                          ),
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.40),
-                            blurRadius: 32,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: constraints.hasBoundedHeight
+                  ? constraints.maxHeight
+                  : 0,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 48),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Text(
+                      'SET ${widget.setNumber}',
+                      style: AppTextStyles.h5.copyWith(
+                        color: AppColors.textV2Tertiary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 3,
                       ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: <Widget>[
-                          const Icon(
-                            Icons.play_arrow_rounded,
-                            color: AppColors.backgroundV2,
-                            size: 32,
-                          ),
-                          Text(
-                            'START',
-                            style: GoogleFonts.syne(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.backgroundV2,
-                              letterSpacing: 1,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      widget.exerciseName,
+                      textAlign: TextAlign.center,
+                      style: AppTextStyles.h2.copyWith(
+                        color: AppColors.textV2Primary,
+                        fontWeight: FontWeight.w700,
+                        height: 1.1,
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    if (_isResting) ...[
+                      _RestTimerDisplay(elapsed: _restElapsed),
+                      const SizedBox(height: 24),
+                    ] else
+                      const SizedBox(height: 16),
+                    if (widget.botFriend != null) ...[
+                      _buildBotFixedValues(widget.botFriend!),
+                      const SizedBox(height: 24),
+                    ],
+                    GestureDetector(
+                      onTap: _startTimer,
+                      child: Container(
+                        width: 140,
+                        height: 140,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppColors.signal,
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.signal.withValues(
+                                alpha: 0.35,
+                              ),
+                              blurRadius: 60,
+                              spreadRadius: 0,
                             ),
-                          ),
-                        ],
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.40),
+                              blurRadius: 32,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: <Widget>[
+                            const Icon(
+                              Icons.play_arrow_rounded,
+                              color: AppColors.backgroundV2,
+                              size: 32,
+                            ),
+                            Text(
+                              'START',
+                              style: AppTextStyles.label.copyWith(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.backgroundV2,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
-        ],
-      ),
+        );
+      },
+    );
+  }
+
+  Widget _buildBotFixedValues(BotFriend bot) {
+    final values = [
+      '${bot.gymSetSeconds} sec',
+      '${bot.gymReps} reps',
+      '${_formatWeight(bot.gymWeightKg)} kg',
+    ];
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 8,
+      runSpacing: 8,
+      children: values
+          .map(
+            (value) => Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceV2,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.surfaceV2Active),
+              ),
+              child: Text(
+                value,
+                style: AppTextStyles.label.copyWith(
+                  color: AppColors.signal,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          )
+          .toList(),
     );
   }
 
@@ -321,8 +398,9 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen>
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
-                color: AppColors.accentLime
-                    .withValues(alpha: _pulseOn ? 0.20 : 0.06),
+                color: AppColors.signal.withValues(
+                  alpha: _pulseOn ? 0.20 : 0.06,
+                ),
                 width: 1.5,
               ),
             ),
@@ -335,8 +413,9 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen>
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
-                color: AppColors.accentLime
-                    .withValues(alpha: _pulseOn ? 0.12 : 0.04),
+                color: AppColors.signal.withValues(
+                  alpha: _pulseOn ? 0.12 : 0.04,
+                ),
                 width: 1.0,
               ),
             ),
@@ -346,10 +425,10 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen>
             children: <Widget>[
               Text(
                 _formatDuration(_elapsed),
-                style: GoogleFonts.syne(
-                  color: AppColors.accentLime,
+                style: AppTextStyles.display.copyWith(
+                  color: AppColors.signal,
                   fontSize: 88,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
                   height: 1.0,
                   letterSpacing: -5,
                 ),
@@ -357,7 +436,7 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen>
               const SizedBox(height: 20),
               Text(
                 'tap anywhere to stop',
-                style: GoogleFonts.outfit(
+                style: AppTextStyles.body.copyWith(
                   color: AppColors.textV2Tertiary,
                   fontSize: 13,
                 ),
@@ -370,189 +449,274 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen>
   }
 
   Widget _buildWeight() {
-    final textPrimary =
-        AppColors.textV2Primary;
-    final textSecondary =
-        AppColors.textV2Secondary;
-    final textTertiary =
-        AppColors.textV2Tertiary;
+    final textPrimary = AppColors.textV2Primary;
+    final textSecondary = AppColors.textV2Secondary;
+    final textTertiary = AppColors.textV2Tertiary;
     final surface = AppColors.surfaceV2;
-    final surfaceActive =
-        AppColors.surfaceV2Active;
+    final surfaceActive = AppColors.surfaceV2Active;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: <Widget>[
-          // Reps badge
-          AnimatedBuilder(
-            animation: _repBounceController,
-            builder: (BuildContext context, Widget? child) {
-              return Transform.scale(
-                scale: _repBounceAnim.value,
-                alignment: Alignment.centerLeft,
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: AppColors.accentLime.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(
-                        color: AppColors.accentLime.withValues(alpha: 0.40),
-                      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: constraints.hasBoundedHeight
+                  ? constraints.maxHeight
+                  : 0,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+              child: IntrinsicHeight(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    // Reps badge
+                    AnimatedBuilder(
+                      animation: _repBounceController,
+                      builder: (BuildContext context, Widget? child) {
+                        return Transform.scale(
+                          scale: _repBounceAnim.value,
+                          alignment: Alignment.centerLeft,
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.signal.withValues(
+                                  alpha: 0.15,
+                                ),
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(
+                                  color: AppColors.signal.withValues(
+                                    alpha: 0.40,
+                                  ),
+                                ),
+                              ),
+                              child: Text(
+                                '$_reps reps',
+                                style: AppTextStyles.body.copyWith(
+                                  color:
+                                      _repColorAnim.value ??
+                                      AppColors.signal,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                    child: Text(
-                      '$_reps reps',
-                      style: GoogleFonts.syne(
-                        color: _repColorAnim.value ?? AppColors.accentLime,
+                    const SizedBox(height: 24),
+                    // Weight display
+                    Text(
+                      'Weight (kg)',
+                      style: TextStyle(
+                        color: textSecondary,
                         fontSize: 13,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1,
                       ),
                     ),
-                  ),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 24),
-          // Weight display
-          Text(
-            'Weight (kg)',
-            style: TextStyle(
-              color: textSecondary,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Center(
-            child: Text(
-              _formatWeight(_weight),
-              style: GoogleFonts.syne(
-                color: AppColors.accentLime,
-                fontSize: 60,
-                fontWeight: FontWeight.w800,
-                height: 1.1,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          // Quick-pick row
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: _quickPicks.map((kg) {
-                final isSelected = _weight == kg;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: GestureDetector(
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      setState(() => _weight = kg);
-                    },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? AppColors.accentLime
-                            : surfaceActive,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                    const SizedBox(height: 8),
+                    Center(
                       child: Text(
-                        '${kg.toInt()}',
-                        style: GoogleFonts.syne(
-                          color: isSelected
-                              ? AppColors.backgroundV2
-                              : textPrimary,
-                          fontSize: 15,
+                        _formatWeight(_weight),
+                        style: AppTextStyles.display.copyWith(
+                          color: AppColors.signal,
+                          fontSize: 60,
                           fontWeight: FontWeight.w700,
+                          height: 1.1,
                         ),
                       ),
                     ),
-                  ),
-                );
-              }).toList(),
+                    const SizedBox(height: 16),
+                    // Quick-pick row
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: _quickPicks.map((kg) {
+                          final isSelected = _weight == kg;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: GestureDetector(
+                              onTap: () {
+                                HapticFeedback.selectionClick();
+                                setState(() => _weight = kg);
+                              },
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 150),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 10,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? AppColors.signal
+                                      : surfaceActive,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  '${kg.toInt()}',
+                                  style: AppTextStyles.bodyLarge.copyWith(
+                                    color: isSelected
+                                        ? AppColors.backgroundV2
+                                        : textPrimary,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    // Increment buttons
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _increments.map((delta) {
+                        final isPositive = delta > 0;
+                        return GestureDetector(
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            setState(() {
+                              _weight = (_weight + delta).clamp(0.0, 999.0);
+                              // Round to nearest 0.5
+                              _weight = ((_weight * 2).round() / 2).toDouble();
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isPositive
+                                  ? AppColors.signal.withValues(alpha: 0.12)
+                                  : surface,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: isPositive
+                                    ? AppColors.signal.withValues(
+                                        alpha: 0.30,
+                                      )
+                                    : surfaceActive,
+                              ),
+                            ),
+                            child: Text(
+                              isPositive ? '+$delta' : '$delta',
+                              style: TextStyle(
+                                color: isPositive
+                                    ? AppColors.signal
+                                    : textTertiary,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const Spacer(),
+                    // Submit button
+                    GestureDetector(
+                      onTap: _submitting ? null : _submitSet,
+                      child: Container(
+                        height: 60,
+                        decoration: BoxDecoration(
+                          color: _submitting
+                              ? AppColors.signal.withValues(alpha: 0.5)
+                              : AppColors.signal,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.signal.withValues(
+                                alpha: 0.30,
+                              ),
+                              blurRadius: 20,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: Text(
+                            _submitting ? 'Saving…' : 'Submit Set',
+                            style: AppTextStyles.h5.copyWith(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.backgroundV2,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-          const SizedBox(height: 16),
-          // Increment buttons
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _increments.map((delta) {
-              final isPositive = delta > 0;
-              return GestureDetector(
-                onTap: () {
-                  HapticFeedback.selectionClick();
-                  setState(() {
-                    _weight = (_weight + delta).clamp(0.0, 999.0);
-                    // Round to nearest 0.5
-                    _weight = ((_weight * 2).round() / 2).toDouble();
-                  });
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: isPositive
-                        ? AppColors.accentLime.withValues(alpha: 0.12)
-                        : surface,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: isPositive
-                          ? AppColors.accentLime.withValues(alpha: 0.30)
-                          : surfaceActive,
-                    ),
-                  ),
-                  child: Text(
-                    isPositive ? '+$delta' : '$delta',
-                    style: TextStyle(
-                      color: isPositive ? AppColors.accentLime : textTertiary,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-          const Spacer(),
-          // Submit button
-          GestureDetector(
-            onTap: _submitSet,
-            child: Container(
-              height: 60,
-              decoration: BoxDecoration(
-                color: AppColors.accentLime,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.accentLime.withValues(alpha: 0.30),
-                    blurRadius: 20,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: Center(
-                child: Text(
-                  'Submit Set',
-                  style: GoogleFonts.syne(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.backgroundV2,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
+  }
+}
+
+class _RestTimerDisplay extends StatelessWidget {
+  final Duration elapsed;
+
+  const _RestTimerDisplay({required this.elapsed});
+
+  String _format(Duration d) {
+    final int m = d.inMinutes;
+    final int s = d.inSeconds.remainder(60);
+    return '$m:${s.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'RESTING',
+          style: TextStyle(
+            color: AppColors.textV2Tertiary,
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 2,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          _format(elapsed),
+          style: AppTextStyles.display.copyWith(
+            color: AppColors.textV2Secondary,
+            fontSize: 42,
+            fontWeight: FontWeight.w700,
+            height: 1.0,
+            letterSpacing: -2,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RepBounceScaleCurve extends Curve {
+  const _RepBounceScaleCurve();
+
+  @override
+  double transformInternal(double t) {
+    if (t <= 0.4) {
+      return 1 + (Curves.easeOut.transform(t / 0.4) * 0.18);
+    }
+
+    return 1.18 - (Curves.easeOut.transform((t - 0.4) / 0.6) * 0.18);
   }
 }

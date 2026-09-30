@@ -26,8 +26,11 @@ void main() {
       expect(rules, contains('match /posts/{postId}/{fileName}'));
       expect(rules, contains('isImageContent()'));
       expect(rules, contains('isUnder5Mb()'));
-      expect(rules, contains('allow read: if isAuthenticated();'));
-      expect(rules, contains('allow write: if isAuthenticated() && isImageContent() && isUnder5Mb();'));
+      expect(rules, contains('isPostMediaReadable(postId)'));
+      expect(rules, contains('function isPostMediaReadableData'));
+      expect(rules, contains('allow read: if isPostMediaReadable(postId);'));
+      expect(rules, contains('isPostOwner(postId)'));
+      expect(rules, contains('allow write: if isPostOwner(postId) && isImageContent() && isUnder5Mb();'));
     });
 
     test('scopes profile photo writes to the owning user', () {
@@ -40,6 +43,15 @@ void main() {
       expect(rules, contains('isSessionParticipant(sessionId)'));
       expect(rules, contains('isAudioContent()'));
       expect(rules, contains('allow write: if isSessionParticipant(sessionId) && isAudioContent() && isUnder5Mb();'));
+    });
+
+    test('emulator suite covers storage behavioral cases (Z-TEST-004)', () {
+      expect(
+        File('test/rules/storage.rules.test.mjs').existsSync(),
+        isTrue,
+      );
+      final pkg = File('test/rules/package.json').readAsStringSync();
+      expect(pkg, contains('firestore,storage'));
     });
   });
 }

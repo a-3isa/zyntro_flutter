@@ -217,12 +217,17 @@ class WorkoutService {
   }
 
   /// Get user's workout count.
+  ///
+  /// Counted with an aggregate rather than by reading every workout document:
+  /// the old version's cost grew with every workout the user had ever logged,
+  /// purely to produce a number.
   Future<int> getUserWorkoutCount(String userId) async {
     final snapshot = await _firestore
         .collection('workouts')
         .where('userId', isEqualTo: userId)
+        .count()
         .get();
-    return snapshot.docs.length;
+    return snapshot.count ?? 0;
   }
 
   /// Get user's workout count by type.
@@ -231,8 +236,9 @@ class WorkoutService {
         .collection('workouts')
         .where('userId', isEqualTo: userId)
         .where('type', isEqualTo: type.value)
+        .count()
         .get();
-    return snapshot.docs.length;
+    return snapshot.count ?? 0;
   }
 }
 
@@ -242,10 +248,12 @@ final workoutServiceProvider = Provider<WorkoutService>((ref) {
 });
 
 /// User workouts provider.
-final userWorkoutsProvider = FutureProvider.family<WorkoutQueryResult, String>((
-  ref,
-  userId,
-) async {
+///
+/// autoDispose is what makes the keepAlive window below mean anything:
+/// ref.keepAlive() is a no-op on a provider that never disposes, so this
+/// previously cached forever rather than for the two minutes it claimed.
+final userWorkoutsProvider = FutureProvider.autoDispose
+    .family<WorkoutQueryResult, String>((ref, userId) async {
   // Cache for 2 minutes to prevent repeated fetches on tab switch
   final link = ref.keepAlive();
   final timer = Timer(const Duration(minutes: 2), () => link.close());
@@ -283,7 +291,7 @@ final friendsRecentActivityProvider =
       final safeBuddyIds = buddyIds.take(10).toList();
 
       // 2. Fetch workouts and posts in parallel
-      // PostService.getBuddiesRecentPosts handles visibility filtering (public/followers only)
+      // PostService.getBuddiesRecentPosts returns listable public posts only
       final results = await Future.wait([
         workoutService.getBuddiesRecentWorkouts(safeBuddyIds),
         postService.getBuddiesRecentPosts(safeBuddyIds),

@@ -1,0 +1,52 @@
+{
+  "@@locale": "ar",
+
+  "signIn": "تسجيل الدخول",
+  "signUp": "إنشاء حساب",
+  "createAccount": "إنشاء حساب",
+  "welcomeBack": "أهلاً بعودتك",
+  "signInSubtitle": "سجّل الدخول لمواصلة رحلتك الرياضية",
+  "signUpSubtitle": "انضم إلى Zyntro وابدأ رحلتك الرياضية",
+  "createAccountPrompt": "أنشئ حساباً للبدء.",
+
+  "emailAddress": "البريد الإلكتروني",
+  "password": "كلمة المرور",
+  "confirmPassword": "تأكيد كلمة المرور",
+  "forgotPassword": "نسيت كلمة المرور؟",
+  "alreadyHaveAccount": "لديك حساب بالفعل؟",
+  "backToSignIn": "العودة إلى تسجيل الدخول",
+
+  "checkYourEmail": "تحقّق من بريدك الإلكتروني",
+  "sendResetEmail": "إرسال رابط إعادة التعيين",
+  "resendEmail": "إعادة الإرسال",
+  "resendInSeconds": "إعادة الإرسال خلال {seconds} ثانية",
+  "sending": "جارٍ الإرسال...",
+
+  "enterEmail": "من فضلك أدخل بريدك الإلكتروني",
+  "enterValidEmail": "من فضلك أدخل بريداً إلكترونياً صحيحاً",
+  "enterPassword": "من فضلك أدخل كلمة المرور",
+  "confirmYourPassword": "من فضلك أكّد كلمة المرور",
+  "passwordsDoNotMatch": "كلمتا المرور غير متطابقتين",
+
+  "signInFailed": "فشل تسجيل الدخول. من فضلك حاول مرة أخرى.",
+  "signUpFailed": "فشل إنشاء الحساب. من فضلك حاول مرة أخرى.",
+  "googleSignInFailed": "فشل تسجيل الدخول عبر Google. من فضلك حاول مرة أخرى.",
+  "facebookSignInFailed": "فشل تسجيل الدخول عبر Facebook. من فضلك حاول مرة أخرى.",
+  "noAccountForEmail": "لا يوجد حساب مرتبط بهذا البريد الإلكتروني.",
+  "tooManyAttempts": "محاولات كثيرة. من فضلك حاول لاحقاً.",
+  "resetEmailFailed": "تعذّر إرسال رسالة إعادة التعيين. من فضلك حاول مرة أخرى.",
+
+  "tryAgain": "حاول مرة أخرى",
+  "checkConnection": "تحقّق من اتصالك وحاول مرة أخرى.",
+
+  "navFeed": "الخلاصة",
+  "navTrain": "تمرّن",
+  "navStartSession": "ابدأ الجلسة",
+  "navPickWorkoutType": "اختر نوع التمرين",
+  "navProfile": "الملف",
+  "navSocial": "اجتماعي",
+  "settingsTitle": "الإعدادات",
+  "socialTabBoard": "اللوحة",
+  "socialTabBuddies": "الرفاق",
+  "socialTabFind": "ابحث"
+}

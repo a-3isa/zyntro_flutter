@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/theme/app_theme.dart';
+import '../features/auth/auth_providers.dart';
 import '../features/auth/presentation/providers/auth_controller.dart';
 
 /// A reusable dialog for re-authentication before sensitive operations.
@@ -64,7 +65,21 @@ class _ReauthenticationDialogState
   }
 
   Future<void> _handleConfirm() async {
-    if (!_formKey.currentState!.validate()) return;
+    final providers =
+        ref.read(authSessionProvider).value?.providerIds ?? const <String>[];
+    final passwordOnly =
+        providers.contains('password') &&
+        !providers.contains('google.com') &&
+        !providers.contains('facebook.com') &&
+        !providers.contains('apple.com');
+    final oauthOnly = !providers.contains('password') &&
+        (providers.contains('google.com') ||
+            providers.contains('facebook.com') ||
+            providers.contains('apple.com'));
+
+    if (passwordOnly || !oauthOnly) {
+      if (!_formKey.currentState!.validate()) return;
+    }
 
     setState(() {
       _isLoading = true;
@@ -72,9 +87,8 @@ class _ReauthenticationDialogState
     });
 
     try {
-      final password = _passwordController.text;
+      final password = oauthOnly ? '' : _passwordController.text;
 
-      // Verify the password by re-authenticating
       await ref.read(authControllerProvider).reauthenticate(password);
 
       if (mounted) {
@@ -109,6 +123,20 @@ class _ReauthenticationDialogState
 
   @override
   Widget build(BuildContext context) {
+    final providers =
+        ref.watch(authSessionProvider).value?.providerIds ?? const <String>[];
+    final oauthOnly = !providers.contains('password') &&
+        (providers.contains('google.com') ||
+            providers.contains('facebook.com') ||
+            providers.contains('apple.com'));
+    final oauthLabel = providers.contains('google.com')
+        ? 'Continue with Google'
+        : providers.contains('facebook.com')
+        ? 'Continue with Facebook'
+        : providers.contains('apple.com')
+        ? 'Continue with Apple'
+        : 'Confirm';
+
     return AlertDialog(
       title: Text(widget.title),
       content: Form(
@@ -118,7 +146,9 @@ class _ReauthenticationDialogState
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              widget.description,
+              oauthOnly
+                  ? 'Confirm it is you to continue.'
+                  : widget.description,
               style: TextStyle(
                 color: Theme.of(
                   context,
@@ -155,30 +185,33 @@ class _ReauthenticationDialogState
               ),
               const SizedBox(height: AppSpacing.md),
             ],
-            TextFormField(
-              controller: _passwordController,
-              obscureText: _obscurePassword,
-              autofocus: true,
-              decoration: InputDecoration(
-                labelText: 'Password',
-                prefixIcon: const Icon(Icons.lock_outlined),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscurePassword ? Icons.visibility_off : Icons.visibility,
+            if (!oauthOnly)
+              TextFormField(
+                controller: _passwordController,
+                obscureText: _obscurePassword,
+                autofocus: true,
+                decoration: InputDecoration(
+                  labelText: 'Password',
+                  prefixIcon: const Icon(Icons.lock_outlined),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility_off
+                          : Icons.visibility,
+                    ),
+                    onPressed: () {
+                      setState(() => _obscurePassword = !_obscurePassword);
+                    },
                   ),
-                  onPressed: () {
-                    setState(() => _obscurePassword = !_obscurePassword);
-                  },
                 ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter your password';
+                  }
+                  return null;
+                },
+                onFieldSubmitted: (_) => _handleConfirm(),
               ),
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please enter your password';
-                }
-                return null;
-              },
-              onFieldSubmitted: (_) => _handleConfirm(),
-            ),
           ],
         ),
       ),
@@ -204,7 +237,7 @@ class _ReauthenticationDialogState
                     color: Colors.white,
                   ),
                 )
-              : const Text('Confirm'),
+              : Text(oauthOnly ? oauthLabel : 'Confirm'),
         ),
       ],
     );

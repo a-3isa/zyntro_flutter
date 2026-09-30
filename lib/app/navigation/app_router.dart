@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,7 +7,12 @@ import 'package:go_router/go_router.dart';
 
 import 'app_route_locations.dart';
 import '../app_runtime_config.dart';
+import '../launch_intent.dart';
 import '../../core/constants/constants.dart';
+import '../../core/constants/feature_flags.dart';
+import '../../features/session/domain/resume_decision.dart';
+import '../../services/session_analytics_service.dart';
+import '../../services/session_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../features/auth/presentation/splash_page.dart';
 import '../../features/auth/presentation/login_page.dart';
@@ -19,7 +26,6 @@ import '../../features/session/presentation/gym_session_setup_page.dart';
 import '../../features/session/presentation/matchmaking_page.dart';
 import '../../features/session/presentation/session_room_page.dart';
 import '../../features/session/presentation/recap_page.dart';
-import '../../features/session/presentation/session_invite_acceptance_page.dart';
 import '../../features/session/domain/gym_session_plan.dart';
 import '../../features/notifications/presentation/notifications_page.dart';
 import '../../features/notifications/presentation/notification_preferences_page.dart';
@@ -29,6 +35,7 @@ import '../../features/settings/presentation/blocked_users_page.dart';
 import '../../features/settings/presentation/community_guidelines_page.dart';
 import '../../features/settings/presentation/terms_of_service_page.dart';
 import '../../features/settings/presentation/privacy_policy_page.dart';
+import '../../features/settings/presentation/data_deletion_page.dart';
 import '../../features/settings/presentation/change_password_page.dart';
 import '../../features/settings/presentation/change_email_page.dart';
 import '../../features/settings/presentation/delete_account_page.dart';
@@ -40,8 +47,10 @@ import '../../features/profile/presentation/workout_history_page.dart';
 import '../../features/profile/presentation/edit_profile_page.dart';
 import '../../features/moderation/presentation/moderation_queue_page.dart';
 import '../../features/feed/presentation/post_detail_page.dart';
+import '../../features/session/presentation/joint_post_page.dart';
 import '../../features/auth/auth_providers.dart';
-import '../../services/storage_service.dart';
+import '../../features/auth/presentation/providers/auth_controller.dart';
+import '../../features/auth/domain/entities/auth_user_entity.dart';
 
 /// Route names for type-safe navigation.
 class AppRoutes {
@@ -54,7 +63,6 @@ class AppRoutes {
   static const main = '/';
   static const startSession = '/session/start';
   static const matchmaking = '/session/matchmaking';
-  static const sessionAccept = '/session/accept/:sessionId';
   static const gymSessionSetup = '/session/setup/:sessionId';
   static const sessionRoom = '/session/room/:sessionId';
   static const recap = '/session/recap/:sessionId';
@@ -63,6 +71,7 @@ class AppRoutes {
   static const notificationPreferences = '/notifications/preferences';
   static const userProfile = '/user/:userId';
   static const postDetail = '/post/:postId';
+  static const jointPostComposer = '/joint-post/:postId';
 
   // Privacy & moderation routes
   static const privacySettings = '/settings/privacy';
@@ -72,6 +81,8 @@ class AppRoutes {
   static const communityGuidelines = '/settings/guidelines';
   static const termsOfService = '/settings/terms';
   static const privacyPolicy = '/settings/privacy-policy';
+  /// Public Meta data-deletion instructions (Z-AUTH-004). No auth required.
+  static const dataDeletion = '/legal/data-deletion';
 
   // Account management routes
   static const changePassword = '/settings/change-password';
@@ -175,10 +186,7 @@ CustomTransitionPage<T> buildModalPageTransition<T>({
 }
 
 /// Simple slide-from-right page transition (280 ms, AppCurves.premium).
-CustomTransitionPage<void> _slidePage(
-  GoRouterState state,
-  Widget child,
-) {
+CustomTransitionPage<void> _slidePage(GoRouterState state, Widget child) {
   return CustomTransitionPage<void>(
     key: state.pageKey,
     transitionDuration: const Duration(milliseconds: 280),
@@ -196,92 +204,317 @@ CustomTransitionPage<void> _slidePage(
   );
 }
 
+/// Resolves, once per cold start, what to do about a session the member may
+/// still be in.
+///
+/// One-shot on purpose. The router re-evaluates its redirect on every auth
+/// event via [authChangeNotifier]; if this were recomputed each time, an
+/// ordinary token refresh would re-fire the redirect and yank a member back
+/// into a session they had already moved on from. Resolved during the splash
+/// hold the router already performs, so it costs no extra frame.
+final resumeDecisionProvider = FutureProvider<ResumeDecision>((ref) async {
+  final user = ref.watch(authSessionProvider).value;
+  if (user == null) return const ResumeNone();
+
+  // A launch that already has a destination outranks resuming — see
+  // LaunchIntent for why this is read rather than synchronised.
+  final launchIntent = ref.watch(launchIntentProvider);
+
+  // Kill switch. Reading it must never block start-up, so a failure degrades to
+  // the compile-time default rather than propagating.
+  final resumeEnabled = await ref
+      .watch(resumeActiveSessionEnabledProvider.future)
+      .catchError((_) => FeatureFlags.isResumeActiveSessionEnabledByDefault);
+
+  final candidate = await ref
+      .read(sessionServiceProvider)
+      .findResumableSession(user.id);
+
+  final decision = resolveResumeDecision(
+    candidate: candidate,
+    now: DateTime.now().toUtc(),
+    hasExplicitLaunchDestination: launchIntent.hasExplicitDestination,
+    resumeEnabled: resumeEnabled,
+    // The landing screen owns the notice, and marks it seen when it shows it.
+    expiryAlreadyNotified: false,
+  );
+
+  if (decision is ResumeRedirect) {
+    unawaited(
+      ref
+          .read(sessionAnalyticsServiceProvider)
+          .trackResumeEvent(
+            ResumeSessionAnalyticsEvent.redirect,
+            sessionId: decision.sessionId,
+          ),
+    );
+  }
+
+  return decision;
+});
+
+/// Redirect non-moderators away from the moderation queue (Z-SOC-002).
+///
+/// While the moderator flag is still loading, stay on the route (null) so we
+/// do not bounce a real moderator to home before their claim resolves.
+String? moderationQueueRedirect({
+  required String location,
+  required bool moderatorResolved,
+  required bool isModerator,
+  String fallback = AppRoutes.main,
+}) {
+  if (location != AppRoutes.moderationQueue) return null;
+  if (!moderatorResolved) return null;
+  if (!isModerator) return fallback;
+  return null;
+}
+
+/// Query key carrying the pre-auth deep link for restore after login
+/// (Z-AUTH-007).
+const kPostAuthRedirectFrom = 'from';
+
+/// Login location that remembers [intendedPath] for post-auth restore.
+String loginWithReturnTo(String intendedPath) {
+  final encoded = Uri.encodeComponent(intendedPath);
+  return '${AppRoutes.login}?$kPostAuthRedirectFrom=$encoded';
+}
+
+/// Validates a `from` query value into a same-app relative location, or null.
+///
+/// Rejects absolute URLs, scheme-relative `//` hosts, and auth-entry pages so
+/// an attacker cannot open-redirect after sign-in.
+String? safePostAuthReturnTo(String? fromRaw) {
+  if (fromRaw == null || fromRaw.isEmpty) return null;
+
+  final decoded = Uri.decodeComponent(fromRaw);
+  if (!decoded.startsWith('/') || decoded.startsWith('//')) return null;
+
+  final uri = Uri.tryParse(decoded);
+  if (uri == null || uri.hasScheme) return null;
+
+  const blocked = <String>{
+    AppRoutes.login,
+    AppRoutes.signUp,
+    AppRoutes.splash,
+    AppRoutes.forgotPassword,
+    AppRoutes.onboarding,
+    AppRoutes.profileSetup,
+  };
+  if (blocked.contains(uri.path)) return null;
+
+  return uri.toString();
+}
+
+/// Where an authenticated, onboarded member should land at start-up, given the
+/// resume decision.
+///
+/// Extracted from the redirect closure so it can be tested against the real
+/// implementation. The rest of this file's redirect logic is covered by a test
+/// that re-implements it, which cannot catch drift between the copy and the
+/// original; this branch does not have that problem.
+///
+/// Only called once auth and onboarding have already settled, so it never has
+/// to reason about either.
+String? resumeStartupLocation({
+  required ResumeDecision? decision,
+  required bool decisionResolved,
+  required String currentLocation,
+}) {
+  // Hold on splash until the decision is in. Returning `main` here and
+  // navigating afterwards would show the member the home screen for a frame
+  // before yanking them into their session.
+  if (!decisionResolved) {
+    return currentLocation == AppRoutes.splash ? null : AppRoutes.splash;
+  }
+
+  if (decision is ResumeRedirect) {
+    return AppRouteLocations.sessionRoom(
+      decision.sessionId,
+      type: decision.workoutType,
+    );
+  }
+
+  // A prompt or an expiry notice is not a navigation — the landing screen
+  // surfaces both, so the member still lands on main.
+  return AppRoutes.main;
+}
+
 /// GoRouter provider with auth-based redirects and premium transitions.
+/// The router is created once and re-evaluates its redirect via [refreshListenable]
+/// when auth state changes, preventing the GoRouter rebuild that caused a
+/// splash-frame flash on every auth event.
 final routerProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authSessionProvider);
-  final profileCompleteAsync = ref.watch(authProfileCompletionProvider);
-  final rollbackActiveAsync = ref.watch(authMigrationRollbackActiveProvider);
-  final storageService = ref.watch(storageServiceProvider);
+  // Mutable closure vars updated by ref.listen — the redirect callback always
+  // reads current values without the GoRouter being recreated.
+  var authState = const AsyncValue<AuthUserEntity?>.loading();
+  var profileComplete = const AsyncValue<bool>.loading();
+  var rollbackActive = const AsyncValue<bool>.data(false);
+  var isModerator = false;
+  var moderatorResolved = false;
+
+  // Validate restored sessions before allowing startup navigation.
+  var startupProfileCheckDone = false;
+  var signingOut = false;
+
+  // Latched once per process start, exactly like startupProfileCheckDone below.
+  // Recomputing it on refreshListenable ticks would re-fire the redirect on
+  // ordinary auth events.
+  ResumeDecision? resumeDecision;
+  var resumeDecisionDone = false;
+
+  ref.listen<AsyncValue<ResumeDecision>>(resumeDecisionProvider, (_, next) {
+    if (resumeDecisionDone) return;
+    if (next.hasValue) {
+      resumeDecision = next.value;
+      resumeDecisionDone = true;
+    } else if (next.hasError) {
+      // Never block start-up on this. Falling through to the landing screen is
+      // the correct failure mode (FR-016).
+      resumeDecision = const ResumeNone();
+      resumeDecisionDone = true;
+    }
+    authChangeNotifier.trigger();
+  });
+
+  ref.listen<AsyncValue<AuthUserEntity?>>(authSessionProvider, (_, next) {
+    authState = next;
+    authChangeNotifier.trigger();
+  });
+  ref.listen<AsyncValue<bool>>(authProfileCompletionProvider, (_, next) {
+    profileComplete = next;
+    authChangeNotifier.trigger();
+  });
+  ref.listen<AsyncValue<bool>>(authMigrationRollbackActiveProvider, (_, next) {
+    rollbackActive = next;
+    authChangeNotifier.trigger();
+  });
+  ref.listen<AsyncValue<bool>>(isModeratorProvider, (_, next) {
+    if (next.hasValue) {
+      isModerator = next.value ?? false;
+      moderatorResolved = true;
+    } else if (next.hasError) {
+      isModerator = false;
+      moderatorResolved = true;
+    }
+    authChangeNotifier.trigger();
+  });
+  ref.listen<AsyncValue<bool?>>(authStartupProfileCompletionProvider, (
+    _,
+    next,
+  ) {
+    if (!startupProfileCheckDone && next.hasError) {
+      startupProfileCheckDone = true;
+    } else if (!startupProfileCheckDone && next.hasValue) {
+      startupProfileCheckDone = true;
+      if (shouldSignOutStartupSession(
+        isAuthenticated: next.value != null,
+        profileCheckCompleted: next.hasValue,
+        isProfileComplete: next.value,
+      )) {
+        signingOut = true;
+        ref.read(authControllerProvider).signOut().whenComplete(() {
+          signingOut = false;
+          authChangeNotifier.trigger();
+        });
+      }
+    }
+    authChangeNotifier.trigger();
+  });
 
   return GoRouter(
     navigatorKey: rootNavigatorKey,
     initialLocation: AppRoutes.splash,
+    refreshListenable: authChangeNotifier,
     debugLogDiagnostics: shouldEnableRouterDiagnostics(isDebugMode: kDebugMode),
     redirect: (context, state) {
-      final isLoggedIn = authState.valueOrNull != null;
-      final isLoading = authState.isLoading;
-      final rollbackActive = rollbackActiveAsync.valueOrNull ?? false;
-      final isOnAuthPage =
-          state.matchedLocation == AppRoutes.login ||
-          state.matchedLocation == AppRoutes.signUp ||
-          state.matchedLocation == AppRoutes.splash ||
-          state.matchedLocation == AppRoutes.forgotPassword ||
-          state.matchedLocation == AppRoutes.onboarding;
-
-      // Still loading auth state
-      if (isLoading) {
+      // Hold on splash while an incomplete restored session is signed out.
+      if (signingOut) {
         return state.matchedLocation == AppRoutes.splash
             ? null
             : AppRoutes.splash;
       }
 
-      // Not logged in, redirect to login
-      if (!isLoggedIn && !isOnAuthPage) {
-        return AppRoutes.login;
+      final isLoggedIn = authState.value != null;
+      final isLoading = authState.isLoading;
+      final isRollbackActive = rollbackActive.value ?? false;
+
+      final loc = state.matchedLocation;
+      // Entry pages a logged-out user may sit on. Onboarding is intentionally
+      // excluded — it requires an authenticated session.
+      final isOnAuthEntry =
+          loc == AppRoutes.login ||
+          loc == AppRoutes.signUp ||
+          loc == AppRoutes.splash ||
+          loc == AppRoutes.forgotPassword;
+      // Legal pages Meta / App Store reviewers open without an account.
+      final isOnPublicLegal =
+          loc == AppRoutes.privacyPolicy ||
+          loc == AppRoutes.termsOfService ||
+          loc == AppRoutes.communityGuidelines ||
+          loc == AppRoutes.dataDeletion;
+      final isOnSetup =
+          loc == AppRoutes.onboarding || loc == AppRoutes.profileSetup;
+
+      // Still loading auth state → hold on splash.
+      if (isLoading) {
+        return loc == AppRoutes.splash ? null : AppRoutes.splash;
       }
 
-      // Guardrail: if rollback is active, keep navigation on auth entry routes.
-      if (rollbackActive && !isOnAuthPage) {
-        return AppRoutes.login;
+      if (isLoggedIn && !startupProfileCheckDone) {
+        return loc == AppRoutes.splash ? null : AppRoutes.splash;
       }
 
-      // Logged in but on auth page, go to main
-      // Logged in but on auth page, go to main or profile setup
-      if (isLoggedIn) {
-        // Check if user has seen onboarding
-        if (!storageService.hasSeenOnboarding) {
-          if (state.matchedLocation != AppRoutes.onboarding) {
-            return AppRoutes.onboarding;
-          }
-          return null;
-        }
+      // Not logged in: only auth-entry + public legal pages are reachable.
+      // Preserve the intended deep link so login can restore it (Z-AUTH-007).
+      if (!isLoggedIn) {
+        if (isOnAuthEntry || isOnPublicLegal) return null;
+        return loginWithReturnTo(state.uri.toString());
+      }
 
-        if (profileCompleteAsync.hasError) {
-          debugPrint(
-            '[Router] Profile completion check failed; routing to profile setup.',
+      // Guardrail: if a migration rollback is active, keep on auth-entry routes.
+      if (isRollbackActive) {
+        if (isOnAuthEntry) return null;
+        return loginWithReturnTo(state.uri.toString());
+      }
+
+      // Logged in. Resolve profile completeness (treat an error as incomplete).
+      final hasCompletionError = profileComplete.hasError;
+      if (!hasCompletionError &&
+          (profileComplete.isLoading || !profileComplete.hasValue)) {
+        return null; // wait for the check before deciding
+      }
+      final isProfileComplete =
+          !hasCompletionError && (profileComplete.value ?? false);
+
+      if (isProfileComplete) {
+        final moderationRedirect = moderationQueueRedirect(
+          location: loc,
+          moderatorResolved: moderatorResolved,
+          isModerator: isModerator,
+        );
+        if (moderationRedirect != null) return moderationRedirect;
+
+        // Returning, set-up users go straight to the app (home/feed) — unless
+        // they left a workout running, or arrived via a deep link that was
+        // stashed on the login URL (Z-AUTH-007).
+        if (isOnAuthEntry || isOnSetup) {
+          final returnTo = safePostAuthReturnTo(
+            state.uri.queryParameters[kPostAuthRedirectFrom],
           );
-          return state.matchedLocation == AppRoutes.profileSetup
-              ? null
-              : AppRoutes.profileSetup;
-        }
+          if (returnTo != null) return returnTo;
 
-        // If profile completion check is still loading, don't redirect yet
-        if (profileCompleteAsync.isLoading || !profileCompleteAsync.hasValue) {
-          return null;
+          return resumeStartupLocation(
+            decision: resumeDecision,
+            decisionResolved: resumeDecisionDone,
+            currentLocation: loc,
+          );
         }
-
-        final isProfileComplete = profileCompleteAsync.valueOrNull ?? false;
-
-        if (!isProfileComplete) {
-          // Determine where they can go if profile is incomplete
-          // Allowed: Onboarding, ProfileSetup
-          if (state.matchedLocation != AppRoutes.onboarding &&
-              state.matchedLocation != AppRoutes.profileSetup) {
-            return AppRoutes.profileSetup;
-          }
-          return null; // Stay where they are (Onboarding or ProfileSetup)
-        }
-
-        if (state.matchedLocation == AppRoutes.login ||
-            state.matchedLocation == AppRoutes.signUp ||
-            state.matchedLocation == AppRoutes.splash ||
-            state.matchedLocation == AppRoutes.onboarding ||
-            state.matchedLocation == AppRoutes.profileSetup) {
-          return AppRoutes.main;
-        }
+        return null;
       }
 
-      return null;
+      // Signed in but hasn't finished onboarding → profile setup. First-time
+      // users can't skip it (onboarding also blocks back navigation).
+      return loc == AppRoutes.onboarding ? null : AppRoutes.onboarding;
     },
     routes: [
       // Auth flow routes
@@ -368,21 +601,6 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // Session flow
       GoRoute(
-        path: AppRoutes.sessionAccept,
-        pageBuilder: (context, state) {
-          final sessionId = state.pathParameters['sessionId']!;
-          final extra = state.extra as Map<String, dynamic>?;
-          return buildModalPageTransition(
-            context: context,
-            state: state,
-            child: SessionInviteAcceptancePage(
-              sessionId: sessionId,
-              notificationData: extra,
-            ),
-          );
-        },
-      ),
-      GoRoute(
         path: AppRoutes.startSession,
         pageBuilder: (context, state) => buildModalPageTransition(
           context: context,
@@ -428,10 +646,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           final extra = state.extra as Map<String, dynamic>?;
           final initialAudioUrl =
               extra?['initialAudioUrl'] as String? ??
-              state.uri.queryParameters['audioUrl'];
+              extra?['audioUrl'] as String?;
           final plannedExercises =
               (extra?['plannedExercises'] as List<dynamic>?)
-                  ?.cast<String>();
+                  ?.cast<PlannedExercise>();
 
           return buildPremiumPageTransition(
             context: context,
@@ -524,6 +742,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           child: const PrivacyPolicyPage(),
         ),
       ),
+      GoRoute(
+        path: AppRoutes.dataDeletion,
+        pageBuilder: (context, state) => buildPremiumPageTransition(
+          context: context,
+          state: state,
+          child: const DataDeletionPage(),
+        ),
+      ),
 
       // Account management routes
       GoRoute(
@@ -549,6 +775,19 @@ final routerProvider = Provider<GoRouter>((ref) {
           state: state,
           child: const DeleteAccountPage(),
         ),
+      ),
+
+      // Joint post composer (invited partner completing a joint draft)
+      GoRoute(
+        path: '/joint-post/:postId',
+        pageBuilder: (context, state) {
+          final postId = state.pathParameters['postId']!;
+          return buildPremiumPageTransition(
+            context: context,
+            state: state,
+            child: JointPostPage(postId: postId),
+          );
+        },
       ),
 
       // Post detail
@@ -634,3 +873,19 @@ final routerProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
+
+/// Notifier used as GoRouter.refreshListenable so the router re-evaluates
+/// its redirect without recreating the GoRouter instance on every auth event.
+class _AuthChangeNotifier extends ChangeNotifier {
+  void trigger() => notifyListeners();
+}
+
+final authChangeNotifier = _AuthChangeNotifier();
+
+bool shouldSignOutStartupSession({
+  required bool isAuthenticated,
+  required bool profileCheckCompleted,
+  required bool? isProfileComplete,
+}) {
+  return isAuthenticated && profileCheckCompleted && isProfileComplete == false;
+}

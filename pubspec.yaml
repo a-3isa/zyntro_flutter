@@ -1,40 +1,44 @@
 name: zyntro_flutter
 description: "Zyntro - Workout buddy app migrated from React Native"
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.1+7
 
 environment:
-  sdk: ^3.10.4
+  sdk: ^3.12.2
 
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
 
   # Firebase
-  firebase_core: ^3.9.0
-  firebase_app_check: ^0.3.2+10
-  firebase_auth: ^5.5.1
+  firebase_core: 4.11.0
+  firebase_app_check: 0.4.5
+  firebase_auth: 6.5.4
   flutter_facebook_auth: ^7.1.1
-  cloud_firestore: ^5.6.2
-  firebase_storage: ^12.4.2
+  cloud_firestore: 6.6.0
+  firebase_storage: 13.4.3
+  firebase_analytics: 12.4.3
+  firebase_crashlytics: ^5.2.4
   
   # Navigation
-  go_router: ^14.8.1
+  go_router: 17.3.0
   
   # State Management
-  flutter_riverpod: ^2.6.1
+  flutter_riverpod: 3.3.2
   
   # UI Components
   cupertino_icons: ^1.0.8
   cached_network_image: ^3.4.1
-  confetti: ^0.7.0
+  confetti: 0.8.0
   flutter_cache_manager: ^3.4.1
   
   # Media
   image_picker: ^1.1.2
   
   # Utilities
-  flutter_dotenv: ^5.2.1
+  flutter_dotenv: 6.0.1
   intl: ^0.20.2
   uuid: ^4.5.1
   timeago: ^3.7.0
@@ -42,34 +46,38 @@ dependencies:
   http: ^1.2.0
   
   # Charts (for RecapScreen)
-  fl_chart: ^0.70.2
+  fl_chart: 1.2.0
   
   # Audio Recording & Playback
-  record: ^5.2.0
-  audioplayers: ^6.1.0
+  record: 7.1.0
+  audioplayers: 6.8.1
   
   # Offline & Connectivity
-  connectivity_plus: ^6.1.0
+  connectivity_plus: 7.2.0
   shared_preferences: ^2.3.3
   
   # Push Notifications
-  firebase_messaging: ^15.1.5
-  flutter_local_notifications: ^18.0.1
-  package_info_plus: ^8.1.2
+  firebase_messaging: 16.4.1
+  flutter_local_notifications: 22.0.1
+  package_info_plus: 10.2.0
   
   # Payments
-  flutter_stripe: ^11.3.0
   
   # Content Filtering
   profanity_filter: ^2.0.0
   
   # Stream utilities for debouncing
   rxdart: ^0.28.0
-  google_sign_in: ^6.2.1
+  google_sign_in: 7.2.0
+  sign_in_with_apple: ^7.0.1
+  crypto: ^3.0.6
   flutter_image_compress: ^2.4.0
-  google_fonts: ^6.1.0
+  google_fonts: 8.1.0
   flutter_svg: ^2.0.10+1
-  avatar_plus: ^0.0.5
+  in_app_review: ^2.0.12
+  url_launcher: ^6.3.2
+  wakelock_plus: ^1.8.0
+
 
 dev_dependencies:
   flutter_test:
@@ -78,32 +86,42 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
   mocktail: ^1.0.4
+  fake_cloud_firestore: ^4.1.0
   flutter_launcher_icons: ^0.14.1
-  flutter_native_splash: ^2.4.2
-
-dependency_overrides:
-  record_linux: ^1.2.0
+  flutter_native_splash: 2.4.8
 
 # App icon configuration
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/app_icon.png"
+  image_path: "design/app_icon.png"
   min_sdk_android: 21
 
 # Splash screen configuration
 flutter_native_splash:
-  background_image: assets/splash_background.png
-  image: assets/splash_z_v5.png
+  background_image: design/splash_background.png
+  image: design/splash_z_v5.png
   android: true
   ios: true
+  android_min_sdk: 21
   android_12:
-    color: "#0A0E1A"
-    image: assets/splash_z_v5.png
-    icon_background_color: "#0A0E1A"
+    color: "#1A1A18"
+    image: design/splash_z_v5.png
+    icon_background_color: "#1A1A18"
 
 flutter:
   uses-material-design: true
+  # Generates lib/l10n/app_localizations.dart from lib/l10n/*.arb
+  generate: true
   
+  # Only runtime-loaded assets belong here. Splash and launcher-icon source
+  # art lives in design/ — flutter_native_splash and flutter_launcher_icons
+  # read it at generation time and bake it into native resources, so bundling
+  # it would ship ~1.9 MB the app never loads.
   assets:
-    - assets/
+    - assets/sounds/turn_start.wav
+    # Canonical legal copy — in-app pages load these (Z-PRV-003).
+    - docs/privacy-policy.md
+    - docs/terms-of-service.md
+    - docs/data-deletion.md
+    - docs/community-guidelines.md

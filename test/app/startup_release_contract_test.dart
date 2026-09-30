@@ -16,8 +16,35 @@ void main() {
         'lib/app/navigation/app_router.dart',
       ).readAsStringSync();
 
-      expect(routerSource, contains('profileCompleteAsync.hasError'));
-      expect(routerSource, contains('AppRoutes.profileSetup'));
+      expect(routerSource, contains('profileComplete.hasError'));
+      expect(routerSource, contains('AppRoutes.onboarding'));
+    });
+
+    test('Android uninstall does not allow app data backup restoration', () {
+      final manifest = File(
+        'android/app/src/main/AndroidManifest.xml',
+      ).readAsStringSync();
+
+      expect(manifest, contains('android:allowBackup="false"'));
+    });
+
+    test('startup profile validation waits for restored auth state', () {
+      final providersSource = File(
+        'lib/features/auth/auth_providers.dart',
+      ).readAsStringSync();
+
+      expect(
+        providersSource,
+        contains('await ref.watch(authSessionProvider.future)'),
+      );
+      expect(providersSource, contains('.isProfileComplete(uid)'));
+    });
+
+    test('startup disables Flutter debug paint overlays', () {
+      final mainSource = File('lib/main.dart').readAsStringSync();
+
+      expect(mainSource, contains('debugPaintSizeEnabled = false'));
+      expect(mainSource, contains('debugPaintBaselinesEnabled = false'));
     });
   });
 }

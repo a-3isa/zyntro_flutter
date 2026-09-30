@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/theme/app_theme.dart';
+import '../core/theme/app_text_styles.dart';
 import '../utils/haptic_manager.dart';
 import '../utils/responsive_utils.dart';
 
@@ -67,10 +68,9 @@ class _ZyntroButtonState extends State<ZyntroButton>
       duration: AppDurations.fast,
       vsync: this,
     );
-    _scaleAnimation =
-        Tween<double>(begin: 1.0, end: 0.97).animate(
-          CurvedAnimation(parent: _scaleController, curve: AppCurves.press),
-        );
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.97).animate(
+      CurvedAnimation(parent: _scaleController, curve: AppCurves.press),
+    );
 
     // Icon bounce animation
     _iconController = AnimationController(
@@ -118,7 +118,7 @@ class _ZyntroButtonState extends State<ZyntroButton>
   Color _getFillColor() {
     switch (widget.variant) {
       case ZyntroButtonVariant.primary:
-        return _isPressed ? AppColors.accentLimeDim : AppColors.accentLime;
+        return _isPressed ? AppColors.signalDim : AppColors.signal;
       case ZyntroButtonVariant.secondary:
         return AppColors.surfaceV2;
       case ZyntroButtonVariant.premium:
@@ -140,25 +140,21 @@ class _ZyntroButtonState extends State<ZyntroButton>
       case ZyntroButtonVariant.destructive:
         return Colors.white;
       case ZyntroButtonVariant.premium:
-        // Premium uses textDark on the navy premiumGradient background.
-        return AppColors.textDark;
+        return AppColors.textV2Primary;
       case ZyntroButtonVariant.outline:
-        return AppColors.accentLime;
+        return AppColors.signal;
       case ZyntroButtonVariant.ghost:
         return AppColors.textV2Secondary;
     }
   }
 
-  /// Gradient used by the premium variant — based on [AppColors.premiumGradient].
-  List<Color> get _premiumGradientColors => AppColors.premiumGradient;
-
   List<BoxShadow>? _getBoxShadow() {
     if (widget.variant == ZyntroButtonVariant.primary && !_isPressed) {
       return [
         BoxShadow(
-          color: AppColors.accentLime.withValues(alpha: 0.30),
-          blurRadius: 20,
-          offset: const Offset(0, 0),
+          color: AppColors.signal.withValues(alpha: 0.28),
+          blurRadius: 16,
+          offset: const Offset(0, 4),
         ),
       ];
     }
@@ -167,7 +163,7 @@ class _ZyntroButtonState extends State<ZyntroButton>
 
   Border? _getBorder() {
     if (widget.variant == ZyntroButtonVariant.outline) {
-      return Border.all(color: AppColors.accentLime, width: 1);
+      return Border.all(color: AppColors.signal, width: 1);
     }
     if (widget.variant == ZyntroButtonVariant.ghost) {
       return Border.all(color: AppColors.surfaceV2Active, width: 1);
@@ -203,11 +199,11 @@ class _ZyntroButtonState extends State<ZyntroButton>
   double _getMinHeight(BuildContext context) {
     // Ensure minimum touch target size of 48 for accessibility
     final baseHeight = switch (widget.size) {
-      ZyntroButtonSize.sm => 40.0,
+      ZyntroButtonSize.sm => 44.0,
       ZyntroButtonSize.md => 52.0,
       ZyntroButtonSize.lg => 60.0,
     };
-    return baseHeight.clamp(48.0, double.infinity); // Min 48 for accessibility
+    return baseHeight.clamp(44.0, double.infinity);
   }
 
   double _getFontSize(BuildContext context) {
@@ -300,6 +296,9 @@ class _ZyntroButtonState extends State<ZyntroButton>
     final fillColor = _getFillColor();
     final boxShadow = _getBoxShadow();
     final border = _getBorder();
+    final gradient = widget.variant == ZyntroButtonVariant.premium
+        ? const LinearGradient(colors: AppColors.premiumGradient)
+        : null;
 
     Widget content = Semantics(
       label: widget.semanticLabel ?? widget.title,
@@ -324,7 +323,8 @@ class _ZyntroButtonState extends State<ZyntroButton>
               constraints: BoxConstraints(minHeight: _getMinHeight(context)),
               padding: _getPadding(context),
               decoration: BoxDecoration(
-                color: fillColor,
+                color: gradient == null ? fillColor : null,
+                gradient: gradient,
                 borderRadius: BorderRadius.circular(AppBorderRadius.md),
                 border: border,
                 boxShadow: boxShadow,
@@ -356,14 +356,20 @@ class _ZyntroButtonState extends State<ZyntroButton>
                       ),
                       const SizedBox(width: AppSpacing.sm),
                     ],
-                    Text(
-                      widget.title,
-                      style: TextStyle(
-                        fontFamily: AppFonts.display,
-                        fontSize: _getFontSize(context),
-                        fontWeight: FontWeight.w700,
-                        color: foregroundColor,
-                        letterSpacing: 0.3,
+                    // Flexible, not a bare Text: the label was an unconstrained
+                    // Row child, so a long title — or an ordinary one at a
+                    // large accessibility text size — overflowed the button.
+                    Flexible(
+                      child: Text(
+                        widget.title,
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.label.copyWith(
+                          fontSize: _getFontSize(context),
+                          fontWeight: FontWeight.w700,
+                          color: foregroundColor,
+                        ),
                       ),
                     ),
                     if (widget.rightIcon != null) ...[

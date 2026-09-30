@@ -31,24 +31,28 @@ enum AppRuntimeEnvironment {
     }
   }
 
-  AndroidProvider get androidProvider {
+  AndroidAppCheckProvider get androidProvider {
     switch (this) {
       case AppRuntimeEnvironment.prod:
-        return AndroidProvider.playIntegrity;
+        return const AndroidPlayIntegrityProvider();
       case AppRuntimeEnvironment.dev:
       case AppRuntimeEnvironment.staging:
-        return AndroidProvider.debug;
+        return const AndroidDebugProvider();
     }
   }
 
-  AppleProvider get appleProvider {
+  AppleAppCheckProvider get appleProvider {
     switch (this) {
       case AppRuntimeEnvironment.prod:
-        return AppleProvider.appAttestWithDeviceCheckFallback;
+        return const AppleAppAttestWithDeviceCheckFallbackProvider();
       case AppRuntimeEnvironment.dev:
       case AppRuntimeEnvironment.staging:
-        return AppleProvider.debug;
+        return const AppleDebugProvider();
     }
+  }
+
+  bool get usesAndroidDebugAppCheckProvider {
+    return androidProvider is AndroidDebugProvider;
   }
 }
 

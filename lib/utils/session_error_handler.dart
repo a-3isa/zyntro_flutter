@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -12,6 +13,12 @@ enum ErrorRecoveryStrategy {
   navigate, // Navigate to a different screen (e.g. home)
   ignore, // Transient error, can be ignored
   fatal, // Critical error requiring app restart or session exit
+}
+
+void _debugPrintStack(StackTrace stackTrace) {
+  if (kDebugMode) {
+    debugPrint('[SessionErrorHandler] Stack: $stackTrace');
+  }
 }
 
 /// Error handler for session-related errors.
@@ -61,7 +68,7 @@ class SessionErrorHandler {
   }) async {
     debugPrint('[SessionErrorHandler] Error: $error');
     if (stackTrace != null) {
-      debugPrint('[SessionErrorHandler] Stack: $stackTrace');
+      _debugPrintStack(stackTrace);
     }
 
     final offlineManager = ref.read(offlineManagerProvider);

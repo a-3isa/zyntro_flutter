@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../core/theme/app_theme.dart';
+import '../utils/animation_utils.dart';
 
 /// Basic shimmer effect widget
 class Shimmer extends StatefulWidget {
@@ -10,8 +11,8 @@ class Shimmer extends StatefulWidget {
   const Shimmer({
     super.key,
     required this.child,
-    this.baseColor = const Color(0xFF2C2C2E), // AppColors.surfaceV2Elevated
-    this.highlightColor = const Color(0xFF3A3A3C), // Slightly lighter
+    this.baseColor = AppColors.surfaceV2Elevated, // v2 elevated surface
+    this.highlightColor = AppColors.surfaceV2Active, // v2 active (lighter)
   });
 
   @override
@@ -28,11 +29,22 @@ class _ShimmerState extends State<Shimmer> with SingleTickerProviderStateMixin {
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
-    )..repeat();
+    );
 
     _animation = Tween<double>(begin: -1.0, end: 2.0).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOutSine),
     );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (PerformanceMonitor.shouldReduceMotion(context)) {
+      _controller.stop();
+      _controller.value = 0.5;
+    } else if (!_controller.isAnimating) {
+      _controller.repeat();
+    }
   }
 
   @override

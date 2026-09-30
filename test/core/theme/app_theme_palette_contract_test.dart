@@ -9,33 +9,47 @@ void main() {
     GoogleFonts.config.allowRuntimeFetching = false;
   });
 
-  test('app palette matches approved figma colors', () {
-    expect(AppColors.navy900, const Color(0xFF0A0E27));
-    expect(AppColors.navy800, const Color(0xFF151B3D));
-    expect(AppColors.navy700, const Color(0xFF1E2749));
-    expect(AppColors.neonGreen, const Color(0xFF39FF14));
-    expect(AppColors.neonGreenHover, const Color(0xFF2EE00F));
-    expect(AppColors.gray400, const Color(0xFF8B8B98));
-    expect(AppColors.gray300, const Color(0xFFA0A0AC));
-    // Glow tokens updated to lime-tinted values per design overhaul
-    expect(AppColors.primaryGlow, const Color(0x33C8FF00));
-    expect(AppColors.secondaryGlow, const Color(0x1A888888));
-    expect(AppColors.premiumGlow, const Color(0x1AC8FF00));
+  test('app palette matches concrete / iron / signal brand', () {
+    expect(AppColors.backgroundV2, const Color(0xFF1A1A18));
+    expect(AppColors.surfaceV2, const Color(0xFF2C2A27));
+    expect(AppColors.surfaceV2Elevated, const Color(0xFF35322E));
+    expect(AppColors.surfaceV2Active, const Color(0xFF3F3C37));
+    expect(AppColors.backgroundV2Light, const Color(0xFFE8E4DC));
+    expect(AppColors.surfaceV2Light, const Color(0xFFF7F4EE));
+    expect(AppColors.signal, const Color(0xFFFF5C1A));
+    expect(AppColors.neonGreen, AppColors.signal);
+    expect(AppColors.neonGreenHover, AppColors.signalDim);
+    expect(AppColors.signalDim, const Color(0xFFE04810));
+    expect(AppColors.signalLight, const Color(0xFFC7420F));
+    expect(AppColors.primaryGlow, const Color(0x33FF5C1A));
+    expect(AppColors.premiumGlow, const Color(0x1AFF5C1A));
   });
 
-  testWidgets('dark theme maps figma surfaces and accent roles correctly',
+  testWidgets('dark theme maps concrete surfaces and signal roles',
       (tester) async {
     final theme = AppTheme.darkTheme;
 
     expect(theme.scaffoldBackgroundColor, AppColors.backgroundV2);
-    expect(theme.colorScheme.primary, AppColors.accentLime);
+    expect(theme.colorScheme.primary, AppColors.signal);
     expect(theme.colorScheme.surface, AppColors.surfaceV2);
     expect(theme.colorScheme.secondary, AppColors.textV2Secondary);
     expect(theme.colorScheme.tertiary, AppColors.surfaceV2Active);
     expect(
-        theme.bottomNavigationBarTheme.selectedItemColor, AppColors.accentLime);
+      theme.bottomNavigationBarTheme.selectedItemColor,
+      AppColors.signal,
+    );
     expect(
-        theme.bottomNavigationBarTheme.unselectedItemColor,
-        AppColors.textV2Secondary);
+      theme.bottomNavigationBarTheme.unselectedItemColor,
+      AppColors.textV2Secondary,
+    );
+  });
+
+  testWidgets('light theme maps stone surfaces and signal roles',
+      (tester) async {
+    final theme = AppTheme.lightTheme;
+
+    expect(theme.scaffoldBackgroundColor, AppColors.backgroundV2Light);
+    expect(theme.colorScheme.primary, AppColors.signalLight);
+    expect(theme.colorScheme.surface, AppColors.surfaceV2Light);
   });
 }

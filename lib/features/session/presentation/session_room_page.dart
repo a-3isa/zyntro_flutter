@@ -1,14 +1,16 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:google_fonts/google_fonts.dart';
-
+import 'package:uuid/uuid.dart';
 import '../../../app/navigation/app_route_locations.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/models/models.dart';
+import 'cardio_activity_options.dart';
+import 'live_participant_progress.dart';
 import '../../../core/constants/constants.dart';
 import '../../../services/session_service.dart';
 import '../../auth/auth_providers.dart';
@@ -20,76 +22,48 @@ import '../../../services/session_analytics_service.dart';
 import '../../../services/user_cache_service.dart';
 import '../../../utils/offline_manager.dart';
 import '../../../utils/retry_helper.dart';
-import '../../../widgets/session_widgets.dart';
+import 'widgets/session_room_background.dart';
 import '../../../widgets/shimmer_widgets.dart';
 import '../../../widgets/connection_status_widget.dart';
 import '../../../services/storage_service.dart';
 import '../../../widgets/session_error_banner.dart';
-import '../../../widgets/celebration_overlay.dart';
-import '../../../utils/haptic_manager.dart';
+import 'session_summary_builder.dart';
+import 'session_wakelock.dart';
+import 'session_voice_note_upload.dart';
+import 'live_progress_map.dart';
+import 'late_add_plan.dart';
+import 'session_time_format.dart';
+import 'active_turn_prefill.dart';
+import 'recap_launch_extras.dart';
+import 'waiting_turn_partner.dart';
 import 'widgets/active_turn_screen.dart';
 import 'widgets/waiting_turn_screen.dart';
 import 'widgets/parallel_gym_view.dart';
 import 'widgets/parallel_cardio_view.dart';
-
-/// Tracks real-time progress for a participant in a session.
-class ParticipantProgress {
-  final String currentExercise;
-  final int totalSets;
-  final double totalVolume;
-  final DateTime? lastActivity;
-  // Cardio-specific metrics
-  final double totalDistance; // in km
-  final int totalDuration; // in minutes
-  final String? averagePace; // e.g., "5:30/km"
-  final String? activityType; // 'running' or 'cycling'
-
-  const ParticipantProgress({
-    this.currentExercise = '',
-    this.totalSets = 0,
-    this.totalVolume = 0,
-    this.lastActivity,
-    this.totalDistance = 0,
-    this.totalDuration = 0,
-    this.averagePace,
-    this.activityType,
-  });
-
-  /// Check if participant is active (logged set in last 2 minutes).
-  bool get isActive {
-    if (lastActivity == null) return false;
-    return DateTime.now().difference(lastActivity!).inMinutes < 2;
-  }
-
-  ParticipantProgress copyWith({
-    String? currentExercise,
-    int? totalSets,
-    double? totalVolume,
-    DateTime? lastActivity,
-    double? totalDistance,
-    int? totalDuration,
-    String? averagePace,
-    String? activityType,
-  }) {
-    return ParticipantProgress(
-      currentExercise: currentExercise ?? this.currentExercise,
-      totalSets: totalSets ?? this.totalSets,
-      totalVolume: totalVolume ?? this.totalVolume,
-      lastActivity: lastActivity ?? this.lastActivity,
-      totalDistance: totalDistance ?? this.totalDistance,
-      totalDuration: totalDuration ?? this.totalDuration,
-      averagePace: averagePace ?? this.averagePace,
-      activityType: activityType ?? this.activityType,
-    );
-  }
-}
+import 'widgets/gym_exercise_picker_sheet.dart';
+import '../domain/gym_session_plan.dart';
+import '../domain/turn_eligibility.dart';
+import 'widgets/partner_left_dialog.dart';
+import 'widgets/session_header_chips.dart';
+import 'widgets/session_duration_input.dart';
+import 'widgets/session_strength_input.dart';
+import 'widgets/session_cardio_input.dart';
+import 'widgets/session_header_avatar.dart';
+import 'widgets/session_progress_row.dart';
+import 'widgets/session_set_column_builder.dart';
+import 'widgets/session_end_confirm_dialog.dart';
+import 'widgets/session_sync_status_dialog.dart';
+import 'widgets/session_plan_complete_view.dart';
+import 'widgets/session_v2_header.dart';
+import 'widgets/microphone_permission_dialog.dart';
+import '../domain/turn_plan_progress.dart';
 
 /// Session room page for active workout sessions.
 class SessionRoomPage extends ConsumerStatefulWidget {
   final String sessionId;
   final String type;
   final String? initialAudioUrl;
-  final List<String>? plannedExercises;
+  final List<PlannedExercise>? plannedExercises;
 
   const SessionRoomPage({
     super.key,
@@ -132,6 +106,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   // Local exercises state
   final List<Exercise> _exercises = [];
   String? _currentExercise;
+  int _currentSetDuration = 0;
   bool _isLogging = false;
 
   // Turn-based active session state machine
@@ -139,11 +114,28 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   int _currentSetNumber = 1; // which set the active user is on
 
   // Planned exercises (passed from start session page)
-  List<String> _plannedExercises = [];
+  List<PlannedExercise> _plannedExercises = [];
+  String? _currentExerciseId;
+  bool _isRecordingToggleInFlight = false;
+  bool _stopRecordingAfterStart = false;
+  bool _isProcessingBotTurn = false;
+  String? _lastBotTurnKey;
 
-  // Inactivity timer — terminates session after 10 minutes without logging
-  Timer? _inactivityTimer;
-  static const _inactivityLimit = Duration(minutes: 10);
+  // Presence heartbeat — proves someone is still in the room so the session
+  // does not expire underneath them. Refreshed faster than the staleness
+  // threshold so one missed beat is tolerated.
+  Timer? _presenceHeartbeatTimer;
+
+  // Damped shared↔solo state. A partner who closes their app must not leave the
+  // member stuck on a waiting screen, but a flaky connection must not strobe
+  // the view either.
+  final _soloDamper = SoloModeDamper();
+  Timer? _soloReevaluationTimer;
+
+  // Departures already announced, so the dialog raises once per partner rather
+  // than on every snapshot re-emit.
+  final _announcedDepartures = AnnouncedDepartures();
+  bool _departureSeedDone = false;
 
   // Voice recording state
   bool _isRecording = false;
@@ -155,6 +147,9 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   // Audio playback
   final AudioPlayer _audioPlayer = AudioPlayer();
   String? _playingAudioUrl;
+  // Dedicated one-shot player for the "your turn" cue so it never interrupts,
+  // or is interrupted by, a partner voice note on _audioPlayer.
+  final AudioPlayer _turnCuePlayer = AudioPlayer();
 
   // Auto-play queue
   final List<String> _audioQueue = [];
@@ -170,9 +165,12 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   Timer? _queueCountTimer;
   StreamSubscription<SyncProgress>? _syncProgressSubscription;
 
-  // Shared session timer
+  // Shared session timer — tick updates a ValueNotifier so the clock
+  // rebuilds without setState-storming the whole session room (Z-PERF-001).
   Timer? _timerUpdateTimer;
   Duration _elapsedTime = Duration.zero;
+  final ValueNotifier<Duration> _elapsedNotifier =
+      ValueNotifier<Duration>(Duration.zero);
   DateTime? _sessionStartTime;
   final bool _isPaused = false;
 
@@ -189,18 +187,17 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   final Set<String> _processedVoiceEvents = {};
   DateTime? _lastProcessedEventTime;
 
-
   // Participant progress tracking
-  final Map<String, ParticipantProgress> _participantProgress = {};
+  final Map<String, LiveParticipantProgress> _participantProgress = {};
 
   // Session mode flags
   bool _isSoloSession = false;
 
-  // Set milestone tracking for animations
-  int _lastMilestoneAchieved = 0;
-  final List<int> _milestones = [5, 10, 15, 20, 25, 30, 40, 50];
   final int _eventLimit = 50;
   final List<TimelineEvent> _localPendingEvents = [];
+  // Participant ids already requested for the activity strip; prevents a
+  // refetch loop when a user doc is missing and the cache stays empty.
+  final Set<String> _requestedParticipantNames = {};
 
   // Cached for use in dispose() — ref is invalid by the time dispose() is called
   String? _presenceUserId;
@@ -215,6 +212,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Keep the screen on during active sets / rest (Z-RT-006).
+    SessionWakelock.enable();
 
     // Initialize workout type from widget.type
     _workoutType = WorkoutType.fromString(widget.type);
@@ -231,15 +230,16 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     }
 
     // Load planned exercises if provided
-    if (widget.plannedExercises != null && widget.plannedExercises!.isNotEmpty) {
-      _plannedExercises = List<String>.from(widget.plannedExercises!);
-      _currentTurnExercise = _plannedExercises[0];
+    if (widget.plannedExercises != null &&
+        widget.plannedExercises!.isNotEmpty) {
+      _plannedExercises = List<PlannedExercise>.from(widget.plannedExercises!);
+      _currentTurnExercise = _plannedExercises[0].name;
+      _currentExerciseId = _plannedExercises[0].id;
     }
 
     _initPresence();
     _initConnectivity();
     _initSessionTimer();
-    _resetInactivityTimer();
     // Initialize marker to ignore historical events
     _lastProcessedEventTime = DateTime.now();
 
@@ -267,7 +267,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
 
   Future<void> _loadNotificationPreferences() async {
     final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
     if (uid != null) {
       final prefs = await ref
           .read(notificationServiceProvider)
@@ -282,7 +282,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
 
   Future<void> _loadRecentExercises() async {
     final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
     if (uid != null) {
       final exercises = await ref
           .read(sessionAnalyticsServiceProvider)
@@ -299,34 +299,69 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   void _initSessionTimer() {
     _timerUpdateTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (_sessionStartTime != null && !_isPaused && mounted) {
-        setState(() {
-          // In real app, we might sync with server time
-          _elapsedTime = DateTime.now().difference(_sessionStartTime!);
+        final elapsed = DateTime.now().difference(_sessionStartTime!);
+        _elapsedTime = elapsed;
+        _elapsedNotifier.value = elapsed;
 
-          // Milestone check
-          if (_elapsedTime.inMinutes > 0 &&
-              _elapsedTime.inMinutes % 30 == 0 &&
-              _elapsedTime.inSeconds == 0) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  '${_elapsedTime.inMinutes} minutes completed! ðŸ’ª',
-                ),
+        // Milestone check — snackbar only; do not rebuild the page.
+        if (elapsed.inMinutes > 0 &&
+            elapsed.inMinutes % 30 == 0 &&
+            elapsed.inSeconds == 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '${elapsed.inMinutes} minutes completed! 💪',
               ),
-            );
-          }
-        });
+            ),
+          );
+        }
       }
     });
   }
 
+  void _applySharedClockStart(DateTime? startedAt) {
+    if (startedAt == null || !mounted) return;
+    if (_sessionStartTime?.isAtSameMomentAs(startedAt) ?? false) return;
+
+    final elapsed = DateTime.now().difference(startedAt);
+    final safe = elapsed.isNegative ? Duration.zero : elapsed;
+    setState(() {
+      _sessionStartTime = startedAt;
+      _elapsedTime = safe;
+    });
+    _elapsedNotifier.value = safe;
+  }
+
+  Future<void> _ensureSharedClockStarted(Session session) async {
+    if (session.sharedClockStartedAt != null) {
+      _applySharedClockStart(session.sharedClockStartedAt);
+      return;
+    }
+    if (_sessionStartTime == null && mounted) {
+      setState(() {
+        _sessionStartTime = DateTime.now();
+        _elapsedTime = Duration.zero;
+      });
+      _elapsedNotifier.value = Duration.zero;
+    }
+
+    try {
+      await ref
+          .read(sessionServiceProvider)
+          .startSharedSessionClock(widget.sessionId);
+    } catch (e) {
+      debugPrint('[SessionRoom] Failed to start shared session clock: $e');
+    }
+  }
+
   Future<void> _initPresence() async {
     final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
     if (uid != null) {
       _presenceUserId = uid;
       _presenceServiceRef = ref.read(presenceServiceProvider);
       await _presenceServiceRef!.setOnline(widget.sessionId, uid);
+      _startPresenceHeartbeat(uid);
     }
   }
 
@@ -421,89 +456,117 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
 
     if (!mounted) return;
 
-    showDialog(
+    await SessionSyncStatusDialog.show(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Sync Status'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Pending operations: ${queue.length}'),
-              const SizedBox(height: 8),
-              if (queue.isNotEmpty) ...[
-                const Text(
-                  'Recent pending:',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                ...queue
-                    .take(5)
-                    .map(
-                      (op) => Padding(
-                        padding: const EdgeInsets.only(left: 8, top: 4),
-                        child: Text(
-                          'â€¢ ${op.type} (${_formatTimeAgo(op.timestamp)})',
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                      ),
-                    ),
-              ],
-              if (failedOps.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Text(
-                  'Failed operations: ${failedOps.length}',
-                  style: const TextStyle(color: AppColors.error),
-                ),
-              ],
-            ],
-          ),
-        ),
-        actions: [
-          if (failedOps.isNotEmpty)
-            TextButton(
-              onPressed: () async {
-                await offlineManager.clearFailedOperations();
-                if (context.mounted) Navigator.pop(context);
-              },
-              child: const Text('Clear Failed'),
-            ),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
+      queue: queue,
+      failedOps: failedOps,
+      formatTimeAgo: formatSessionTimeAgo,
+      onClearFailed: offlineManager.clearFailedOperations,
     );
   }
 
-  String _formatTimeAgo(DateTime time) {
-    final diff = DateTime.now().difference(time);
-    if (diff.inMinutes < 1) return 'just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    return '${diff.inDays}d ago';
-  }
+  /// Announces a partner leaving once while the member is watching (Z-ARCH-002).
+  void _announceDeparturesIfNeeded(Session session, String currentUserId) {
+    final departed = session.endedParticipants
+        .where((id) => id != currentUserId)
+        .toList();
 
-  void _resetInactivityTimer() {
-    _inactivityTimer?.cancel();
-    _inactivityTimer = Timer(_inactivityLimit, _terminateSessionInactive);
-  }
-
-  Future<void> _terminateSessionInactive() async {
-    final uid = ref.read(authSessionProvider).valueOrNull?.id;
-    if (uid == null || !mounted) return;
-    await ref.read(sessionServiceProvider).endSession(widget.sessionId, uid, null);
-    if (mounted) {
-      context.go(AppRouteLocations.mainTab(MainShellTab.feed));
+    if (!_departureSeedDone) {
+      _departureSeedDone = true;
+      _announcedDepartures.markSeen(departed);
+      return;
     }
+
+    final fresh = _announcedDepartures.takeUnannounced(departed);
+    if (fresh.isEmpty) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final leaverId = fresh.first;
+      final leaver = await ref.read(userCacheServiceProvider).getUser(leaverId);
+      if (!mounted) return;
+
+      final partnerName = leaver?.displayName ?? 'Your partner';
+      SemanticsService.announce(
+        '$partnerName left the session',
+        Directionality.of(context),
+      );
+
+      final choice = await PartnerLeftDialog.show(
+        context,
+        partnerName: partnerName,
+      );
+
+      if (choice == PartnerLeftChoice.finishToo && mounted) {
+        await _handleFinishSession();
+      }
+    });
+  }
+
+  ParticipantStanding _partnerStanding(Session session, String partnerId) {
+    if (partnerId.isEmpty) return ParticipantStanding.active;
+
+    final presence =
+        ref.watch(sessionPresenceProvider(widget.sessionId)).value ??
+        const <UserPresence>[];
+
+    return standingOf(
+      userId: partnerId,
+      session: session,
+      presence: {for (final p in presence) p.userId: p},
+      now: DateTime.now().toUtc(),
+    );
+  }
+
+  /// Re-evaluates whether the member is effectively training alone.
+  ///
+  /// Called on every presence change. A partner who closed their app must not
+  /// leave the member stuck on a waiting screen for someone who is never going
+  /// to take their turn — but a connection blip must not flip the view either,
+  /// hence the damper.
+  bool _evaluateSolo(Session session, String currentUserId) {
+    final presence =
+        ref.watch(sessionPresenceProvider(widget.sessionId)).value ??
+        const <UserPresence>[];
+
+    final byUser = {for (final p in presence) p.userId: p};
+    final now = DateTime.now().toUtc();
+
+    final rawSolo = isEffectivelySolo(
+      userId: currentUserId,
+      session: session,
+      presence: byUser,
+      now: now,
+    );
+
+    final damped = _soloDamper.update(rawSolo: rawSolo, now: now);
+
+    // Presence streams only push when something changes, so without this the
+    // grace period could elapse with nothing left to notice it.
+    final pending = _soloDamper.timeUntilSolo;
+    if (pending != null && (_soloReevaluationTimer?.isActive != true)) {
+      _soloReevaluationTimer = Timer(pending, () {
+        if (mounted) setState(() {});
+      });
+    } else if (pending == null) {
+      _soloReevaluationTimer?.cancel();
+    }
+
+    return damped;
+  }
+
+  void _startPresenceHeartbeat(String userId) {
+    _presenceHeartbeatTimer?.cancel();
+    _presenceHeartbeatTimer = ref
+        .read(presenceServiceProvider)
+        .startHeartbeat(widget.sessionId, userId);
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
     if (uid == null) return;
 
     final presenceService = ref.read(presenceServiceProvider);
@@ -511,17 +574,25 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     switch (state) {
       case AppLifecycleState.resumed:
         presenceService.setOnline(widget.sessionId, uid);
-        _resetInactivityTimer();
+        _startPresenceHeartbeat(uid);
         break;
       case AppLifecycleState.paused:
       case AppLifecycleState.inactive:
         presenceService.setAway(widget.sessionId, uid);
+        _presenceHeartbeatTimer?.cancel();
         break;
       case AppLifecycleState.detached:
       case AppLifecycleState.hidden:
+        // Best-effort only: `detached` is frequently skipped when the app is
+        // swiped out of the recent-apps list, and never fires on an OS kill.
+        // Nothing here may be load-bearing.
+        //
+        // This used to call endSession(), which destroyed the very session the
+        // member wanted to return to — the whole reason resume was impossible.
+        // Expiry is now the scheduled `expireStaleSessions` Function's job, so
+        // a session outlives the app and can be resumed on the next cold start.
         presenceService.setAway(widget.sessionId, uid);
-        // Terminate session when app is fully closed
-        ref.read(sessionServiceProvider).endSession(widget.sessionId, uid, null);
+        _presenceHeartbeatTimer?.cancel();
         break;
     }
   }
@@ -529,6 +600,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    SessionWakelock.disable();
     _exerciseController.dispose();
     _weightController.dispose();
     _repsController.dispose();
@@ -536,13 +608,16 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     _durationController.dispose();
     _paceController.dispose();
     _audioPlayer.dispose();
+    _turnCuePlayer.dispose();
     _timerUpdateTimer?.cancel();
+    _elapsedNotifier.dispose();
     _durationSubscription?.cancel();
     _queueCountTimer?.cancel();
     _syncProgressSubscription?.cancel();
     _connectivitySubscription?.cancel();
     _audioPlayerSubscription?.cancel();
-    _inactivityTimer?.cancel();
+    _presenceHeartbeatTimer?.cancel();
+    _soloReevaluationTimer?.cancel();
     _setOfflinePresence();
 
     _exerciseNameFocus.dispose();
@@ -566,7 +641,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   // Monitor events for voice notes
   void _monitorVoiceNotes(List<TimelineEvent> events) async {
     final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
     if (uid == null) return;
 
     // Get perfs inside method or cache them
@@ -603,69 +678,13 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   }
 
   /// Update participant progress from service map.
-  void _updateParticipantProgressFromMap(Map<String, dynamic> data) {
+  void _updateLiveParticipantProgressFromMap(Map<String, dynamic> data) {
     if (data.isEmpty) return;
-
-    final newProgress = <String, ParticipantProgress>{};
-
-    data.forEach((userId, stats) {
-      if (stats is Map<String, dynamic>) {
-        DateTime? lastActivity;
-        if (stats['lastActivity'] != null) {
-          try {
-            lastActivity = DateTime.parse(stats['lastActivity']);
-          } catch (_) {}
-        }
-
-        newProgress[userId] = ParticipantProgress(
-          // Strength metrics
-          currentExercise: stats['currentExercise'] as String? ?? '',
-          totalSets: stats['totalSets'] as int? ?? 0,
-          totalVolume: (stats['totalVolume'] as num?)?.toDouble() ?? 0.0,
-          // Cardio metrics
-          totalDistance: (stats['totalDistance'] as num?)?.toDouble() ?? 0.0,
-          totalDuration: stats['totalDuration'] as int? ?? 0,
-          averagePace: stats['averagePace'] as String?,
-          activityType: stats['activityType'] as String?,
-          // Shared
-          lastActivity: lastActivity,
-        );
-      }
-    });
-
-    // Only update if changed (basic check or rely on riverpod equality)
+    final newProgress = liveProgressFromServiceMap(data);
     setState(() {
       _participantProgress.clear();
       _participantProgress.addAll(newProgress);
     });
-
-    // Check for milestones
-    _checkMilestones();
-  }
-
-  /// Check for set milestones and show achievement notification.
-  void _checkMilestones() {
-    final totalSets = _participantProgress.values.fold<int>(
-      0,
-      (sum, p) => sum + p.totalSets,
-    );
-
-    for (final milestone in _milestones) {
-      if (totalSets >= milestone && _lastMilestoneAchieved < milestone) {
-        _lastMilestoneAchieved = milestone;
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('ðŸŽ¯ $milestone sets completed! Keep going!'),
-              behavior: SnackBarBehavior.floating,
-              backgroundColor: AppColors.success,
-            ),
-          );
-          HapticFeedback.heavyImpact();
-        }
-        break; // Only show one milestone at a time
-      }
-    }
   }
 
   Future<void> _processAudioQueue(String senderName) async {
@@ -692,19 +711,24 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   /// Wrapper that lets new turn-based/parallel widgets submit a set
   /// with explicit parameters. Reuses the existing controller-based flow
   /// by mutating the controllers and delegating to [_handleLogSetFromControllers].
-  Future<void> _handleLogSet({
+  Future<bool> _handleLogSet({
     required String exercise,
     required double weight,
     required int reps,
+    String? exerciseId,
+    int durationSeconds = 0,
   }) async {
     _currentExercise = exercise;
+    _currentExerciseId = exerciseId;
+    _currentSetDuration = durationSeconds;
     _weightController.text = weight.toString();
     _repsController.text = reps.toString();
-    await _handleLogSetFromControllers();
+    return _handleLogSetFromControllers();
   }
 
-  Future<void> _handleLogSetFromControllers() async {
-    if (_currentExercise == null) return;
+  Future<bool> _handleLogSetFromControllers() async {
+    if (_isLogging) return false;
+    if (_currentExercise == null) return false;
 
     final weight = double.tryParse(_weightController.text);
     final reps = int.tryParse(_repsController.text);
@@ -713,24 +737,22 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter valid weight and reps')),
       );
-      return;
+      return false;
     }
 
     // Check availability based on turn-based rules
-    final session = ref
-        .read(currentSessionProvider(widget.sessionId))
-        .valueOrNull;
+    final session = ref.read(currentSessionProvider(widget.sessionId)).value;
     final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
 
     if (session != null &&
         session.derivedMode == SessionMode.turnBased &&
         !_isSoloSession &&
         session.activeUserId != uid) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("It's not your turn yet! â³")),
-      );
-      return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("It's not your turn yet")));
+      return false;
     }
 
     // Add to recent exercises for autocomplete
@@ -743,8 +765,12 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
 
     try {
       final authState = ref.read(authSessionProvider);
-      final uid = authState.valueOrNull?.id;
-      if (uid == null) return;
+      final uid = authState.value?.id;
+      if (uid == null) return false;
+
+      // Stable id shared by optimistic UI, Firestore doc, and offline queue
+      // so retries cannot duplicate the event (Z-RT-004).
+      final clientEventId = const Uuid().v4();
 
       // Add to local exercises
       final existingIndex = _exercises.indexWhere(
@@ -754,7 +780,11 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         _exercises[existingIndex] = _exercises[existingIndex].copyWith(
           sets: [
             ..._exercises[existingIndex].sets,
-            SetData(weight: weight, reps: reps),
+            SetData(
+              weight: weight,
+              reps: reps,
+              durationSeconds: _currentSetDuration,
+            ),
           ],
         );
       } else {
@@ -762,54 +792,68 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           Exercise(
             id: DateTime.now().millisecondsSinceEpoch.toString(),
             name: _currentExercise!,
-            sets: [SetData(weight: weight, reps: reps)],
+            sets: [
+              SetData(
+                weight: weight,
+                reps: reps,
+                durationSeconds: _currentSetDuration,
+              ),
+            ],
           ),
         );
       }
 
-      // Log to Firestore or Queue
-      if (_isOffline) {
-        // Optimistic update
-        final currentProgress = _participantProgress[uid];
-        final newTotalSets = (currentProgress?.totalSets ?? 0) + 1;
-        final newVolume = (currentProgress?.totalVolume ?? 0) + (weight * reps);
-
-        // Create local event for timeline
-        final localEvent = TimelineEvent(
-          id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
-          type: SessionEventType.setLogged,
-          userId: uid,
-          text: '$_currentExercise: ${weight}kg x $reps reps',
-          timestamp: DateTime.now(),
-          data: {'exercise': _currentExercise, 'weight': weight, 'reps': reps},
+      // Optimistic update — always immediate, regardless of connectivity.
+      final currentProgress = _participantProgress[uid];
+      final newTotalSets = (currentProgress?.totalSets ?? 0) + 1;
+      final newVolume = (currentProgress?.totalVolume ?? 0) + (weight * reps);
+      final localEvent = TimelineEvent(
+        id: clientEventId,
+        type: SessionEventType.setLogged,
+        userId: uid,
+        text: '$_currentExercise: ${weight}kg x $reps reps',
+        timestamp: DateTime.now(),
+        data: {
+          'exercise': _currentExercise,
+          if (_currentExerciseId != null) 'exerciseId': _currentExerciseId,
+          'weight': weight,
+          'reps': reps,
+          'durationSeconds': _currentSetDuration,
+        },
+      );
+      setState(() {
+        _participantProgress[uid] = LiveParticipantProgress(
+          currentExercise: _currentExercise!,
+          totalSets: newTotalSets,
+          totalVolume: newVolume,
+          lastActivity: DateTime.now(),
+          lastWeight: weight,
+          lastReps: reps,
+          lastSetSeconds: _currentSetDuration,
         );
+        _localPendingEvents.insert(0, localEvent);
+      });
 
-        setState(() {
-          _participantProgress[uid] = ParticipantProgress(
-            currentExercise: _currentExercise!,
-            totalSets: newTotalSets,
-            totalVolume: newVolume,
-            lastActivity: DateTime.now(),
-          );
-          _localPendingEvents.insert(0, localEvent);
-        });
-
-        await ref.read(offlineManagerProvider).queueOperation('session_event', {
-          'sessionId': widget.sessionId,
-          'type': SessionEventType.setLogged.value,
-          'userId': uid,
-          'text': '$_currentExercise: ${weight}kg x $reps reps',
-          'data': {
-            'exercise': _currentExercise,
-            'weight': weight,
-            'reps': reps,
+      // Sync to backend.
+      if (_isOffline) {
+        await ref.read(offlineManagerProvider).queueOperation(
+          'session_event',
+          {
+            'sessionId': widget.sessionId,
+            'type': SessionEventType.setLogged.value,
+            'userId': uid,
+            'text': '$_currentExercise: ${weight}kg x $reps reps',
+            'clientEventId': clientEventId,
+            'data': {
+              'exercise': _currentExercise,
+              if (_currentExerciseId != null) 'exerciseId': _currentExerciseId,
+              'weight': weight,
+              'reps': reps,
+              'durationSeconds': _currentSetDuration,
+            },
           },
-        });
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Logged locally (Offline)')),
-          );
-        }
+          id: 'session_event_$clientEventId',
+        );
       } else {
         try {
           await ref
@@ -819,16 +863,22 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                 type: SessionEventType.setLogged,
                 userId: uid,
                 text: '$_currentExercise: ${weight}kg x $reps reps',
+                clientEventId: clientEventId,
                 data: {
                   'exercise': _currentExercise,
+                  if (_currentExerciseId != null)
+                    'exerciseId': _currentExerciseId,
                   'weight': weight,
                   'reps': reps,
+                  'durationSeconds': _currentSetDuration,
                 },
               );
-          // Highlight effect
+          // Server event is arriving via stream — drop the local placeholder so
+          // there is no transient double-count in _completedSetsByUserAndExercise.
+          if (mounted) setState(() => _localPendingEvents.remove(localEvent));
           await HapticFeedback.mediumImpact();
         } catch (e) {
-          // Queue on failure
+          // Network call failed — keep the local event for display and queue it.
           await ref.read(offlineManagerProvider).queueOperation(
             'session_event',
             {
@@ -836,12 +886,17 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
               'type': SessionEventType.setLogged.value,
               'userId': uid,
               'text': '$_currentExercise: ${weight}kg x $reps reps',
+              'clientEventId': clientEventId,
               'data': {
                 'exercise': _currentExercise,
+                if (_currentExerciseId != null)
+                  'exerciseId': _currentExerciseId,
                 'weight': weight,
                 'reps': reps,
+                'durationSeconds': _currentSetDuration,
               },
             },
+            id: 'session_event_$clientEventId',
           );
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -855,22 +910,30 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       _weightController.clear();
       _repsController.clear();
 
-      // Reset inactivity timer on each logged set
-      _resetInactivityTimer();
+      // Logging a set stamps session activity server-side (see
+      // SessionService.activityStamp), which is what pushes expiry out. No
+      // client-side timer is involved any more.
 
       // Advance planned exercise list (per-set cycling through plan)
       if (_plannedExercises.isNotEmpty) {
-        final totalLogged = _participantProgress.values
-            .fold<int>(0, (s, p) => s + p.totalSets);
+        final totalLogged = _participantProgress.values.fold<int>(
+          0,
+          (s, p) => s + p.totalSets,
+        );
         // Figure out which exercise index we're on based on total sets and sets per exercise
         // Simple approach: advance to next exercise every time current exercise's sets match plan order
         final nextIndex = (totalLogged) % _plannedExercises.length;
-        if (_plannedExercises[nextIndex] != _currentTurnExercise) {
-          setState(() => _currentTurnExercise = _plannedExercises[nextIndex]);
+        final nextExercise = _plannedExercises[nextIndex];
+        if (nextExercise.name != _currentTurnExercise) {
+          setState(() {
+            _currentTurnExercise = nextExercise.name;
+            _currentExerciseId = nextExercise.id;
+          });
         }
       }
 
       setState(() {});
+      return true;
     } finally {
       setState(() => _isLogging = false);
     }
@@ -892,8 +955,162 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     await _handleLogCardioFromControllers();
   }
 
+  Map<String, Map<String, int>> _completedSetsByUserAndExercise(
+    List<TimelineEvent> events,
+  ) {
+    final counts = <String, Map<String, int>>{};
+    for (final event in events) {
+      if (event.type != SessionEventType.setLogged) continue;
+      final exerciseKey =
+          event.data?['exerciseId']?.toString() ??
+          event.data?['exercise']?.toString();
+      if (exerciseKey == null || exerciseKey.isEmpty) continue;
+      final userCounts = counts.putIfAbsent(
+        event.userId,
+        () => <String, int>{},
+      );
+      userCounts[exerciseKey] = (userCounts[exerciseKey] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  GymSessionPlan _localPlanFor(String userId, GymSessionPlanSource source) {
+    return GymSessionPlan(
+      userId: userId,
+      workoutType: _workoutType,
+      source: source,
+      isReady: true,
+      exercises: List<PlannedExercise>.from(_plannedExercises),
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  Future<void> _handleTurnAfterLoggedSet({
+    required Session session,
+    required String currentUserId,
+    required Map<String, GymSessionPlan> plans,
+    required Map<String, Map<String, int>> counts,
+    PlannedExercise? plannedExercise,
+  }) async {
+    if (session.derivedMode != SessionMode.turnBased || _isSoloSession) return;
+
+    if (plans.isEmpty || plannedExercise == null) {
+      await ref
+          .read(sessionServiceProvider)
+          .switchTurn(widget.sessionId, currentUserId);
+      return;
+    }
+
+    final nextCounts = <String, Map<String, int>>{
+      for (final entry in counts.entries)
+        entry.key: Map<String, int>.from(entry.value),
+    };
+    nextCounts[currentUserId] = TurnPlanProgress.incrementedCounts(
+      counts: nextCounts[currentUserId] ?? const {},
+      exercise: plannedExercise,
+    );
+
+    final nextActiveUserId = TurnPlanProgress.nextActiveParticipant(
+      currentUserId: currentUserId,
+      participants: session.participants,
+      plans: plans,
+      completedSetsByUserAndExercise: nextCounts,
+    );
+    if (nextActiveUserId != null && nextActiveUserId != currentUserId) {
+      await ref
+          .read(sessionServiceProvider)
+          .switchTurn(widget.sessionId, currentUserId);
+    } else {
+      setState(() {});
+    }
+  }
+
+  void _scheduleBotTurnIfNeeded({
+    required Session session,
+    required Map<String, GymSessionPlan> plans,
+    required List<TimelineEvent> events,
+  }) {
+    if (session.partnerKind != PairedPartnerKind.bot ||
+        session.activeUserId != pairedBotFriendId ||
+        _isProcessingBotTurn) {
+      return;
+    }
+
+    final botPlan = plans[pairedBotFriendId];
+    if (botPlan == null) return;
+    final counts = _completedSetsByUserAndExercise(events);
+    final botState = TurnPlanProgress.participantState(
+      botPlan,
+      counts[pairedBotFriendId] ?? const {},
+    );
+    final botExercise = botState.currentExercise;
+    if (botState.isComplete || botExercise == null) return;
+
+    final turnKey =
+        '${session.id}:${botExercise.id}:${botState.currentSetNumber}';
+    if (_lastBotTurnKey == turnKey) return;
+    _lastBotTurnKey = turnKey;
+    _isProcessingBotTurn = true;
+
+    Future<void>(() async {
+      final bot = BotFriend.gymSimulation();
+      await Future<void>.delayed(Duration(seconds: bot.gymSetSeconds));
+      if (!mounted) return;
+      final latestSession = ref
+          .read(currentSessionProvider(widget.sessionId))
+          .value;
+      if (latestSession?.activeUserId != pairedBotFriendId) {
+        _isProcessingBotTurn = false;
+        return;
+      }
+
+      try {
+        await ref
+            .read(sessionServiceProvider)
+            .addSessionEvent(
+              sessionId: widget.sessionId,
+              type: SessionEventType.setLogged,
+              userId: pairedBotFriendId,
+              text:
+                  '${botExercise.name}: ${bot.gymWeightKg}kg x ${bot.gymReps} reps',
+              data: {
+                'exercise': botExercise.name,
+                'exerciseId': botExercise.id,
+                'weight': bot.gymWeightKg,
+                'reps': bot.gymReps,
+                'durationSeconds': bot.gymSetSeconds,
+                'simulated': true,
+              },
+            );
+
+        final nextCounts = <String, Map<String, int>>{
+          for (final entry in counts.entries)
+            entry.key: Map<String, int>.from(entry.value),
+        };
+        nextCounts[pairedBotFriendId] = TurnPlanProgress.incrementedCounts(
+          counts: nextCounts[pairedBotFriendId] ?? const {},
+          exercise: botExercise,
+        );
+        final nextActiveUserId = TurnPlanProgress.nextActiveParticipant(
+          currentUserId: pairedBotFriendId,
+          participants: latestSession?.participants ?? session.participants,
+          plans: plans,
+          completedSetsByUserAndExercise: nextCounts,
+        );
+        if (nextActiveUserId != null && nextActiveUserId != pairedBotFriendId) {
+          await ref
+              .read(sessionServiceProvider)
+              .switchTurn(widget.sessionId, pairedBotFriendId);
+        }
+      } finally {
+        _isProcessingBotTurn = false;
+      }
+    });
+  }
+
   /// Handle logging a cardio activity entry.
   Future<void> _handleLogCardioFromControllers() async {
+    if (_isLogging) return;
     if (_cardioActivityType == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select an activity type')),
@@ -920,19 +1137,17 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     }
 
     // Check availability based on turn-based rules
-    final session = ref
-        .read(currentSessionProvider(widget.sessionId))
-        .valueOrNull;
+    final session = ref.read(currentSessionProvider(widget.sessionId)).value;
     final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
 
     if (session != null &&
         session.derivedMode == SessionMode.turnBased &&
         !_isSoloSession &&
         session.activeUserId != uid) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("It's not your turn yet! â³")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("It's not your turn yet")));
       return;
     }
 
@@ -940,6 +1155,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
 
     try {
       if (uid == null) return;
+
+      final clientEventId = const Uuid().v4();
 
       // Calculate pace if not provided
       String calculatedPace = pace;
@@ -951,60 +1168,57 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
             '$paceMinsPart:${paceSecsPart.toString().padLeft(2, '0')}/km';
       }
 
-      final activityName = _getActivityLabel(_cardioActivityType);
+      final activityName = cardioActivityLabel(_cardioActivityType);
       final eventText =
           '$activityName: ${distance.toStringAsFixed(2)}km in ${duration}min';
 
-      // Log to Firestore or Queue
-      if (_isOffline) {
-        // Optimistic update
-        final currentProgress = _participantProgress[uid];
-        final newDistance = (currentProgress?.totalDistance ?? 0) + distance;
-        final newDuration = (currentProgress?.totalDuration ?? 0) + duration;
-
-        // Create local event for timeline
-        final localEvent = TimelineEvent(
-          id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
-          type: SessionEventType.cardioEntry,
-          userId: uid,
-          text: eventText,
-          timestamp: DateTime.now(),
-          data: {
-            'activityType': _cardioActivityType,
-            'distance': distance,
-            'duration': duration,
-            'pace': calculatedPace,
-          },
+      // Optimistic update — immediate regardless of connectivity.
+      final currentProgress = _participantProgress[uid];
+      final newDistance = (currentProgress?.totalDistance ?? 0) + distance;
+      final newDuration = (currentProgress?.totalDuration ?? 0) + duration;
+      final localEvent = TimelineEvent(
+        id: clientEventId,
+        type: SessionEventType.cardioEntry,
+        userId: uid,
+        text: eventText,
+        timestamp: DateTime.now(),
+        data: {
+          'activityType': _cardioActivityType,
+          'distance': distance,
+          'duration': duration,
+          'pace': calculatedPace,
+        },
+      );
+      setState(() {
+        _participantProgress[uid] = LiveParticipantProgress(
+          activityType: _cardioActivityType,
+          totalDistance: newDistance,
+          totalDuration: newDuration,
+          averagePace: calculatedPace,
+          lastActivity: DateTime.now(),
         );
+        _localPendingEvents.insert(0, localEvent);
+      });
 
-        setState(() {
-          _participantProgress[uid] = ParticipantProgress(
-            activityType: _cardioActivityType,
-            totalDistance: newDistance,
-            totalDuration: newDuration,
-            averagePace: calculatedPace,
-            lastActivity: DateTime.now(),
-          );
-          _localPendingEvents.insert(0, localEvent);
-        });
-
-        await ref.read(offlineManagerProvider).queueOperation('session_event', {
-          'sessionId': widget.sessionId,
-          'type': SessionEventType.cardioEntry.value,
-          'userId': uid,
-          'text': eventText,
-          'data': {
-            'activityType': _cardioActivityType,
-            'distance': distance,
-            'duration': duration,
-            'pace': calculatedPace,
+      // Sync to backend.
+      if (_isOffline) {
+        await ref.read(offlineManagerProvider).queueOperation(
+          'session_event',
+          {
+            'sessionId': widget.sessionId,
+            'type': SessionEventType.cardioEntry.value,
+            'userId': uid,
+            'text': eventText,
+            'clientEventId': clientEventId,
+            'data': {
+              'activityType': _cardioActivityType,
+              'distance': distance,
+              'duration': duration,
+              'pace': calculatedPace,
+            },
           },
-        });
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Logged locally (Offline)')),
-          );
-        }
+          id: 'session_event_$clientEventId',
+        );
       } else {
         try {
           await ref
@@ -1014,6 +1228,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                 type: SessionEventType.cardioEntry,
                 userId: uid,
                 text: eventText,
+                clientEventId: clientEventId,
                 data: {
                   'activityType': _cardioActivityType,
                   'distance': distance,
@@ -1021,9 +1236,11 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                   'pace': calculatedPace,
                 },
               );
+          // Drop local placeholder once the server event is incoming via stream.
+          if (mounted) setState(() => _localPendingEvents.remove(localEvent));
           await HapticFeedback.mediumImpact();
         } catch (e) {
-          // Queue on failure
+          // Network call failed — keep the local event and queue for retry.
           await ref.read(offlineManagerProvider).queueOperation(
             'session_event',
             {
@@ -1031,6 +1248,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
               'type': SessionEventType.cardioEntry.value,
               'userId': uid,
               'text': eventText,
+              'clientEventId': clientEventId,
               'data': {
                 'activityType': _cardioActivityType,
                 'distance': distance,
@@ -1038,6 +1256,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                 'pace': calculatedPace,
               },
             },
+            id: 'session_event_$clientEventId',
           );
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -1060,12 +1279,27 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
 
   // Voice recording handlers
   Future<void> _toggleRecording() async {
+    if (_isRecordingToggleInFlight) {
+      if (!_isRecording) _stopRecordingAfterStart = true;
+      return;
+    }
+    _isRecordingToggleInFlight = true;
     final voiceService = ref.read(voiceRecordingServiceProvider);
 
-    if (_isRecording) {
-      await _stopAndUploadRecording(voiceService);
-    } else {
-      await _startRecording(voiceService);
+    try {
+      if (_isRecording) {
+        await _stopAndUploadRecording(voiceService);
+      } else {
+        await _startRecording(voiceService);
+      }
+    } finally {
+      _isRecordingToggleInFlight = false;
+      if (_stopRecordingAfterStart && _isRecording) {
+        _stopRecordingAfterStart = false;
+        await _toggleRecording();
+      } else {
+        _stopRecordingAfterStart = false;
+      }
     }
   }
 
@@ -1073,25 +1307,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     final hasPermission = await voiceService.requestPermissions();
     if (!hasPermission) {
       if (mounted) {
-        // Show permission dialog with option to open settings
-        final shouldOpenSettings = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Microphone Permission Required'),
-            content: const Text(
-              'Voice notes require microphone access. Would you like to open settings to grant permission?',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Open Settings'),
-              ),
-            ],
-          ),
+        final shouldOpenSettings = await showMicrophonePermissionDialog(
+          context,
         );
         if (shouldOpenSettings == true && mounted) {
           // Note: For production, you'd use a package like app_settings
@@ -1138,7 +1355,15 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     HapticFeedback.selectionClick();
 
     final path = await voiceService.stopRecording();
-    if (path == null) return;
+    if (path == null) {
+      if (mounted) {
+        setState(() {
+          _isRecording = false;
+          _recordingDuration = Duration.zero;
+        });
+      }
+      return;
+    }
 
     setState(() {
       _isUploadingVoice = true;
@@ -1147,97 +1372,38 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
 
     try {
       final authState = ref.read(authSessionProvider);
-      final uid = authState.valueOrNull?.id;
+      final uid = authState.value?.id;
       if (uid == null) return;
 
-      // Calculate duration in seconds for storage
       final durationSeconds = recordedDuration.inMilliseconds / 1000.0;
 
-      if (_isOffline) {
-        await ref
-            .read(offlineManagerProvider)
-            .queueOperation('voice_note_upload', {
-              'filePath': path,
-              'sessionId': widget.sessionId,
-              'userId': uid,
-              'duration': durationSeconds,
-            });
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Voice note queued (Offline)')),
-          );
-        }
-      } else {
-        final storageService = ref.read(storageServiceProvider);
-        final sessionService = ref.read(sessionServiceProvider);
-
-        final audioUrl = await storageService.uploadVoiceNote(
-          filePath: path,
-          sessionId: widget.sessionId,
-          onProgress: (progress) {
-            if (mounted) setState(() => _voiceUploadProgress = progress);
-          },
-        );
-
-        // Create Firestore session event with audio URL and duration
-        try {
-          await sessionService.addSessionEvent(
-            sessionId: widget.sessionId,
-            type: SessionEventType.voiceNote,
-            userId: uid,
-            text: 'sent a voice message',
-            data: {'audioUrl': audioUrl, 'duration': durationSeconds},
-          );
-        } catch (e) {
-          debugPrint('[SessionRoom] Error creating voice note event: $e');
-          // Queue for offline sync if event creation fails
-          await ref.read(offlineManagerProvider).queueOperation(
-            'session_event',
-            {
-              'sessionId': widget.sessionId,
-              'type': SessionEventType.voiceNote.value,
-              'userId': uid,
-              'text': 'sent a voice message',
-              'data': {'audioUrl': audioUrl, 'duration': durationSeconds},
-            },
-          );
-        }
-
-        // Notify partner
-        final session = await sessionService.getSession(widget.sessionId);
-        if (session != null) {
+      await uploadOrQueueSessionVoiceNote(
+        filePath: path,
+        sessionId: widget.sessionId,
+        userId: uid,
+        durationSeconds: durationSeconds,
+        isOffline: _isOffline,
+        offlineManager: ref.read(offlineManagerProvider),
+        storageService: ref.read(storageServiceProvider),
+        sessionService: ref.read(sessionServiceProvider),
+        notificationService: ref.read(notificationServiceProvider),
+        loadUserData: (userId) async {
           final userDoc = await ref
               .read(authFirestoreProvider)
               .collection('users')
-              .doc(uid)
+              .doc(userId)
               .get();
-          final currentUserName = userDoc.data()?['displayName'] ?? 'User';
+          return userDoc.data();
+        },
+        onUploadProgress: (progress) {
+          if (mounted) setState(() => _voiceUploadProgress = progress);
+        },
+      );
 
-          // Notify all other participants
-          final recipients = session.participants.where((id) => id != uid);
-
-          for (final recipientId in recipients) {
-            unawaited(
-              ref
-                  .read(notificationServiceProvider)
-                  .notifyVoiceNote(
-                    recipientId: recipientId,
-                    senderName: currentUserName,
-                    sessionId: widget.sessionId,
-                    audioUrl: audioUrl,
-                  )
-                  .catchError(
-                    (e) => debugPrint(
-                      '[SessionRoom] Notify error for $recipientId: $e',
-                    ),
-                  ),
-            );
-          }
-        }
-      }
-
-      if (mounted) {
-        // Optionally show sent confirmation
+      if (_isOffline && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Voice note queued (Offline)')),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -1246,7 +1412,35 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         );
       }
     } finally {
-      if (mounted) setState(() => _isUploadingVoice = false);
+      if (mounted) {
+        setState(() {
+          _isUploadingVoice = false;
+          _isRecording = false;
+          _recordingDuration = Duration.zero;
+        });
+      }
+    }
+  }
+
+  /// "It's your turn" cue — physical, not a banner: a distinct double buzz plus
+  /// a short weight-plate clank. Also announces for screen readers (Z-A11Y-004).
+  /// The sound is skipped while a partner voice note is playing so it never
+  /// cuts one off; the haptic and announcement always fire.
+  Future<void> _signalMyTurn() async {
+    final direction = mounted
+        ? Directionality.of(context)
+        : TextDirection.ltr;
+    SemanticsService.announce("It's your turn", direction);
+    await HapticFeedback.heavyImpact();
+    await Future<void>.delayed(const Duration(milliseconds: 130));
+    await HapticFeedback.heavyImpact();
+
+    if (_playingAudioUrl != null) return;
+    try {
+      await _turnCuePlayer.stop();
+      await _turnCuePlayer.play(AssetSource('sounds/turn_start.wav'));
+    } catch (e) {
+      debugPrint('[SessionRoom] turn cue sound failed: $e');
     }
   }
 
@@ -1296,34 +1490,128 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
   /// Dispatches to turn-based or parallel UIs when we have a session,
   /// otherwise falls back to the legacy monolithic [_buildInputSection].
   Widget _buildDispatchedInputSection() {
-    final session = ref
-        .watch(currentSessionProvider(widget.sessionId))
-        .valueOrNull;
-    final uid = ref.watch(authSessionProvider).valueOrNull?.id;
+    final session = ref.watch(currentSessionProvider(widget.sessionId)).value;
+    final uid = ref.watch(authCurrentUserIdProvider);
     if (session == null || uid == null) {
       return _buildInputSection();
     }
-    // Solo sessions keep the legacy monolithic form.
+    // Solo sessions: with a plan, always show the turn view (user is always active).
     if (_isSoloSession) {
+      if (_plannedExercises.isNotEmpty) {
+        final events = [
+          ...?ref.watch(sessionEventsProvider(widget.sessionId)).value,
+          ..._localPendingEvents,
+        ];
+        final soloPlans = {
+          uid: _localPlanFor(uid, GymSessionPlanSource.hostTemplate),
+        };
+        final counts = _completedSetsByUserAndExercise(events);
+        if (TurnPlanProgress.isSessionComplete(
+          plans: soloPlans,
+          completedSetsByUserAndExercise: counts,
+        )) {
+          return _buildPlanCompleteView(session, uid, soloPlans);
+        }
+        return _buildActiveTurnView(
+          session,
+          uid,
+          soloPlans,
+          soloPlans[uid],
+          counts[uid] ?? const {},
+          counts,
+        );
+      }
       return _buildInputSection();
     }
-    return _buildSessionBody(session, uid);
+
+    final events = [
+      ...?ref.watch(sessionEventsProvider(widget.sessionId)).value,
+      ..._localPendingEvents,
+    ];
+    final plans = <String, GymSessionPlan>{};
+    for (final participantId in session.participants) {
+      final plan = ref
+          .watch(
+            gymSessionPlanProvider((
+              sessionId: widget.sessionId,
+              userId: participantId,
+            )),
+          )
+          .value;
+      if (plan != null && plan.exercises.isNotEmpty) {
+        plans[participantId] = plan;
+      }
+    }
+
+    if (_plannedExercises.isNotEmpty && !plans.containsKey(uid)) {
+      plans[uid] = _localPlanFor(uid, GymSessionPlanSource.hostTemplate);
+    }
+    if (session.partnerKind == PairedPartnerKind.bot &&
+        _plannedExercises.isNotEmpty &&
+        !plans.containsKey(pairedBotFriendId)) {
+      plans[pairedBotFriendId] = SessionService.botGymPlanFromHostPlan(
+        plans[uid] ?? _localPlanFor(uid, GymSessionPlanSource.hostTemplate),
+      );
+    }
+
+    if (session.activeUserId == pairedBotFriendId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _scheduleBotTurnIfNeeded(
+          session: session,
+          plans: plans,
+          events: events,
+        );
+      });
+    }
+
+    return _buildSessionBody(session, uid, plans, events);
   }
 
   /// Main dispatch: switches on [Session.derivedMode] and the participant's
   /// workout type to pick between the turn-based and parallel widget trees.
-  Widget _buildSessionBody(Session session, String currentUserId) {
+  Widget _buildSessionBody(
+    Session session,
+    String currentUserId,
+    Map<String, GymSessionPlan> plans,
+    List<TimelineEvent> events,
+  ) {
+    // Applies to both modes: a partner walking out of a parallel session is
+    // just as much news as one walking out of a turn-based one.
+    _announceDeparturesIfNeeded(session, currentUserId);
+
     switch (session.derivedMode) {
       case SessionMode.turnBased:
-        final isMyTurn = session.activeUserId == currentUserId;
+        final counts = _completedSetsByUserAndExercise(events);
+        if (plans.isNotEmpty &&
+            TurnPlanProgress.isSessionComplete(
+              plans: plans,
+              completedSetsByUserAndExercise: counts,
+            )) {
+          return _buildPlanCompleteView(session, currentUserId, plans);
+        }
+        // Whoever the session thinks holds the turn, a member training alone
+        // takes it. Otherwise closing one app would strand the other on a
+        // waiting screen for a partner who is never going to act.
+        //
+        // Presentation-layer only — `derivedMode` is untouched, so the session
+        // reverts to shared on its own the moment the partner comes back.
+        final trainingAlone = _evaluateSolo(session, currentUserId);
+        final isMyTurn = session.activeUserId == currentUserId || trainingAlone;
         if (isMyTurn) {
-          return _buildActiveTurnView(session, currentUserId);
+          return _buildActiveTurnView(
+            session,
+            currentUserId,
+            plans,
+            plans[currentUserId],
+            counts[currentUserId] ?? const {},
+            counts,
+          );
         } else {
-          return _buildWaitingTurnView(session, currentUserId);
+          return _buildWaitingTurnView(session, currentUserId, plans, counts);
         }
       case SessionMode.parallel:
-        final myType =
-            session.participantTypes[currentUserId] ?? widget.type;
+        final myType = session.participantTypes[currentUserId] ?? widget.type;
         final workoutType = WorkoutType.fromString(myType);
         if (workoutType.isCardio || workoutType.requiresDistanceTracking) {
           return _buildParallelCardioView(session, currentUserId);
@@ -1333,39 +1621,91 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     }
   }
 
-  Widget _buildActiveTurnView(Session session, String currentUserId) {
-    final exerciseName = _currentTurnExercise ?? 'Workout';
+  Widget _buildActiveTurnView(
+    Session session,
+    String currentUserId,
+    Map<String, GymSessionPlan> plans,
+    GymSessionPlan? plan,
+    Map<String, int> currentUserCounts,
+    Map<String, Map<String, int>> allCounts,
+  ) {
+    final prefill = resolveActiveTurnPrefill(
+      plan: plan,
+      currentUserCounts: currentUserCounts,
+      exercises: _exercises,
+      fallbackExerciseName: _currentTurnExercise,
+      fallbackSetNumber: _currentSetNumber,
+    );
+    final exerciseName = prefill.exerciseName;
+    final plannedExercise = prefill.plannedExercise;
+
     return ActiveTurnScreen(
       exerciseName: exerciseName,
-      setNumber: _currentSetNumber,
-      onSetSubmit: ({
-        required int reps,
-        required double weight,
-        required int durationSeconds,
-      }) {
-        _handleLogSet(exercise: exerciseName, weight: weight, reps: reps);
-        if (mounted) {
-          setState(() => _currentSetNumber += 1);
-        }
-      },
-      onTurnEnd: () {
+      setNumber: prefill.setNumber,
+      lastReps: prefill.lastReps,
+      lastWeight: prefill.lastWeight,
+      onTimerStart: () {
+        _ensureSharedClockStarted(session);
+        // Stamp the per-set start so the waiting partner's timer counts this
+        // set from now, not from the session start.
         ref
             .read(sessionServiceProvider)
-            .switchTurn(widget.sessionId, currentUserId);
+            .setActiveSetStarted(widget.sessionId, started: true);
       },
+      onSetSubmit:
+          ({
+            required int reps,
+            required double weight,
+            required int durationSeconds,
+          }) async {
+            final logged = await _handleLogSet(
+              exercise: exerciseName,
+              exerciseId: plannedExercise?.id,
+              weight: weight,
+              reps: reps,
+              durationSeconds: durationSeconds,
+            );
+            if (!logged) return;
+            // Set finished — clear the per-set start so the partner's timer
+            // freezes on the completed set until the next START.
+            unawaited(
+              ref
+                  .read(sessionServiceProvider)
+                  .setActiveSetStarted(widget.sessionId, started: false),
+            );
+            await _handleTurnAfterLoggedSet(
+              session: session,
+              currentUserId: currentUserId,
+              plans: plans,
+              counts: allCounts,
+              plannedExercise: plannedExercise,
+            );
+            if (mounted && plannedExercise == null) {
+              setState(() => _currentSetNumber += 1);
+            }
+          },
     );
   }
 
-  Widget _buildWaitingTurnView(Session session, String currentUserId) {
-    final partnerId = session.activeUserId;
-    final partnerProgress =
-        partnerId != null ? _participantProgress[partnerId] : null;
-    final partnerCurrentExercise = partnerProgress?.currentExercise ?? '';
-    final partnerSetNumber = (partnerProgress?.totalSets ?? 0) + 1;
+  Widget _buildWaitingTurnView(
+    Session session,
+    String currentUserId,
+    Map<String, GymSessionPlan> plans,
+    Map<String, Map<String, int>> counts,
+  ) {
+    // Per-set timer: while the partner is mid-set (activeSetStartedAt stamped)
+    // count up live from that instant; between sets freeze on their last
+    // completed set. The parent's 1s ticker rebuilds this view so it advances.
+    final partner = resolveWaitingTurnPartner(
+      session: session,
+      plans: plans,
+      counts: counts,
+      participantProgress: _participantProgress,
+    );
 
     return FutureBuilder<User?>(
-      future: partnerId != null
-          ? ref.read(userCacheServiceProvider).getUser(partnerId)
+      future: partner.partnerId != null
+          ? ref.read(userCacheServiceProvider).getUser(partner.partnerId!)
           : Future<User?>.value(null),
       builder: (context, snapshot) {
         final partnerUser = snapshot.data;
@@ -1375,94 +1715,149 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         return WaitingTurnScreen(
           partnerName: partnerName,
           partnerPhotoUrl: partnerPhotoUrl,
-          partnerCurrentExercise: partnerCurrentExercise,
-          partnerSetNumber: partnerSetNumber,
-          partnerElapsedTime: _elapsedTime,
+          partnerCurrentExercise: partner.currentExercise,
+          partnerSetNumber: partner.setNumber,
+          partnerElapsedTime: partner.setElapsed,
           isPartnerVoicePlaying: _playingAudioUrl != null,
           onRecordVoice: _toggleRecording,
           isRecording: _isRecording,
           recordingDuration: _recordingDuration,
+          activeStatusLabel: '$partnerName is active',
+          waitingStatusLabel: 'You are waiting',
         );
       },
+    );
+  }
+
+  Widget _buildPlanCompleteView(
+    Session session,
+    String currentUserId,
+    Map<String, GymSessionPlan> plans,
+  ) {
+    return SessionPlanCompleteView(
+      onFinishSession: _handleFinishSession,
+      onAddExercise: () => _openLateAddPicker(
+        session: session,
+        currentUserId: currentUserId,
+        plans: plans,
+      ),
+    );
+  }
+
+  Future<void> _openLateAddPicker({
+    required Session session,
+    required String currentUserId,
+    required Map<String, GymSessionPlan> plans,
+  }) async {
+    final uid = ref.read(authSessionProvider).value?.id;
+
+    final pickedExercises = await showModalBottomSheet<List<PlannedExercise>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.85,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (context2, scrollController) =>
+            GymExercisePickerSheet(userId: uid),
+      ),
+    );
+    if (pickedExercises == null || pickedExercises.isEmpty) return;
+
+    final currentPlan =
+        plans[currentUserId] ??
+        _localPlanFor(currentUserId, GymSessionPlanSource.personal);
+    final lateAdd = appendLateExercisesToPlan(
+      currentPlan: currentPlan,
+      pickedExercises: pickedExercises,
+    );
+    final updatedPlan = lateAdd.updatedPlan;
+    final extraExercises = lateAdd.extraExercises;
+
+    await ref
+        .read(sessionServiceProvider)
+        .saveGymPlan(sessionId: widget.sessionId, plan: updatedPlan);
+    if (session.partnerKind == PairedPartnerKind.bot &&
+        currentUserId == session.hostId) {
+      await ref
+          .read(sessionServiceProvider)
+          .saveGymPlan(
+            sessionId: widget.sessionId,
+            plan: SessionService.botGymPlanFromHostPlan(updatedPlan),
+          );
+    }
+    if (session.derivedMode == SessionMode.turnBased &&
+        session.activeUserId != null &&
+        session.activeUserId != currentUserId) {
+      await ref
+          .read(sessionServiceProvider)
+          .switchTurn(widget.sessionId, session.activeUserId!);
+    }
+    if (mounted) {
+      final lastAdded = extraExercises.last;
+      setState(() {
+        _plannedExercises = updatedPlan.exercises;
+        _currentTurnExercise = lastAdded.name;
+        _currentExerciseId = lastAdded.id;
+      });
+    }
+  }
+
+  ParallelPartnerData _parallelPartnerData(
+    Session session,
+    String currentUserId,
+  ) {
+    final partnerId = session.participants.firstWhere(
+      (p) => p != currentUserId,
+      orElse: () => '',
+    );
+    return ParallelPartnerData.fromProgress(
+      progress: partnerId.isNotEmpty ? _participantProgress[partnerId] : null,
+      workoutType: session.participantTypes[partnerId] ?? 'gym',
+      elapsedTime: _elapsedTime,
+      standing: _partnerStanding(session, partnerId),
     );
   }
 
   Widget _buildParallelGymView(Session session, String currentUserId) {
-    final partnerId = session.participants.firstWhere(
-      (p) => p != currentUserId,
-      orElse: () => '',
-    );
-    final partnerProgress =
-        partnerId.isNotEmpty ? _participantProgress[partnerId] : null;
-    final partnerType =
-        session.participantTypes[partnerId] ?? 'gym';
-
-    final partner = ParallelPartnerData(
-      name: 'Partner',
-      workoutType: partnerType,
-      totalDistance: partnerProgress?.totalDistance ?? 0,
-      averagePace: partnerProgress?.averagePace,
-      elapsedTime: _elapsedTime,
-      currentExercise: partnerProgress?.currentExercise,
-      totalSets: partnerProgress?.totalSets ?? 0,
-      totalVolume: partnerProgress?.totalVolume ?? 0,
-    );
-
     final exerciseName = _currentTurnExercise ?? 'Workout';
     return ParallelGymView(
       exerciseName: exerciseName,
       setNumber: _currentSetNumber,
-      onSetSubmit: ({
-        required int reps,
-        required double weight,
-        required int durationSeconds,
-      }) {
-        _handleLogSet(exercise: exerciseName, weight: weight, reps: reps);
-        if (mounted) {
-          setState(() => _currentSetNumber += 1);
-        }
-      },
-      partner: partner,
+      onSetSubmit:
+          ({
+            required int reps,
+            required double weight,
+            required int durationSeconds,
+          }) {
+            _handleLogSet(exercise: exerciseName, weight: weight, reps: reps);
+            if (mounted) {
+              setState(() => _currentSetNumber += 1);
+            }
+          },
+      partner: _parallelPartnerData(session, currentUserId),
     );
   }
 
   Widget _buildParallelCardioView(Session session, String currentUserId) {
-    final partnerId = session.participants.firstWhere(
-      (p) => p != currentUserId,
-      orElse: () => '',
-    );
-    final partnerProgress =
-        partnerId.isNotEmpty ? _participantProgress[partnerId] : null;
-    final partnerType =
-        session.participantTypes[partnerId] ?? 'gym';
-    final myType =
-        session.participantTypes[currentUserId] ?? widget.type;
-
-    final partner = ParallelPartnerData(
-      name: 'Partner',
-      workoutType: partnerType,
-      totalDistance: partnerProgress?.totalDistance ?? 0,
-      averagePace: partnerProgress?.averagePace,
-      elapsedTime: _elapsedTime,
-      currentExercise: partnerProgress?.currentExercise,
-      totalSets: partnerProgress?.totalSets ?? 0,
-      totalVolume: partnerProgress?.totalVolume ?? 0,
-    );
+    final myType = session.participantTypes[currentUserId] ?? widget.type;
 
     return ParallelCardioView(
       activityType: myType,
-      onCardioLog: ({
-        required double distanceKm,
-        required int durationSeconds,
-        required String activityType,
-      }) {
-        _handleLogCardio(
-          distance: distanceKm,
-          durationSeconds: durationSeconds,
-          activityType: activityType,
-        );
-      },
-      partner: partner,
+      onCardioLog:
+          ({
+            required double distanceKm,
+            required int durationSeconds,
+            required String activityType,
+          }) {
+            _handleLogCardio(
+              distance: distanceKm,
+              durationSeconds: durationSeconds,
+              activityType: activityType,
+            );
+          },
+      partner: _parallelPartnerData(session, currentUserId),
     );
   }
 
@@ -1494,69 +1889,11 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
 
   /// Build duration-based input section for yoga, flexibility workouts.
   Widget _buildDurationInputSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // Workout type badge
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: AppColors.success.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(AppBorderRadius.md),
-            border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.self_improvement,
-                size: 16,
-                color: AppColors.successDark,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                _workoutType.displayName,
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.successDark,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: AppSpacing.md),
-
-        // Duration input
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _durationController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Duration (min)',
-                  hintText: '30',
-                  prefixIcon: Icon(Icons.timer),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.md),
-
-        // Log button
-        ElevatedButton.icon(
-          onPressed: _isLogging ? null : _handleLogDuration,
-          icon: _isLogging
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.check),
-          label: Text(_isLogging ? 'Logging...' : 'Log Session'),
-        ),
-      ],
+    return SessionDurationInputSection(
+      workoutType: _workoutType,
+      durationController: _durationController,
+      isLogging: _isLogging,
+      onLog: _handleLogDuration,
     );
   }
 
@@ -1573,7 +1910,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     setState(() => _isLogging = true);
     try {
       final authState = ref.read(authSessionProvider);
-      final uid = authState.valueOrNull?.id;
+      final uid = authState.value?.id;
       if (uid == null) return;
 
       final eventText = '${_workoutType.displayName}: ${duration}min session';
@@ -1595,609 +1932,113 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
 
   /// Build strength training input section (exercise name, weight, reps).
   Widget _buildStrengthInputSection() {
-    return FocusTraversalGroup(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Autocomplete for Exercise name
-          Autocomplete<String>(
-            optionsBuilder: (TextEditingValue textEditingValue) {
-              if (textEditingValue.text == '') {
-                return const Iterable<String>.empty();
-              }
-              return _recentExercises.where((String option) {
-                return option.toLowerCase().contains(
-                  textEditingValue.text.toLowerCase(),
-                );
-              });
-            },
-            onSelected: (String selection) {
-              _exerciseController.text = selection;
-              setState(() => _currentExercise = selection);
-            },
-            fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-              // Sync controllers
-              if (controller.text != _exerciseController.text) {
-                controller.text = _exerciseController.text;
-              }
-
-              return TextField(
-                controller: controller,
-                focusNode:
-                    focusNode, // Autocomplete handles its own focus node internally usually, but we can try to use ours if exposed or just rely on it. Actually Autocomplete fieldViewBuilder gives a focusNode. We should use THAT one. But we wanted to use _exerciseNameFocus.
-                // Correction: Autocomplete gives a focusNode. We should probably stick with that or use ours if we can pass it.
-                // Let's use the one provided by builder but ensure next focus works.
-                // We'll leave this one alone as it uses the builder's focusNode.
-                decoration: const InputDecoration(
-                  labelText: 'Exercise Name',
-                  prefixIcon: Icon(Icons.fitness_center),
-                ),
-                onChanged: (value) {
-                  _exerciseController.text = value;
-                  setState(
-                    () => _currentExercise = value.isNotEmpty ? value : null,
-                  );
-                },
-              );
-            },
-          ),
-
-          const SizedBox(height: AppSpacing.md),
-
-          // Weight and Reps row
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _weightController,
-                  focusNode: _weightFocus,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Weight (kg)'),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: TextField(
-                  controller: _repsController,
-                  focusNode: _repsFocus,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Reps'),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-
-          // Log button row with voice (Elite Brutalist)
-          Row(
-            children: [
-              Expanded(
-                child: Semantics(
-                  button: true,
-                  label: 'Log Amount',
-                  hint: 'Adds this set to your workout',
-                  child: BounceAnimation(
-                    onTap: (_currentExercise != null && !_isLogging) ? _handleLogSetFromControllers : null,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      decoration: BoxDecoration(
-                        gradient: (_currentExercise != null && !_isLogging)
-                            ? LinearGradient(
-                                colors: [AppColors.primary, AppColors.primaryDark],
-                              )
-                            : null,
-                        color: (_currentExercise != null && !_isLogging)
-                            ? null
-                            : Colors.white.withValues(alpha: 0.05),
-                        border: Border.all(
-                          color: (_currentExercise != null && !_isLogging)
-                              ? AppColors.primary
-                              : Colors.white.withValues(alpha: 0.1),
-                          width: 2,
-                        ),
-                      ),
-                      child: Center(
-                        child: _isLogging
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Text(
-                                'LOG SET',
-                                style: TextStyle(
-                                  fontFamily: 'Outfit',
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 14,
-                                  letterSpacing: 2,
-                                  color: Colors.white,
-                                ),
-                              ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              // Voice recording button with states
-              if (_isUploadingVoice)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.warning.withValues(alpha: 0.1),
-                    border: Border.all(
-                      color: AppColors.warning.withValues(alpha: 0.4),
-                      width: 2,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          value: _voiceUploadProgress > 0
-                              ? _voiceUploadProgress
-                              : null,
-                          color: AppColors.warning,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        '${(_voiceUploadProgress * 100).toInt()}%',
-                        style: const TextStyle(
-                          fontFamily: 'Outfit',
-                          color: AppColors.warning,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1,
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              else if (_isRecording)
-                GestureDetector(
-                  onTap: _toggleRecording,
-                  child: RecordingWaveform(
-                    amplitudeStream: ref
-                        .read(voiceRecordingServiceProvider)
-                        .amplitudeStream,
-                    duration: _recordingDuration,
-                  ),
-                )
-              else
-                BounceAnimation(
-                  onTap: _toggleRecording,
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.1),
-                      border: Border.all(
-                        color: AppColors.primary.withValues(alpha: 0.5),
-                        width: 2,
-                      ),
-                    ),
-                    child: Semantics(
-                      button: true,
-                      label: 'Record Voice Note',
-                      child: Icon(
-                        Icons.mic_rounded,
-                        color: AppColors.primary,
-                        size: 22,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ],
-      ),
+    return SessionStrengthInputSection(
+      recentExercises: _recentExercises,
+      exerciseController: _exerciseController,
+      weightController: _weightController,
+      repsController: _repsController,
+      weightFocus: _weightFocus,
+      repsFocus: _repsFocus,
+      currentExercise: _currentExercise,
+      isLogging: _isLogging,
+      isRecording: _isRecording,
+      isUploadingVoice: _isUploadingVoice,
+      voiceUploadProgress: _voiceUploadProgress,
+      recordingDuration: _recordingDuration,
+      amplitudeStream:
+          ref.read(voiceRecordingServiceProvider).amplitudeStream,
+      onExerciseChanged: (value) => setState(() => _currentExercise = value),
+      onExerciseSelected: (selection) {
+        _exerciseController.text = selection;
+        setState(() => _currentExercise = selection);
+      },
+      onLogSet: _handleLogSetFromControllers,
+      onToggleRecording: _toggleRecording,
     );
-  }
-
-  /// Get available cardio activity options based on workout type.
-  List<Map<String, dynamic>> _getCardioActivityOptions() {
-    switch (_workoutType) {
-      case WorkoutType.running:
-        return [
-          {
-            'value': 'running',
-            'label': 'Running',
-            'icon': Icons.directions_run,
-          },
-          {
-            'value': 'jogging',
-            'label': 'Jogging',
-            'icon': Icons.directions_run,
-          },
-        ];
-      case WorkoutType.cycling:
-        return [
-          {
-            'value': 'cycling',
-            'label': 'Cycling',
-            'icon': Icons.directions_bike,
-          },
-          {
-            'value': 'stationary',
-            'label': 'Stationary',
-            'icon': Icons.pedal_bike,
-          },
-        ];
-      case WorkoutType.swimming:
-        return [
-          {'value': 'swimming', 'label': 'Swimming', 'icon': Icons.pool},
-          {'value': 'laps', 'label': 'Laps', 'icon': Icons.pool},
-        ];
-      case WorkoutType.walking:
-        return [
-          {
-            'value': 'walking',
-            'label': 'Walking',
-            'icon': Icons.directions_walk,
-          },
-          {'value': 'hiking', 'label': 'Hiking', 'icon': Icons.terrain},
-        ];
-      default:
-        // For generic cardio or other types, show common options
-        return [
-          {
-            'value': 'running',
-            'label': 'Running',
-            'icon': Icons.directions_run,
-          },
-          {
-            'value': 'cycling',
-            'label': 'Cycling',
-            'icon': Icons.directions_bike,
-          },
-          {'value': 'swimming', 'label': 'Swimming', 'icon': Icons.pool},
-          {
-            'value': 'walking',
-            'label': 'Walking',
-            'icon': Icons.directions_walk,
-          },
-        ];
-    }
-  }
-
-  /// Get icon for activity type.
-  IconData _getActivityIcon(String activityType) {
-    switch (activityType) {
-      case 'running':
-      case 'jogging':
-        return Icons.directions_run;
-      case 'cycling':
-      case 'stationary':
-        return Icons.directions_bike;
-      case 'swimming':
-      case 'laps':
-        return Icons.pool;
-      case 'walking':
-      case 'hiking':
-        return Icons.directions_walk;
-      default:
-        return Icons.fitness_center;
-    }
-  }
-
-  /// Get display label for activity type.
-  String _getActivityLabel(String? activityType) {
-    if (activityType == null) return 'Activity';
-    // Capitalize first letter
-    return activityType[0].toUpperCase() + activityType.substring(1);
   }
 
   /// Build cardio input section (activity type, distance, duration, pace).
   Widget _buildCardioInputSection() {
-    // Get available activity options based on workout type
-    final activityOptions = _getCardioActivityOptions();
-
-    return FocusTraversalGroup(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Workout type badge
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            margin: const EdgeInsets.only(bottom: AppSpacing.md),
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(AppBorderRadius.md),
-              border: Border.all(
-                color: AppColors.primary.withValues(alpha: 0.3),
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  _getActivityIcon(_workoutType.value),
-                  size: 16,
-                  color: AppColors.primaryDark,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  _workoutType.displayName,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.primaryDark,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Activity type selector - only show if multiple options available
-          if (activityOptions.length > 1) ...[
-            Row(
-              children: activityOptions.asMap().entries.map((entry) {
-                final index = entry.key;
-                final option = entry.value;
-                final isFirst = index == 0;
-                final isLast = index == activityOptions.length - 1;
-                final isSelected = _cardioActivityType == option['value'];
-
-                return Expanded(
-                  child: GestureDetector(
-                    onTap: () => setState(
-                      () => _cardioActivityType = option['value'] as String,
-                    ),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: AppSpacing.md,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? AppColors.primary
-                            : AppColors.surfaceSecondaryLight,
-                        borderRadius: BorderRadius.horizontal(
-                          left: isFirst
-                              ? const Radius.circular(AppBorderRadius.md)
-                              : Radius.zero,
-                          right: isLast
-                              ? const Radius.circular(AppBorderRadius.md)
-                              : Radius.zero,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            option['icon'] as IconData,
-                            size: 18,
-                            color: isSelected
-                                ? Colors.white
-                                : AppColors.textSecondaryLight,
-                          ),
-                          const SizedBox(width: 4),
-                          Flexible(
-                            child: Text(
-                              option['label'] as String,
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 12,
-                                color: isSelected
-                                    ? Colors.white
-                                    : AppColors.textSecondaryLight,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-          ],
-
-          // Distance and Duration row
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _distanceController,
-                  focusNode: _distanceFocus,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: const InputDecoration(
-                    labelText: 'Distance (km)',
-                    prefixIcon: Icon(Icons.straighten),
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: TextField(
-                  controller: _durationController,
-                  focusNode: _durationFocus,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Duration (min)',
-                    prefixIcon: Icon(Icons.timer),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-
-          // Pace input (optional)
-          TextField(
-            controller: _paceController,
-            focusNode: _paceFocus,
-            decoration: const InputDecoration(
-              labelText: 'Pace (optional, e.g. 5:30/km)',
-              prefixIcon: Icon(Icons.speed),
-              hintText: 'Auto-calculated if empty',
-            ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-
-          // Log button row with voice (Elite Brutalist)
-          Row(
-            children: [
-              Expanded(
-                child: BounceAnimation(
-                  onTap: (_cardioActivityType != null && !_isLogging) ? _handleLogCardioFromControllers : null,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    decoration: BoxDecoration(
-                      gradient: (_cardioActivityType != null && !_isLogging)
-                          ? LinearGradient(
-                              colors: [AppColors.primary, AppColors.primaryDark],
-                            )
-                          : null,
-                      color: (_cardioActivityType != null && !_isLogging)
-                          ? null
-                          : Colors.white.withValues(alpha: 0.05),
-                      border: Border.all(
-                        color: (_cardioActivityType != null && !_isLogging)
-                            ? AppColors.primary
-                            : Colors.white.withValues(alpha: 0.1),
-                        width: 2,
-                      ),
-                    ),
-                    child: Center(
-                      child: _isLogging
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Text(
-                              'LOG ACTIVITY',
-                              style: TextStyle(
-                                fontFamily: 'Outfit',
-                                fontWeight: FontWeight.w900,
-                                fontSize: 14,
-                                letterSpacing: 2,
-                                color: Colors.white,
-                              ),
-                            ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              BounceAnimation(
-                onTap: _isUploadingVoice ? null : _toggleRecording,
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: _isRecording
-                        ? AppColors.error.withValues(alpha: 0.1)
-                        : AppColors.primary.withValues(alpha: 0.1),
-                    border: Border.all(
-                      color: _isRecording
-                          ? AppColors.error.withValues(alpha: 0.5)
-                          : AppColors.primary.withValues(alpha: 0.5),
-                      width: 2,
-                    ),
-                  ),
-                  child: Semantics(
-                    button: true,
-                    label: _isRecording ? 'Stop Recording' : 'Record Voice Note',
-                    child: Icon(
-                      _isRecording ? Icons.stop_rounded : Icons.mic_rounded,
-                      color: _isRecording ? AppColors.error : AppColors.primary,
-                      size: 22,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+    return SessionCardioInputSection(
+      workoutType: _workoutType,
+      cardioActivityType: _cardioActivityType,
+      distanceController: _distanceController,
+      durationController: _durationController,
+      paceController: _paceController,
+      distanceFocus: _distanceFocus,
+      durationFocus: _durationFocus,
+      paceFocus: _paceFocus,
+      isLogging: _isLogging,
+      isRecording: _isRecording,
+      isUploadingVoice: _isUploadingVoice,
+      onActivityTypeChanged: (value) =>
+          setState(() => _cardioActivityType = value),
+      onLogActivity: _handleLogCardioFromControllers,
+      onToggleRecording: _toggleRecording,
     );
   }
+
   Future<void> _handleFinishSession() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('End Session?'),
-        content: const Text('Are you sure you want to finish this workout?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Finish'),
-          ),
-        ],
-      ),
-    );
+    final confirm = await SessionEndConfirmDialog.show(context);
 
     if (confirm != true) return;
 
     // Stop timer
     _timerUpdateTimer?.cancel();
 
-    // Calculate summary stats
-    int totalSets = 0;
-    double totalVolume = 0.0;
-    double totalDistance = 0.0;
-
     final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
     if (uid == null) return;
 
     final myProgress = _participantProgress[uid];
-
-    if (myProgress != null) {
-      totalSets = myProgress.totalSets;
-      totalVolume = myProgress.totalVolume;
-      totalDistance = myProgress.totalDistance;
-    }
-
-    // Create summary object matching the model definition
-    final summary = SessionSummary(
-      activityType: _cardioActivityType,
-      duration: _formatElapsedTime(_elapsedTime),
-      totalSets: totalSets,
-      totalVolume: totalVolume,
-      distance: totalDistance,
-      exercises: _exercises
-          .map((e) => ExerciseSummary(name: e.name, sets: e.sets.length))
-          .toList(),
-      activeCalories: null, // Could estimate if needed
+    final elapsed = _sessionStartTime != null
+        ? DateTime.now().difference(_sessionStartTime!)
+        : _elapsedTime;
+    final summary = buildSessionSummary(
+      cardioActivityType: _cardioActivityType,
+      wallClockElapsed: elapsed,
+      myProgress: myProgress,
+      exercises: _exercises,
+      formatElapsed: formatSessionElapsed,
     );
 
     try {
-      // Save session completion to backend
-      await ref
-          .read(sessionServiceProvider)
-          .endSession(widget.sessionId, uid, summary);
+      final sessionService = ref.read(sessionServiceProvider);
+      final session = await sessionService.getSession(widget.sessionId);
+      final remaining = session == null
+          ? 0
+          : session.participants
+                .where((id) => id != uid && !session.hasTerminated(id))
+                .length;
+
+      if (remaining > 0) {
+        await sessionService.terminateForMember(widget.sessionId, uid);
+        if (mounted) {
+          context.go(AppRouteLocations.main);
+        }
+        return;
+      }
+
+      final scoreResult = await sessionService.endSession(
+        widget.sessionId,
+        uid,
+        summary,
+      );
+      if (scoreResult.updatedStrengthPrs.isNotEmpty ||
+          scoreResult.updatedCardioPrs.isNotEmpty) {
+        RecapLaunchExtras.stage(
+          RecapLaunchExtras(
+            newStrengthPrNames: scoreResult.updatedStrengthPrs.keys.toList(),
+            newCardioPrNames: scoreResult.updatedCardioPrs.keys.toList(),
+          ),
+        );
+      }
 
       if (mounted) {
-        await showCelebration(
-          context,
-          title: 'Workout Complete!',
-          subtitle: 'Great work — keep the momentum going',
-          emoji: '💪',
-        );
-        if (mounted) {
-          context.push(AppRouteLocations.sessionRecap(widget.sessionId));
-        }
+        // Recap is a terminal screen for the workout. Use go() (not push) so the
+        // finished session room and the exercise-setup page are removed from the
+        // back stack — otherwise "back"/"return home" surfaces the picker again.
+        context.go(AppRouteLocations.sessionRecap(widget.sessionId));
       }
     } catch (e) {
       if (mounted) {
@@ -2206,76 +2047,6 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         ).showSnackBar(SnackBar(content: Text('Error finishing session: $e')));
       }
     }
-  }
-  Widget _buildAnimatedBackground() {
-    return Stack(
-      children: [
-        // Deep obsidian base
-        Container(
-          color: const Color(0xFF020617),
-        ),
-
-        // Base gradient for depth
-        Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                AppColors.primary.withValues(alpha: 0.05),
-                Colors.transparent,
-                AppColors.secondary.withValues(alpha: 0.03),
-              ],
-            ),
-          ),
-        ),
-
-        // Primary glowing orb (top-right)
-        Positioned(
-          top: -150,
-          right: -150,
-          child: PulseAnimation(
-            duration: const Duration(seconds: 8),
-            child: Container(
-              width: 500,
-              height: 500,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    AppColors.primary.withValues(alpha: 0.15),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-
-        // Secondary accent orb (bottom-left)
-        Positioned(
-          bottom: -200,
-          left: -200,
-          child: PulseAnimation(
-            duration: const Duration(seconds: 12),
-            child: Container(
-              width: 600,
-              height: 600,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    AppColors.secondary.withValues(alpha: 0.08),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-
-      ],
-    );
   }
 
   @override
@@ -2302,6 +2073,22 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       return const SessionRoomSkeleton();
     }
 
+    // Seed the elapsed timer from the shared workout clock once the first
+    // active set timer has started.
+    // ref.listen only fires on changes; if the provider was cached before
+    // this widget's first build, the listener never fires for the initial value.
+    if (_sessionStartTime == null) {
+      sessionAsync.whenData((session) {
+        if (session != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              _applySharedClockStart(session.sharedClockStartedAt);
+            }
+          });
+        }
+      });
+    }
+
     // Monitor events for auto-play using ref.listen
     ref.listen(
       recentSessionEventsProvider((
@@ -2317,54 +2104,31 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     ref.listen(currentSessionProvider(widget.sessionId), (previous, next) {
       next.whenData((session) async {
         if (session == null) return;
-        final previousSession = previous?.valueOrNull;
+        final previousSession = previous?.value;
         final authState = ref.read(authSessionProvider);
-        final currentUserId = authState.valueOrNull?.id;
+        final currentUserId = authState.value?.id;
 
         // Check if turn changed to me
         if (session.derivedMode == SessionMode.turnBased &&
             session.activeUserId == currentUserId &&
             previousSession?.activeUserId != currentUserId) {
-          // It's my turn!
-          await HapticFeedback.heavyImpact();
-
-          if (mounted) {
-            ScaffoldMessenger.of(this.context).showSnackBar(
-              SnackBar(
-                content: const Text(
-                  "It's your turn! ðŸ’ª",
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                backgroundColor: AppColors.primary,
-                behavior: SnackBarBehavior.floating,
-                action: SnackBarAction(
-                  label: 'Let\'s Go',
-                  textColor: Colors.white,
-                  onPressed: () {},
-                ),
-              ),
-            );
-
-            // Optional: Play a sound if audio player is free
-            // _audioPlayer.play(AssetSource('sounds/turn_start.mp3'));
-          }
+          // It's my turn — announce it physically, not with a banner: a distinct
+          // double buzz plus a weight-plate clank.
+          _signalMyTurn();
         }
       });
     });
 
     // Update participant progress from service stream
     ref.listen(sessionProgressProvider(widget.sessionId), (previous, next) {
-      next.whenData(_updateParticipantProgressFromMap);
+      next.whenData(_updateLiveParticipantProgressFromMap);
     });
 
-    // Update session start time when session data loads
+    // Update session clock when the first set timer start reaches Firestore.
     ref.listen(currentSessionProvider(widget.sessionId), (previous, next) {
       next.whenData((session) {
         if (session != null) {
-          if (_sessionStartTime == null) {
-            _sessionStartTime = session.startedAt;
-            _elapsedTime = DateTime.now().difference(session.startedAt);
-          }
+          _applySharedClockStart(session.sharedClockStartedAt);
           // Detect solo session mode
           if (session.participants.length == 1 && !_isSoloSession) {
             _isSoloSession = true;
@@ -2375,9 +2139,16 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       });
     });
 
-    return Stack(
+    return PopScope(
+      // Live room must not silently pop on system back (Z-UI-002).
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        await _handleFinishSession();
+      },
+      child: Stack(
       children: [
-        _buildAnimatedBackground(),
+        const SessionRoomAnimatedBackground(),
         Scaffold(
           backgroundColor: Colors.transparent, // Transparent to show background
           body: Column(
@@ -2399,496 +2170,157 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
                     setState(() => _errorMessage = null);
                   },
                 ),
-              Expanded(
-                child: _buildDispatchedInputSection(),
-              ),
+              Expanded(child: _buildDispatchedInputSection()),
             ],
           ),
         ),
       ],
+      ),
     );
   }
 
   Widget _buildV2SessionHeader(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.only(
-        top: MediaQuery.paddingOf(context).top + 12,
-        bottom: 12,
-        left: 20,
-        right: 20,
-      ),
-      color: AppColors.backgroundV2,
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.accentLime.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: AppColors.accentLime.withValues(alpha: 0.3),
-                width: 1,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  _workoutTypeEmoji(_workoutType),
-                  style: const TextStyle(fontSize: 13),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  _workoutType.displayName.toUpperCase(),
-                  style: const TextStyle(
-                    color: AppColors.accentLime,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Spacer(),
-          GestureDetector(
-            onTap: () {
-              HapticManager.light();
-              context.go(AppRouteLocations.mainTab(MainShellTab.feed));
-            },
-            child: const Padding(
-              padding: EdgeInsets.all(8),
-              child: Icon(Icons.home_outlined, color: Colors.white70, size: 22),
-            ),
-          ),
+    final session = ref.watch(currentSessionProvider(widget.sessionId)).value;
+    final inviteStatus = session?.invitationStatus;
+    final setupStatusChip = session?.phase == SessionPhase.setup
+        ? const SessionSetupWaitingChip()
+        : null;
+
+    final isInviteUnanswered =
+        inviteStatus == WorkoutInvitationStatus.declined ||
+        inviteStatus == WorkoutInvitationStatus.expired;
+    final inviteStatusChip =
+        isInviteUnanswered &&
+            session?.partnerKind == PairedPartnerKind.realFriend &&
+            inviteStatus != null
+        ? SessionInviteAttentionChip(status: inviteStatus)
+        : null;
+
+    final participants = session?.participants ?? const <String>[];
+    final avatars = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final id in participants) ...[
+          _buildHeaderAvatar(id, session),
           const SizedBox(width: 8),
-          _DominantTimer(
-            elapsed: _elapsedTime,
-            workoutType: _workoutType.displayName,
-          ),
-          const SizedBox(width: 12),
-          GestureDetector(
-            onTap: () {
-              HapticManager.heavy();
-              _handleFinishSession();
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.error,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Text(
-                'End',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ),
         ],
-      ),
+        // Surface only states that need attention (declined / expired invite,
+        // or "waiting for plans") — everything else is minimal, C-style. Each
+        // avatar already emits a trailing gap, so no extra spacer is needed.
+        ?inviteStatusChip,
+        if (setupStatusChip != null) ...[
+          const SizedBox(width: 8),
+          setupStatusChip,
+        ],
+      ],
+    );
+
+    return SessionV2Header(
+      elapsedListenable: _elapsedNotifier,
+      avatars: avatars,
+      onEnd: _handleFinishSession,
     );
   }
 
+  /// Header avatar for C-style top bar. Active participant (whose turn it is,
+  /// or logging in the last 2 min) gets an accent ring + green live dot.
+  Widget _buildHeaderAvatar(String userId, Session? session) {
+    final currentUid = ref.read(authSessionProvider).value?.id;
+    final isSelf = userId == currentUid;
+    final isBot = userId == pairedBotFriendId;
+    final active =
+        session?.activeUserId == userId ||
+        (_participantProgress[userId]?.isActive ?? false);
+    final cachedUser = isSelf || isBot
+        ? null
+        : ref.read(userCacheServiceProvider).getUserSync(userId);
+    if (!isSelf &&
+        !isBot &&
+        cachedUser == null &&
+        _requestedParticipantNames.add(userId)) {
+      ref.read(userCacheServiceProvider).getUser(userId).then((_) {
+        if (mounted) setState(() {});
+      });
+    }
+    final label = isSelf
+        ? 'Y'
+        : isBot
+        ? 'B'
+        : ((cachedUser?.displayName ?? '?').trim().isNotEmpty
+              ? cachedUser!.displayName.trim()[0].toUpperCase()
+              : '?');
+    return SessionHeaderAvatar(label: label, active: active);
+  }
+
+  /// Small per-set panel shown directly under the C-style top bar: for the
+  /// current exercise, each participant's sets side by side as
+  /// weight × reps · time, with dim placeholders for planned-but-undone sets.
   Widget _buildV2ProgressRow(BuildContext context) {
-    final totalSets = _participantProgress.values
-        .fold<int>(0, (sum, p) => sum + p.totalSets);
-    final exerciseName = _currentTurnExercise ??
-        (_participantProgress.values.isNotEmpty
-            ? _participantProgress.values.first.currentExercise
-            : '');
-    final label = exerciseName.isNotEmpty
-        ? '${exerciseName.toUpperCase()} · SET $_currentSetNumber'
-        : 'GET STARTED';
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceV2,
-        border: Border(
-          bottom: BorderSide(
-            color: Colors.white.withValues(alpha: 0.06),
-            width: 1,
-          ),
-        ),
-      ),
-      child: Row(
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1,
-            ),
-          ),
-          const Spacer(),
-          Text(
-            '$totalSets sets',
-            style: const TextStyle(
-              color: Colors.white38,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _workoutTypeEmoji(WorkoutType type) {
-    if (type == WorkoutType.running || type == WorkoutType.walking) return '\u{1F3C3}';
-    if (type == WorkoutType.cycling) return '\u{1F6B4}';
-    if (type == WorkoutType.swimming) return '\u{1F3CA}';
-    if (type == WorkoutType.yoga) return '\u{1F9D8}';
-    if (type == WorkoutType.hiit) return '⚡';
-    if (type == WorkoutType.sports) return '⚽';
-    return '\u{1F4AA}';
-  }
-
-
-  /// Format elapsed duration as HH:MM:SS
-  String _formatElapsedTime(Duration duration) {
-    final hours = duration.inHours;
-    final minutes = duration.inMinutes.remainder(60);
-    final seconds = duration.inSeconds.remainder(60);
-
-    if (hours > 0) {
-      return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+    final session = ref.watch(currentSessionProvider(widget.sessionId)).value;
+    if (session == null || session.participants.length < 2) {
+      return const SizedBox.shrink();
     }
-    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
-  }
-}
 
-class PulseAnimation extends StatefulWidget {
-  final Widget child;
-  final Duration duration;
+    final exerciseName =
+        _currentTurnExercise ??
+        _currentExercise ??
+        (_plannedExercises.isNotEmpty ? _plannedExercises.first.name : '');
+    if (exerciseName.isEmpty) return const SizedBox.shrink();
 
-  const PulseAnimation({
-    super.key,
-    required this.child,
-    this.duration = const Duration(seconds: 2),
-  });
+    final events =
+        ref.watch(sessionEventsProvider(widget.sessionId)).value ??
+        const <TimelineEvent>[];
+    final match = _plannedExercises.where((e) => e.name == exerciseName);
+    final plannedSets = match.isNotEmpty ? match.first.plannedSets : 3;
+    final participants = session.participants;
 
-  @override
-  State<PulseAnimation> createState() => _PulseAnimationState();
-}
-
-class _PulseAnimationState extends State<PulseAnimation>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _scaleAnimation;
-  late Animation<double> _fadeAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(vsync: this, duration: widget.duration);
-    _scaleAnimation = Tween<double>(
-      begin: 0.8,
-      end: 1.2,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
-    _fadeAnimation = Tween<double>(
-      begin: 0.5,
-      end: 1.0,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
-
-    _controller.repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return Transform.scale(
-          scale: _scaleAnimation.value,
-          child: Opacity(opacity: _fadeAnimation.value, child: widget.child),
-        );
-      },
-    );
-  }
-}
-
-/// Horizontal exercise-plan progress strip.
-/// Shows labeled dots for up to [totalExercises] exercises;
-/// dots for [completedExercises] are filled lime.
-class PlanProgressBar extends StatelessWidget {
-  final int completedExercises;
-  final int totalExercises;
-
-  const PlanProgressBar({
-    super.key,
-    required this.completedExercises,
-    required this.totalExercises,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (totalExercises == 0) return const SizedBox.shrink();
-    final completed = completedExercises.clamp(0, totalExercises);
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      color: AppColors.surfaceV2,
-      child: Row(
-        children: [
-          Text(
-            'PLAN',
-            style: TextStyle(
-              color: AppColors.textV2Tertiary,
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 2,
-            ),
+    return SessionProgressRow(
+      exerciseName: exerciseName,
+      columns: [
+        for (final id in participants)
+          _buildSetColumn(
+            id,
+            exerciseName,
+            plannedSets,
+            events,
+            session,
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Row(
-              children: List.generate(totalExercises, (i) {
-                final done = i < completed;
-                return Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: done
-                            ? AppColors.accentLime
-                            : (AppColors.surfaceV2Active),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                );
-              }),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Text(
-            '$completed/$totalExercises',
-            style: TextStyle(
-              color: AppColors.accentLime,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class AnimatedProgressBar extends StatelessWidget {
-  final double value;
-  final Color backgroundColor;
-  final Color foregroundColor;
-  final double height;
-
-  const AnimatedProgressBar({
-    super.key,
-    required this.value,
-    this.backgroundColor = Colors.grey,
-    this.foregroundColor = Colors.blue,
-    this.height = 4,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: height,
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(height / 2),
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          return Stack(
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                width: constraints.maxWidth * value,
-                height: height,
-                decoration: BoxDecoration(
-                  color: foregroundColor,
-                  borderRadius: BorderRadius.circular(height / 2),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
-class BounceAnimation extends StatefulWidget {
-  final Widget child;
-  final VoidCallback? onTap;
-  final double scaleDown;
-  final Duration duration;
-
-  const BounceAnimation({
-    super.key,
-    required this.child,
-    this.onTap,
-    this.scaleDown = 0.95,
-    this.duration = const Duration(milliseconds: 100),
-  });
-
-  @override
-  State<BounceAnimation> createState() => _BounceAnimationState();
-}
-
-class _BounceAnimationState extends State<BounceAnimation>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _bounceController;
-  late Animation<double> _scaleAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _bounceController = AnimationController(duration: widget.duration, vsync: this);
-    _scaleAnimation = Tween<double>(
-      begin: 1.0,
-      end: widget.scaleDown,
-    ).animate(CurvedAnimation(parent: _bounceController, curve: Curves.easeInOut));
-  }
-
-  @override
-  void dispose() {
-    _bounceController.dispose();
-    super.dispose();
-  }
-
-  void _handleTapDown(TapDownDetails details) => _bounceController.forward();
-
-  void _handleTapUp(TapUpDetails details) {
-    _bounceController.reverse().then((_) => widget.onTap?.call());
-  }
-
-  void _handleTapCancel() => _bounceController.reverse();
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: _handleTapDown,
-      onTapUp: _handleTapUp,
-      onTapCancel: _handleTapCancel,
-      child: AnimatedBuilder(
-        animation: _scaleAnimation,
-        builder: (context, child) => Transform.scale(
-          scale: _scaleAnimation.value,
-          child: widget.child,
-        ),
-      ),
-    );
-  }
-}
-
-class _DominantTimer extends StatefulWidget {
-  final Duration elapsed;
-  final String workoutType;
-
-  const _DominantTimer({required this.elapsed, required this.workoutType});
-
-  @override
-  State<_DominantTimer> createState() => _DominantTimerState();
-}
-
-class _DominantTimerState extends State<_DominantTimer>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _glowController;
-  late Animation<double> _glowAnim;
-
-  @override
-  void initState() {
-    super.initState();
-    _glowController = AnimationController(
-      duration: const Duration(milliseconds: 1000),
-      vsync: this,
-    )..repeat(reverse: true);
-    _glowAnim = Tween<double>(begin: 20.0, end: 40.0).animate(
-      CurvedAnimation(parent: _glowController, curve: AppCurves.smooth),
+      ],
     );
   }
 
-  @override
-  void dispose() {
-    _glowController.dispose();
-    super.dispose();
-  }
-
-  Color _timerColor(Duration elapsed) {
-    final minutes = elapsed.inMinutes;
-    if (minutes < 45) return AppColors.accentLime;
-    if (minutes < 90) {
-      final t = (minutes - 45) / 45.0;
-      return Color.lerp(AppColors.accentLime, AppColors.warnV2, t)!;
+  /// One participant's set column for [exerciseName]: header (avatar + name)
+  /// then [plannedSets] compact rows, filled from their logged sets.
+  Widget _buildSetColumn(
+    String userId,
+    String exerciseName,
+    int plannedSets,
+    List<TimelineEvent> events,
+    Session session,
+  ) {
+    final currentUid = ref.read(authSessionProvider).value?.id;
+    final isSelf = userId == currentUid;
+    final isBot = userId == pairedBotFriendId;
+    final cachedUser = isSelf || isBot
+        ? null
+        : ref.read(userCacheServiceProvider).getUserSync(userId);
+    if (!isSelf &&
+        !isBot &&
+        cachedUser == null &&
+        _requestedParticipantNames.add(userId)) {
+      ref.read(userCacheServiceProvider).getUser(userId).then((_) {
+        if (mounted) setState(() {});
+      });
     }
-    final t = ((minutes - 90) / 30.0).clamp(0.0, 1.0);
-    return Color.lerp(AppColors.warnV2, AppColors.errorV2, t)!;
-  }
-
-  String _format(Duration d) {
-    final h = d.inHours;
-    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return h > 0 ? '$h:$m:$s' : '$m:$s';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _timerColor(widget.elapsed);
-    return AnimatedBuilder(
-      animation: _glowAnim,
-      builder: (context, _) => Container(
-        padding: const EdgeInsets.symmetric(vertical: 24),
-        decoration: BoxDecoration(
-          boxShadow: [
-            BoxShadow(
-              color: color.withValues(alpha: 0.3),
-              blurRadius: _glowAnim.value,
-              spreadRadius: 0,
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Text(
-              _format(widget.elapsed),
-              style: GoogleFonts.syne(
-                fontSize: 64,
-                fontWeight: FontWeight.w900,
-                color: color,
-                letterSpacing: -3,
-                height: 1,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              widget.workoutType.toUpperCase(),
-              style: GoogleFonts.outfit(
-                fontSize: 11,
-                color: AppColors.textV2Tertiary,
-                letterSpacing: 0.12,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
+    return buildSessionSetColumn(
+      userId: userId,
+      currentUid: currentUid,
+      exerciseName: exerciseName,
+      plannedSets: plannedSets,
+      events: events,
+      session: session,
+      isActiveFromProgress: _participantProgress[userId]?.isActive ?? false,
+      displayName: cachedUser?.displayName,
     );
   }
 }

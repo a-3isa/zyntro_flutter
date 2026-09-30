@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:google_fonts/google_fonts.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../widgets/widgets.dart';
 import '../../../core/models/models.dart';
 import '../../auth/auth_providers.dart';
-import 'package:flutter/services.dart';
 import '../../../services/moderation_service.dart';
 
 /// Blocked users page for managing blocked accounts.
@@ -75,7 +75,7 @@ class _BlockedUsersPageState extends ConsumerState<BlockedUsersPage> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
     final blockedUsersAsync = ref.watch(blockedUsersProvider);
 
     return Scaffold(
@@ -84,12 +84,7 @@ class _BlockedUsersPageState extends ConsumerState<BlockedUsersPage> {
         children: [
           // Custom Header
           Container(
-            padding: EdgeInsets.only(
-              top: MediaQuery.paddingOf(context).top + 8,
-              bottom: 8,
-              left: 16,
-              right: 16,
-            ),
+            padding: AppSpacing.headerPadding(context),
             decoration: BoxDecoration(
               color: AppColors.surfaceV2,
               border: Border(
@@ -98,29 +93,11 @@ class _BlockedUsersPageState extends ConsumerState<BlockedUsersPage> {
             ),
             child: Row(
               children: [
-                GestureDetector(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    Navigator.pop(context);
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceV2Elevated,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.arrow_back,
-                      color: AppColors.textV2Primary,
-                      size: 20,
-                    ),
-                  ),
-                ),
+                const ZyntroBackButton(),
                 const SizedBox(width: 16),
                 Text(
                   'Blocked Users',
-                  style: GoogleFonts.syne(
-                    fontSize: 20,
+                  style: AppTextStyles.h4.copyWith(
                     fontWeight: FontWeight.w700,
                     color: AppColors.textV2Primary,
                   ),
@@ -152,7 +129,7 @@ class _BlockedUsersPageState extends ConsumerState<BlockedUsersPage> {
                       );
                     },
                     loading: () =>
-                        const Center(child: CircularProgressIndicator()),
+                        const Center(child: CircularProgressIndicator(semanticsLabel: 'Loading blocked users')),
                     error: (e, _) => Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -175,33 +152,10 @@ class _BlockedUsersPageState extends ConsumerState<BlockedUsersPage> {
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.xxl),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.block, size: 80, color: Colors.grey.shade400),
-            const SizedBox(height: AppSpacing.lg),
-            const Text(
-              'No blocked users',
-              style: TextStyle(
-                fontSize: AppFontSize.xl,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              'When you block someone, they\'ll appear here',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.grey.shade600,
-                fontSize: AppFontSize.md,
-              ),
-            ),
-          ],
-        ),
-      ),
+    return const AppEmptyState(
+      icon: Icons.block,
+      title: 'No blocked users',
+      message: "When you block someone, they'll appear here",
     );
   }
 
@@ -221,9 +175,9 @@ class _BlockedUsersPageState extends ConsumerState<BlockedUsersPage> {
                   user.displayName.isNotEmpty
                       ? user.displayName[0].toUpperCase()
                       : 'U',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: AppColors.primary,
+                    color: AppColors.signal,
                   ),
                 )
               : null,

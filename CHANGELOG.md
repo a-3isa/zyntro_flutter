@@ -7,7 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- Host-only session pause/resume; engagement counters ±1; report/analytics create bounds
+- Profile photo Storage ACL mirrors Firestore privacy; invite-code abuse harden
+- Auth disk cache no longer stores email/photo URL; email enumeration / verification gates
+
+### Fixed
+- Joint post Storage cleanup on full removal; session expiry purges presence/plans
+- Arabic push copy across Cloud Function notification templates
+- iOS Release uses production `aps-environment`; Debug keeps development
+- Leaderboards hide blocked users; offline queue capped with non-retryable drop
+
 ### Added
+- Privacy consent + data export; PrivacyInfo collected types; data inventory ADR
+- Session wakelock; field performance traces; push path / functions unit contracts
+- Payments / offline-queue / platform-deadline ADRs; audit findings status sync
+
+### Changed
+- Clean-arch migration paused (auth remains the template); god-file extraction ongoing
+- CI Flutter pin + coverage floor; Codemagic/GHA ownership docs
+
+### Added (infra)
 - Deployment infrastructure setup
 - CI/CD pipelines (GitHub Actions & Codemagic)
 - Environment-based configuration (dev/staging/prod)

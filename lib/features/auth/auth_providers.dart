@@ -1,7 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/app_theme.dart';
 import '../../core/migration/migration.dart';
 import '../../services/notification_service.dart';
 import 'data/datasources/auth_local_data_source.dart';
@@ -107,10 +109,18 @@ final authSessionProvider = StreamProvider<AuthUserEntity?>((ref) {
   return ref.watch(authenticationUseCaseProvider).observeAuthState();
 });
 
+/// Narrow watch of the signed-in uid only (Z-CODE-001 / Riverpod.select).
+/// Prefer this over `ref.watch(authSessionProvider).value?.id` in build methods
+/// so AsyncValue loading/error transitions that keep the same id do not rebuild.
+final authCurrentUserIdProvider = Provider<String?>((ref) {
+  return ref.watch(
+    authSessionProvider.select((async) => async.asData?.value?.id),
+  );
+});
+
 /// Profile completion state used by routing decisions.
 final authProfileCompletionProvider = FutureProvider<bool>((ref) async {
-  final authState = ref.watch(authSessionProvider);
-  final uid = authState.valueOrNull?.id;
+  final uid = ref.watch(authCurrentUserIdProvider);
   if (uid == null) return false;
 
   final result = await ref
@@ -125,8 +135,7 @@ final authProfileCompletionProvider = FutureProvider<bool>((ref) async {
 
 /// Current authenticated user's profile in domain form.
 final authUserProfileProvider = FutureProvider<UserProfileEntity?>((ref) async {
-  final authState = ref.watch(authSessionProvider);
-  final uid = authState.valueOrNull?.id;
+  final uid = ref.watch(authCurrentUserIdProvider);
   if (uid == null) return null;
 
   final result = await ref.read(authenticationUseCaseProvider).getUserProfile(
@@ -135,5 +144,37 @@ final authUserProfileProvider = FutureProvider<UserProfileEntity?>((ref) async {
   return result.when(
     success: (profile) => profile,
     failure: (_) => null,
+  );
+});
+
+/// The current user's chosen accent color (stored in their profile as an
+/// ARGB/RGB hex string). Defaults to brand signal orange when absent.
+/// Drives [AppColors.userAccent] for avatars and gym type colour.
+final accentColorProvider = Provider<Color>((ref) {
+  final profile = ref.watch(authUserProfileProvider).value;
+  return _parseAccent(profile?.avatarConfig) ?? AppColors.accentLime;
+});
+
+Color? _parseAccent(String? config) {
+  if (config == null || config.isEmpty) return null;
+  final hex = config.replaceFirst('#', '').trim();
+  final value = int.tryParse(hex, radix: 16);
+  if (value == null) return null;
+  return Color(hex.length <= 6 ? (0xFF000000 | value) : value);
+}
+
+/// Waits for Firebase to resolve persisted auth, then checks whether a restored
+/// session belongs to a user who completed onboarding. Null means signed out.
+final authStartupProfileCompletionProvider = FutureProvider<bool?>((ref) async {
+  final user = await ref.watch(authSessionProvider.future);
+  final uid = user?.id;
+  if (uid == null) return null;
+
+  final result = await ref
+      .read(authenticationUseCaseProvider)
+      .isProfileComplete(uid);
+  return result.when(
+    success: (isComplete) => isComplete,
+    failure: (failure) => throw StateError(failure.toString()),
   );
 });

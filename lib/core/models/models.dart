@@ -5,12 +5,13 @@ import '../constants/constants.dart';
 class User {
   final String id;
   final String displayName;
-  final String? photoURL;
   final String?
-  avatarConfig; // Stores avatar customization data (for custom avatars)
+  username; // Unique handle (lowercase a-z 0-9 _), shown as @username
+  final String? photoURL;
   final bool isPrivate;
   final WorkoutType workoutPreference;
   final bool beginnerFlag;
+  final String? avatarConfig;
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? lastActive; // Added for presence caching
@@ -31,11 +32,12 @@ class User {
   User({
     required this.id,
     required this.displayName,
+    this.username,
     this.photoURL,
-    this.avatarConfig,
     required this.isPrivate,
     required this.workoutPreference,
     required this.beginnerFlag,
+    this.avatarConfig,
     required this.createdAt,
     required this.updatedAt,
     this.buddyIds,
@@ -55,13 +57,14 @@ class User {
     return User(
       id: doc.id,
       displayName: data['displayName'] ?? '',
+      username: data['username'] as String?,
       photoURL: data['photoURL'],
-      avatarConfig: data['avatarConfig'],
       isPrivate: data['isPrivate'] ?? false,
       workoutPreference: WorkoutType.fromString(
         data['workoutPreference'] ?? 'both',
       ),
       beginnerFlag: data['beginnerFlag'] ?? false,
+      avatarConfig: data['avatarConfig'] as String?,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       buddyIds: (data['buddyIds'] as List<dynamic>?)?.cast<String>(),
@@ -81,22 +84,16 @@ class User {
   Map<String, dynamic> toFirestore() {
     return {
       'displayName': displayName,
+      if (username != null) 'username': username,
       'photoURL': photoURL,
-      if (avatarConfig != null) 'avatarConfig': avatarConfig,
       'isPrivate': isPrivate,
       'workoutPreference': workoutPreference.value,
       'beginnerFlag': beginnerFlag,
+      if (avatarConfig != null) 'avatarConfig': avatarConfig,
       'updatedAt': FieldValue.serverTimestamp(),
       if (lastActive != null) 'lastActive': Timestamp.fromDate(lastActive!),
-      'workoutScore': workoutScore,
-      'totalWorkouts': totalWorkouts,
-      'hasGlobalLeaderboardAccess': hasGlobalLeaderboardAccess,
-      if (globalAccessGrantedAt != null)
-        'globalAccessGrantedAt': Timestamp.fromDate(globalAccessGrantedAt!),
-      'isModerator': isModerator,
-      'isBanned': isBanned,
-      if (bannedUntil != null) 'bannedUntil': Timestamp.fromDate(bannedUntil!),
-      if (banReason != null) 'banReason': banReason,
+      // workoutScore / streaks / moderation / leaderboard entitlements are
+      // server-owned (Z-DATA-001) — never included in client writes.
     };
   }
 }
@@ -112,12 +109,39 @@ class Session {
   final SessionPhase phase;
   final String? buddyPairId;
   final String? activeUserId;
+  final PairedPartnerKind? partnerKind;
+  final String? partnerId;
+  final WorkoutInvitationStatus? invitationStatus;
+  final DateTime? sharedClockStartedAt;
+  /// When the current active participant started their current set (tapped
+  /// START). Null between sets. Drives the partner's per-set timer so it counts
+  /// the set, not the whole session.
+  final DateTime? activeSetStartedAt;
   final SessionSummary? summary;
   final DateTime createdAt;
   final DateTime startedAt;
   final DateTime? endedAt;
+
   /// Per-participant workout type choice. {userId: workoutTypeValue}
   final Map<String, String> participantTypes;
+
+  /// Most recent moment any participant recorded work or changed session
+  /// state — a set logged, a turn passed, a plan committed, an invite
+  /// accepted. Merely viewing the session does NOT move this.
+  final DateTime? lastActivityAt;
+
+  /// Most recent moment any participant had the session room open, refreshed
+  /// by the presence heartbeat.
+  final DateTime? lastOccupiedAt;
+
+  /// `max(lastActivityAt, lastOccupiedAt) + 3h`. Stored rather than derived so
+  /// the scheduled sweep can range-filter on a single field — Firestore allows
+  /// only one range filter per query.
+  final DateTime? expiresAt;
+
+  /// Participants who have terminated their own part in the session.
+  /// Terminating is per-member: the session stays live for everyone else.
+  final List<String> endedParticipants;
 
   Session({
     required this.id,
@@ -129,27 +153,52 @@ class Session {
     this.phase = SessionPhase.live,
     this.buddyPairId,
     this.activeUserId,
+    this.partnerKind,
+    this.partnerId,
+    this.invitationStatus,
+    this.sharedClockStartedAt,
+    this.activeSetStartedAt,
     this.summary,
     required this.createdAt,
     required this.startedAt,
     this.endedAt,
     this.participantTypes = const {},
+    this.lastActivityAt,
+    this.lastOccupiedAt,
+    this.expiresAt,
+    this.endedParticipants = const [],
   });
 
   /// Derive session mode from participant workout types.
-  /// Same type for all → turn-based; mixed types → parallel.
-  SessionMode get derivedMode {
-    if (participantTypes.isEmpty || participantTypes.values.toSet().length == 1) {
+  ///
+  /// Turn-based only when every participant is on gym. Same-type cardio
+  /// (e.g. running+running) and mixed types are parallel (Z-RT-001).
+  static SessionMode modeFromParticipantTypes(
+    Map<String, String> participantTypes,
+  ) {
+    final types = participantTypes.values.toSet();
+    if (types.length == 1 && types.single == WorkoutType.gym.value) {
       return SessionMode.turnBased;
     }
     return SessionMode.parallel;
   }
 
+  SessionMode get derivedMode => modeFromParticipantTypes(participantTypes);
+
+  bool get hasExactlyTwoParticipants => participants.length == 2;
+
   factory Session.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+    return Session.fromMap(id: doc.id, data: data);
+  }
+
+  factory Session.fromMap({
+    required String id,
+    required Map<String, dynamic> data,
+  }) {
     final rawTypes = data['participantTypes'] as Map<String, dynamic>?;
     return Session(
-      id: doc.id,
+      id: id,
       type: data['type'] ?? 'strength',
       title: data['title'] ?? '',
       hostId: data['hostId'] ?? '',
@@ -159,15 +208,191 @@ class Session {
       phase: SessionPhase.fromString(data['phase'] ?? 'live'),
       buddyPairId: data['buddyPairId'],
       activeUserId: data['activeUserId'],
+      partnerKind: data['partnerKind'] != null
+          ? PairedPartnerKind.fromString(data['partnerKind'] as String)
+          : null,
+      partnerId: data['partnerId'],
+      invitationStatus: data['invitationStatus'] != null
+          ? WorkoutInvitationStatus.fromString(
+              data['invitationStatus'] as String,
+            )
+          : null,
+      sharedClockStartedAt: _dateTimeFromValue(data['sharedClockStartedAt']),
+      activeSetStartedAt: _dateTimeFromValue(data['activeSetStartedAt']),
       summary: data['summary'] != null
           ? SessionSummary.fromMap(data['summary'] as Map<String, dynamic>)
           : null,
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      startedAt: (data['startedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      endedAt: (data['endedAt'] as Timestamp?)?.toDate(),
+      createdAt: _dateTimeFromValue(data['createdAt']) ?? DateTime.now(),
+      startedAt: _dateTimeFromValue(data['startedAt']) ?? DateTime.now(),
+      endedAt: _dateTimeFromValue(data['endedAt']),
       participantTypes: rawTypes != null
           ? rawTypes.map((k, v) => MapEntry(k, v as String))
           : const {},
+      lastActivityAt: _dateTimeFromValue(data['lastActivityAt']),
+      lastOccupiedAt: _dateTimeFromValue(data['lastOccupiedAt']),
+      expiresAt: _dateTimeFromValue(data['expiresAt']),
+      endedParticipants:
+          (data['endedParticipants'] as List<dynamic>?)?.cast<String>() ??
+          const [],
+    );
+  }
+
+  /// How long a session survives with no activity and nobody present.
+  static const inactivityLimit = Duration(hours: 3);
+
+  /// Whether [userId] has terminated their own part in this session.
+  bool hasTerminated(String userId) => endedParticipants.contains(userId);
+
+  /// Whether the session has passed its expiry.
+  ///
+  /// A session written before this feature has no [expiresAt] and is treated as
+  /// expired — the sweep cannot see it, so it must never be resumed either.
+  bool isExpiredAt(DateTime now) =>
+      expiresAt == null || !now.isBefore(expiresAt!);
+
+  /// Whether [userId] can be automatically returned to this session.
+  ///
+  /// Live stage only. A session still in setup, or one already completed or
+  /// cancelled, is never resumed — there is no separate "wrap-up" stage to
+  /// check for, because a wrapped-up session is simply completed.
+  bool isResumableFor(String userId, DateTime now) =>
+      phase == SessionPhase.live &&
+      status == SessionStatus.active &&
+      participants.contains(userId) &&
+      !hasTerminated(userId) &&
+      !isExpiredAt(now);
+}
+
+DateTime? _dateTimeFromValue(Object? value) {
+  if (value == null) return null;
+  if (value is DateTime) return value;
+  if (value is Timestamp) return value.toDate();
+  if (value is String) return DateTime.tryParse(value);
+  return null;
+}
+
+class DistanceProgressMetrics {
+  final double distanceKm;
+
+  const DistanceProgressMetrics({required this.distanceKm});
+
+  Map<String, dynamic> toMap() {
+    return {'distanceKm': distanceKm};
+  }
+}
+
+class GymProgressMetrics {
+  final int setSeconds;
+  final int reps;
+  final double weightKg;
+
+  const GymProgressMetrics({
+    required this.setSeconds,
+    required this.reps,
+    required this.weightKg,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {'setSeconds': setSeconds, 'reps': reps, 'weightKg': weightKg};
+  }
+}
+
+class TimeProgressMetrics {
+  final int elapsedSeconds;
+
+  const TimeProgressMetrics({required this.elapsedSeconds});
+
+  Map<String, dynamic> toMap() {
+    return {'elapsedSeconds': elapsedSeconds};
+  }
+}
+
+class RoundProgressMetrics {
+  final int completedRounds;
+
+  const RoundProgressMetrics({required this.completedRounds});
+
+  Map<String, dynamic> toMap() {
+    return {'completedRounds': completedRounds};
+  }
+}
+
+class MobilityProgressMetrics {
+  final int completedStages;
+
+  const MobilityProgressMetrics({required this.completedStages});
+
+  Map<String, dynamic> toMap() {
+    return {'completedStages': completedStages};
+  }
+}
+
+class ParticipantProgress {
+  final String sessionId;
+  final String userId;
+  final WorkoutType workoutType;
+  final ParticipantProgressStatus status;
+  final int sharedElapsedSeconds;
+  final GymProgressMetrics? gymMetrics;
+  final TimeProgressMetrics? timeMetrics;
+  final DistanceProgressMetrics? distanceMetrics;
+  final RoundProgressMetrics? roundMetrics;
+  final MobilityProgressMetrics? mobilityMetrics;
+  final DateTime updatedAt;
+
+  const ParticipantProgress({
+    required this.sessionId,
+    required this.userId,
+    required this.workoutType,
+    required this.status,
+    required this.sharedElapsedSeconds,
+    this.gymMetrics,
+    this.timeMetrics,
+    this.distanceMetrics,
+    this.roundMetrics,
+    this.mobilityMetrics,
+    required this.updatedAt,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'sessionId': sessionId,
+      'userId': userId,
+      'workoutType': workoutType.value,
+      'status': status.value,
+      'sharedElapsedSeconds': sharedElapsedSeconds,
+      if (gymMetrics != null) 'gymMetrics': gymMetrics!.toMap(),
+      if (timeMetrics != null) 'timeMetrics': timeMetrics!.toMap(),
+      if (distanceMetrics != null) 'distanceMetrics': distanceMetrics!.toMap(),
+      if (roundMetrics != null) 'roundMetrics': roundMetrics!.toMap(),
+      if (mobilityMetrics != null) 'mobilityMetrics': mobilityMetrics!.toMap(),
+      'updatedAt': Timestamp.fromDate(updatedAt),
+    };
+  }
+}
+
+class BotFriend {
+  final String id;
+  final String displayName;
+  final int gymSetSeconds;
+  final int gymReps;
+  final double gymWeightKg;
+
+  const BotFriend({
+    required this.id,
+    required this.displayName,
+    required this.gymSetSeconds,
+    required this.gymReps,
+    required this.gymWeightKg,
+  });
+
+  factory BotFriend.gymSimulation() {
+    return const BotFriend(
+      id: pairedBotFriendId,
+      displayName: 'Zyntro Bot',
+      gymSetSeconds: 7,
+      gymReps: 8,
+      gymWeightKg: 80,
     );
   }
 }
@@ -344,20 +569,63 @@ class SessionSummary {
   }
 }
 
+/// Per-set detail stored inside an ExerciseSummary.
+class SetSummary {
+  final int reps;
+  final double weight;
+  final int durationSeconds;
+
+  SetSummary({
+    required this.reps,
+    required this.weight,
+    required this.durationSeconds,
+  });
+
+  factory SetSummary.fromMap(Map<String, dynamic> data) {
+    return SetSummary(
+      reps: data['reps'] ?? 0,
+      weight: (data['weight'] as num?)?.toDouble() ?? 0.0,
+      durationSeconds: data['durationSeconds'] ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'reps': reps,
+    'weight': weight,
+    'durationSeconds': durationSeconds,
+  };
+}
+
 /// Exercise summary for session recap.
 class ExerciseSummary {
   final String name;
   final int sets;
+  final List<SetSummary> setDetails;
 
-  ExerciseSummary({required this.name, required this.sets});
+  ExerciseSummary({
+    required this.name,
+    required this.sets,
+    this.setDetails = const [],
+  });
 
   factory ExerciseSummary.fromMap(Map<String, dynamic> data) {
-    return ExerciseSummary(name: data['name'] ?? '', sets: data['sets'] ?? 0);
+    return ExerciseSummary(
+      name: data['name'] ?? '',
+      sets: data['sets'] ?? 0,
+      setDetails:
+          (data['setDetails'] as List<dynamic>?)
+              ?.map((e) => SetSummary.fromMap(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+    );
   }
 
-  Map<String, dynamic> toMap() {
-    return {'name': name, 'sets': sets};
-  }
+  Map<String, dynamic> toMap() => {
+    'name': name,
+    'sets': sets,
+    if (setDetails.isNotEmpty)
+      'setDetails': setDetails.map((s) => s.toMap()).toList(),
+  };
 }
 
 /// Timeline event model for session room.
@@ -429,10 +697,55 @@ class BuddyPair {
   }
 }
 
+/// PostAuthorSlot model for co-authored posts.
+class PostAuthorSlot {
+  final String userId;
+  final String? caption;
+  final String? photoUrl;
+  final bool confirmed;
+  final bool removed;
+  final String visibility; // this author's chosen 'public' | 'private'
+  final SessionSummary summary;
+
+  const PostAuthorSlot({
+    required this.userId,
+    this.caption,
+    this.photoUrl,
+    this.confirmed = false,
+    this.removed = false,
+    this.visibility = 'public',
+    required this.summary,
+  });
+
+  factory PostAuthorSlot.fromMap(Map<String, dynamic> d) => PostAuthorSlot(
+        userId: d['userId'] ?? '',
+        caption: d['caption'],
+        photoUrl: d['photoUrl'],
+        confirmed: d['confirmed'] ?? false,
+        removed: d['removed'] ?? false,
+        visibility: d['visibility'] ?? 'public',
+        summary: SessionSummary.fromMap(Map<String, dynamic>.from(d['summary'] as Map? ?? {})),
+      );
+
+  Map<String, dynamic> toMap() => {
+        'userId': userId,
+        'caption': caption,
+        'photoUrl': photoUrl,
+        'confirmed': confirmed,
+        'removed': removed,
+        'visibility': visibility,
+        'summary': summary.toMap(),
+      };
+}
+
 /// Post model matching Firestore posts collection.
 class Post {
   final String id;
   final String authorId;
+  final List<String> authorIds;
+  final String status;
+  final bool coAuthored;
+  final Map<String, PostAuthorSlot> authors;
   final String sessionId;
   final String visibility; // 'public' | 'private' | 'friends'
   final String title;
@@ -450,6 +763,10 @@ class Post {
   Post({
     required this.id,
     required this.authorId,
+    this.authorIds = const [],
+    this.status = 'published',
+    this.coAuthored = false,
+    this.authors = const {},
     required this.sessionId,
     required this.visibility,
     required this.title,
@@ -464,25 +781,40 @@ class Post {
     this.reactionCounts,
   });
 
-  factory Post.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+  factory Post.fromFirestore(DocumentSnapshot doc) =>
+      Post.fromMap(doc.id, doc.data() as Map<String, dynamic>);
+
+  factory Post.fromMap(String id, Map<String, dynamic> data) {
+    final authorId = data['authorId'] ?? '';
+    Map<String, PostAuthorSlot>? authorsMap;
+    if (data['authors'] != null) {
+      final authorsData = data['authors'] as Map<String, dynamic>;
+      authorsMap = authorsData.map(
+        (k, v) => MapEntry(k, PostAuthorSlot.fromMap(Map<String, dynamic>.from(v as Map))),
+      );
+    }
+
     return Post(
-      id: doc.id,
-      authorId: data['authorId'] ?? '',
+      id: id,
+      authorId: authorId,
+      authorIds: (data['authorIds'] as List<dynamic>?)?.cast<String>() ??
+          (authorId.isEmpty ? const [] : [authorId]),
+      status: data['status'] ?? 'published',
+      coAuthored: data['coAuthored'] ?? false,
+      authors: authorsMap ?? const {},
       sessionId: data['sessionId'] ?? '',
       visibility: data['visibility'] ?? 'public',
       title: data['title'] ?? '',
       type: data['type'] ?? 'strength',
-      summary: SessionSummary.fromMap(data['summary'] ?? {}),
+      summary: SessionSummary.fromMap(Map<String, dynamic>.from(data['summary'] as Map? ?? {})),
       mediaURLs: (data['mediaURLs'] as List<dynamic>?)?.cast<String>(),
       buddyId: data['buddyId'],
       buddyName: data['buddyName'],
       likesCount: data['likesCount'] ?? 0,
       commentsCount: data['commentsCount'] ?? 0,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      reactionCounts: (data['reactionCounts'] as Map<String, dynamic>?)?.map(
-        (key, value) => MapEntry(key, value as int),
-      ),
+      reactionCounts: (data['reactionCounts'] as Map<String, dynamic>?)
+          ?.map((k, v) => MapEntry(k, v as int)),
     );
   }
 }
@@ -520,11 +852,22 @@ class SetData {
   final double weight;
   final int reps;
   final int? rpe;
+  final int durationSeconds;
 
-  SetData({required this.weight, required this.reps, this.rpe});
+  SetData({
+    required this.weight,
+    required this.reps,
+    this.rpe,
+    this.durationSeconds = 0,
+  });
 
   Map<String, dynamic> toMap() {
-    return {'weight': weight, 'reps': reps, if (rpe != null) 'rpe': rpe};
+    return {
+      'weight': weight,
+      'reps': reps,
+      if (rpe != null) 'rpe': rpe,
+      'durationSeconds': durationSeconds,
+    };
   }
 }
 
@@ -760,7 +1103,6 @@ class ActivityItem {
   final String userId;
   final String userName;
   final String? userPhotoURL;
-  final String? userAvatarConfig;
   final String type; // 'workout' or 'post'
   final String workoutType; // 'gym', 'running', etc.
   final String title;
@@ -773,7 +1115,6 @@ class ActivityItem {
     required this.userId,
     required this.userName,
     this.userPhotoURL,
-    this.userAvatarConfig,
     required this.type,
     required this.workoutType,
     required this.title,
@@ -798,7 +1139,6 @@ class ActivityItem {
       userId: workout.userId,
       userName: user.displayName,
       userPhotoURL: user.photoURL,
-      userAvatarConfig: user.avatarConfig,
       type: 'workout',
       workoutType: workout.type,
       title: workout.title,
@@ -815,7 +1155,6 @@ class ActivityItem {
       userId: post.authorId,
       userName: user.displayName,
       userPhotoURL: user.photoURL,
-      userAvatarConfig: user.avatarConfig,
       type: 'post',
       workoutType: post.type,
       title: post.title,
@@ -836,7 +1175,6 @@ class ActivityItem {
       userId: data['authorId'] ?? '',
       userName: user.displayName,
       userPhotoURL: user.photoURL,
-      userAvatarConfig: user.avatarConfig,
       type: 'post',
       workoutType: data['type'] ?? 'gym',
       title: data['title'] ?? '',

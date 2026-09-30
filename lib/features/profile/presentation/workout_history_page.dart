@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+
+import '../../../core/theme/app_text_styles.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../auth/auth_providers.dart';
 import '../../../utils/haptic_manager.dart';
+import '../../../services/profile_cache_service.dart';
+import '../../../widgets/zyntro_back_button.dart';
 
 class Workout {
   final String id;
@@ -68,12 +71,27 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
   String _selectedFilter = 'All';
   late PageController _pageController;
   int _currentCarouselIndex = 0;
+  bool _fromCache = false;
 
   @override
   void initState() {
     super.initState();
     _pageController = PageController(viewportFraction: 0.9);
+    _seedFromCache();
     _loadWorkouts();
+  }
+
+  // T037: seed from cache immediately so offline users see data while network loads.
+  void _seedFromCache() {
+    final authState = ref.read(authSessionProvider);
+    final userId = widget.userId ?? authState.value?.id;
+    if (userId == null) return;
+    final cached = ref.read(profileCacheServiceProvider).readWorkoutHistory(userId);
+    if (cached.isNotEmpty && _workouts.isEmpty) {
+      _workouts.addAll(cached.map(_workoutFromMap));
+      _fromCache = true;
+      _isLoading = false;
+    }
   }
 
   @override
@@ -84,10 +102,11 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
 
   Future<void> _loadWorkouts() async {
     final authState = ref.read(authSessionProvider);
-    final userId = widget.userId ?? authState.valueOrNull?.id;
+    final userId = widget.userId ?? authState.value?.id;
     if (userId == null) return;
 
-    setState(() => _isLoading = true);
+    // Only show spinner if no cached data is already showing.
+    if (_workouts.isEmpty) setState(() => _isLoading = true);
 
     try {
       final firestore = ref.read(authFirestoreProvider);
@@ -108,8 +127,22 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
       final snapshot = await query.get();
       final workouts = snapshot.docs.map((doc) => Workout.fromFirestore(doc)).toList();
 
+      // T037: write fresh data to cache.
+      if (workouts.isNotEmpty && _lastDoc == null) {
+        ref.read(profileCacheServiceProvider)
+            .writeWorkoutHistory(userId, workouts.map(_workoutToMap).toList());
+      }
+
       setState(() {
-        _workouts.addAll(workouts);
+        if (_fromCache) {
+          // Replace stale cache data with fresh Firestore data.
+          _workouts
+            ..clear()
+            ..addAll(workouts);
+          _fromCache = false;
+        } else {
+          _workouts.addAll(workouts);
+        }
         _lastDoc = snapshot.docs.isNotEmpty ? snapshot.docs.last : null;
         _hasMore = snapshot.docs.length == 20;
         _isLoading = false;
@@ -119,6 +152,30 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
       setState(() => _isLoading = false);
     }
   }
+
+  Map<String, dynamic> _workoutToMap(Workout w) => {
+        'id': w.id,
+        'userId': w.userId,
+        'sessionId': w.sessionId,
+        'type': w.type,
+        'title': w.title,
+        'summary': w.summary,
+        'participants': w.participants,
+        'endedAt': w.endedAt.toIso8601String(),
+        'createdAt': w.createdAt.toIso8601String(),
+      };
+
+  Workout _workoutFromMap(Map<String, dynamic> m) => Workout(
+        id: m['id'] as String,
+        userId: m['userId'] as String,
+        sessionId: m['sessionId'] as String,
+        type: m['type'] as String,
+        title: m['title'] as String,
+        summary: m['summary'] as Map<String, dynamic>?,
+        participants: (m['participants'] as List<dynamic>?)?.cast<String>() ?? [],
+        endedAt: DateTime.parse(m['endedAt'] as String),
+        createdAt: DateTime.parse(m['createdAt'] as String),
+      );
 
   Future<void> _refresh() async {
     _workouts.clear();
@@ -142,30 +199,11 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
             ),
             child: Row(
               children: [
-                GestureDetector(
-                  onTap: () {
-                    HapticManager.light();
-                    context.pop();
-                  },
-                  child: Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceV2Elevated,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.arrow_back,
-                      color: AppColors.textV2Primary,
-                      size: 20,
-                    ),
-                  ),
-                ),
+                ZyntroBackButton(onPressed: () => context.pop()),
                 const SizedBox(width: 16),
                 Text(
                   'Workout History',
-                  style: GoogleFonts.syne(
-                    fontSize: 20,
+                  style: AppTextStyles.h4.copyWith(
                     fontWeight: FontWeight.w700,
                     color: AppColors.textV2Primary,
                   ),
@@ -179,7 +217,7 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
                 HapticManager.medium();
                 await _refresh();
               },
-              color: AppColors.accentLime,
+              color: AppColors.signal,
               backgroundColor: AppColors.surfaceV2,
               child: _buildContent(),
             ),
@@ -232,13 +270,12 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
                 color: AppColors.surfaceV2Elevated,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.fitness_center, size: 48, color: AppColors.accentLime),
+              child: Icon(Icons.fitness_center, size: 48, color: AppColors.signal),
             ),
             const SizedBox(height: AppSpacing.lg),
             Text(
               'No workouts yet',
-              style: GoogleFonts.syne(
-                fontSize: AppFontSize.lg,
+              style: AppTextStyles.h5.copyWith(
                 fontWeight: FontWeight.w700,
                 color: AppColors.textV2Primary,
               ),
@@ -268,8 +305,7 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
                 padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, 0),
                 child: Text(
                   'History',
-                  style: GoogleFonts.syne(
-                    fontSize: AppFontSize.lg,
+                  style: AppTextStyles.h5.copyWith(
                     fontWeight: FontWeight.w700,
                     color: AppColors.textV2Primary,
                   ),
@@ -285,10 +321,10 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
               (context, index) {
                 if (index == grouped.length) {
                   if (_isLoading) {
-                    return const Center(
+                    return Center(
                       child: Padding(
                         padding: EdgeInsets.all(AppSpacing.lg),
-                        child: CircularProgressIndicator(color: AppColors.accentLime),
+                        child: CircularProgressIndicator(color: AppColors.signal),
                       ),
                     );
                   }
@@ -349,13 +385,13 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: AppColors.accentLime.withValues(alpha: 0.12),
+                  color: AppColors.signal.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
                   workout.type.toUpperCase(),
-                  style: GoogleFonts.outfit(
-                    color: AppColors.accentLime,
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.signal,
                     fontWeight: FontWeight.w700,
                     fontSize: 10,
                   ),
@@ -369,9 +405,8 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
           ),
           Text(
             workout.title,
-            style: GoogleFonts.syne(
+            style: AppTextStyles.h4.copyWith(
               color: AppColors.textV2Primary,
-              fontSize: 20,
               fontWeight: FontWeight.w700,
             ),
             maxLines: 2,
@@ -386,7 +421,7 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
                 style: TextStyle(color: AppColors.textV2Primary, fontWeight: FontWeight.w500),
               ),
               const Spacer(),
-              const Icon(Icons.arrow_forward, color: AppColors.accentLime),
+              Icon(Icons.arrow_forward, color: AppColors.signal),
             ],
           ),
         ],
@@ -405,7 +440,7 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
           width: isActive ? 16 : 6,
           height: 6,
           decoration: BoxDecoration(
-            color: isActive ? AppColors.accentLime : AppColors.textV2Tertiary,
+            color: isActive ? AppColors.signal : AppColors.textV2Tertiary,
             borderRadius: BorderRadius.circular(3),
           ),
         );
@@ -442,14 +477,14 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
                 }
               },
               backgroundColor: AppColors.surfaceV2Elevated,
-              selectedColor: AppColors.accentLime,
+              selectedColor: AppColors.signal,
               labelStyle: TextStyle(
                 color: isSelected ? AppColors.backgroundV2 : AppColors.textV2Secondary,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
               checkmarkColor: AppColors.backgroundV2,
               side: BorderSide(
-                color: isSelected ? AppColors.accentLime : AppColors.surfaceV2Active,
+                color: isSelected ? AppColors.signal : AppColors.surfaceV2Active,
               ),
             ),
           );
@@ -478,8 +513,7 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
           padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
           child: Text(
             date,
-            style: GoogleFonts.outfit(
-              fontSize: AppFontSize.md,
+            style: AppTextStyles.bodyLarge.copyWith(
               fontWeight: FontWeight.w700,
               color: AppColors.textV2Primary,
             ),
@@ -512,10 +546,10 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: AppColors.accentLime.withValues(alpha: 0.12),
+                  color: AppColors.signal.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(AppBorderRadius.sm),
                 ),
-                child: Icon(typeIcon, color: AppColors.accentLime),
+                child: Icon(typeIcon, color: AppColors.signal),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
@@ -573,10 +607,10 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
                 Container(
                   padding: const EdgeInsets.all(AppSpacing.xs),
                   decoration: BoxDecoration(
-                    color: AppColors.accentLime.withValues(alpha: 0.15),
+                    color: AppColors.signal.withValues(alpha: 0.15),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.people, size: 16, color: AppColors.accentLime),
+                  child: Icon(Icons.people, size: 16, color: AppColors.signal),
                 ),
               ],
             ],

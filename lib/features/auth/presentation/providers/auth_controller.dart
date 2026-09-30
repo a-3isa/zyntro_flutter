@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/auth/sign_out_cleanup.dart';
 import '../../../../core/common/result.dart';
 import '../../../../core/constants/constants.dart';
 import '../../../../core/migration/migration.dart';
@@ -26,6 +27,7 @@ final authControllerProvider = Provider<AuthController>((ref) {
     validationEvidenceService: ref.read(validationEvidenceServiceProvider),
     domainFailureCategoryMapper: ref.read(domainFailureCategoryMapperProvider),
     telemetryBaselineService: ref.read(telemetryBaselineServiceProvider),
+    signOutCleanup: ref.read(signOutCleanupProvider),
   );
 });
 
@@ -35,6 +37,7 @@ class AuthController {
   final ValidationEvidenceService _validationEvidenceService;
   final DomainFailureCategoryMapper _domainFailureCategoryMapper;
   final TelemetryBaselineService _telemetryBaselineService;
+  final SignOutCleanup _signOutCleanup;
 
   AuthController({
     required AuthenticationUseCase useCase,
@@ -42,11 +45,13 @@ class AuthController {
     required ValidationEvidenceService validationEvidenceService,
     required DomainFailureCategoryMapper domainFailureCategoryMapper,
     required TelemetryBaselineService telemetryBaselineService,
-  }) : _useCase = useCase,
-       _migrationRepository = migrationRepository,
-       _validationEvidenceService = validationEvidenceService,
-       _domainFailureCategoryMapper = domainFailureCategoryMapper,
-       _telemetryBaselineService = telemetryBaselineService;
+    required SignOutCleanup signOutCleanup,
+  })  : _useCase = useCase,
+        _migrationRepository = migrationRepository,
+        _validationEvidenceService = validationEvidenceService,
+        _domainFailureCategoryMapper = domainFailureCategoryMapper,
+        _telemetryBaselineService = telemetryBaselineService,
+        _signOutCleanup = signOutCleanup;
 
   Future<AuthUserEntity> signInWithEmail(String email, String password) async {
     await ensureMigrationSliceInitialized();
@@ -78,7 +83,15 @@ class AuthController {
     return _resolveValue(result);
   }
 
+  Future<AuthUserEntity?> signInWithApple() async {
+    await ensureMigrationSliceInitialized();
+    final result = await _useCase.signInWithApple();
+    return _resolveValue(result);
+  }
+
   Future<void> signOut() async {
+    final current = await _useCase.getCurrentUser();
+    await _signOutCleanup.run(userId: current?.id);
     final result = await _useCase.signOut();
     await _resolveVoid(result);
   }
@@ -117,6 +130,7 @@ class AuthController {
     String? photoUrl,
     String? avatarConfig,
     String? authProvider,
+    int? trainingDaysPerWeek,
   }) async {
     final result = await _useCase.createUserProfile(
       userId: userId,
@@ -126,6 +140,7 @@ class AuthController {
       photoUrl: photoUrl,
       avatarConfig: avatarConfig,
       authProvider: authProvider,
+      trainingDaysPerWeek: trainingDaysPerWeek,
     );
     await _resolveVoid(result);
   }
@@ -166,6 +181,8 @@ class AuthController {
   }
 
   Future<void> deleteAccount(String password) async {
+    final current = await _useCase.getCurrentUser();
+    await _signOutCleanup.run(userId: current?.id);
     final result = await _useCase.deleteAccount(password);
     await _resolveVoid(result);
   }

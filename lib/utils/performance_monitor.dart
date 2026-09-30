@@ -21,7 +21,7 @@ class PerformanceMonitor {
       final duration = DateTime.now().difference(startTime).inMilliseconds;
       if (duration > warningThresholdMs) {
         debugPrint(
-          '⚠️ [Performance] $name took ${duration}ms (Exceeded ${warningThresholdMs}ms)',
+          '[Performance] $name took ${duration}ms (Exceeded ${warningThresholdMs}ms)',
         );
       } else {
         // debugPrint('[Performance] $name took ${duration}ms');

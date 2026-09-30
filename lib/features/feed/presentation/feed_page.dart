@@ -2,13 +2,16 @@ import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
-
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/workout_type_visuals.dart';
 import '../../../core/constants/feature_flags.dart';
+import '../../../core/ui/image_decode_budget.dart';
 import '../../../app/navigation/app_router.dart';
+import '../../../app/navigation/app_route_locations.dart';
 import '../../../core/models/models.dart';
 import '../../auth/auth_providers.dart';
 import '../../../services/post_service.dart';
@@ -17,15 +20,18 @@ import '../../../services/follow_service.dart';
 import '../../../services/user_cache_service.dart';
 import '../../../utils/haptic_manager.dart';
 import '../../../utils/image_cache_manager.dart';
-import '../../../widgets/widgets.dart';
 import '../../../widgets/reaction_buttons.dart';
 import '../../moderation/presentation/report_dialog.dart';
+import '../../../services/notification_service.dart';
+import '../../../services/feed_cache_service.dart';
+import '../../../widgets/skeleton_feed.dart';
+import '../../../widgets/post_card_widget.dart';
 
 /// Feed page showing posts with Public and Following tabs.
 class FeedPage extends ConsumerStatefulWidget {
-  const FeedPage({super.key, this.onSessionTap});
+  const FeedPage({super.key, this.onSocialTap});
 
-  final VoidCallback? onSessionTap;
+  final VoidCallback? onSocialTap;
 
   @override
   ConsumerState<FeedPage> createState() => _FeedPageState();
@@ -56,7 +62,8 @@ class _FeedPageState extends ConsumerState<FeedPage>
           children: [
             _V2FeedHeader(
               onNotificationsTap: () => context.push(AppRoutes.notifications),
-              onSessionTap: widget.onSessionTap,
+              onSocialTap: () =>
+                  context.go(AppRouteLocations.mainTab(MainShellTab.social)),
               tabController: _tabController,
             ),
             Expanded(
@@ -66,7 +73,7 @@ class _FeedPageState extends ConsumerState<FeedPage>
                   _FeedTab(
                     fetchPosts: (cursor) async {
                       final authState = ref.read(authSessionProvider);
-                      final uid = authState.valueOrNull?.id;
+                      final uid = authState.value?.id;
                       if (uid == null) {
                         return FeedResult(
                           posts: [],
@@ -76,16 +83,19 @@ class _FeedPageState extends ConsumerState<FeedPage>
                       final followingIds = await ref
                           .read(followServiceProvider)
                           .getFollowingIds(uid);
-                      return ref.read(postServiceProvider).getFollowingPosts(
-                        currentUserId: uid,
-                        followingIds: followingIds,
-                        limit: 10,
-                        startAfterDoc: cursor?.lastDoc,
-                      );
+                      return ref
+                          .read(postServiceProvider)
+                          .getFollowingPosts(
+                            currentUserId: uid,
+                            followingIds: followingIds,
+                            limit: 10,
+                            startAfterDoc: cursor?.lastDoc,
+                          );
                     },
                     feedKey: 'following',
                     requiresAuth: true,
                     showHeaderWidgets: true,
+                    useCache: true,
                   ),
                   _FeedTab(
                     fetchPosts: (cursor) => ref
@@ -107,19 +117,23 @@ class _FeedPageState extends ConsumerState<FeedPage>
 }
 
 /// v2 Feed header: ZYNTRO wordmark + theme toggle + tab pill
-class _V2FeedHeader extends StatelessWidget {
+class _V2FeedHeader extends ConsumerWidget {
   final VoidCallback onNotificationsTap;
-  final VoidCallback? onSessionTap;
+  final VoidCallback? onSocialTap;
   final TabController tabController;
 
   const _V2FeedHeader({
     required this.onNotificationsTap,
-    this.onSessionTap,
+    this.onSocialTap,
     required this.tabController,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final userId = ref.watch(authCurrentUserIdProvider);
+    final hasUnread =
+        userId != null &&
+        (ref.watch(unreadCountProvider(userId)).value ?? 0) > 0;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
       child: Column(
@@ -129,62 +143,69 @@ class _V2FeedHeader extends StatelessWidget {
             children: [
               Text(
                 'zyntro',
-                style: GoogleFonts.syne(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
+                style: AppTextStyles.wordmark.copyWith(
                   color: AppColors.textV2Primary,
-                  letterSpacing: -0.8,
                 ),
               ),
               const Spacer(),
-              
-              GestureDetector(
-                onTap: onNotificationsTap,
-                child: SizedBox(
-                  width: 36,
-                  height: 36,
+
+              IconButton(
+                tooltip: 'Notifications',
+                onPressed: onNotificationsTap,
+                constraints: const BoxConstraints.tightFor(
+                  width: 48,
+                  height: 48,
+                ),
+                padding: EdgeInsets.zero,
+                icon: SizedBox(
+                  width: 24,
+                  height: 24,
                   child: Stack(
+                    clipBehavior: Clip.none,
                     children: [
-                      Center(
+                      const Center(
                         child: Icon(
                           Icons.notifications_outlined,
                           color: AppColors.textV2Secondary,
                           size: 22,
                         ),
                       ),
-                      Positioned(
-                        top: 4,
-                        right: 4,
-                        child: Container(
-                          width: 7,
-                          height: 7,
-                          decoration: BoxDecoration(
-                            color: AppColors.accentLime,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: AppColors.backgroundV2,
-                              width: 1.5,
+                      if (hasUnread)
+                        Positioned(
+                          top: 0,
+                          right: 0,
+                          child: Container(
+                            width: 7,
+                            height: 7,
+                            decoration: BoxDecoration(
+                              color: AppColors.signal,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: AppColors.backgroundV2,
+                                width: 1.5,
+                              ),
                             ),
                           ),
                         ),
-                      ),
                     ],
                   ),
                 ),
-              ),if (onSessionTap != null) ...[
-                GestureDetector(
-                  onTap: onSessionTap,
-                  child: const Padding(
-                    padding: EdgeInsets.all(6),
-                    child: Icon(
-                      Icons.people_outline,
-                      color: AppColors.textV2Secondary,
-                      size: 24,
-                    ),
+              ),
+              if (onSocialTap != null)
+                IconButton(
+                  tooltip: 'Social',
+                  onPressed: onSocialTap,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 48,
+                    height: 48,
+                  ),
+                  padding: EdgeInsets.zero,
+                  icon: const Icon(
+                    Icons.people_outline,
+                    color: AppColors.textV2Secondary,
+                    size: 24,
                   ),
                 ),
-                const SizedBox(width: 4),
-              ],
             ],
           ),
           const SizedBox(height: 12),
@@ -206,14 +227,11 @@ class _V2FeedHeader extends StatelessWidget {
               dividerColor: Colors.transparent,
               labelColor: AppColors.textV2Primary,
               unselectedLabelColor: AppColors.textV2Secondary,
-              labelStyle: GoogleFonts.outfit(
+              labelStyle: AppTextStyles.body.copyWith(
                 fontWeight: FontWeight.w600,
                 fontSize: 13,
               ),
-              unselectedLabelStyle: GoogleFonts.outfit(
-                fontWeight: FontWeight.w400,
-                fontSize: 13,
-              ),
+              unselectedLabelStyle: AppTextStyles.body.copyWith(fontSize: 13),
               tabs: const [
                 Tab(text: 'Following'),
                 Tab(text: 'Discover'),
@@ -232,12 +250,14 @@ class _FeedTab extends ConsumerStatefulWidget {
   final String feedKey;
   final bool requiresAuth;
   final bool showHeaderWidgets;
+  final bool useCache;
 
   const _FeedTab({
     required this.fetchPosts,
     required this.feedKey,
     this.requiresAuth = false,
     this.showHeaderWidgets = false,
+    this.useCache = false,
   });
 
   @override
@@ -269,6 +289,16 @@ class _FeedTabState extends ConsumerState<_FeedTab>
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+
+    // T020: synchronous cache read so first frame shows content, not skeleton.
+    if (widget.useCache) {
+      final cached = ref.read(feedCacheServiceProvider).readCachePosts();
+      if (cached.isNotEmpty) {
+        _posts.addAll(cached);
+        _isLoading = false;
+      }
+    }
+
     _loadInitial();
   }
 
@@ -311,7 +341,7 @@ class _FeedTabState extends ConsumerState<_FeedTab>
   Future<void> _loadInitial() async {
     if (widget.requiresAuth) {
       final authState = ref.read(authSessionProvider);
-      if (authState.valueOrNull?.id == null) {
+      if (authState.value?.id == null) {
         if (mounted) {
           setState(() {
             _isLoading = false;
@@ -322,11 +352,15 @@ class _FeedTabState extends ConsumerState<_FeedTab>
       }
     }
 
+    // T020: only show the spinner when there are no cached posts to display.
+    final hasCached = _posts.isNotEmpty;
     try {
-      setState(() {
-        _isLoading = true;
-        _error = null;
-      });
+      if (!hasCached) {
+        setState(() {
+          _isLoading = true;
+          _error = null;
+        });
+      }
       final result = await widget.fetchPosts(null);
 
       // Batch fetch authors
@@ -335,6 +369,13 @@ class _FeedTabState extends ConsumerState<_FeedTab>
 
       // Fetch reaction data for all posts
       await _fetchReactionData(result.posts);
+
+      // T021: write fresh posts to cache in the background (fire-and-forget).
+      if (widget.useCache && result.posts.isNotEmpty) {
+        unawaited(
+          ref.read(feedCacheServiceProvider).writeCachePosts(result.posts),
+        );
+      }
 
       if (mounted) {
         setState(() {
@@ -394,16 +435,11 @@ class _FeedTabState extends ConsumerState<_FeedTab>
 
     // Watch blocked user IDs for filtering
     final blockedUserIdsAsync = ref.watch(blockedUserIdsProvider);
-    final blockedUserIds = blockedUserIdsAsync.valueOrNull ?? [];
+    final blockedUserIds = blockedUserIdsAsync.value ?? [];
 
-    if (_isLoading) {
-      // Shimmer loading state
-      return ListView.builder(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        itemCount: 3,
-        itemBuilder: (context, index) =>
-            const PostCardSkeleton(),
-      );
+    if (_isLoading && _posts.isEmpty) {
+      // T020: show skeleton only when there is no cached content to display.
+      return const SkeletonFeedWidget();
     }
 
     if (_error != null) {
@@ -447,7 +483,7 @@ class _FeedTabState extends ConsumerState<_FeedTab>
               icon: const Icon(Icons.refresh),
               label: const Text('Try Again'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
+                backgroundColor: AppColors.signal,
                 foregroundColor: Colors.white,
               ),
             ),
@@ -479,34 +515,34 @@ class _FeedTabState extends ConsumerState<_FeedTab>
                 color: AppColors.textV2Secondary,
               ),
             ),
-              const SizedBox(height: AppSpacing.lg),
-              Text(
-                'No posts yet',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textV2Primary,
-                  fontSize: AppFontSize.lg,
-                ),
+            const SizedBox(height: AppSpacing.lg),
+            Text(
+              'No posts yet',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: AppColors.textV2Primary,
+                fontSize: AppFontSize.lg,
               ),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                'Follow some users to see their workouts',
-                style: TextStyle(color: AppColors.textV2Secondary),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'Follow some users to see their workouts',
+              style: TextStyle(color: AppColors.textV2Secondary),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            OutlinedButton(
+              onPressed: () {
+                HapticManager.light();
+                _refresh();
+              },
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.signal,
+                side: BorderSide(color: AppColors.signal),
               ),
-              const SizedBox(height: AppSpacing.lg),
-              OutlinedButton(
-                onPressed: () {
-                  HapticManager.light();
-                  _refresh();
-                },
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.primary,
-                  side: const BorderSide(color: AppColors.primary),
-                ),
-                child: const Text('Refresh'),
-              ),
-            ],
-          ),
+              child: const Text('Refresh'),
+            ),
+          ],
+        ),
       );
     }
 
@@ -514,23 +550,77 @@ class _FeedTabState extends ConsumerState<_FeedTab>
       children: [
         RefreshIndicator(
           onRefresh: () async {
-            HapticManager.medium();
+            unawaited(HapticManager.medium());
             await _refresh();
           },
-          color: AppColors.accentLime,
+          color: AppColors.signal,
           child: ListView.builder(
+            scrollCacheExtent: const ScrollCacheExtent.pixels(500),
             controller: _scrollController,
             physics: const BouncingScrollPhysics(
               parent: AlwaysScrollableScrollPhysics(),
             ),
-            cacheExtent: 500,
             padding: EdgeInsets.zero,
             itemCount: filteredPosts.length + 1 + (_isLoadingMore ? 1 : 0),
             itemBuilder: (context, index) {
               if (index == 0) {
-                return widget.showHeaderWidgets
-                    ? _buildHeaderWidgets()
-                    : const SizedBox.shrink();
+                // T042: stale amber chip shown when cache is older than TTL.
+                final isStale =
+                    widget.useCache &&
+                    ref.read(feedCacheServiceProvider).isStale;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (isStale)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () {
+                              HapticManager.light();
+                              _refresh();
+                            },
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              constraints: const BoxConstraints(minHeight: 44),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: Colors.amber.withValues(alpha: 0.5),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.history,
+                                    size: 16,
+                                    color: Colors.amber,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Expanded(
+                                    child: Text(
+                                      'Showing cached feed — tap to refresh',
+                                      style: TextStyle(
+                                        color: Colors.amber,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    if (widget.showHeaderWidgets) _buildHeaderWidgets(),
+                  ],
+                );
               }
 
               if (index == filteredPosts.length + 1) {
@@ -545,7 +635,7 @@ class _FeedTabState extends ConsumerState<_FeedTab>
                         height: 24,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: AppColors.primary,
+                          color: AppColors.signal,
                         ),
                       ),
                       const SizedBox(width: AppSpacing.md),
@@ -589,7 +679,7 @@ class _FeedTabState extends ConsumerState<_FeedTab>
             bottom: AppSpacing.lg,
             child: FloatingActionButton.small(
               onPressed: _scrollToTop,
-              backgroundColor: AppColors.primary,
+              backgroundColor: AppColors.signal,
               child: const Icon(Icons.arrow_upward, color: Colors.white),
             ),
           ),
@@ -604,7 +694,7 @@ class _FeedTabState extends ConsumerState<_FeedTab>
   /// Fetch reaction data (counts and user's reaction) for a list of posts.
   Future<void> _fetchReactionData(List<Post> posts) async {
     final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
     final postService = ref.read(postServiceProvider);
 
     // Fetch reaction counts and user reactions in parallel
@@ -626,24 +716,47 @@ class _FeedTabState extends ConsumerState<_FeedTab>
   }
 
   Widget _buildPostCard(Post post) {
+    if (post.coAuthored) {
+      return PostCardWidget(
+        post: post,
+        displayMode: PostCardDisplayMode.full,
+        onTap: () {
+          HapticManager.light();
+          context.push('/post/${post.id}');
+        },
+      );
+    }
+
     final authState = ref.read(authSessionProvider);
-    final currentUserId = authState.valueOrNull?.id;
+    final currentUserId = authState.value?.id;
     final isOwnPost = currentUserId == post.authorId;
 
-    final author = ref.watch(userCacheServiceProvider).getUserSync(post.authorId);
+    final author = ref
+        .watch(userCacheServiceProvider)
+        .getUserSync(post.authorId);
     final authorName = author?.displayName ?? 'User';
     final hasImage = post.mediaURLs != null && post.mediaURLs!.isNotEmpty;
     final typeColor = AppColors.typeColor(post.type);
     const t2 = AppColors.textV2Secondary;
     const s1 = AppColors.surfaceV2;
 
-    return GestureDetector(
+    return _PressableCard(
       onTap: () {
         HapticManager.light();
         context.push('/post/${post.id}');
       },
       child: Container(
-        margin: const EdgeInsets.only(bottom: 1),
+        margin: const EdgeInsets.fromLTRB(
+          AppSpacing.md,
+          0,
+          AppSpacing.md,
+          AppSpacing.md,
+        ),
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppBorderRadius.xl),
+          color: AppColors.surfaceV2,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -661,6 +774,10 @@ class _FeedTabState extends ConsumerState<_FeedTab>
                         cacheManager: ZyntroImageCacheManager(),
                         imageUrl: post.mediaURLs!.first,
                         fit: BoxFit.cover,
+                        memCacheWidth: ImageDecodeBudget.memCacheWidthFor(
+                          context,
+                          MediaQuery.sizeOf(context).width,
+                        ),
                       ),
                     )
                   else
@@ -690,7 +807,9 @@ class _FeedTabState extends ConsumerState<_FeedTab>
                   ),
                   // Bottom gradient fade
                   Positioned(
-                    left: 0, right: 0, bottom: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
                     height: 120,
                     child: Container(
                       decoration: BoxDecoration(
@@ -707,11 +826,14 @@ class _FeedTabState extends ConsumerState<_FeedTab>
                   ),
                   // Author overlay at bottom
                   Positioned(
-                    left: 16, right: 16, bottom: 14,
+                    left: 16,
+                    right: 16,
+                    bottom: 14,
                     child: Row(
                       children: [
                         Container(
-                          width: 32, height: 32,
+                          width: 32,
+                          height: 32,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             border: Border.all(
@@ -731,7 +853,7 @@ class _FeedTabState extends ConsumerState<_FeedTab>
                                       authorName.isNotEmpty
                                           ? authorName[0].toUpperCase()
                                           : '?',
-                                      style: GoogleFonts.syne(
+                                      style: AppTextStyles.body.copyWith(
                                         fontSize: 13,
                                         fontWeight: FontWeight.w700,
                                         color: Colors.white,
@@ -744,9 +866,9 @@ class _FeedTabState extends ConsumerState<_FeedTab>
                         Expanded(
                           child: Text(
                             post.title,
-                            style: GoogleFonts.syne(
+                            style: AppTextStyles.h5.copyWith(
                               fontSize: 16,
-                              fontWeight: FontWeight.w800,
+                              fontWeight: FontWeight.w700,
                               color: Colors.white,
                               letterSpacing: -0.4,
                             ),
@@ -760,76 +882,38 @@ class _FeedTabState extends ConsumerState<_FeedTab>
                   // More menu (own-post check)
                   if (!isOwnPost)
                     Positioned(
-                      top: 12, right: 8,
+                      top: 12,
+                      right: 8,
                       child: PopupMenuButton<String>(
-                        icon: const Icon(Icons.more_horiz, color: Colors.white70, size: 20),
+                        icon: const Icon(
+                          Icons.more_horiz,
+                          color: Colors.white70,
+                          size: 20,
+                        ),
                         onSelected: (value) => _handlePostAction(
                           action: value,
                           post: post,
                           authorName: authorName,
                         ),
                         itemBuilder: (context) => [
-                          const PopupMenuItem(value: 'report_post', child: Text('Report Post')),
-                          const PopupMenuItem(value: 'report_user', child: Text('Report User')),
+                          const PopupMenuItem(
+                            value: 'report_post',
+                            child: Text('Report Post'),
+                          ),
+                          const PopupMenuItem(
+                            value: 'report_user',
+                            child: Text('Report User'),
+                          ),
                           const PopupMenuItem(
                             value: 'block_user',
-                            child: Text('Block User', style: TextStyle(color: Colors.red)),
+                            child: Text(
+                              'Block User',
+                              style: TextStyle(color: Colors.red),
+                            ),
                           ),
                         ],
                       ),
                     ),
-                ],
-              ),
-            ),
-
-            // Workout receipt stats row
-            Container(
-              color: s1,
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Workout type chip
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: typeColor.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          post.type.toUpperCase(),
-                          style: GoogleFonts.outfit(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: typeColor,
-                            letterSpacing: 0.08,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  // Stats row
-                  Row(
-                    children: [
-                      if (post.summary.duration != null)
-                        _PostStat(value: post.summary.duration!, label: 'duration'),
-                      if (post.summary.totalExercises != null)
-                        _PostStat(
-                          value: '${post.summary.totalExercises}',
-                          label: 'exercises',
-                        ),
-                      if (post.summary.totalSets != null)
-                        _PostStat(
-                          value: '${post.summary.totalSets}',
-                          label: 'sets',
-                          isHighlight: true,
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
                 ],
               ),
             ),
@@ -854,8 +938,7 @@ class _FeedTabState extends ConsumerState<_FeedTab>
                     const SizedBox(width: 4),
                     Text(
                       '${post.commentsCount}',
-                      style: GoogleFonts.outfit(
-                        fontSize: 12,
+                      style: AppTextStyles.caption.copyWith(
                         fontWeight: FontWeight.w600,
                         color: t2,
                       ),
@@ -868,10 +951,7 @@ class _FeedTabState extends ConsumerState<_FeedTab>
               ),
             ),
             // Divider between cards
-            Container(
-              height: 8,
-              color: AppColors.backgroundV2,
-            ),
+            Container(height: 8, color: AppColors.backgroundV2),
           ],
         ),
       ),
@@ -879,25 +959,20 @@ class _FeedTabState extends ConsumerState<_FeedTab>
   }
 
   Widget _workoutTypeIcon(String type, {double size = 24}) {
-    final icons = {
-      'gym': Icons.fitness_center,
-      'cardio': Icons.directions_run,
-      'hiit': Icons.flash_on,
-      'cycling': Icons.directions_bike,
-      'yoga': Icons.self_improvement,
-      'swimming': Icons.pool,
-    };
-    final color = AppColors.typeColor(type);
-    return Icon(icons[type] ?? Icons.fitness_center, size: size, color: color);
+    return Icon(
+      workoutTypeIcon(type),
+      size: size,
+      color: AppColors.typeColor(type),
+    );
   }
 
   /// Handle reaction tap - toggle or change reaction type with haptic feedback.
   Future<void> _handleReaction(Post post, ReactionType type) async {
     // Haptic feedback on reaction
-    HapticManager.medium();
+    unawaited(HapticManager.medium());
 
     final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
     if (uid == null) return;
 
     final currentReaction = _userReactions[post.id];
@@ -944,7 +1019,7 @@ class _FeedTabState extends ConsumerState<_FeedTab>
       }
     } catch (e) {
       // Revert on error with error haptic
-      HapticManager.error();
+      unawaited(HapticManager.error());
       setState(() {
         _userReactions[post.id] = currentReaction;
         _reactionCounts[post.id] = oldCounts;
@@ -967,7 +1042,7 @@ class _FeedTabState extends ConsumerState<_FeedTab>
     required String authorName,
   }) async {
     final authState = ref.read(authSessionProvider);
-    final currentUserId = authState.valueOrNull?.id;
+    final currentUserId = authState.value?.id;
     if (currentUserId == null) return;
 
     switch (action) {
@@ -1042,43 +1117,28 @@ class _FeedTabState extends ConsumerState<_FeedTab>
   }
 }
 
-/// Compact stat display for the workout receipt row on feed cards.
-class _PostStat extends StatelessWidget {
-  final String value;
-  final String label;
-  final bool isHighlight;
+class _PressableCard extends StatefulWidget {
+  const _PressableCard({required this.child, required this.onTap});
+  final Widget child;
+  final VoidCallback onTap;
+  @override
+  State<_PressableCard> createState() => _PressableCardState();
+}
 
-  const _PostStat({
-    required this.value,
-    required this.label,
-    this.isHighlight = false,
-  });
-
+class _PressableCardState extends State<_PressableCard> {
+  bool _pressed = false;
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            value,
-            style: GoogleFonts.syne(
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-              color: isHighlight ? AppColors.accentLime : AppColors.textV2Primary,
-              height: 1,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: GoogleFonts.outfit(
-              fontSize: 11,
-              color: AppColors.textV2Tertiary,
-            ),
-          ),
-        ],
+    return GestureDetector(
+      onTap: widget.onTap,
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      child: AnimatedScale(
+        scale: _pressed ? AppAnimations.cardPressScale : 1.0,
+        duration: AppDurations.fast,
+        curve: AppCurves.press,
+        child: widget.child,
       ),
     );
   }

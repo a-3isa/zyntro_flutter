@@ -1,10 +1,11 @@
-﻿import 'dart:async';
+import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/theme/app_theme.dart';
 import 'parallel_gym_view.dart'; // for ParallelPartnerData
+import 'participant_avatar.dart';
 
 /// The cardio-side UI shown in parallel mode - the logged-in participant
 /// is running/cycling/swimming/walking while their partner does
@@ -16,7 +17,8 @@ class ParallelCardioView extends StatefulWidget {
     required double distanceKm,
     required int durationSeconds,
     required String activityType,
-  }) onCardioLog;
+  })
+  onCardioLog;
   final ParallelPartnerData partner;
 
   const ParallelCardioView({
@@ -122,7 +124,7 @@ class _ParallelCardioViewState extends State<ParallelCardioView> {
                   height: partnerHeight,
                   child: _CardioPartnerCard(
                     partner: widget.partner,
-                    accentColor: AppColors.primary,
+                    accentColor: AppColors.signal,
                   ),
                 ),
               ],
@@ -143,21 +145,18 @@ class _ParallelCardioViewState extends State<ParallelCardioView> {
           Align(
             alignment: Alignment.center,
             child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 6,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.15),
+                color: AppColors.signal.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(999),
                 border: Border.all(
-                  color: AppColors.primary.withValues(alpha: 0.4),
+                  color: AppColors.signal.withValues(alpha: 0.4),
                 ),
               ),
               child: Text(
                 _activityLabel(widget.activityType),
                 style: TextStyle(
-                  color: AppColors.primary,
+                  color: AppColors.signal,
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 1.2,
@@ -174,7 +173,7 @@ class _ParallelCardioViewState extends State<ParallelCardioView> {
                 shape: BoxShape.circle,
                 color: AppColors.surfaceV2,
                 border: Border.all(
-                  color: _running ? AppColors.primary : AppColors.secondary,
+                  color: _running ? AppColors.signal : AppColors.secondary,
                   width: 3,
                 ),
               ),
@@ -184,10 +183,9 @@ class _ParallelCardioViewState extends State<ParallelCardioView> {
                 children: [
                   Text(
                     _formatSeconds(_elapsedSeconds),
-                    style: TextStyle(
+                    style: AppTextStyles.sessionStat.copyWith(
                       color: AppColors.textV2Primary,
                       fontSize: 44,
-                      fontWeight: FontWeight.w700,
                       fontFeatures: const [FontFeature.tabularFigures()],
                     ),
                   ),
@@ -225,8 +223,9 @@ class _ParallelCardioViewState extends State<ParallelCardioView> {
             const SizedBox(height: 6),
             TextField(
               controller: _distanceController,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               style: TextStyle(color: AppColors.textV2Primary, fontSize: 18),
               decoration: InputDecoration(
                 filled: true,
@@ -286,16 +285,13 @@ class _ParallelCardioViewState extends State<ParallelCardioView> {
 }
 
 /// Compact partner card tailored for the cardio-side view. The top
-/// accent border uses [AppColors.primary] so the screen reads as the
+/// accent border uses [AppColors.signal] so the screen reads as the
 /// participant's own cardio territory while still showing the partner.
 class _CardioPartnerCard extends StatelessWidget {
   final ParallelPartnerData partner;
   final Color accentColor;
 
-  const _CardioPartnerCard({
-    required this.partner,
-    required this.accentColor,
-  });
+  const _CardioPartnerCard({required this.partner, required this.accentColor});
 
   String _formatDuration(Duration d) {
     final int totalSeconds = d.inSeconds;
@@ -344,27 +340,21 @@ class _CardioPartnerCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const Text(
+              'Partner progress',
+              style: TextStyle(
+                color: AppColors.textV2Secondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 10),
             Row(
               children: [
-                CircleAvatar(
-                  radius: 18,
-                  backgroundColor: AppColors.surfaceV2,
-                  backgroundImage: partner.photoUrl != null &&
-                          partner.photoUrl!.isNotEmpty
-                      ? CachedNetworkImageProvider(partner.photoUrl!)
-                      : null,
-                  child: partner.photoUrl == null ||
-                          partner.photoUrl!.isEmpty
-                      ? Text(
-                          partner.name.isNotEmpty
-                              ? partner.name[0].toUpperCase()
-                              : '?',
-                          style: TextStyle(
-                            color: AppColors.textV2Primary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        )
-                      : null,
+                ParticipantAvatar(
+                  name: partner.name,
+                  photoUrl: partner.photoUrl,
+                  standing: partner.standing,
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -407,6 +397,15 @@ class _CardioPartnerCard extends StatelessWidget {
               _buildRaceStats()
             else
               _buildGymStats(),
+            const SizedBox(height: 8),
+            const Text(
+              'Shared time',
+              style: TextStyle(
+                color: AppColors.textV2Tertiary,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ],
         ),
       ),
@@ -424,10 +423,7 @@ class _CardioPartnerCard extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: _MetricTile(
-            label: 'PACE',
-            value: partner.averagePace ?? '—',
-          ),
+          child: _MetricTile(label: 'PACE', value: partner.averagePace ?? '—'),
         ),
         const SizedBox(width: 8),
         Expanded(
@@ -454,7 +450,7 @@ class _CardioPartnerCard extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          'Set ${partner.totalSets}',
+          '${partner.totalSets} sets',
           style: TextStyle(
             color: AppColors.textV2Secondary,
             fontSize: 13,

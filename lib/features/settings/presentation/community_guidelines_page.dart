@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../widgets/zyntro_back_button.dart';
 
 /// Community guidelines page with app rules.
 class CommunityGuidelinesPage extends StatelessWidget {
@@ -15,12 +15,7 @@ class CommunityGuidelinesPage extends StatelessWidget {
         children: [
           // Custom Header
           Container(
-            padding: EdgeInsets.only(
-              top: MediaQuery.paddingOf(context).top + 8,
-              bottom: 8,
-              left: 16,
-              right: 16,
-            ),
+            padding: AppSpacing.headerPadding(context),
             decoration: BoxDecoration(
               color: AppColors.surfaceV2,
               border: Border(
@@ -29,29 +24,11 @@ class CommunityGuidelinesPage extends StatelessWidget {
             ),
             child: Row(
               children: [
-                GestureDetector(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    Navigator.pop(context);
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceV2Elevated,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.arrow_back,
-                      color: AppColors.textV2Primary,
-                      size: 20,
-                    ),
-                  ),
-                ),
+                const ZyntroBackButton(),
                 const SizedBox(width: 16),
                 Text(
                   'Community Guidelines',
-                  style: GoogleFonts.syne(
-                    fontSize: 20,
+                  style: AppTextStyles.h4.copyWith(
                     fontWeight: FontWeight.w700,
                     color: AppColors.textV2Primary,
                   ),
@@ -84,31 +61,31 @@ class CommunityGuidelinesPage extends StatelessWidget {
                   const SizedBox(height: AppSpacing.xxl),
 
                   _buildSection(
-                    '🤝 Be Respectful',
+                    'Be Respectful',
                     'Treat everyone with kindness and respect. We\'re all on our own fitness journeys, and constructive support goes a long way.',
                   ),
                   _buildSection(
-                    '💪 Encourage Others',
+                    'Encourage Others',
                     'Celebrate wins, big and small. A simple "great job" can make someone\'s day. We\'re here to lift each other up.',
                   ),
                   _buildSection(
-                    '🚫 No Harassment',
+                    'No Harassment',
                     'Harassment, bullying, hate speech, or discrimination of any kind will not be tolerated. This includes comments about body type, fitness level, or personal characteristics.',
                   ),
                   _buildSection(
-                    '📵 No Spam',
+                    'No Spam',
                     'Avoid excessive self-promotion, spam, or repetitive content. Keep the focus on genuine fitness engagement.',
                   ),
                   _buildSection(
-                    '🖼️ Appropriate Content',
+                    'Appropriate Content',
                     'Only share content that is appropriate for all audiences. Explicit, violent, or illegal content is strictly prohibited.',
                   ),
                   _buildSection(
-                    '🔒 Respect Privacy',
+                    'Respect Privacy',
                     'Don\'t share personal information about others without their consent. Respect everyone\'s privacy and boundaries.',
                   ),
                   _buildSection(
-                    '⚠️ Report Violations',
+                    'Report Violations',
                     'If you see something that violates these guidelines, please report it. We rely on our community to help keep Zyntro safe.',
                   ),
 
@@ -145,7 +122,7 @@ class CommunityGuidelinesPage extends StatelessWidget {
 
                   const SizedBox(height: AppSpacing.xxl),
                   Text(
-                    'Last updated: December 2024',
+                    'Last updated: September 2026',
                     style: TextStyle(
                       color: Colors.grey.shade500,
                       fontSize: AppFontSize.sm,

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:zyntro_flutter/services/follow_service.dart';
+import 'dart:io';
 
 class MockFirebaseFirestore extends Mock implements FirebaseFirestore {}
 
@@ -21,23 +22,49 @@ class MockQuerySnapshot extends Mock
 class MockQueryDocumentSnapshot extends Mock
     implements QueryDocumentSnapshot<Map<String, dynamic>> {}
 
-class MockRef extends Mock implements Ref {}
+// ignore: subtype_of_sealed_class
+class MockDocumentReference extends Mock
+    implements DocumentReference<Map<String, dynamic>> {}
+
+// ignore: subtype_of_sealed_class
+class MockDocumentSnapshot extends Mock
+    implements DocumentSnapshot<Map<String, dynamic>> {}
+
+final _testRefProvider = Provider<Ref>((ref) => ref);
 
 void main() {
+  test('public follows dispatch new follower notifications', () {
+    final source = File('lib/services/follow_service.dart').readAsStringSync();
+
+    expect(source, contains('.notifyNewFollower('));
+    expect(source, isNot(contains("I'll leave it as is")));
+  });
+
+  test('follower list lookups use chunked Firestore whereIn reads', () {
+    final source = File('lib/services/follow_service.dart').readAsStringSync();
+
+    expect(source, contains('static const _userLookupChunkSize = 10'));
+    expect(source, contains('where(FieldPath.documentId, whereIn: chunk)'));
+    expect(source, isNot(contains("collection('users').doc(id).get()")));
+  });
+
   late FollowService followService;
   late MockFirebaseFirestore mockFirestore;
-  late MockRef mockRef;
+  late Ref testRef;
 
   setUp(() {
     mockFirestore = MockFirebaseFirestore();
-    mockRef = MockRef();
-    followService = FollowService(mockFirestore, mockRef);
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    testRef = container.read(_testRefProvider);
+    followService = FollowService(mockFirestore, testRef);
   });
 
   test('getFollowingIds returns list of ids', () async {
     final mockCollection = MockCollectionReference();
     final mockQuery1 = MockQuery();
     final mockQuery2 = MockQuery();
+    final mockQuery3 = MockQuery();
     final mockSnapshot = MockQuerySnapshot();
     final mockDoc = MockQueryDocumentSnapshot();
 
@@ -48,7 +75,11 @@ void main() {
     when(
       () => mockQuery1.where('status', isEqualTo: 'approved'),
     ).thenReturn(mockQuery2);
-    when(() => mockQuery2.get()).thenAnswer((_) async => mockSnapshot);
+    // The query is now capped so a huge following list cannot be read whole.
+    when(
+      () => mockQuery2.limit(FollowService.followingIdsLimit),
+    ).thenReturn(mockQuery3);
+    when(() => mockQuery3.get()).thenAnswer((_) async => mockSnapshot);
     when(() => mockSnapshot.docs).thenReturn([mockDoc]);
     when(() => mockDoc.data()).thenReturn({'followeeId': 'user2'});
 
@@ -56,4 +87,55 @@ void main() {
 
     expect(result, ['user2']);
   });
+
+  test(
+    'paired invite eligibility requires mutual follows and no blocks',
+    () async {
+      final followsCollection = MockCollectionReference();
+      final blocksCollection = MockCollectionReference();
+      final hostFollowsFriend = MockDocumentReference();
+      final friendFollowsHost = MockDocumentReference();
+      final hostBlocksFriend = MockDocumentReference();
+      final friendBlocksHost = MockDocumentReference();
+      final approvedFollow = MockDocumentSnapshot();
+      final missingBlock = MockDocumentSnapshot();
+
+      when(
+        () => mockFirestore.collection('follows'),
+      ).thenReturn(followsCollection);
+      when(
+        () => mockFirestore.collection('blocks'),
+      ).thenReturn(blocksCollection);
+      when(
+        () => followsCollection.doc('host_friend'),
+      ).thenReturn(hostFollowsFriend);
+      when(
+        () => followsCollection.doc('friend_host'),
+      ).thenReturn(friendFollowsHost);
+      when(
+        () => blocksCollection.doc('host_friend'),
+      ).thenReturn(hostBlocksFriend);
+      when(
+        () => blocksCollection.doc('friend_host'),
+      ).thenReturn(friendBlocksHost);
+      when(
+        () => hostFollowsFriend.get(),
+      ).thenAnswer((_) async => approvedFollow);
+      when(
+        () => friendFollowsHost.get(),
+      ).thenAnswer((_) async => approvedFollow);
+      when(() => hostBlocksFriend.get()).thenAnswer((_) async => missingBlock);
+      when(() => friendBlocksHost.get()).thenAnswer((_) async => missingBlock);
+      when(() => approvedFollow.exists).thenReturn(true);
+      when(() => approvedFollow.data()).thenReturn({'status': 'approved'});
+      when(() => missingBlock.exists).thenReturn(false);
+
+      final result = await followService.canInviteToPairedSession(
+        hostId: 'host',
+        inviteeId: 'friend',
+      );
+
+      expect(result, isTrue);
+    },
+  );
 }

@@ -3,39 +3,43 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
-
 import '../../../app/navigation/app_router.dart';
 import '../../../core/constants/constants.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../utils/haptic_manager.dart';
 import '../../../widgets/zyntro_button.dart';
 import '../../auth/auth_providers.dart';
+import '../../../services/user_service.dart';
+import '../../../services/session_service.dart';
 
 // ── WorkoutType color map ────────────────────────────────────────────────────
-Color _typeColor(WorkoutType t) {
-  switch (t) {
-    case WorkoutType.gym:      return AppColors.accentLime;
-    case WorkoutType.running:  return const Color(0xFF38BDF8);
-    case WorkoutType.cycling:  return const Color(0xFF34D399);
-    case WorkoutType.swimming: return const Color(0xFF22D3EE);
-    case WorkoutType.yoga:     return const Color(0xFFA78BFA);
-    case WorkoutType.hiit:     return const Color(0xFFFB923C);
-    default:                   return AppColors.accentLime;
-  }
-}
+/// Delegates to the shared palette. This used to be a local switch that
+/// disagreed with start_session_page's: cycling was emerald here and purple
+/// there, with yoga reversed, so the same workout type changed colour between
+/// screens.
+Color _typeColor(WorkoutType t) => AppColors.typeColor(t.value);
 
 IconData _typeIcon(WorkoutType t) {
   switch (t) {
-    case WorkoutType.gym:      return Icons.fitness_center_rounded;
-    case WorkoutType.running:  return Icons.directions_run_rounded;
-    case WorkoutType.cycling:  return Icons.directions_bike_rounded;
-    case WorkoutType.swimming: return Icons.pool_rounded;
-    case WorkoutType.yoga:     return Icons.self_improvement_rounded;
-    case WorkoutType.hiit:     return Icons.timer_rounded;
-    case WorkoutType.walking:  return Icons.directions_walk_rounded;
-    case WorkoutType.sports:   return Icons.sports_soccer_rounded;
-    default:                   return Icons.category_rounded;
+    case WorkoutType.gym:
+      return Icons.fitness_center_rounded;
+    case WorkoutType.running:
+      return Icons.directions_run_rounded;
+    case WorkoutType.cycling:
+      return Icons.directions_bike_rounded;
+    case WorkoutType.swimming:
+      return Icons.pool_rounded;
+    case WorkoutType.yoga:
+      return Icons.self_improvement_rounded;
+    case WorkoutType.hiit:
+      return Icons.timer_rounded;
+    case WorkoutType.walking:
+      return Icons.directions_walk_rounded;
+    case WorkoutType.sports:
+      return Icons.sports_soccer_rounded;
+    default:
+      return Icons.category_rounded;
   }
 }
 
@@ -56,7 +60,7 @@ class SessionPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
 
     // Load recent sessions
     final recentAsync = uid != null
@@ -75,9 +79,9 @@ class SessionPage extends ConsumerWidget {
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
                 child: Text(
                   'Train',
-                  style: GoogleFonts.syne(
+                  style: AppTextStyles.h2.copyWith(
                     fontSize: 28,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                     color: AppColors.textV2Primary,
                     letterSpacing: -0.8,
                   ),
@@ -111,8 +115,7 @@ class SessionPage extends ConsumerWidget {
                   // QUICK START section
                   Text(
                     'QUICK START',
-                    style: GoogleFonts.outfit(
-                      fontSize: 10,
+                    style: AppTextStyles.caption.copyWith(
                       fontWeight: FontWeight.w700,
                       color: AppColors.textV2Tertiary,
                       letterSpacing: 2,
@@ -124,11 +127,11 @@ class SessionPage extends ConsumerWidget {
                     physics: const NeverScrollableScrollPhysics(),
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3,
-                      crossAxisSpacing: 8,
-                      mainAxisSpacing: 8,
-                      childAspectRatio: 0.9,
-                    ),
+                          crossAxisCount: 3,
+                          crossAxisSpacing: 8,
+                          mainAxisSpacing: 8,
+                          childAspectRatio: 0.9,
+                        ),
                     itemCount: _quickStartTypes.length,
                     itemBuilder: (context, i) {
                       final type = _quickStartTypes[i];
@@ -145,7 +148,9 @@ class SessionPage extends ConsumerWidget {
                             borderRadius: BorderRadius.circular(14),
                           ),
                           padding: const EdgeInsets.symmetric(
-                              vertical: 14, horizontal: 8),
+                            vertical: 14,
+                            horizontal: 8,
+                          ),
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
@@ -165,8 +170,7 @@ class SessionPage extends ConsumerWidget {
                               const SizedBox(height: 7),
                               Text(
                                 type.displayName,
-                                style: GoogleFonts.outfit(
-                                  fontSize: 10,
+                                style: AppTextStyles.caption.copyWith(
                                   fontWeight: FontWeight.w600,
                                   color: AppColors.textV2Secondary,
                                 ),
@@ -192,8 +196,7 @@ class SessionPage extends ConsumerWidget {
                   // RECENT section
                   Text(
                     'RECENT',
-                    style: GoogleFonts.outfit(
-                      fontSize: 10,
+                    style: AppTextStyles.caption.copyWith(
                       fontWeight: FontWeight.w700,
                       color: AppColors.textV2Tertiary,
                       letterSpacing: 2,
@@ -206,8 +209,7 @@ class SessionPage extends ConsumerWidget {
                             padding: const EdgeInsets.symmetric(vertical: 20),
                             child: Text(
                               'No sessions yet. Start your first one!',
-                              style: GoogleFonts.outfit(
-                                fontSize: 13,
+                              style: AppTextStyles.body.copyWith(
                                 color: AppColors.textV2Tertiary,
                               ),
                             ),
@@ -254,9 +256,43 @@ class _RecentSession {
 }
 
 final _recentSessionsProvider =
-    FutureProvider.family<List<_RecentSession>, String>(
-  (ref, uid) async => [],
-);
+    FutureProvider.family<List<_RecentSession>, String>((ref, uid) async {
+  final sessions = await ref
+      .watch(sessionServiceProvider)
+      .getUserSessions(uid, limit: 10);
+  return sessions.map((s) {
+    final dur = s.endedAt != null
+        ? s.endedAt!.difference(s.startedAt)
+        : Duration.zero;
+    final mins = dur.inMinutes;
+    final durationLabel = mins >= 60
+        ? '${dur.inHours}h ${mins.remainder(60)}m'
+        : '${mins}m';
+    final type = WorkoutType.values.firstWhere(
+      (t) => t.value == s.type,
+      orElse: () => WorkoutType.gym,
+    );
+    final sets = s.summary?.totalSets ?? 0;
+    final dateLabel = _formatSessionDate(s.createdAt);
+    return _RecentSession(
+      type: type,
+      label: s.title.isNotEmpty ? s.title : type.displayName,
+      dateLabel: dateLabel,
+      duration: durationLabel,
+      sets: sets,
+    );
+  }).toList();
+});
+
+String _formatSessionDate(DateTime? dt) {
+  if (dt == null) return '';
+  final now = DateTime.now();
+  final diff = now.difference(dt);
+  if (diff.inDays == 0) return 'Today';
+  if (diff.inDays == 1) return 'Yesterday';
+  if (diff.inDays < 7) return '${diff.inDays}d ago';
+  return '${dt.day}/${dt.month}';
+}
 
 // ── Weekly ring card ─────────────────────────────────────────────────────────
 
@@ -266,12 +302,13 @@ class _WeeklyRingCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // For now use a simple weekly count from recent sessions
-    // We show done/goal where goal is 5 by default
-    const done = 3;
+    final streakAsync =
+        uid != null ? ref.watch(userStreakProvider(uid!)) : null;
+    final userStreak = streakAsync?.value;
     const goal = 5;
-    const streak = 3;
-    const total = 42;
+    final done = userStreak?.weeklyWorkouts ?? 0;
+    final streak = userStreak?.currentStreak ?? 0;
+    final total = userStreak?.totalWorkouts ?? 0;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
@@ -294,7 +331,7 @@ class _WeeklyRingCard extends ConsumerWidget {
                     done: done,
                     total: goal,
                     trackColor: AppColors.surfaceV2Elevated,
-                    progressColor: AppColors.accentLime,
+                    progressColor: AppColors.signal,
                     strokeWidth: 5,
                   ),
                 ),
@@ -303,9 +340,9 @@ class _WeeklyRingCard extends ConsumerWidget {
                   children: [
                     Text(
                       '$done',
-                      style: GoogleFonts.syne(
+                      style: AppTextStyles.h2.copyWith(
                         fontSize: 28,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w700,
                         color: AppColors.textV2Primary,
                         letterSpacing: -1,
                         height: 1,
@@ -313,8 +350,7 @@ class _WeeklyRingCard extends ConsumerWidget {
                     ),
                     Text(
                       'of $goal',
-                      style: GoogleFonts.outfit(
-                        fontSize: 10,
+                      style: AppTextStyles.caption.copyWith(
                         color: AppColors.textV2Tertiary,
                       ),
                     ),
@@ -331,8 +367,7 @@ class _WeeklyRingCard extends ConsumerWidget {
             children: [
               Text(
                 'THIS WEEK',
-                style: GoogleFonts.outfit(
-                  fontSize: 10,
+                style: AppTextStyles.caption.copyWith(
                   fontWeight: FontWeight.w700,
                   color: AppColors.textV2Tertiary,
                   letterSpacing: 1.5,
@@ -341,8 +376,7 @@ class _WeeklyRingCard extends ConsumerWidget {
               const SizedBox(height: 6),
               Text(
                 '$done sessions',
-                style: GoogleFonts.syne(
-                  fontSize: 18,
+                style: AppTextStyles.h5.copyWith(
                   fontWeight: FontWeight.w700,
                   color: AppColors.textV2Primary,
                   letterSpacing: -0.3,
@@ -355,17 +389,16 @@ class _WeeklyRingCard extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '$streak🔥',
-                        style: GoogleFonts.syne(
+                        '$streak',
+                        style: AppTextStyles.bodyLarge.copyWith(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.accentLime,
+                          color: AppColors.textV2Primary,
                         ),
                       ),
                       Text(
                         'streak',
-                        style: GoogleFonts.outfit(
-                          fontSize: 10,
+                        style: AppTextStyles.caption.copyWith(
                           color: AppColors.textV2Tertiary,
                         ),
                       ),
@@ -377,7 +410,7 @@ class _WeeklyRingCard extends ConsumerWidget {
                     children: [
                       Text(
                         '$total',
-                        style: GoogleFonts.syne(
+                        style: AppTextStyles.bodyLarge.copyWith(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
                           color: AppColors.textV2Primary,
@@ -385,8 +418,7 @@ class _WeeklyRingCard extends ConsumerWidget {
                       ),
                       Text(
                         'total',
-                        style: GoogleFonts.outfit(
-                          fontSize: 10,
+                        style: AppTextStyles.caption.copyWith(
                           color: AppColors.textV2Tertiary,
                         ),
                       ),
@@ -486,7 +518,7 @@ class _RecentSessionRow extends StatelessWidget {
               children: [
                 Text(
                   session.label,
-                  style: GoogleFonts.syne(
+                  style: AppTextStyles.label.copyWith(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: AppColors.textV2Primary,
@@ -495,7 +527,7 @@ class _RecentSessionRow extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   '${session.dateLabel} · ${session.duration}',
-                  style: GoogleFonts.outfit(
+                  style: AppTextStyles.caption.copyWith(
                     fontSize: 11,
                     color: AppColors.textV2Secondary,
                   ),
@@ -505,7 +537,7 @@ class _RecentSessionRow extends StatelessWidget {
           ),
           Text(
             '${session.sets} sets',
-            style: GoogleFonts.syne(
+            style: AppTextStyles.body.copyWith(
               fontSize: 13,
               fontWeight: FontWeight.w700,
               color: AppColors.textV2Secondary,
@@ -544,11 +576,9 @@ class _RecentSessionSkeleton extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                    width: 120, height: 13, color: AppColors.surfaceV2),
+                Container(width: 120, height: 13, color: AppColors.surfaceV2),
                 const SizedBox(height: 6),
-                Container(
-                    width: 80, height: 10, color: AppColors.surfaceV2),
+                Container(width: 80, height: 10, color: AppColors.surfaceV2),
               ],
             ),
           ),

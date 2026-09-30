@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import '../core/theme/app_theme.dart';
+import '../utils/animation_utils.dart';
 
 /// A container with glow effect around it.
 class GlowContainer extends StatelessWidget {
@@ -135,7 +136,16 @@ class _AnimatedCounterState extends State<AnimatedCounter>
       begin: 0,
       end: widget.value,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
-    _controller.forward();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (PerformanceMonitor.shouldReduceMotion(context)) {
+      _controller.value = 1;
+    } else if (!_controller.isAnimating && _controller.value == 0) {
+      _controller.forward();
+    }
   }
 
   @override
@@ -146,7 +156,11 @@ class _AnimatedCounterState extends State<AnimatedCounter>
       _animation = IntTween(begin: _previousValue, end: widget.value).animate(
         CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
       );
-      _controller.forward(from: 0);
+      if (PerformanceMonitor.shouldReduceMotion(context)) {
+        _controller.value = 1;
+      } else {
+        _controller.forward(from: 0);
+      }
     }
   }
 
@@ -203,7 +217,17 @@ class _ShimmerLoaderState extends State<ShimmerLoader>
       begin: -1,
       end: 2,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
-    _controller.repeat();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (PerformanceMonitor.shouldReduceMotion(context)) {
+      _controller.stop();
+      _controller.value = 0.5;
+    } else if (!_controller.isAnimating) {
+      _controller.repeat();
+    }
   }
 
   @override
@@ -322,7 +346,17 @@ class _PulsingGlowState extends State<PulsingGlow>
       begin: widget.minRadius,
       end: widget.maxRadius,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
-    _controller.repeat(reverse: true);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (PerformanceMonitor.shouldReduceMotion(context)) {
+      _controller.stop();
+      _controller.value = 0;
+    } else if (!_controller.isAnimating) {
+      _controller.repeat(reverse: true);
+    }
   }
 
   @override
@@ -333,6 +367,9 @@ class _PulsingGlowState extends State<PulsingGlow>
 
   @override
   Widget build(BuildContext context) {
+    if (PerformanceMonitor.shouldReduceMotion(context)) {
+      return widget.child;
+    }
     return AnimatedBuilder(
       animation: _animation,
       builder: (context, child) {
@@ -364,7 +401,7 @@ class GradientText extends StatelessWidget {
     super.key,
     required this.text,
     this.style,
-    this.colors = const [AppColors.textDark, AppColors.neonGreen],
+    this.colors = const [AppColors.textV2Primary, AppColors.signal],
     this.textAlign,
   });
 

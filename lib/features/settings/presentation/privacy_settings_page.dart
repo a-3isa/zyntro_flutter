@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:google_fonts/google_fonts.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../app/navigation/app_router.dart';
-import 'package:flutter/services.dart';
 import '../../../services/follow_service.dart';
+import '../../../services/privacy_consent_service.dart';
 import '../../auth/auth_providers.dart';
 import '../../auth/presentation/providers/auth_controller.dart';
+import '../../../widgets/zyntro_back_button.dart';
 
 /// Privacy settings page for managing account privacy.
 /// Migrated from React Native PrivacySettingsScreen.
@@ -49,7 +50,7 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
   Widget build(BuildContext context) {
     final userAsync = ref.watch(authUserProfileProvider);
     final authState = ref.watch(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
 
     return Scaffold(
       backgroundColor: AppColors.backgroundV2,
@@ -57,12 +58,7 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
         children: [
           // Custom Header
           Container(
-            padding: EdgeInsets.only(
-              top: MediaQuery.paddingOf(context).top + 8,
-              bottom: 8,
-              left: 16,
-              right: 16,
-            ),
+            padding: AppSpacing.headerPadding(context),
             decoration: BoxDecoration(
               color: AppColors.surfaceV2,
               border: Border(
@@ -71,29 +67,11 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
             ),
             child: Row(
               children: [
-                GestureDetector(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    Navigator.pop(context);
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceV2Elevated,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.arrow_back,
-                      color: AppColors.textV2Primary,
-                      size: 20,
-                    ),
-                  ),
-                ),
+                const ZyntroBackButton(),
                 const SizedBox(width: 16),
                 Text(
                   'Privacy',
-                  style: GoogleFonts.syne(
-                    fontSize: 20,
+                  style: AppTextStyles.h4.copyWith(
                     fontWeight: FontWeight.w700,
                     color: AppColors.textV2Primary,
                   ),
@@ -116,12 +94,12 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
                       padding: const EdgeInsets.all(AppSpacing.md),
                       decoration: BoxDecoration(
                         color: user.isPrivate
-                            ? AppColors.primary.withValues(alpha: 0.1)
+                            ? AppColors.signal.withValues(alpha: 0.1)
                             : AppColors.secondary.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(AppBorderRadius.md),
                         border: Border.all(
                           color: user.isPrivate
-                              ? AppColors.primary
+                              ? AppColors.signal
                               : AppColors.secondary,
                           width: 1,
                         ),
@@ -131,7 +109,7 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
                           Icon(
                             user.isPrivate ? Icons.lock : Icons.public,
                             color: user.isPrivate
-                                ? AppColors.primary
+                                ? AppColors.signal
                                 : AppColors.secondary,
                             size: 24,
                           ),
@@ -196,9 +174,66 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
                               )
                             : Icon(
                                 user.isPrivate ? Icons.lock : Icons.lock_open,
-                                color: AppColors.primary,
+                                color: AppColors.signal,
                               ),
                       ),
+                    ),
+
+                    const SizedBox(height: AppSpacing.lg),
+
+                    // Analytics / crash consent (Z-PRV-002)
+                    Builder(
+                      builder: (context) {
+                        final consent = ref.watch(privacyConsentServiceProvider);
+                        return Container(
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceV2,
+                            borderRadius:
+                                BorderRadius.circular(AppBorderRadius.md),
+                          ),
+                          child: Column(
+                            children: [
+                              SwitchListTile(
+                                title: const Text(
+                                  'Usage analytics',
+                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                                subtitle: const Text(
+                                  'Help improve Zyntro with anonymous product analytics',
+                                ),
+                                value: consent.analyticsEnabled,
+                                onChanged: (value) async {
+                                  await consent.setAnalyticsEnabled(value);
+                                  setState(() {});
+                                },
+                                secondary: Icon(
+                                  Icons.insights_outlined,
+                                  color: AppColors.signal,
+                                ),
+                              ),
+                              const Divider(height: 1),
+                              SwitchListTile(
+                                title: const Text(
+                                  'Crash reports',
+                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                                subtitle: const Text(
+                                  'Send crash diagnostics so we can fix bugs faster',
+                                ),
+                                value: consent.crashlyticsEnabled,
+                                onChanged: (value) async {
+                                  await consent.setCrashlyticsEnabled(value);
+                                  setState(() {});
+                                },
+                                secondary: Icon(
+                                  Icons.bug_report_outlined,
+                                  color: AppColors.signal,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
                     ),
 
                     const SizedBox(height: AppSpacing.lg),
@@ -210,9 +245,9 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
                         borderRadius: BorderRadius.circular(AppBorderRadius.md),
                       ),
                       child: ExpansionTile(
-                        leading: const Icon(
+                        leading: Icon(
                           Icons.help_outline,
-                          color: AppColors.primary,
+                          color: AppColors.signal,
                         ),
                         title: const Text(
                           'What does this mean?',
@@ -314,7 +349,7 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
                   ],
                 );
               },
-              loading: () => const Center(child: CircularProgressIndicator()),
+              loading: () => const Center(child: CircularProgressIndicator(semanticsLabel: 'Loading privacy settings')),
               error: (e, _) => Center(child: Text('Error: $e')),
             ),
           ),
@@ -331,7 +366,7 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 20, color: AppColors.primary),
+        Icon(icon, size: 20, color: AppColors.signal),
         const SizedBox(width: AppSpacing.sm),
         Expanded(
           child: Column(
@@ -447,7 +482,7 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
         data: (count) => ListTile(
           leading: Stack(
             children: [
-              const Icon(Icons.person_add, color: AppColors.primary),
+              Icon(Icons.person_add, color: AppColors.signal),
               if (count > 0)
                 Positioned(
                   right: -2,
@@ -491,7 +526,7 @@ class _PrivacySettingsPageState extends ConsumerState<PrivacySettingsPage> {
                     vertical: AppSpacing.xs,
                   ),
                   decoration: BoxDecoration(
-                    color: AppColors.primary,
+                    color: AppColors.signal,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(

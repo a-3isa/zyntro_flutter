@@ -2,10 +2,12 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:go_router/go_router.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
+import '../../../app/navigation/app_route_locations.dart';
+
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/feature_flags.dart';
 import '../../../utils/haptic_manager.dart';
@@ -16,6 +18,7 @@ import '../../auth/domain/entities/user_profile_entity.dart';
 import '../../auth/presentation/providers/auth_controller.dart';
 import '../../../services/post_service.dart';
 import '../../../services/moderation_service.dart';
+import '../../../utils/offline_manager.dart';
 import '../../../widgets/reaction_buttons.dart';
 import '../../../widgets/photo_viewer_page.dart';
 import '../../moderation/presentation/report_dialog.dart';
@@ -35,10 +38,16 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
   bool _isLoading = true;
   bool _isSubmitting = false;
   Post? _post;
+  // T031: optimistic pending comments shown while offline.
+  final List<Comment> _pendingComments = [];
   UserProfileEntity? _author;
   ReactionType? _currentReaction;
   Map<ReactionType, int> _reactionCounts = {};
   String _selectedTab = 'Workout';
+  // Task 14: guards against re-showing the solo-repost dialog on rebuilds.
+  bool _expiredDialogShown = false;
+  // Fix 2: guards against re-issuing the draft -> composer redirect on rebuilds.
+  bool _draftRedirectStarted = false;
 
   @override
   void initState() {
@@ -61,7 +70,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
             .read(authControllerProvider)
             .getUserProfile(post.authorId);
         final authState = ref.read(authSessionProvider);
-        final uid = authState.valueOrNull?.id;
+        final uid = authState.value?.id;
 
         // Fetch reaction data
         final counts = await postService.getReactionCounts(widget.postId);
@@ -93,7 +102,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
     HapticManager.medium();
 
     final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
     if (uid == null || _post == null) return;
 
     final previousReaction = _currentReaction;
@@ -163,11 +172,37 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
     if (_commentController.text.trim().isEmpty || _post == null) return;
 
     final authState = ref.read(authSessionProvider);
-    final uid = authState.valueOrNull?.id;
+    final uid = authState.value?.id;
     if (uid == null) return;
 
     final user = await ref.read(authControllerProvider).getUserProfile(uid);
     if (user == null) return;
+
+    // T031: if offline, queue and show pending optimistically.
+    final offlineManager = ref.read(offlineManagerProvider);
+    if (!offlineManager.isOnline) {
+      final text = _commentController.text.trim();
+      _commentController.clear();
+      if (mounted) FocusScope.of(context).unfocus();
+      final pending = Comment(
+        id: 'pending_${DateTime.now().millisecondsSinceEpoch}',
+        authorId: uid,
+        authorName: user.displayName,
+        authorPhotoURL: user.photoUrl,
+        text: text,
+        createdAt: DateTime.now(),
+        isPending: true,
+      );
+      await offlineManager.queueOperation('add_comment', {
+        'postId': _post!.id,
+        'userId': uid,
+        'userName': user.displayName,
+        'userPhotoURL': user.photoUrl,
+        'text': text,
+      });
+      if (mounted) setState(() => _pendingComments.add(pending));
+      return;
+    }
 
     setState(() => _isSubmitting = true);
 
@@ -223,29 +258,11 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
               ),
               child: Row(
                 children: [
-                  GestureDetector(
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      Navigator.pop(context);
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceV2Elevated,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.arrow_back,
-                        color: AppColors.textV2Primary,
-                        size: 20,
-                      ),
-                    ),
-                  ),
+                  const ZyntroBackButton(),
                   const SizedBox(width: 16),
                   Text(
                     'Post',
-                    style: GoogleFonts.syne(
-                      fontSize: 20,
+                    style: AppTextStyles.h4.copyWith(
                       fontWeight: FontWeight.w700,
                       color: AppColors.textV2Primary,
                       letterSpacing: -0.4,
@@ -267,6 +284,23 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
         appBar: AppBar(),
         body: const Center(child: Text('Post not found')),
       );
+    }
+
+    // Task 14: an expired joint draft still has coAuthored == true, so this
+    // check MUST run before the coAuthored branch below (Task 10) — without
+    // it, an expired/incomplete draft would render as a full joint post
+    // card instead of offering the confirmed author a solo-repost dialog.
+    if (_post!.status == 'expired') {
+      return _buildExpiredDraftScaffold();
+    }
+
+    // Fix 2 safety net: an unpublished draft must NEVER render as a normal
+    // (reactable, commentable) post. Invites now deep-link to
+    // /joint-post/:postId, but stale links, old app builds and manual
+    // navigation can still land here — so redirect a qualifying author to the
+    // composer and show everyone else an inert "not ready yet" state.
+    if (_post!.status == 'draft') {
+      return _buildUnpublishedDraftScaffold();
     }
 
     final commentsAsync = ref.watch(commentsProvider(widget.postId));
@@ -291,24 +325,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
             ),
             child: Row(
               children: [
-                GestureDetector(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    Navigator.pop(context);
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceV2Elevated,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.arrow_back,
-                      color: AppColors.textV2Primary,
-                      size: 20,
-                    ),
-                  ),
-                ),
+                const ZyntroBackButton(),
                 const SizedBox(width: 16),
                 const Text(
                   'Post',
@@ -327,6 +344,17 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  ..._post!.coAuthored
+                      ? [
+                          // T10 fix: co-authored posts render via the
+                          // shared joint card instead of the hand-rolled
+                          // solo author/media/stats block below.
+                          PostCardWidget(
+                            post: _post!,
+                            displayMode: PostCardDisplayMode.full,
+                          ),
+                        ]
+                      : [
                   // Author row with overflow menu
                   Row(
                     children: [
@@ -350,16 +378,14 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                           children: [
                             Text(
                               _author?.displayName ?? 'User',
-                              style: GoogleFonts.syne(
-                                fontSize: 14,
+                              style: AppTextStyles.body.copyWith(
                                 fontWeight: FontWeight.w600,
                                 color: AppColors.textV2Primary,
                               ),
                             ),
                             Text(
                               timeago.format(_post!.createdAt),
-                              style: GoogleFonts.outfit(
-                                fontSize: AppFontSize.sm,
+                              style: AppTextStyles.body.copyWith(
                                 color: AppColors.textV2Secondary,
                               ),
                             ),
@@ -418,9 +444,8 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                   // Title
                   Text(
                     _post!.title,
-                    style: GoogleFonts.syne(
-                      fontSize: AppFontSize.xl,
-                      fontWeight: FontWeight.w800,
+                    style: AppTextStyles.h4.copyWith(
+                      fontWeight: FontWeight.w700,
                       color: AppColors.textV2Primary,
                       letterSpacing: -0.5,
                     ),
@@ -471,10 +496,10 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                                   fit: BoxFit.cover,
                                   placeholder: (context, url) => Container(
                                     color: AppColors.surfaceV2Elevated,
-                                    child: const Center(
+                                    child: Center(
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
-                                        color: AppColors.primary,
+                                        color: AppColors.signal,
                                       ),
                                     ),
                                   ),
@@ -616,10 +641,10 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                                     ),
                                     child: Row(
                                       children: [
-                                        const Icon(
+                                        Icon(
                                           Icons.fitness_center,
                                           size: 14,
-                                          color: AppColors.primary,
+                                          color: AppColors.signal,
                                         ),
                                         const SizedBox(width: AppSpacing.xs),
                                         Expanded(
@@ -660,6 +685,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                       ),
                     ),
                   const SizedBox(height: AppSpacing.lg),
+                        ],
 
                   // v2: 3-tab row
                   _buildTabRow(),
@@ -714,11 +740,18 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                     ),
                     const SizedBox(width: AppSpacing.sm),
                     IconButton(
+                      tooltip: _isSubmitting ? 'Sending comment' : 'Send comment',
                       icon: _isSubmitting
                           ? const SizedBox(
                               width: 20,
                               height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                // Otherwise a screen reader announces an
+                                // unlabelled spinner with no indication of
+                                // what is in flight.
+                                semanticsLabel: 'Sending comment',
+                              ),
                             )
                           : const Icon(Icons.send),
                       onPressed: _isSubmitting ? null : _handleSubmitComment,
@@ -746,7 +779,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
               decoration: BoxDecoration(
                 border: Border(
                   bottom: BorderSide(
-                    color: isActive ? AppColors.accentLime : Colors.transparent,
+                    color: isActive ? AppColors.signal : Colors.transparent,
                     width: 2,
                   ),
                 ),
@@ -754,7 +787,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
               child: Text(
                 tab,
                 textAlign: TextAlign.center,
-                style: GoogleFonts.outfit(
+                style: AppTextStyles.body.copyWith(
                   fontSize: 13,
                   fontWeight: isActive ? FontWeight.w700 : FontWeight.w400,
                   color: isActive ? AppColors.textV2Primary : AppColors.textV2Secondary,
@@ -784,21 +817,23 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
       child: commentsAsync.when(
         data: (comments) {
           final blockedUserIds =
-              ref.watch(blockedUserIdsProvider).valueOrNull ?? [];
+              ref.watch(blockedUserIdsProvider).value ?? [];
           final filtered = comments
               .where((c) => !blockedUserIds.contains(c.authorId))
               .toList();
-          if (filtered.isEmpty) {
+          // T031/T032: append pending (offline) comments at the bottom.
+          final all = [...filtered, ..._pendingComments];
+          if (all.isEmpty) {
             return const Text(
               'No comments yet. Be the first!',
               style: TextStyle(color: AppColors.textV2Secondary),
             );
           }
           return Column(
-            children: filtered.map((c) => _buildCommentTile(c)).toList(),
+            children: all.map((c) => _buildCommentTile(c)).toList(),
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(child: CircularProgressIndicator(semanticsLabel: 'Loading post')),
         error: (_, _) => const Text('Error loading comments'),
       ),
     );
@@ -809,17 +844,15 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
       children: [
         Text(
           value,
-          style: GoogleFonts.syne(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
+          style: AppTextStyles.h5.copyWith(
+            fontWeight: FontWeight.w700,
             color: AppColors.textV2Primary,
           ),
         ),
         const SizedBox(height: 2),
         Text(
           label,
-          style: GoogleFonts.outfit(
-            fontSize: AppFontSize.sm,
+          style: AppTextStyles.body.copyWith(
             color: AppColors.textV2Secondary,
           ),
         ),
@@ -829,7 +862,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
 
   Widget _buildCommentTile(Comment comment) {
     final authState = ref.read(authSessionProvider);
-    final currentUserId = authState.valueOrNull?.id;
+    final currentUserId = authState.value?.id;
     final isOwnComment = currentUserId == comment.authorId;
 
     return Padding(
@@ -861,7 +894,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                   children: [
                     Text(
                       comment.authorName,
-                      style: GoogleFonts.outfit(
+                      style: AppTextStyles.body.copyWith(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                         color: AppColors.textV2Primary,
@@ -870,8 +903,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                     const SizedBox(width: AppSpacing.sm),
                     Text(
                       timeago.format(comment.createdAt),
-                      style: GoogleFonts.outfit(
-                        fontSize: AppFontSize.xs,
+                      style: AppTextStyles.caption.copyWith(
                         color: AppColors.textV2Tertiary,
                       ),
                     ),
@@ -913,6 +945,25 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
                   ],
                 ),
                 Text(comment.text),
+                // T032: pending badge for offline-queued comments.
+                if (comment.isPending)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.cloud_upload_outlined,
+                            size: 12, color: AppColors.textV2Tertiary),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Pending sync',
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.textV2Tertiary,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
               ],
             ),
           ),
@@ -923,14 +974,197 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
 
   bool _isOwnPost() {
     final authState = ref.read(authSessionProvider);
-    final currentUserId = authState.valueOrNull?.id;
+    final currentUserId = authState.value?.id;
     return _post != null && currentUserId == _post!.authorId;
+  }
+
+  // Task 14: only a non-removed author who actually confirmed their slot
+  // gets the solo-repost offer. Everyone else (never confirmed, removed,
+  // or a stranger who opened a stale link) just sees the unavailable state.
+  bool _qualifiesForSoloRepostOffer() {
+    if (_post == null) return false;
+    // Watched (not read): this is called from build() via
+    // _buildExpiredDraftScaffold(), and the auth stream's first value can
+    // arrive a frame or two after initState — watching ensures the page
+    // rebuilds and re-evaluates once the real uid is available, instead of
+    // being stuck on a stale "not qualified" read from before it emitted.
+    final authState = ref.watch(authSessionProvider);
+    final uid = authState.value?.id;
+    if (uid == null) return false;
+    final slot = _post!.authors[uid];
+    if (slot == null) return false;
+    return slot.confirmed && !slot.removed;
+  }
+
+  Widget _buildExpiredDraftScaffold() {
+    final qualifies = _qualifiesForSoloRepostOffer();
+
+    if (qualifies && !_expiredDialogShown) {
+      _expiredDialogShown = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showSoloRepostDialog();
+      });
+    }
+
+    return _buildTerminalStateScaffold('This post is no longer available');
+  }
+
+  /// Fix 2: the current user may still finish this joint draft — they hold a
+  /// slot in `authors` and have not removed themselves. Anyone else (a
+  /// non-author who followed a shared link, or an author who left the post)
+  /// only gets the inert "not ready yet" state.
+  bool _canCompleteDraft() {
+    if (_post == null) return false;
+    // Watched, not read: the auth stream's first value can land a frame or two
+    // after initState, so this must re-evaluate when the uid arrives (same
+    // reasoning as _qualifiesForSoloRepostOffer).
+    final uid = ref.watch(authSessionProvider).value?.id;
+    if (uid == null) return false;
+    final slot = _post!.authors[uid];
+    return slot != null && !slot.removed;
+  }
+
+  /// Fix 2: an unpublished (`status == 'draft'`) joint post. It has no
+  /// reactions, no comments and no normal card — it is not a post yet.
+  Widget _buildUnpublishedDraftScaffold() {
+    if (_canCompleteDraft()) {
+      if (!_draftRedirectStarted) {
+        _draftRedirectStarted = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          context.pushReplacement(
+            AppRouteLocations.jointPostComposer(widget.postId),
+          );
+        });
+      }
+      return const Scaffold(
+        backgroundColor: AppColors.backgroundV2,
+        body: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      );
+    }
+
+    return _buildTerminalStateScaffold("This post isn't ready yet");
+  }
+
+  /// Shared chrome for the non-renderable post states (expired / unpublished
+  /// draft): the plain header plus a centered message, and deliberately no
+  /// reactions, comments or post card.
+  Widget _buildTerminalStateScaffold(String message) {
+    return Scaffold(
+      backgroundColor: AppColors.backgroundV2,
+      body: Column(
+        children: [
+          Container(
+            padding: EdgeInsets.only(
+              top: MediaQuery.paddingOf(context).top + 8,
+              bottom: 8,
+              left: 16,
+              right: 16,
+            ),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceV2,
+              border: Border(
+                bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+              ),
+            ),
+            child: Row(
+              children: [
+                const ZyntroBackButton(),
+                const SizedBox(width: 16),
+                const Text(
+                  'Post',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textV2Primary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                child: Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: AppTextStyles.body.copyWith(
+                    color: AppColors.textV2Secondary,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Task 14: offer the confirmed author a solo repost of their own slot's
+  /// data now that the joint draft has expired (their partner never
+  /// confirmed in time). "Discard" just dismisses; Public/Private call
+  /// [PostService.repostSoloFromExpiredDraft] and navigate to the new post.
+  Future<void> _showSoloRepostDialog() async {
+    if (_post == null) return;
+
+    final choice = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Your joint post expired'),
+        content: const Text(
+          'Your workout partner never confirmed, so this post never went '
+          'live. Post it on your own instead?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'discard'),
+            child: const Text('Discard'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'private'),
+            child: const Text('Private'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'public'),
+            child: const Text('Public'),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted || choice == null || choice == 'discard') return;
+
+    final authState = ref.read(authSessionProvider);
+    final uid = authState.value?.id;
+    if (uid == null) return;
+
+    try {
+      final newPostId = await ref
+          .read(postServiceProvider)
+          .repostSoloFromExpiredDraft(_post!.id, uid, visibility: choice);
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => PostDetailPage(postId: newPostId),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to repost: $e'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 
   Future<void> _handlePostAction(String action) async {
     if (_post == null) return;
     final authState = ref.read(authSessionProvider);
-    final currentUserId = authState.valueOrNull?.id;
+    final currentUserId = authState.value?.id;
     if (currentUserId == null) return;
 
     final authorName = _author?.displayName ?? 'User';
@@ -964,7 +1198,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
     required Comment comment,
   }) async {
     final authState = ref.read(authSessionProvider);
-    final currentUserId = authState.valueOrNull?.id;
+    final currentUserId = authState.value?.id;
     if (currentUserId == null) return;
 
     switch (action) {
@@ -985,7 +1219,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
 
   Future<void> _blockUser(String userId, String userName) async {
     final authState = ref.read(authSessionProvider);
-    final currentUserId = authState.valueOrNull?.id;
+    final currentUserId = authState.value?.id;
     if (currentUserId == null) return;
 
     final confirmed = await showDialog<bool>(
@@ -1055,7 +1289,7 @@ class WorkoutDetailSection extends StatelessWidget {
         child: Center(
           child: Text(
             'No exercise details',
-            style: GoogleFonts.outfit(fontSize: 13, color: AppColors.textV2Tertiary),
+            style: AppTextStyles.body.copyWith(fontSize: 13, color: AppColors.textV2Tertiary),
           ),
         ),
       );
@@ -1070,62 +1304,122 @@ class WorkoutDetailSection extends StatelessWidget {
           children: [
             Text(
               '$totalSets',
-              style: GoogleFonts.syne(
+              style: AppTextStyles.h2.copyWith(
                 fontSize: 28,
-                fontWeight: FontWeight.w800,
-                color: AppColors.accentLime,
+                fontWeight: FontWeight.w700,
+                color: AppColors.signal,
                 letterSpacing: -1,
               ),
             ),
             const SizedBox(width: 6),
             Text(
               'total sets',
-              style: GoogleFonts.outfit(fontSize: 12, color: AppColors.textV2Tertiary),
+              style: AppTextStyles.caption.copyWith(color: AppColors.textV2Tertiary),
             ),
           ],
         ),
         const SizedBox(height: 16),
         // Exercise rows
         ...exercises.map((exercise) {
+          final hasDetail = exercise.setDetails.isNotEmpty;
           return Container(
             margin: const EdgeInsets.only(bottom: 2),
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
             decoration: BoxDecoration(
               border: Border(
-                bottom: BorderSide(
-                  color: AppColors.surfaceV2,
-                ),
+                bottom: BorderSide(color: AppColors.surfaceV2),
               ),
             ),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.typeColor(post.type),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    exercise.name,
-                    style: GoogleFonts.outfit(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.textV2Primary,
+                Row(
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppColors.typeColor(post.type),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        exercise.name,
+                        style: AppTextStyles.body.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textV2Primary,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '${exercise.sets} ${exercise.sets == 1 ? 'set' : 'sets'}',
+                      style: AppTextStyles.body.copyWith(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textV2Secondary,
+                      ),
+                    ),
+                  ],
                 ),
-                Text(
-                  '${exercise.sets} sets',
-                  style: GoogleFonts.syne(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textV2Secondary,
-                  ),
-                ),
+                if (hasDetail) ...[
+                  const SizedBox(height: 6),
+                  ...exercise.setDetails.asMap().entries.map((entry) {
+                    final i = entry.key;
+                    final s = entry.value;
+                    final weightStr = s.weight > 0
+                        ? '${s.weight == s.weight.truncateToDouble() ? s.weight.toInt() : s.weight} kg × ${s.reps} reps'
+                        : '${s.reps} reps';
+                    final durStr = s.durationSeconds > 0
+                        ? () {
+                            final m = s.durationSeconds ~/ 60;
+                            final sec = s.durationSeconds % 60;
+                            return m > 0
+                                ? '${m}m ${sec.toString().padLeft(2, '0')}s'
+                                : '${sec}s';
+                          }()
+                        : '';
+                    return Padding(
+                      padding: const EdgeInsetsDirectional.only(
+                        start: 18,
+                        bottom: 3,
+                      ),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 18,
+                            child: Text(
+                              '${i + 1}.',
+                              style: TextStyle(
+                                fontSize: AppFontSize.xs,
+                                color: AppColors.textV2Tertiary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: Text(
+                              weightStr,
+                              style: TextStyle(
+                                fontSize: AppFontSize.sm,
+                                color: AppColors.textV2Secondary,
+                              ),
+                            ),
+                          ),
+                          if (durStr.isNotEmpty)
+                            Text(
+                              durStr,
+                              style: TextStyle(
+                                fontSize: AppFontSize.xs,
+                                color: AppColors.textV2Tertiary,
+                              ),
+                            ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
               ],
             ),
           );

@@ -2,12 +2,17 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:rxdart/rxdart.dart';
 
 import '../core/models/models.dart';
+import '../core/constants/constants.dart';
 import '../core/constants/feature_flags.dart';
+import '../core/auth/email_verification_gate.dart';
 import '../utils/retry_helper.dart';
+import '../utils/offline_manager.dart';
 import '../features/auth/auth_providers.dart';
 import 'notification_service.dart';
+import 'follow_service.dart';
 import 'content_filter_service.dart';
 import 'media_service.dart';
 
@@ -21,6 +26,8 @@ class Comment {
   final String type; // 'text' or 'audio'
   final String? audioUrl;
   final DateTime createdAt;
+  // T031/T032: true when queued offline, not yet synced to Firestore.
+  final bool isPending;
 
   Comment({
     required this.id,
@@ -31,6 +38,7 @@ class Comment {
     this.type = 'text',
     this.audioUrl,
     required this.createdAt,
+    this.isPending = false,
   });
 
   factory Comment.fromFirestore(DocumentSnapshot doc) {
@@ -89,6 +97,34 @@ class CreatePostParams {
   });
 }
 
+/// Thrown by [PostService.createJointDraft] when the session's joint post
+/// document already exists but is no longer a live, postable draft — it has
+/// already been `published` by the dual-confirm Cloud Function, or `expired`
+/// by the 24h TTL sweeper.
+///
+/// This is a genuine edge case (re-entering recap for an old session): the
+/// session's joint post is already decided, so a second draft attempt must
+/// neither resurrect the dead document nor quietly create a rival one.
+class JointDraftUnavailableException implements Exception {
+  /// The existing `posts/{id}` document (the deterministic joint-draft id).
+  final String postId;
+  final String sessionId;
+
+  /// The existing document's `status` — `'published'` or `'expired'`.
+  final String status;
+
+  const JointDraftUnavailableException({
+    required this.postId,
+    required this.sessionId,
+    required this.status,
+  });
+
+  @override
+  String toString() =>
+      'JointDraftUnavailableException: joint post $postId for session '
+      '$sessionId is already "$status", not a live draft';
+}
+
 /// Post service for managing posts, likes, and comments.
 /// Matches React Native postService.ts behavior.
 class PostService {
@@ -104,6 +140,7 @@ class PostService {
     CreatePostParams params, {
     void Function(double)? onProgress,
   }) async {
+    ensureEmailVerifiedForSocial(_ref.read(authSessionProvider).value);
     // Validate post title for profanity
     final contentFilter = _ref.read(contentFilterServiceProvider);
     contentFilter.validateText(params.title, 'post title');
@@ -114,6 +151,9 @@ class PostService {
     // Build post data
     final postData = {
       'authorId': params.authorId,
+      'authorIds': [params.authorId],
+      'status': 'published',
+      'coAuthored': false,
       'sessionId': params.sessionId,
       'visibility': params.visibility,
       'title': params.title,
@@ -165,6 +205,186 @@ class PostService {
     return postId;
   }
 
+  // ==================== JOINT (CO-AUTHORED) POST DRAFTS ====================
+
+  /// The deterministic `posts/{id}` document id that holds the joint draft for
+  /// [sessionId]. Deterministic by design: both partners land on recap at the
+  /// same instant, so a random id plus a read-then-write check would let each
+  /// client create its own draft and neither would ever collect both
+  /// confirmations.
+  static String jointDraftIdForSession(String sessionId) => 'joint_$sessionId';
+
+  /// Create the joint draft post for a two-author session.
+  ///
+  /// Atomically idempotent: the draft always lives at
+  /// [jointDraftIdForSession], and the check-then-create runs inside a
+  /// Firestore transaction, so two clients racing on the same session end up
+  /// with exactly one document — whichever loses the race reads the winner's
+  /// doc and returns its id.
+  ///
+  /// Only a *live* draft is reused. If the document at that id has already
+  /// moved on (`published` — the pair posted this session — or `expired` — the
+  /// 24h TTL elapsed), this throws [JointDraftUnavailableException] rather
+  /// than handing back a dead post: the method's contract is "returns a live,
+  /// postable draft or creates a fresh one".
+  ///
+  /// Publishing (draft -> published) is handled by a Cloud Function, never
+  /// the client.
+  Future<String> createJointDraft({
+    required String sessionId,
+    required String type,
+    required String title,
+    required List<String> authorIds,
+    required Map<String, SessionSummary> summaries,
+    Duration ttl = const Duration(hours: 24),
+  }) async {
+    ensureEmailVerifiedForSocial(_ref.read(authSessionProvider).value);
+    final ref = _firestore
+        .collection('posts')
+        .doc(jointDraftIdForSession(sessionId));
+    final authors = <String, dynamic>{
+      for (final uid in authorIds)
+        uid: PostAuthorSlot(
+          userId: uid,
+          summary: summaries[uid] ?? SessionSummary(),
+        ).toMap(),
+    };
+    final draftData = <String, dynamic>{
+      'coAuthored': true,
+      'status': 'draft',
+      'authorIds': authorIds,
+      'authorId': authorIds.first, // legacy field, harmless
+      'sessionId': sessionId,
+      'type': type,
+      'title': title,
+      'visibility': 'public',
+      'summary': (summaries[authorIds.first] ?? SessionSummary()).toMap(),
+      'authors': authors,
+      'mediaURLs': <String>[],
+      'likesCount': 0,
+      'commentsCount': 0,
+      'createdAt': FieldValue.serverTimestamp(),
+      'expiresAt': Timestamp.fromDate(DateTime.now().add(ttl)),
+    };
+
+    return _firestore.runTransaction<String>((txn) async {
+      // All reads before all writes (plan Global Constraints).
+      final snapshot = await txn.get(ref);
+      if (snapshot.exists) {
+        final status = (snapshot.data()?['status'] as String?) ?? 'published';
+        if (status != 'draft') {
+          throw JointDraftUnavailableException(
+            postId: ref.id,
+            sessionId: sessionId,
+            status: status,
+          );
+        }
+        return ref.id;
+      }
+      txn.set(ref, draftData);
+      return ref.id;
+    });
+  }
+
+  /// Update only the calling author's slot fields (caption/photoUrl/visibility).
+  Future<void> setAuthorSlot({
+    required String postId,
+    required String userId,
+    String? caption,
+    String? photoUrl,
+    String? visibility,
+  }) async {
+    if (caption != null && caption.trim().isNotEmpty) {
+      _ref.read(contentFilterServiceProvider).validateText(caption, 'caption');
+    }
+    final data = <String, dynamic>{};
+    if (caption != null) data['authors.$userId.caption'] = caption;
+    if (photoUrl != null) data['authors.$userId.photoUrl'] = photoUrl;
+    if (visibility != null) data['authors.$userId.visibility'] = visibility;
+    if (data.isEmpty) return;
+    await _firestore.collection('posts').doc(postId).update(data);
+  }
+
+  /// Flip the calling author's own confirmed flag. Does NOT change [status] —
+  /// the draft -> published transition is a Cloud Function's job.
+  Future<void> confirmJointPost({
+    required String postId,
+    required String userId,
+  }) => _firestore.collection('posts').doc(postId).update({
+    'authors.$userId.confirmed': true,
+  });
+
+  /// Mark the calling author's slot as removed (soft-leave a joint post).
+  Future<void> removeAuthorSlot({
+    required String postId,
+    required String userId,
+  }) => _firestore.collection('posts').doc(postId).update({
+    'authors.$userId.removed': true,
+  });
+
+  /// Real-time stream of a joint draft/post document.
+  Stream<Post> watchJointDraft(String postId) => _firestore
+      .collection('posts')
+      .doc(postId)
+      .snapshots()
+      .map((d) => Post.fromFirestore(d));
+
+  /// Create a new plain solo post from a confirmed author's own slot on an
+  /// expired joint draft (`status == 'expired'`), offered client-side after
+  /// the `expireStaleJointPostDrafts` Cloud Function (Task 6) has already
+  /// expired the draft and the confirmed author chooses to post solo.
+  ///
+  /// The slot's `photoUrl` is already an uploaded Storage URL (set back when
+  /// the draft was being composed) — this deliberately does NOT re-run the
+  /// photo-upload pipeline (unlike [createPost]); it writes that URL
+  /// straight into the new post's `mediaURLs`. The original expired draft
+  /// document is left completely untouched.
+  Future<String> repostSoloFromExpiredDraft(
+    String postId,
+    String uid, {
+    required String visibility,
+  }) async {
+    final draftDoc = await _firestore.collection('posts').doc(postId).get();
+    if (!draftDoc.exists) {
+      throw StateError('Expired draft $postId not found');
+    }
+    final draft = Post.fromFirestore(draftDoc);
+    final slot = draft.authors[uid];
+    if (slot == null) {
+      throw StateError('User $uid has no author slot on draft $postId');
+    }
+
+    // The author's own caption is what they actually typed into the joint
+    // composer, so it wins over the generic session title the draft carries.
+    // Falling straight through to draft.title silently discarded their text.
+    final caption = slot.caption?.trim();
+    final title = (caption != null && caption.isNotEmpty)
+        ? caption
+        : draft.title;
+
+    final postRef = _firestore.collection('posts').doc();
+    final postData = {
+      'authorId': uid,
+      'authorIds': [uid],
+      'status': 'published',
+      'coAuthored': false,
+      'sessionId': draft.sessionId,
+      'visibility': visibility,
+      'title': title,
+      'type': draft.type,
+      'summary': slot.summary.toMap(),
+      'mediaURLs': (slot.photoUrl != null && slot.photoUrl!.isNotEmpty)
+          ? [slot.photoUrl]
+          : <String>[],
+      'likesCount': 0,
+      'commentsCount': 0,
+      'createdAt': FieldValue.serverTimestamp(),
+    };
+
+    await withRetry(() => postRef.set(postData));
+    return postRef.id;
+  }
+
   /// Update post with a photo URL (for retry scenarios).
   Future<void> updatePostPhoto(String postId, String photoUrl) async {
     final postRef = _firestore.collection('posts').doc(postId);
@@ -182,15 +402,35 @@ class PostService {
     return Post.fromFirestore(doc);
   }
 
+  /// Constrains a posts query to what the Firestore `list` rule
+  /// (isListablePublicPost) can prove without per-doc lookups: published,
+  /// public, and from public accounts. `authorIsPrivate` is stamped
+  /// server-side; posts not yet stamped simply don't match.
+  static Query<Map<String, dynamic>> _listablePublic(
+    Query<Map<String, dynamic>> query,
+  ) => query
+      .where('status', isEqualTo: 'published')
+      .where('visibility', isEqualTo: 'public')
+      .where('authorIsPrivate', isEqualTo: false);
+
+  /// Visibilities the author or an approved follower may list. Only an
+  /// `authorId ==` query lets the rules check that follow, so these reads go
+  /// one author at a time.
+  static const _audienceVisibilities = ['public', 'friends'];
+
+  Query<Map<String, dynamic>> _authorAudienceQuery(String authorId) =>
+      _firestore
+          .collection('posts')
+          .where('authorId', isEqualTo: authorId)
+          .where('status', isEqualTo: 'published')
+          .where('visibility', whereIn: _audienceVisibilities);
+
   /// Get public feed posts.
   /// Matches RN getPublicFeedPosts.
   Future<List<Post>> getPublicFeedPosts({int limit = 20}) async {
-    final snapshot = await _firestore
-        .collection('posts')
-        .where('visibility', isEqualTo: 'public')
-        .orderBy('createdAt', descending: true)
-        .limit(limit)
-        .get();
+    final snapshot = await _listablePublic(
+      _firestore.collection('posts'),
+    ).orderBy('createdAt', descending: true).limit(limit).get();
 
     return snapshot.docs.map((doc) => Post.fromFirestore(doc)).toList();
   }
@@ -201,11 +441,9 @@ class PostService {
     int limit = 20,
     DocumentSnapshot? startAfterDoc,
   }) async {
-    Query<Map<String, dynamic>> query = _firestore
-        .collection('posts')
-        .where('visibility', isEqualTo: 'public')
-        .orderBy('createdAt', descending: true)
-        .limit(limit);
+    Query<Map<String, dynamic>> query = _listablePublic(
+      _firestore.collection('posts'),
+    ).orderBy('createdAt', descending: true).limit(limit);
 
     if (startAfterDoc != null) {
       query = query.startAfterDocument(startAfterDoc);
@@ -229,12 +467,68 @@ class PostService {
   Future<List<Post>> getUserPosts(String userId, {int limit = 20}) async {
     final snapshot = await _firestore
         .collection('posts')
-        .where('authorId', isEqualTo: userId)
+        .where('authorIds', arrayContains: userId)
+        .where('status', isEqualTo: 'published')
         .orderBy('createdAt', descending: true)
         .limit(limit)
         .get();
 
-    return snapshot.docs.map((doc) => Post.fromFirestore(doc)).toList();
+    return snapshot.docs
+        .map((doc) => Post.fromFirestore(doc))
+        .where((post) => post.authors[userId]?.removed != true)
+        .toList();
+  }
+
+  /// Real-time stream of posts by a specific user.
+  ///
+  /// [isOwner] reads the author's full grid. Anyone else gets what the rules
+  /// can prove for a list: listable public posts (incl. co-authored ones),
+  /// plus — when [viewerFollows] — the author's own public/friends posts via
+  /// an `authorId ==` query.
+  Stream<List<Post>> watchUserPosts(
+    String userId, {
+    int limit = 20,
+    bool isOwner = true,
+    bool viewerFollows = false,
+  }) {
+    List<Post> toPosts(
+      Iterable<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+    ) {
+      final byId = {for (final doc in docs) doc.id: Post.fromFirestore(doc)};
+      return (byId.values
+              .where((post) => post.authors[userId]?.removed != true)
+              .toList()
+            ..sort((a, b) => b.createdAt.compareTo(a.createdAt)))
+          .take(limit)
+          .toList();
+    }
+
+    Stream<List<QueryDocumentSnapshot<Map<String, dynamic>>>> watch(
+      Query<Map<String, dynamic>> query,
+    ) => query
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map((snap) => snap.docs);
+
+    final byAuthorIds = _firestore
+        .collection('posts')
+        .where('authorIds', arrayContains: userId);
+
+    if (isOwner) {
+      return watch(
+        byAuthorIds.where('status', isEqualTo: 'published'),
+      ).map(toPosts);
+    }
+
+    final listable = watch(_listablePublic(byAuthorIds));
+    if (!viewerFollows) return listable.map(toPosts);
+
+    return Rx.combineLatest2(
+      listable,
+      watch(_authorAudienceQuery(userId)),
+      (a, b) => toPosts([...a, ...b]),
+    );
   }
 
   // Prefetch cache
@@ -263,6 +557,19 @@ class PostService {
       debugPrint('[PostService] Prefetch failed: $e');
     }
   }
+
+  /// True when [post] should be surfaced in a feed that was built by matching
+  /// on [queriedIds] (the followed / buddy user ids the query filtered on).
+  ///
+  /// A co-authored post stays visible while at least one of the matched
+  /// authors still has a non-removed slot — an author who "removed from my
+  /// profile" must not drag the post out of the *other* author's followers'
+  /// feeds. Solo posts carry an empty `authors` map, so they always pass.
+  bool _hasActiveQueriedAuthor(Post post, Set<String> queriedIds) =>
+      queriedIds.any(
+        (id) =>
+            post.authorIds.contains(id) && post.authors[id]?.removed != true,
+      );
 
   /// Get posts from followed users.
   /// Matches RN getFollowingPosts with optimized pagination strategy.
@@ -296,39 +603,63 @@ class PostService {
       return FeedResult(posts: [], cursor: FeedCursor(hasMore: false));
     }
 
-    // Unified chunking strategy (batches of 10) for consistent pagination
-    final chunks = <List<String>>[];
-    for (var i = 0; i < allIds.length; i += 10) {
-      chunks.add(allIds.sublist(i, (i + 10).clamp(0, allIds.length)));
-    }
-
-    // Prepare queries for all chunks
-    // We use a unified createdAt cursor if startAfterDoc is provided
-    DateTime? lastCreatedAt;
-    if (startAfterDoc != null) {
-      final data = startAfterDoc.data() as Map<String, dynamic>?;
-      lastCreatedAt = (data?['createdAt'] as Timestamp?)?.toDate();
-    }
-
-    final futures = chunks.map((chunk) {
-      Query<Map<String, dynamic>> query = _firestore
-          .collection('posts')
-          .where('authorId', whereIn: chunk)
-          .orderBy('createdAt', descending: true)
-          .limit(limit);
-
+    // Unified createdAt cursor across every query below.
+    final lastCreatedAt =
+        ((startAfterDoc?.data() as Map<String, dynamic>?)?['createdAt']
+                as Timestamp?)
+            ?.toDate();
+    Object? firstError;
+    Future<QuerySnapshot<Map<String, dynamic>>?> page(
+      Query<Map<String, dynamic>> query,
+    ) {
+      query = query.orderBy('createdAt', descending: true).limit(limit);
       if (lastCreatedAt != null) {
         query = query.startAfter([Timestamp.fromDate(lastCreatedAt)]);
       }
+      // One denied/failed query (e.g. a block since the follow list was
+      // read) must not take down the whole feed.
+      return query.get().then<QuerySnapshot<Map<String, dynamic>>?>(
+        (snap) => snap,
+        onError: (Object e) {
+          debugPrint('[PostService] Following feed query failed: $e');
+          firstError ??= e;
+          return null;
+        },
+      );
+    }
 
-      return query.get();
-    });
+    // 1. Listable public posts, chunked by 10. `authorIds arrayContainsAny`
+    //    (not `authorId whereIn`) so a co-authored post reaches the followers
+    //    of BOTH authors, not just authorIds.first. `status == 'published'`
+    //    keeps unconfirmed/expired joint drafts out.
+    final futures = <Future<QuerySnapshot<Map<String, dynamic>>?>>[
+      for (var i = 0; i < allIds.length; i += 10)
+        page(
+          _listablePublic(
+            _firestore
+                .collection('posts')
+                .where(
+                  'authorIds',
+                  arrayContainsAny: allIds.sublist(
+                    i,
+                    (i + 10).clamp(0, allIds.length),
+                  ),
+                ),
+          ),
+        ),
+      // 2. Per author: friends-only posts and posts from private accounts,
+      //    which the rules only release to an `authorId ==` query.
+      for (final id in allIds) page(_authorAudienceQuery(id)),
+    ];
 
-    final snapshots = await Future.wait(futures);
+    final snapshots = (await Future.wait(futures)).nonNulls.toList();
+    // Partial failure degrades; total failure is a real error for the UI.
+    if (snapshots.isEmpty && firstError != null) throw firstError!;
 
     // Merge all results
     final allPosts = <Post>[];
     var anyChunkHasMore = false;
+    final queriedIds = allIds.toSet();
 
     for (final snapshot in snapshots) {
       if (snapshot.docs.length >= limit) {
@@ -336,7 +667,14 @@ class PostService {
       }
 
       for (final doc in snapshot.docs) {
-        allPosts.add(Post.fromFirestore(doc));
+        final post = Post.fromFirestore(doc);
+        // Private posts are personal records only — never show in the social feed.
+        if (post.visibility == 'private') continue;
+        // The viewer removed their own slot from this joint post.
+        if (post.authors[currentUserId]?.removed == true) continue;
+        // Every author this feed matched on has removed their slot.
+        if (!_hasActiveQueriedAuthor(post, queriedIds)) continue;
+        allPosts.add(post);
       }
     }
 
@@ -390,42 +728,37 @@ class PostService {
   }
 
   /// Get recent posts from specific buddies.
-  /// Filters for 'public' and 'followers' visibility.
+  /// Listable public posts only (see [_listablePublic]).
   Future<List<Post>> getBuddiesRecentPosts(
     List<String> buddyIds, {
     int limit = 15,
   }) async {
     if (buddyIds.isEmpty) return [];
 
-    // Ensure at most 10 buddies per query for 'whereIn'.
+    // Ensure at most 10 buddies per query for 'arrayContainsAny'.
     final safeBuddyIds = buddyIds.take(10).toList();
+    final queriedIds = safeBuddyIds.toSet();
 
-    // Query 1: Public posts
-    final publicSnapshot = await _firestore
-        .collection('posts')
-        .where('authorId', whereIn: safeBuddyIds)
-        .where('visibility', isEqualTo: 'public')
-        .orderBy('createdAt', descending: true)
-        .limit(limit)
-        .get();
+    // `authorIds arrayContainsAny` so co-authored posts surface for BOTH
+    // authors; the listable constraints keep drafts, non-public posts and
+    // private accounts out and satisfy the `list` rule.
+    final publicSnapshot = await _listablePublic(
+      _firestore
+          .collection('posts')
+          .where('authorIds', arrayContainsAny: safeBuddyIds),
+    ).orderBy('createdAt', descending: true).limit(limit).get();
 
-    // Query 2: Followers posts
-    final followersSnapshot = await _firestore
-        .collection('posts')
-        .where('authorId', whereIn: safeBuddyIds)
-        .where('visibility', isEqualTo: 'followers')
-        .orderBy('createdAt', descending: true)
-        .limit(limit)
-        .get();
-
-    final allDocs = [...publicSnapshot.docs, ...followersSnapshot.docs];
+    final allDocs = publicSnapshot.docs;
 
     // Deduplicate and Convert
     final uniquePosts = <String, Post>{};
     for (final doc in allDocs) {
-      if (!uniquePosts.containsKey(doc.id)) {
-        uniquePosts[doc.id] = Post.fromFirestore(doc);
-      }
+      if (uniquePosts.containsKey(doc.id)) continue;
+      final post = Post.fromFirestore(doc);
+      // Drop joint posts whose matched buddy authors have all removed their
+      // slots — the post is no longer theirs to show.
+      if (!_hasActiveQueriedAuthor(post, queriedIds)) continue;
+      uniquePosts[doc.id] = post;
     }
 
     // Sort by createdAt desc
@@ -458,14 +791,18 @@ class PostService {
         final reactionDoc = await transaction.get(reactionRef);
 
         if (reactionDoc.exists) {
-          // Already reacted, check if type changed?
-          // If we want to support changing reaction, we'd update 'type'.
-          // For now, if already exists, we might just update valid
+          // Changing reaction type: the total is unchanged, but the per-type
+          // tallies move one across.
           final currentType = reactionDoc.data()?['type'];
           if (currentType != type.value) {
             transaction.update(reactionRef, {
               'type': type.value,
               'updatedAt': FieldValue.serverTimestamp(),
+            });
+            transaction.update(postRef, {
+              'reactionCounts.${type.value}': FieldValue.increment(1),
+              if (currentType is String)
+                'reactionCounts.$currentType': FieldValue.increment(-1),
             });
           }
           return;
@@ -476,7 +813,10 @@ class PostService {
           'createdAt': FieldValue.serverTimestamp(),
         });
 
-        transaction.update(postRef, {'likesCount': FieldValue.increment(1)});
+        transaction.update(postRef, {
+          'likesCount': FieldValue.increment(1),
+          'reactionCounts.${type.value}': FieldValue.increment(1),
+        });
       }),
     );
 
@@ -484,8 +824,16 @@ class PostService {
     unawaited(_notifyPostReaction(postId, userId, userName, type));
   }
 
-  // Deprecated wrapper for backward compatibility
+  // T029: likePost with offline queue fallback. Uses stable ID to deduplicate.
   Future<void> likePost(String postId, String userId, {String? userName}) {
+    final offlineManager = _ref.read(offlineManagerProvider);
+    if (!offlineManager.isOnline) {
+      return offlineManager.queueOperation('like_post', {
+        'postId': postId,
+        'userId': userId,
+        'userName': ?userName,
+      }, id: 'like_${postId}_$userId');
+    }
     return reactToPost(
       postId,
       userId,
@@ -520,32 +868,48 @@ class PostService {
   }
 
   /// Remove reaction (Unlike) a post.
+  ///
+  /// Runs in a transaction rather than a read-then-batch: the per-type tally
+  /// can only be decremented if we know which type was stored, and reading the
+  /// reaction outside the write let two rapid unreacts both see it present and
+  /// double-decrement the count.
   Future<void> removeReaction(String postId, String userId) async {
-    final batch = _firestore.batch();
+    final postRef = _firestore.collection('posts').doc(postId);
+    final reactionRef = postRef.collection('reactions').doc(userId);
 
-    final reactionRef = _firestore
-        .collection('posts')
-        .doc(postId)
-        .collection('reactions')
-        .doc(userId);
+    await withRetry(
+      () => _firestore.runTransaction((transaction) async {
+        // Every read must precede every write in a Firestore transaction, so
+        // both documents are fetched up front.
+        final reactionDoc = await transaction.get(reactionRef);
+        // Nothing to remove — and nothing to decrement, which is what stops a
+        // repeated unreact from driving the counts negative.
+        if (!reactionDoc.exists) return;
+        final postDoc = await transaction.get(postRef);
 
-    batch.delete(reactionRef);
+        final storedType = reactionDoc.data()?['type'];
+        final currentLikes = postDoc.data()?['likesCount'];
 
-    final postDoc = await _firestore.collection('posts').doc(postId).get();
-    if (postDoc.exists) {
-      final currentLikes = postDoc.data()?['likesCount'] ?? 0;
-      if (currentLikes > 0) {
-        batch.update(_firestore.collection('posts').doc(postId), {
-          'likesCount': FieldValue.increment(-1),
+        transaction.delete(reactionRef);
+        transaction.update(postRef, {
+          if (currentLikes is num && currentLikes > 0)
+            'likesCount': FieldValue.increment(-1),
+          if (storedType is String)
+            'reactionCounts.$storedType': FieldValue.increment(-1),
         });
-      }
-    }
-
-    await withRetry(() => batch.commit());
+      }),
+    );
   }
 
-  // Deprecated wrapper
+  // T030: unlikePost with offline queue fallback. Uses stable ID to deduplicate.
   Future<void> unlikePost(String postId, String userId) {
+    final offlineManager = _ref.read(offlineManagerProvider);
+    if (!offlineManager.isOnline) {
+      return offlineManager.queueOperation('unlike_post', {
+        'postId': postId,
+        'userId': userId,
+      }, id: 'unlike_${postId}_$userId');
+    }
     return removeReaction(postId, userId);
   }
 
@@ -570,17 +934,62 @@ class PostService {
 
   /// Get reaction counts by type for a post.
   /// Returns a map of ReactionType to count.
+  /// Reaction tallies for a post, by type.
+  ///
+  /// Served from the `reactionCounts` map maintained on the post document, so
+  /// the common path costs one document read — and callers that already hold
+  /// the post can skip this entirely via [reactionCountsFrom].
+  ///
+  /// This runs once per post card. Originally it read every reaction document,
+  /// so a post with 200 reactions cost 200 reads each time it scrolled into
+  /// view; then it used three count() aggregates. Maintaining the map at write
+  /// time removes the per-card cost altogether.
   Future<Map<ReactionType, int>> getReactionCounts(String postId) async {
-    final snapshot = await _firestore
-        .collection('posts')
-        .doc(postId)
-        .collection('reactions')
-        .get();
+    final postRef = _firestore.collection('posts').doc(postId);
+    final postDoc = await postRef.get();
+    final data = postDoc.data();
+
+    final maintained = data?['reactionCounts'];
+    if (maintained is Map) return reactionCountsFrom(maintained);
+
+    // No maintained map. A post with no reactions at all needs no further
+    // reads; only a pre-migration post with real reactions has to be counted.
+    final likes = data?['likesCount'];
+    if (likes is! num || likes <= 0) return <ReactionType, int>{};
+
+    return _countReactionsByAggregate(postRef);
+  }
+
+  /// Parses a post's stored `reactionCounts` map.
+  ///
+  /// Tolerates a missing or wrongly typed entry rather than throwing: the map
+  /// is written with dotted field increments, and a post card must never fail
+  /// to render because one tally is malformed.
+  static Map<ReactionType, int> reactionCountsFrom(Map<dynamic, dynamic> raw) {
+    final counts = <ReactionType, int>{};
+    for (final type in ReactionType.values) {
+      final value = raw[type.value];
+      if (value is num && value > 0) counts[type] = value.toInt();
+    }
+    return counts;
+  }
+
+  /// Pre-migration fallback: one aggregate per reaction type. Each bills as a
+  /// single read regardless of how many reactions match.
+  Future<Map<ReactionType, int>> _countReactionsByAggregate(
+    DocumentReference<Map<String, dynamic>> postRef,
+  ) async {
+    final reactions = postRef.collection('reactions');
+    final results = await Future.wait(
+      ReactionType.values.map(
+        (type) => reactions.where('type', isEqualTo: type.value).count().get(),
+      ),
+    );
 
     final counts = <ReactionType, int>{};
-    for (final doc in snapshot.docs) {
-      final type = ReactionType.fromString(doc.data()['type'] ?? 'like');
-      counts[type] = (counts[type] ?? 0) + 1;
+    for (var i = 0; i < ReactionType.values.length; i++) {
+      final count = results[i].count ?? 0;
+      if (count > 0) counts[ReactionType.values[i]] = count;
     }
     return counts;
   }
@@ -604,17 +1013,6 @@ class PostService {
         'createdAt': doc.data()['createdAt'],
       };
     }).toList();
-  }
-
-  /// Get all user IDs who reacted to a post.
-  Future<List<String>> getPostLikes(String postId) async {
-    final snapshot = await _firestore
-        .collection('posts')
-        .doc(postId)
-        .collection('reactions')
-        // .where('type', isEqualTo: 'like') // Optional: filter by type? usually "likes" implies all reactions
-        .get();
-    return snapshot.docs.map((doc) => doc.id).toList();
   }
 
   // ==================== COMMENTS ====================
@@ -653,7 +1051,7 @@ class PostService {
       'text': text,
       'type': audioUrl != null ? 'audio' : 'text',
       'createdAt': FieldValue.serverTimestamp(),
-      if (audioUrl != null) 'audioUrl': audioUrl,
+      'audioUrl': ?audioUrl,
     });
 
     batch.update(_firestore.collection('posts').doc(postId), {
@@ -752,22 +1150,39 @@ final publicFeedProvider = FutureProvider.autoDispose<List<Post>>((ref) async {
   return ref.watch(postServiceProvider).getPublicFeedPosts();
 });
 
-/// User posts provider.
-final userPostsProvider = FutureProvider.family<List<Post>, String>((
-  ref,
-  userId,
-) async {
-  return ref.watch(postServiceProvider).getUserPosts(userId);
-});
+/// User posts provider — real-time stream so the grid updates without a pull-to-refresh.
+final userPostsProvider = StreamProvider.autoDispose.family<List<Post>, String>(
+  (ref, userId) {
+    final posts = ref.watch(postServiceProvider);
+    final viewerId = ref.watch(authSessionProvider).value?.id;
+    if (viewerId == null) {
+      return posts.watchUserPosts(userId, isOwner: false);
+    }
+    if (viewerId == userId) return posts.watchUserPosts(userId);
+
+    // Re-subscribe when a follow is approved or removed: it changes which
+    // queries the rules allow.
+    return ref
+        .watch(followServiceProvider)
+        .watchFollowStatus(viewerId, userId)
+        .map((status) => status == FollowStatus.approved)
+        .distinct()
+        .switchMap(
+          (follows) => posts.watchUserPosts(
+            userId,
+            isOwner: false,
+            viewerFollows: follows,
+          ),
+        );
+  },
+);
 
 /// Comments stream provider.
-final commentsProvider = StreamProvider.family<List<Comment>, String>((
-  ref,
-  postId,
-) {
-  if (!FeatureFlags.isCommentsEnabled) {
-    return Stream.value([]);
-  }
-  // ignore: deprecated_member_use_from_same_package
-  return ref.watch(postServiceProvider).subscribeToComments(postId);
-});
+final commentsProvider = StreamProvider.autoDispose
+    .family<List<Comment>, String>((ref, postId) {
+      if (!FeatureFlags.isCommentsEnabled) {
+        return Stream.value([]);
+      }
+      // ignore: deprecated_member_use_from_same_package
+      return ref.watch(postServiceProvider).subscribeToComments(postId);
+    });

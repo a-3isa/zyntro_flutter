@@ -2,14 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
-
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/constants/constants.dart';
 import '../../../app/navigation/app_router.dart';
 import '../../../widgets/email_verification_banner.dart';
 import '../../../widgets/zyntro_button.dart';
-import '../../../widgets/avatar_selector.dart';
+
 import '../auth_providers.dart';
 import 'providers/auth_controller.dart';
 
@@ -27,7 +26,7 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
   bool _isLoading = false;
   bool _isBeginner = false;
   String? _photoUrl;
-  String? _selectedAvatar;
+
   double? _uploadProgress;
   String _uploadStatus = '';
   String _authProvider = 'email';
@@ -42,18 +41,21 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
       }
 
       final authState = ref.read(authSessionProvider);
-      final user = authState.valueOrNull;
+      final user = authState.value;
 
       if (user != null) {
         final providerData = user.providerIds;
         final isGoogleSignup = providerData.contains('google.com');
         final isFacebookSignup = providerData.contains('facebook.com');
+        final isAppleSignup = providerData.contains('apple.com');
 
         setState(() {
           if (isGoogleSignup) {
             _authProvider = 'google';
           } else if (isFacebookSignup) {
             _authProvider = 'facebook';
+          } else if (isAppleSignup) {
+            _authProvider = 'apple';
           }
 
           if (_authProvider != 'email') {
@@ -78,18 +80,9 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
 
     try {
       final authState = ref.read(authSessionProvider);
-      final uid = authState.valueOrNull?.id;
+      final uid = authState.value?.id;
 
       if (uid == null) throw Exception('User not authenticated');
-
-      String? avatarConfigToSave;
-      String? photoUrlToSave;
-
-      if (_authProvider == 'email') {
-        avatarConfigToSave = _selectedAvatar;
-      } else {
-        photoUrlToSave = _photoUrl;
-      }
 
       setState(() => _uploadStatus = 'Creating profile...');
 
@@ -98,8 +91,7 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
         displayName: _nameController.text.trim(),
         workoutPreference: _workoutPreference,
         beginnerFlag: _isBeginner,
-        photoUrl: photoUrlToSave,
-        avatarConfig: avatarConfigToSave,
+        photoUrl: _authProvider != 'email' ? _photoUrl : null,
         authProvider: _authProvider,
       );
 
@@ -146,9 +138,8 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
                 // Header
                 Text(
                   'Set Up Your Profile',
-                  style: GoogleFonts.syne(
-                    fontSize: AppFontSize.xxl,
-                    fontWeight: FontWeight.w800,
+                  style: AppTextStyles.h3.copyWith(
+                    fontWeight: FontWeight.w700,
                     color: AppColors.textV2Primary,
                   ),
                   textAlign: TextAlign.center,
@@ -156,8 +147,7 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
                 const SizedBox(height: AppSpacing.sm),
                 Text(
                   "Let's personalize your experience",
-                  style: GoogleFonts.outfit(
-                    fontSize: AppFontSize.md,
+                  style: AppTextStyles.bodyLarge.copyWith(
                     color: AppColors.textV2Secondary,
                   ),
                   textAlign: TextAlign.center,
@@ -169,7 +159,7 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
                 Consumer(
                   builder: (context, ref, child) {
                     final authState = ref.watch(authSessionProvider);
-                    final user = authState.valueOrNull;
+                    final user = authState.value;
 
                     if (user != null && !user.emailVerified && _authProvider == 'email') {
                       return Padding(
@@ -197,13 +187,8 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
                   },
                 ),
 
-                // Photo/Avatar Selection
-                if (_authProvider == 'email') ...[
-                  AvatarSelector(
-                    onAvatarSelected: (avatar) => setState(() => _selectedAvatar = avatar),
-                    initialAvatar: _selectedAvatar,
-                  ),
-                ] else ...[
+                // Social auth photo preview
+                if (_authProvider != 'email') ...[
                   Center(
                     child: Column(
                       children: [
@@ -211,9 +196,9 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
                           width: 130,
                           height: 130,
                           padding: const EdgeInsets.all(3),
-                          decoration: const BoxDecoration(
+                          decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: AppColors.accentLime,
+                            color: AppColors.userAccent,
                           ),
                           child: Container(
                             decoration: BoxDecoration(
@@ -233,9 +218,12 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
                         ),
                         const SizedBox(height: AppSpacing.md),
                         Text(
-                          'Profile photo from ${_authProvider == 'google' ? 'Google' : 'Facebook'}',
-                          style: GoogleFonts.outfit(
-                            fontSize: AppFontSize.sm,
+                          'Profile photo from ${_authProvider == 'google'
+                              ? 'Google'
+                              : _authProvider == 'facebook'
+                              ? 'Facebook'
+                              : 'Apple'}',
+                          style: AppTextStyles.body.copyWith(
                             color: AppColors.textV2Secondary,
                           ),
                         ),
@@ -263,8 +251,7 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
 
                 Text(
                   'What type of workouts do you prefer?',
-                  style: GoogleFonts.outfit(
-                    fontSize: AppFontSize.md,
+                  style: AppTextStyles.bodyLarge.copyWith(
                     fontWeight: FontWeight.w600,
                     color: AppColors.textV2Primary,
                   ),
@@ -297,15 +284,14 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
                       child: LinearProgressIndicator(
                         value: _uploadProgress,
                         backgroundColor: AppColors.surfaceV2Elevated,
-                        valueColor: const AlwaysStoppedAnimation<Color>(AppColors.accentLime),
+                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.userAccent),
                       ),
                     ),
                   const SizedBox(height: AppSpacing.sm),
                   Text(
                     _uploadStatus,
-                    style: GoogleFonts.outfit(
+                    style: AppTextStyles.body.copyWith(
                       color: AppColors.textV2Secondary,
-                      fontSize: AppFontSize.sm,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -349,7 +335,7 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-          borderSide: const BorderSide(color: AppColors.accentLime, width: 2),
+          borderSide: BorderSide(color: AppColors.userAccent, width: 2),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppBorderRadius.lg),
@@ -378,19 +364,18 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
               vertical: AppSpacing.md,
             ),
             decoration: BoxDecoration(
-              color: isSelected ? AppColors.accentLime : AppColors.surfaceV2Elevated,
+              color: isSelected ? AppColors.userAccent : AppColors.surfaceV2Elevated,
               borderRadius: BorderRadius.circular(AppBorderRadius.lg),
               border: Border.all(
-                color: isSelected ? AppColors.accentLime : AppColors.surfaceV2Active,
+                color: isSelected ? AppColors.userAccent : AppColors.surfaceV2Active,
                 width: isSelected ? 2 : 1,
               ),
             ),
             child: Text(
               type.value.toUpperCase(),
-              style: GoogleFonts.outfit(
+              style: AppTextStyles.body.copyWith(
                 color: isSelected ? AppColors.backgroundV2 : AppColors.textV2Secondary,
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                fontSize: AppFontSize.sm,
               ),
             ),
           ),
@@ -409,7 +394,7 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.school_outlined, color: AppColors.accentLime),
+          Icon(Icons.school_outlined, color: AppColors.userAccent),
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
@@ -417,15 +402,14 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
               children: [
                 Text(
                   "I'm new to fitness",
-                  style: GoogleFonts.outfit(
+                  style: AppTextStyles.body.copyWith(
                     fontWeight: FontWeight.w600,
                     color: AppColors.textV2Primary,
                   ),
                 ),
                 Text(
                   "We'll provide extra guidance and tips",
-                  style: GoogleFonts.outfit(
-                    fontSize: AppFontSize.sm,
+                  style: AppTextStyles.body.copyWith(
                     color: AppColors.textV2Secondary,
                   ),
                 ),
@@ -443,7 +427,7 @@ class _ProfileSetupPageState extends ConsumerState<ProfileSetupPage> {
               return null;
             }),
             trackColor: WidgetStateProperty.resolveWith<Color?>((states) {
-              if (states.contains(WidgetState.selected)) return AppColors.accentLime;
+              if (states.contains(WidgetState.selected)) return AppColors.userAccent;
               return AppColors.surfaceV2Active;
             }),
           ),
