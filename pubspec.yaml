@@ -13,7 +13,7 @@ dependencies:
     sdk: flutter
 
   # Firebase
-  firebase_core: 4.11.0
+  firebase_core: 4.12.0
   firebase_app_check: 0.4.5
   firebase_auth: 6.5.4
   flutter_facebook_auth: ^7.1.1
