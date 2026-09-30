@@ -58,7 +58,7 @@ dependencies:
   
   # Push Notifications
   firebase_messaging: 16.4.1
-  flutter_local_notifications: 22.0.1
+  flutter_local_notifications: 22.3.1
   package_info_plus: 10.2.0
   
   # Payments
