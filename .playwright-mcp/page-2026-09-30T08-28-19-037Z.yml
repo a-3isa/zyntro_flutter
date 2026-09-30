@@ -1,0 +1,310 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - link "Zyntro home" [ref=e4] [cursor=pointer]:
+        - /url: "#top"
+        - text: ZYNTRO
+      - navigation "Main" [ref=e8]:
+        - link "The idea" [ref=e9] [cursor=pointer]:
+          - /url: "#idea"
+        - link "How it works" [ref=e10] [cursor=pointer]:
+          - /url: "#how"
+        - link "The app" [ref=e11] [cursor=pointer]:
+          - /url: "#app"
+        - link "Features" [ref=e12] [cursor=pointer]:
+          - /url: "#features"
+        - link "The vibe" [ref=e13] [cursor=pointer]:
+          - /url: "#vibe"
+      - link "Get the app" [ref=e14] [cursor=pointer]:
+        - /url: "#get"
+  - main [ref=e15]:
+    - generic [ref=e19]:
+      - generic [ref=e20]:
+        - generic [ref=e21]: Live social training
+        - heading "Never train alone again ." [level=1] [ref=e22]:
+          - generic [ref=e23]: Never train
+          - generic [ref=e25]: alone
+          - generic [ref=e28]:
+            - text: again
+            - generic [ref=e29]: .
+        - paragraph [ref=e30]: Zyntro turns your workout into a live room with your friends. One shared clock. Every set, rep and second — synced. When someone's counting on you, you show up.
+        - generic [ref=e31]:
+          - link "Start a session" [ref=e32] [cursor=pointer]:
+            - /url: "#get"
+          - link "Why Zyntro" [ref=e35] [cursor=pointer]:
+            - /url: "#idea"
+        - generic [ref=e36]:
+          - generic [ref=e37]:
+            - generic [ref=e38]: "Y"
+            - generic [ref=e39]: S
+            - generic [ref=e40]: M
+            - generic [ref=e41]: A
+          - generic [ref=e42]: Gym, cardio & timed workouts.Android now · iOS soon.
+      - generic [aria-hidden] [ref=e43]:
+        - generic [ref=e44]: Sara · "one more rep!"
+        - generic [ref=e51]:
+          - text: 🔥
+          - generic [ref=e52]: 23-day streak — together
+        - generic [ref=e54]:
+          - generic [ref=e56]:
+            - generic [ref=e57]: Live · Gym
+            - generic [ref=e59]: 12:47
+          - generic [ref=e60]:
+            - generic [ref=e61]: "Y"
+            - generic [ref=e62]:
+              - generic [ref=e63]: You
+              - generic [ref=e64]: Bench Press · Set 3 · 80kg
+            - generic [ref=e65]: Your turn
+          - generic [ref=e66]:
+            - generic [ref=e67]: S
+            - generic [ref=e68]:
+              - generic [ref=e69]: Sara
+              - generic [ref=e70]: Bench Press · 75kg × 8
+            - generic [ref=e71]: Resting
+          - generic [ref=e72]:
+            - generic [ref=e76]: 0:00
+            - generic [ref=e77]: Your current set
+          - generic [ref=e78]:
+            - generic [ref=e79]:
+              - generic [ref=e80]: ✓
+              - generic [ref=e81]: Sara logged 75kg × 8
+            - generic [ref=e82]:
+              - generic [ref=e83]: 🎙
+              - generic [ref=e84]: "Sara: \"one more rep!\""
+          - generic [ref=e85]: Log set
+    - generic [ref=e87]:
+      - generic [ref=e88]: Sara logged 75kg × 8
+      - generic [ref=e89]: Two phones. One clock.
+      - generic [ref=e90]: Mo just joined the room
+      - generic [ref=e91]: "Voice note: \"last set, go\""
+      - generic [ref=e92]: Day 23 — streak alive
+      - generic [ref=e93]: Nobody skips leg day here
+      - generic [ref=e94]: Sara logged 75kg × 8
+      - generic [ref=e95]: Two phones. One clock.
+      - generic [ref=e96]: Mo just joined the room
+      - generic [ref=e97]: "Voice note: \"last set, go\""
+      - generic [ref=e98]: Day 23 — streak alive
+      - generic [ref=e99]: Nobody skips leg day here
+    - generic [ref=e101]:
+      - generic [ref=e102]:
+        - generic [ref=e103]: The idea
+        - heading "Workouts don't die in the gym." [level=2] [ref=e104]
+        - generic [ref=e105]:
+          - generic [ref=e106]: 6:47pm
+          - paragraph [ref=e107]: The moment most workouts actually end — on the couch, before they start. Zyntro exists for that moment.
+      - generic [ref=e108]:
+        - paragraph [ref=e109]: Skipping alone is easy. Nobody sees it. Nobody asks. Tomorrow becomes next week and next week becomes January.
+        - paragraph [ref=e110]:
+          - text: But when your friend is already warming up — when their timer is running on
+          - emphasis [ref=e111]: your
+          - text: screen and their voice note says
+          - emphasis [ref=e112]: "\"you coming or what?\""
+          - text: — skipping stops being an option.
+        - paragraph [ref=e113]: Zyntro puts you in the same room even when you're miles apart. Not a feed you scroll later. Not a chart you check once. A live session, happening right now, with someone who's counting on you.
+        - paragraph [ref=e114]: That's the whole idea. Accountability that feels like hanging out.
+    - generic [ref=e116]:
+      - generic [ref=e117]:
+        - generic [ref=e118]:
+          - generic [ref=e119]: How it works
+          - heading "Three taps to the same room." [level=2] [ref=e120]
+        - paragraph [ref=e121]: No group chats. No "you still coming?". Just invite, go live, and lift.
+      - generic [ref=e122]:
+        - generic [ref=e123]:
+          - heading "Invite your buddy" [level=3] [ref=e129]
+          - paragraph [ref=e130]: Build your plan from a full exercise library and send the invite. They get a push, tap, and pick their own workout.
+        - generic [ref=e131]:
+          - heading "Go live together" [level=3] [ref=e136]
+          - paragraph [ref=e137]: Once everyone's ready, the room goes live. A shared clock, a live activity strip, every set landing the moment it's logged.
+        - generic [ref=e138]:
+          - heading "Keep showing up" [level=3] [ref=e142]
+          - paragraph [ref=e143]: Finish with a recap you both earned. Streaks grow, your circle climbs the board, and next session is already on the calendar.
+    - generic [ref=e145]:
+      - generic [ref=e146]:
+        - generic [ref=e147]:
+          - generic [ref=e148]: Two ways to train
+          - heading "Same room. Your rhythm." [level=2] [ref=e149]
+        - paragraph [ref=e150]: Zyntro reads the room. Same workout? You take turns. Different workouts? You run side by side.
+      - generic [ref=e151]:
+        - generic [ref=e152]:
+          - generic [ref=e153]: Turn-based
+          - heading "Pass the bar." [level=3] [ref=e154]
+          - paragraph [ref=e155]: Both on bench? You lift, they watch your timer tick. You log, it's their turn. Classic spotting energy — even across town.
+          - generic [ref=e157]:
+            - generic [ref=e158]: "Y"
+            - generic [ref=e160]: S
+        - generic [ref=e161]:
+          - generic [ref=e162]: Parallel
+          - heading "Lift. Run. Together." [level=3] [ref=e163]
+          - paragraph [ref=e164]: You're on squats, they're on the treadmill. One shared clock, two live lanes — different workouts, same session.
+          - generic [ref=e166]:
+            - generic [ref=e167]: Gym
+            - generic [ref=e171]: Run
+    - generic [ref=e176]:
+      - generic [ref=e177]:
+        - generic [ref=e178]:
+          - generic [ref=e179]: The app
+          - heading "From invite to recap." [level=2] [ref=e180]
+        - paragraph [ref=e181]: Real screens from Zyntro. Dark, quiet, and loud only where it matters.
+      - generic [ref=e182]:
+        - figure "01 Invite Set the plan, send the invite, wait for your buddy to tap in." [ref=e183]:
+          - img "Gym session setup screen with a workout plan, waiting for your buddy to join" [ref=e185]
+          - generic [ref=e186]:
+            - generic [ref=e187]: "01"
+            - generic [ref=e188]: Invite
+            - generic [ref=e189]: Set the plan, send the invite, wait for your buddy to tap in.
+        - figure "02 Build Search the library, pick exercises and sets in seconds." [ref=e190]:
+          - img "Exercise picker with Bench Press and Incline Bench Press selected" [ref=e192]
+          - generic [ref=e193]:
+            - generic [ref=e194]: "02"
+            - generic [ref=e195]: Build
+            - generic [ref=e196]: Search the library, pick exercises and sets in seconds.
+        - figure "03 Go live Your set timer front and centre. Your buddy's set right above it." [ref=e197]:
+          - img "Live session room with your set timer at 1:14 and a friend's latest set" [ref=e199]
+          - generic [ref=e200]:
+            - generic [ref=e201]: "03"
+            - generic [ref=e202]: Go live
+            - generic [ref=e203]: Your set timer front and centre. Your buddy's set right above it.
+        - figure "04 See every rep Weight, reps and set time for everyone in the room." [ref=e204]:
+          - img "Live room showing three athletes with weight, reps and set time" [ref=e206]
+          - generic [ref=e207]:
+            - generic [ref=e208]: "04"
+            - generic [ref=e209]: See every rep
+            - generic [ref=e210]: Weight, reps and set time for everyone in the room.
+        - figure "05 Keep it alive Streaks and a leaderboard with the people who actually train with you." [ref=e211]:
+          - img "Current streak of 12 days and a friends leaderboard" [ref=e213]
+          - generic [ref=e214]:
+            - generic [ref=e215]: "05"
+            - generic [ref=e216]: Keep it alive
+            - generic [ref=e217]: Streaks and a leaderboard with the people who actually train with you.
+    - generic [ref=e219]:
+      - generic [ref=e220]:
+        - generic [ref=e221]:
+          - generic [ref=e222]: Inside the room
+          - heading "Built for mid-set." [level=2] [ref=e223]
+        - paragraph [ref=e224]: Big targets. Sweaty-thumb friendly. Everything you need between reps, nothing you don't.
+      - generic [ref=e225]:
+        - generic [ref=e226]:
+          - heading "Tap anywhere. Count every rep." [level=3] [ref=e227]
+          - paragraph [ref=e228]: The whole screen is the button. No squinting, no tiny fields. Go on — try it.
+          - button "Tap to count a rep" [ref=e229] [cursor=pointer]:
+            - button "Reset reps" [ref=e230]
+            - generic [ref=e234]: "0"
+            - generic [ref=e235]: Tap to count
+        - generic [ref=e236]:
+          - heading "Voice notes mid-set" [level=3] [ref=e237]
+          - paragraph [ref=e238]: Hold to talk. Drop a "one more rep" straight into your partner's session while they're under the bar.
+          - generic [ref=e239]: 0:04
+        - generic [ref=e273]:
+          - heading "No one free? Never mind." [level=3] [ref=e274]
+          - paragraph [ref=e275]: Pair with a pace-setting bot, or let matchmaking find someone training right now. A session never has to wait.
+          - generic [ref=e276]: Finding someone training now…
+        - generic [ref=e279]:
+          - heading "Streaks" [level=3] [ref=e280]
+          - generic [ref=e281]:
+            - generic [ref=e282]: "23"
+            - generic [ref=e283]: days alive
+        - generic [ref=e313]:
+          - heading "Leaderboards" [level=3] [ref=e314]
+          - generic [ref=e315]:
+            - generic [ref=e316]:
+              - generic [ref=e317]: "1"
+              - text: Sara
+              - generic [ref=e318]: 2,480
+            - generic [ref=e319]:
+              - generic [ref=e320]: "2"
+              - text: You
+              - generic [ref=e321]: 2,315
+            - generic [ref=e322]:
+              - generic [ref=e323]: "3"
+              - text: Mohamed
+              - generic [ref=e324]: 1,990
+        - generic [ref=e325]:
+          - heading "Plan in seconds" [level=3] [ref=e326]
+          - generic [ref=e327]: be
+          - generic [ref=e333]:
+            - generic [ref=e334]: Bench Press
+            - generic [ref=e335]: Incline DB
+            - generic [ref=e336]: Squat
+            - generic [ref=e337]: Row
+            - generic [ref=e338]: 5K Run
+    - generic [ref=e340]:
+      - generic [ref=e341]:
+        - generic [ref=e342]: The vibe
+        - heading "Concrete. Chalk. Signal." [level=2] [ref=e343]
+        - paragraph [ref=e344]:
+          - text: Zyntro looks like the gym feels at 6am — raw concrete, iron, a single orange light that says
+          - emphasis [ref=e345]: go
+          - text: . No neon noise, no pastel wellness. Just the room, your people, and the work.
+        - generic [ref=e346]:
+          - generic [ref=e347]:
+            - generic [ref=e348]: Warm, not soft
+            - paragraph [ref=e349]: Charcoal and iron tones that feel like a real place, not a spreadsheet.
+          - generic [ref=e350]:
+            - generic [ref=e351]: Loud when it counts
+            - paragraph [ref=e352]: "Signal orange is reserved for one thing: it's your move."
+          - generic [ref=e353]:
+            - generic [ref=e354]: Friend, not coach
+            - paragraph [ref=e355]: We talk like the buddy on the next bench — short, honest, a little bit of trash talk.
+      - generic [ref=e356]:
+        - generic [ref=e357]:
+          - generic [ref=e358]: "#1A1A18"
+          - generic [ref=e359]: Concrete
+        - generic [ref=e360]:
+          - generic [ref=e361]: "#2C2A27"
+          - generic [ref=e362]: Iron
+        - generic [ref=e363]:
+          - generic [ref=e364]: "#FF5C1A"
+          - generic [ref=e365]: Signal
+        - generic [ref=e366]:
+          - generic [ref=e367]: "#E8E4DC"
+          - generic [ref=e368]: Chalk
+    - generic [ref=e370]:
+      - generic [ref=e371]:
+        - generic [ref=e372]: Heard in the room
+        - heading "Friendly pressure hits different." [level=2] [ref=e373]
+      - generic [ref=e374]:
+        - generic [ref=e375]:
+          - text: 🎙
+          - generic [ref=e376]:
+            - text: "\"I see your timer. Don't you dare rack it early.\""
+            - generic [ref=e377]: Sara · mid-set
+        - generic [ref=e378]:
+          - text: 💪
+          - generic [ref=e379]:
+            - text: "\"Last set. Go.\""
+            - generic [ref=e380]: You · 21:14
+        - generic [ref=e381]:
+          - text: 🏃
+          - generic [ref=e382]:
+            - text: "\"I'm on km 4, you better be on set 4.\""
+            - generic [ref=e383]: Mohamed · parallel run
+        - generic [ref=e384]:
+          - text: 🔥
+          - generic [ref=e385]:
+            - text: "\"Day 23. Not breaking it for pizza.\""
+            - generic [ref=e386]: Aya · streak
+        - generic [ref=e387]:
+          - text: 👀
+          - generic [ref=e388]:
+            - text: "\"Why is your 80kg faster than my 75?\""
+            - generic [ref=e389]: Sara · recap
+    - generic [ref=e392]:
+      - generic [ref=e393]: Your move
+      - heading "Grab your buddy." [level=2] [ref=e394]: Grab yourbuddy.
+      - paragraph [ref=e395]: Start the session. Make training the thing you both show up for. Sign in with email, Google or Facebook and you're in the room in seconds.
+      - generic [ref=e396]:
+        - link "Get it on Google Play" [ref=e397] [cursor=pointer]:
+          - /url: https://play.google.com/store/apps/details?id=com.zyntro.app
+          - generic [ref=e403]:
+            - generic [ref=e404]: Get it on
+            - generic [ref=e405]: Google Play
+        - generic:
+          - generic:
+            - generic: Coming soon
+            - generic: App Store
+  - generic [aria-hidden] [ref=e406]: Zyntro
+  - contentinfo [ref=e407]:
+    - generic [ref=e408]:
+      - link [ref=e409] [cursor=pointer]:
+        - /url: "#top"
+      - generic [ref=e413]: Train together, live. © 2026 Zyntro

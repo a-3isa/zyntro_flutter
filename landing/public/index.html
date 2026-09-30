@@ -1,0 +1,877 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Zyntro — Train together, live</title>
+<meta name="description" content="Zyntro turns your workout into a live session with your friends. Invite a buddy, go live, and train together in real time — every set, rep and second synced.">
+<meta name="theme-color" content="#121210">
+<meta name="color-scheme" content="dark">
+<link rel="canonical" href="https://zyntro.dpdns.org/">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://zyntro.dpdns.org/">
+<meta property="og:title" content="Zyntro — Train together, live">
+<meta property="og:description" content="Live workout sessions with your friends. Every set, rep and second — synced.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23121210'/%3E%3Cpath d='M18 18h28L26 40h20v6H18l20-22H18z' fill='%23C6FF00'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800;900&family=Bricolage+Grotesque:opsz,wght@12..96,300;12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#121210;
+  --bg-2:#1A1A18;
+  --surface:#2C2A27;
+  --elev:#35322E;
+  --line:#3F3C37;
+  --line-soft:rgba(232,228,220,.08);
+  --text:#F4F0E8;
+  --cream:#E8E4DC;
+  --muted:#9C968C;
+  --dim:#6B665F;
+  --signal:#C6FF00;
+  --signal-dim:#A3D400;
+  --signal-soft:rgba(198,255,0,.14);
+  --signal-glow:rgba(198,255,0,.35);
+  --ok:#34D399;
+  --radius:22px;
+  --display:'Barlow Condensed',system-ui,sans-serif;
+  --body:'Bricolage Grotesque',system-ui,-apple-system,Segoe UI,sans-serif;
+  --gutter:clamp(16px,4vw,48px);
+  --max:1200px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--body);
+  font-size:17px;
+  line-height:1.6;
+  overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+body::before{ /* film grain — concrete, not glossy */
+  content:"";position:fixed;inset:-50%;z-index:100;pointer-events:none;opacity:.07;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation:grain 1.2s steps(6) infinite;
+}
+@keyframes grain{0%{transform:translate(0,0)}20%{transform:translate(-3%,2%)}40%{transform:translate(2%,-3%)}60%{transform:translate(-2%,-1%)}80%{transform:translate(3%,3%)}100%{transform:translate(0,0)}}
+a{color:inherit;text-decoration:none}
+img,svg{display:block}
+::selection{background:var(--signal);color:#121210}
+.wrap{width:100%;max-width:var(--max);margin:0 auto;padding:0 var(--gutter)}
+.eyebrow{
+  font-family:var(--display);font-weight:700;font-size:14px;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--signal);display:inline-flex;align-items:center;gap:10px;
+}
+.eyebrow::before{content:"";width:28px;height:2px;background:var(--signal)}
+h1,h2,h3{font-family:var(--display);text-transform:uppercase;line-height:.92;letter-spacing:-.005em;font-weight:800}
+h2{font-size:clamp(44px,7.4vw,104px)}
+h3{font-size:clamp(26px,3vw,34px);font-weight:700;line-height:1}
+.lede{font-size:clamp(18px,1.9vw,22px);color:var(--cream);max-width:40ch;font-weight:300}
+.muted{color:var(--muted)}
+.o{color:var(--signal)}
+
+/* ---------- buttons ---------- */
+.btn{
+  display:inline-flex;align-items:center;gap:12px;height:56px;padding:0 26px;border-radius:999px;
+  font-family:var(--display);font-weight:700;font-size:19px;letter-spacing:.08em;text-transform:uppercase;
+  transition:transform .25s cubic-bezier(.2,.8,.2,1),box-shadow .25s,background .25s;will-change:transform;
+}
+.btn-primary{background:var(--signal);color:#121210;box-shadow:0 10px 40px -10px var(--signal-glow),inset 0 -3px 0 rgba(0,0,0,.18)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 18px 50px -12px var(--signal-glow),inset 0 -3px 0 rgba(0,0,0,.18)}
+.btn-ghost{border:1px solid var(--line);color:var(--cream);background:rgba(255,255,255,.02)}
+.btn-ghost:hover{border-color:var(--cream);transform:translateY(-2px)}
+.btn svg{width:20px;height:20px}
+:focus-visible{outline:2px solid var(--signal);outline-offset:3px;border-radius:8px}
+
+/* ---------- nav ---------- */
+.nav{position:fixed;top:0;left:0;right:0;z-index:50;transition:background .3s,border-color .3s,backdrop-filter .3s;border-bottom:1px solid transparent}
+.nav.scrolled{background:rgba(18,18,16,.72);backdrop-filter:blur(16px) saturate(1.4);-webkit-backdrop-filter:blur(16px) saturate(1.4);border-color:var(--line-soft)}
+.nav .wrap{display:flex;align-items:center;justify-content:space-between;height:72px}
+.logo{display:flex;align-items:center;gap:10px;font-family:var(--display);font-weight:800;font-size:26px;letter-spacing:.06em}
+.logo-mark{width:34px;height:34px;border-radius:10px;background:var(--signal);display:grid;place-items:center;box-shadow:0 0 24px -4px var(--signal-glow)}
+.logo-mark svg{width:20px;height:20px}
+.nav-links{display:flex;gap:34px;font-size:15px;color:var(--muted)}
+.nav-links a{transition:color .2s}
+.nav-links a:hover{color:var(--text)}
+.nav .btn{height:44px;font-size:16px;padding:0 20px}
+@media (max-width:860px){.nav-links{display:none}}
+
+/* ---------- hero ---------- */
+.hero{position:relative;min-height:100svh;display:flex;align-items:center;padding:120px 0 80px;overflow:hidden}
+.hero-glow{position:absolute;width:900px;height:900px;border-radius:50%;right:-260px;top:-200px;
+  background:radial-gradient(circle,rgba(198,255,0,.28),rgba(198,255,0,.06) 45%,transparent 70%);filter:blur(10px);animation:breathe 7s ease-in-out infinite}
+@keyframes breathe{50%{transform:scale(1.08);opacity:.8}}
+.hero-grid{position:absolute;inset:0;opacity:.5;
+  background-image:linear-gradient(var(--line-soft) 1px,transparent 1px),linear-gradient(90deg,var(--line-soft) 1px,transparent 1px);
+  background-size:64px 64px;mask-image:radial-gradient(ellipse at 30% 40%,#000 20%,transparent 70%);-webkit-mask-image:radial-gradient(ellipse at 30% 40%,#000 20%,transparent 70%)}
+.hero .wrap{position:relative;display:grid;grid-template-columns:1.15fr .85fr;gap:48px;align-items:center}
+.hero h1{font-size:clamp(64px,8.4vw,128px);margin:22px 0 26px}
+.hero h1 .line{display:block;overflow:hidden}
+.hero h1 .line span{display:inline-block;transform:translateY(105%);animation:rise 1s cubic-bezier(.2,.8,.2,1) forwards}
+.hero h1 .line:nth-child(2) span{animation-delay:.12s}
+.hero h1 .line:nth-child(3) span{animation-delay:.24s}
+@keyframes rise{to{transform:none}}
+.strike{position:relative;color:var(--dim)}
+.strike::after{content:"";position:absolute;left:-2%;right:-2%;top:52%;height:.11em;background:var(--signal);transform:scaleX(0);transform-origin:left;
+  animation:strike .7s cubic-bezier(.7,0,.2,1) 1.2s forwards;box-shadow:0 0 30px var(--signal-glow)}
+@keyframes strike{to{transform:scaleX(1)}}
+.hero h1 .line:nth-child(3) span.swap{animation-delay:1.75s;color:var(--signal)}
+.dotmark{color:var(--text)}
+.hero .lede{opacity:0;animation:fade .9s ease .6s forwards}
+.hero-cta{display:flex;flex-wrap:wrap;gap:14px;margin-top:38px;opacity:0;animation:fade .9s ease .8s forwards}
+@keyframes fade{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.hero-proof{display:flex;align-items:center;gap:16px;margin-top:44px;color:var(--muted);font-size:14px;opacity:0;animation:fade .9s ease 1s forwards}
+.avatars{display:flex}
+.avatars span{width:34px;height:34px;border-radius:50%;border:2px solid var(--bg);margin-left:-10px;display:grid;place-items:center;
+  font-family:var(--display);font-weight:700;font-size:15px;background:var(--elev);color:var(--cream)}
+.avatars span:first-child{margin-left:0;background:var(--signal);color:#121210}
+@media (max-width:980px){
+  .hero .wrap{grid-template-columns:1fr}
+  .hero{padding-top:110px}
+}
+
+/* ---------- phone ---------- */
+.phone-stage{position:relative;display:flex;justify-content:center;perspective:1400px;opacity:0;animation:fade 1.1s ease .5s forwards}
+.phone{
+  position:relative;width:min(310px,84vw);aspect-ratio:9/18.6;border-radius:48px;padding:12px;
+  background:linear-gradient(145deg,#3a3733,#1b1a18 40%,#2a2825);
+  box-shadow:0 60px 120px -30px rgba(0,0,0,.8),0 0 0 1px rgba(255,255,255,.06),inset 0 1px 0 rgba(255,255,255,.1),0 0 120px -40px var(--signal-glow);
+  transform:rotateY(-10deg) rotateX(4deg);transition:transform .6s cubic-bezier(.2,.8,.2,1);
+}
+.phone:hover{transform:rotateY(-3deg) rotateX(1deg)}
+.screen{position:relative;height:100%;border-radius:38px;background:#0e0e0c;overflow:hidden;padding:44px 16px 16px;display:flex;flex-direction:column;gap:10px}
+.notch{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:96px;height:26px;border-radius:20px;background:#000;z-index:3}
+.scr-top{display:flex;align-items:center;justify-content:space-between}
+.pill{display:inline-flex;align-items:center;gap:7px;height:26px;padding:0 11px;border-radius:999px;font-family:var(--display);font-weight:700;font-size:13px;letter-spacing:.1em;text-transform:uppercase}
+.pill-live{background:var(--signal-soft);color:var(--signal);border:1px solid rgba(198,255,0,.4)}
+.dot{width:7px;height:7px;border-radius:50%;background:currentColor;animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.25;transform:scale(.7)}}
+.clock{font-family:var(--display);font-weight:700;font-size:20px;font-variant-numeric:tabular-nums;letter-spacing:.04em}
+.athlete{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:16px;background:#1a1917;border:1px solid #2a2825;transition:all .4s}
+.athlete.on{border-color:rgba(198,255,0,.55);background:linear-gradient(90deg,rgba(198,255,0,.16),rgba(198,255,0,.04))}
+.av{position:relative;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;flex:none;font-family:var(--display);font-weight:800;font-size:16px;background:var(--elev)}
+.av::after{content:"";position:absolute;right:-1px;bottom:-1px;width:10px;height:10px;border-radius:50%;background:var(--ok);border:2px solid #1a1917}
+.athlete.on .av{background:var(--signal);color:#121210}
+.athlete b{display:block;font-size:14px;font-weight:600;line-height:1.2}
+.athlete.on b{color:var(--signal)}
+.athlete>div{min-width:0}.athlete small{display:block;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted);font-variant-numeric:tabular-nums}
+.athlete .tag{margin-left:auto;white-space:nowrap;font-family:var(--display);font-size:11px;letter-spacing:.14em;font-weight:700;color:var(--muted);text-transform:uppercase}
+.athlete.on .tag{color:var(--signal)}
+.big{flex:1;border-radius:22px;background:radial-gradient(circle at 50% 45%,rgba(198,255,0,.12),transparent 65%),#161614;border:1px solid #232220;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;overflow:hidden}
+.ring{position:absolute;width:190px;height:190px}
+.ring circle{fill:none;stroke-width:3}
+.ring .track{stroke:#2a2825}
+.ring .prog{stroke:var(--signal);stroke-linecap:round;stroke-dasharray:565;stroke-dashoffset:565;transform:rotate(-90deg);transform-origin:center;transition:stroke-dashoffset 1s linear;filter:drop-shadow(0 0 6px var(--signal-glow))}
+.big-num{font-family:var(--display);font-weight:800;font-size:76px;line-height:1;font-variant-numeric:tabular-nums;position:relative}
+.big-lbl{font-family:var(--display);font-size:12px;letter-spacing:.2em;color:var(--muted);text-transform:uppercase;position:relative;margin-top:4px}
+.feed{height:92px;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;gap:6px;mask-image:linear-gradient(transparent,#000 40%);-webkit-mask-image:linear-gradient(transparent,#000 40%)}
+.ev{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--cream);padding:7px 10px;border-radius:12px;background:#1a1917;border:1px solid #262422;animation:evIn .5s cubic-bezier(.2,.8,.2,1)}
+.ev i{font-style:normal;width:18px;height:18px;border-radius:6px;display:grid;place-items:center;background:var(--signal-soft);color:var(--signal);font-size:10px;flex:none}
+@keyframes evIn{from{opacity:0;transform:translateY(14px) scale(.96)}}
+.log{height:48px;border-radius:16px;background:var(--signal);color:#121210;display:grid;place-items:center;font-family:var(--display);font-weight:800;font-size:18px;letter-spacing:.1em;text-transform:uppercase}
+.float{position:absolute;padding:12px 16px;border-radius:18px;background:rgba(44,42,39,.8);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.08);
+  box-shadow:0 20px 50px -20px rgba(0,0,0,.8);font-size:13px;display:flex;align-items:center;gap:10px;z-index:4;animation:bob 6s ease-in-out infinite}
+.float b{font-weight:600}
+.float-1{left:-18%;top:40%}
+.float-2{right:-8%;bottom:26%;animation-delay:-3s}
+@keyframes bob{50%{transform:translateY(-12px)}}
+.wave{display:flex;align-items:center;gap:2px;height:20px}
+.wave span{width:3px;border-radius:2px;background:var(--signal);animation:wv 1s ease-in-out infinite}
+@keyframes wv{0%,100%{height:4px}50%{height:18px}}
+@media (max-width:520px){.float-1{left:0;top:6%}.float-2{right:0;bottom:12%}}
+
+/* ---------- marquee ---------- */
+.marquee{border-block:1px solid var(--line-soft);background:var(--bg-2);overflow:hidden;padding:22px 0;position:relative}
+.marquee-track{display:flex;gap:48px;width:max-content;animation:scroll 38s linear infinite}
+.marquee span{font-family:var(--display);font-weight:700;font-size:clamp(22px,2.6vw,32px);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;display:flex;align-items:center;gap:48px;color:var(--cream)}
+.marquee span::after{content:"";width:10px;height:10px;background:var(--signal);transform:rotate(45deg)}
+.marquee span:nth-child(3n+2){color:var(--dim)}
+@keyframes scroll{to{transform:translateX(-50%)}}
+
+/* ---------- sections ---------- */
+section{position:relative}
+.pad{padding:clamp(96px,14vw,180px) 0}
+.reveal{opacity:0;transform:translateY(40px);transition:opacity 1s cubic-bezier(.2,.8,.2,1),transform 1s cubic-bezier(.2,.8,.2,1)}
+.reveal.in{opacity:1;transform:none}
+.d1{transition-delay:.1s}.d2{transition-delay:.2s}.d3{transition-delay:.3s}
+
+/* manifesto */
+.manifesto .wrap{display:grid;grid-template-columns:.8fr 1.2fr;gap:64px}
+.manifesto-text p{font-size:clamp(24px,3.1vw,40px);line-height:1.28;font-weight:400;color:var(--dim);letter-spacing:-.01em}
+.manifesto-text p + p{margin-top:.9em}
+.manifesto-text .w{transition:color .5s}
+.manifesto-text .w.lit{color:var(--text)}
+.manifesto-text .w.hot{color:var(--signal)}
+.manifesto-side{position:sticky;top:120px;align-self:start}
+.manifesto-side h2{margin-top:20px}
+.clock-card{margin-top:40px;padding:26px;border-radius:var(--radius);border:1px solid var(--line-soft);background:linear-gradient(160deg,var(--bg-2),var(--bg));max-width:320px}
+.clock-card .t{font-family:var(--display);font-weight:800;font-size:64px;line-height:1;font-variant-numeric:tabular-nums}
+.clock-card p{color:var(--muted);font-size:14px;margin-top:10px}
+@media (max-width:900px){.manifesto .wrap{grid-template-columns:1fr;gap:40px}.manifesto-side{position:static}}
+
+/* steps */
+.head{display:flex;justify-content:space-between;align-items:flex-end;gap:32px;flex-wrap:wrap;margin-bottom:64px}
+.head h2{max-width:12ch}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;counter-reset:s}
+.step{position:relative;padding:34px 30px 36px;border-radius:var(--radius);background:var(--bg-2);border:1px solid var(--line-soft);overflow:hidden;transition:border-color .4s,transform .4s}
+.step:hover{border-color:rgba(198,255,0,.4);transform:translateY(-4px)}
+.step::before{counter-increment:s;content:"0" counter(s);font-family:var(--display);font-weight:900;font-size:140px;line-height:.8;position:absolute;right:14px;top:14px;color:transparent;-webkit-text-stroke:1px var(--line)}
+.step .ic{width:52px;height:52px;border-radius:16px;background:var(--signal-soft);color:var(--signal);display:grid;place-items:center;margin-bottom:64px}
+.step .ic svg{width:26px;height:26px}
+.step p{color:var(--muted);margin-top:14px;font-size:16px}
+@media (max-width:900px){.steps{grid-template-columns:1fr}}
+
+/* modes */
+.modes{background:var(--bg-2);border-block:1px solid var(--line-soft)}
+.mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.mode{padding:clamp(28px,4vw,48px);border-radius:28px;background:var(--bg);border:1px solid var(--line-soft);position:relative;overflow:hidden}
+.mode h3{font-size:clamp(34px,4.2vw,54px);margin:18px 0 14px}
+.mode p{color:var(--muted);max-width:44ch}
+.mode-vis{margin-top:40px;height:170px;border-radius:18px;background:#0e0e0c;border:1px solid #232220;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;gap:28px}
+.baton{display:flex;align-items:center;gap:22px}
+.baton .av{width:54px;height:54px;font-size:22px;transition:all .5s}
+.baton .av::after{display:none}
+.baton .av.act{background:var(--signal);color:#121210;box-shadow:0 0 0 6px var(--signal-soft),0 0 40px var(--signal-glow)}
+.baton-line{width:90px;height:2px;background:repeating-linear-gradient(90deg,var(--line) 0 6px,transparent 6px 12px);position:relative}
+.baton-line::after{content:"";position:absolute;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--signal);animation:pass 3.2s ease-in-out infinite}
+@keyframes pass{0%,15%{left:0}45%,65%{left:calc(100% - 10px)}95%,100%{left:0}}
+.lanes{width:80%;display:flex;flex-direction:column;gap:18px}
+.lane{display:flex;align-items:center;gap:14px;font-family:var(--display);font-size:13px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase}
+.lane .bar{flex:1;height:10px;border-radius:10px;background:#1f1e1c;overflow:hidden}
+.lane .bar i{display:block;height:100%;border-radius:10px;background:linear-gradient(90deg,var(--signal-dim),var(--signal));animation:grow 4s ease-in-out infinite}
+.lane:nth-child(2) .bar i{animation-delay:-1.6s;background:linear-gradient(90deg,#8a8378,var(--cream))}
+@keyframes grow{0%{width:8%}100%{width:96%}}
+.lane b{width:48px;text-align:right}
+.chip{display:inline-flex;height:30px;align-items:center;padding:0 14px;border-radius:999px;border:1px solid var(--line);font-family:var(--display);font-size:13px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--cream)}
+@media (max-width:900px){.mode-grid{grid-template-columns:1fr}}
+
+/* screens gallery */
+.shots{display:flex;gap:22px;overflow-x:auto;scroll-snap-type:x mandatory;padding:30px var(--gutter) 50px;margin:0 calc(var(--gutter) * -1);scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.shots::-webkit-scrollbar{display:none}
+.shot{flex:0 0 clamp(220px,19vw,250px);scroll-snap-align:center;display:flex;flex-direction:column;gap:22px}
+.shot:nth-child(odd){margin-top:48px}
+.device{position:relative;border-radius:36px;padding:9px;background:linear-gradient(145deg,#3a3733,#1b1a18 40%,#2a2825);
+  box-shadow:0 40px 80px -30px rgba(0,0,0,.85),0 0 0 1px rgba(255,255,255,.06),inset 0 1px 0 rgba(255,255,255,.1);transition:transform .5s cubic-bezier(.2,.8,.2,1),box-shadow .5s}
+.device img{width:100%;height:auto;aspect-ratio:600/997;border-radius:28px;background:#0a0a0a}
+.device::after{content:"";position:absolute;inset:9px;border-radius:28px;pointer-events:none;background:linear-gradient(160deg,rgba(255,255,255,.07),transparent 35%)}
+.shot:hover .device{transform:translateY(-10px);box-shadow:0 60px 90px -30px rgba(0,0,0,.9),0 0 0 1px rgba(198,255,0,.35),0 0 80px -30px var(--signal-glow)}
+.shot-cap b{display:block;font-family:var(--display);font-weight:800;font-size:24px;text-transform:uppercase;line-height:1}
+.shot-cap span{display:block;color:var(--muted);font-size:14.5px;margin-top:6px;line-height:1.45}
+.shot-cap i{font-style:normal;font-family:var(--display);font-weight:700;color:var(--signal);font-size:13px;letter-spacing:.18em;display:block;margin-bottom:8px}
+@media (min-width:1240px){.shots{justify-content:center;overflow:visible}}
+@media (max-width:700px){.shot:nth-child(odd){margin-top:0}}
+
+/* bento */
+.bento{display:grid;grid-template-columns:repeat(6,1fr);gap:18px}
+.card{position:relative;border-radius:var(--radius);background:var(--bg-2);border:1px solid var(--line-soft);padding:30px;overflow:hidden;transition:border-color .4s}
+.card:hover{border-color:rgba(198,255,0,.35)}
+.card::before{content:"";position:absolute;inset:0;background:radial-gradient(420px circle at var(--mx,50%) var(--my,0%),rgba(198,255,0,.1),transparent 60%);opacity:0;transition:opacity .4s;pointer-events:none}
+.card:hover::before{opacity:1}
+.card h3{font-size:30px}
+.card p{color:var(--muted);font-size:15.5px;margin-top:10px;max-width:38ch}
+.c-rep{grid-column:span 3;grid-row:span 2;display:flex;flex-direction:column}
+.c-voice{grid-column:span 3}
+.c-bot{grid-column:span 3}
+.c-streak{grid-column:span 2}
+.c-board{grid-column:span 2}
+.c-build{grid-column:span 2}
+@media (max-width:1000px){.bento{grid-template-columns:1fr 1fr}.c-rep,.c-voice,.c-bot,.c-streak,.c-board,.c-build{grid-column:span 2;grid-row:auto}}
+@media (min-width:640px) and (max-width:1000px){.c-streak,.c-board{grid-column:span 1}}
+
+.tapper{flex:1;min-height:300px;margin-top:28px;border-radius:20px;background:#0e0e0c;border:1px solid #232220;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;user-select:none;-webkit-user-select:none;position:relative;overflow:hidden;-webkit-tap-highlight-color:transparent}
+.tapper .n{font-family:var(--display);font-weight:900;font-size:clamp(110px,14vw,170px);line-height:.9;font-variant-numeric:tabular-nums;transition:transform .12s}
+.tapper .n.pop{transform:scale(1.25);color:var(--signal)}
+.tapper .h{font-family:var(--display);letter-spacing:.2em;font-size:13px;color:var(--muted);text-transform:uppercase}
+.ripple{position:absolute;width:20px;height:20px;border-radius:50%;background:var(--signal);opacity:.35;transform:translate(-50%,-50%) scale(0);animation:rip .7s ease-out forwards;pointer-events:none}
+@keyframes rip{to{transform:translate(-50%,-50%) scale(24);opacity:0}}
+.tapper .reset{position:absolute;top:14px;left:14px;width:36px;height:36px;border-radius:12px;border:1px solid var(--line);display:grid;place-items:center;color:var(--muted);background:transparent;cursor:pointer}
+.tapper .reset svg{width:16px;height:16px}
+.tapper .msg{position:absolute;bottom:18px;font-size:13px;color:var(--signal);font-weight:600;opacity:0;transition:opacity .3s}
+.tapper .msg.show{opacity:1}
+
+.voice-row{display:flex;align-items:center;gap:14px;margin-top:24px;padding:14px 16px;border-radius:18px;background:#0e0e0c;border:1px solid #232220}
+.voice-row .play{width:42px;height:42px;border-radius:50%;background:var(--signal);display:grid;place-items:center;flex:none}
+.voice-row .play svg{width:16px;height:16px}
+.bigwave{display:flex;align-items:center;gap:3px;height:36px;flex:1}
+.bigwave span{flex:1;max-width:5px;border-radius:3px;background:var(--line);height:var(--h)}
+.bigwave span.p{background:var(--signal)}
+.voice-row small{font-family:var(--display);color:var(--muted);letter-spacing:.08em;font-size:14px}
+
+.bot{display:flex;align-items:center;gap:14px;margin-top:24px}
+.scan{flex:1;height:52px;border-radius:14px;background:#0e0e0c;border:1px solid #232220;position:relative;overflow:hidden;display:flex;align-items:center;padding:0 16px;font-size:13px;color:var(--cream);gap:10px}
+.scan::after{content:"";position:absolute;top:0;bottom:0;width:40%;background:linear-gradient(90deg,transparent,rgba(198,255,0,.18),transparent);animation:sweep 2.4s ease-in-out infinite}
+@keyframes sweep{from{left:-40%}to{left:100%}}
+
+.days{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-top:22px}
+.days i{aspect-ratio:1;border-radius:5px;background:#24221f}
+.days i.f{background:var(--signal);box-shadow:0 0 12px -2px var(--signal-glow)}
+.days i.m{background:rgba(198,255,0,.45)}
+.streak-n{display:flex;align-items:baseline;gap:8px;margin-top:18px;font-family:var(--display)}
+.streak-n b{font-size:56px;font-weight:900;line-height:1}
+.streak-n span{color:var(--muted);letter-spacing:.14em;font-size:13px;text-transform:uppercase}
+
+.board{margin-top:22px;display:flex;flex-direction:column;gap:8px}
+.row{display:flex;align-items:center;gap:10px;font-size:14px;padding:9px 12px;border-radius:12px;background:#0e0e0c;border:1px solid #232220}
+.row .r{font-family:var(--display);font-weight:800;width:20px;color:var(--muted)}
+.row.me{border-color:rgba(198,255,0,.45)}
+.row.me .r{color:var(--signal)}
+.row .s{margin-left:auto;font-family:var(--display);font-weight:700;font-variant-numeric:tabular-nums}
+
+.search{margin-top:22px;height:46px;border-radius:14px;background:#0e0e0c;border:1px solid #232220;display:flex;align-items:center;gap:10px;padding:0 14px;color:var(--muted);font-size:14px}
+.search svg{width:16px;height:16px}
+.caret{display:inline-block;width:1px;height:16px;background:var(--signal);animation:pulse 1s steps(1) infinite;margin-left:1px;vertical-align:middle}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.tags span{font-size:12px;padding:5px 10px;border-radius:999px;background:#24221f;color:var(--cream)}
+.tags span.on{background:var(--signal-soft);color:var(--signal)}
+
+/* vibe */
+.vibe .wrap{display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center}
+.swatches{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+.sw{aspect-ratio:1.15;border-radius:20px;padding:20px;display:flex;flex-direction:column;justify-content:space-between;border:1px solid var(--line-soft)}
+.sw b{font-family:var(--display);font-size:28px;font-weight:800;text-transform:uppercase;letter-spacing:.02em;line-height:1}
+.sw small{font-size:13px;opacity:.75;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.sw1{background:#1A1A18}
+.sw2{background:#2C2A27}
+.sw3{background:var(--signal);color:#121210}
+.sw4{background:var(--cream);color:#121210}
+.vibe-words{display:flex;flex-direction:column;gap:22px;margin-top:40px}
+.vw{display:grid;grid-template-columns:120px 1fr;gap:20px;padding-top:22px;border-top:1px solid var(--line-soft)}
+.vw b{font-family:var(--display);font-size:15px;letter-spacing:.18em;text-transform:uppercase;color:var(--signal)}
+.vw p{color:var(--cream);font-size:16px}
+@media (max-width:900px){.vibe .wrap{grid-template-columns:1fr;gap:48px}.vw{grid-template-columns:1fr;gap:6px}}
+
+/* quotes */
+.voices{overflow:hidden}
+.bubbles{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;max-width:980px;margin:56px auto 0}
+.bubble{padding:16px 20px;border-radius:22px 22px 22px 6px;background:var(--bg-2);border:1px solid var(--line-soft);font-size:17px;max-width:360px;display:flex;gap:12px;align-items:flex-start}
+.bubble:nth-child(even){border-radius:22px 22px 6px 22px;background:var(--signal);color:#121210;border-color:transparent}
+.bubble:nth-child(even) small{color:rgba(18,18,16,.65)}
+.bubble small{display:block;font-size:12px;color:var(--muted);margin-top:4px;font-weight:500}
+.center{text-align:center}
+.center .eyebrow{justify-content:center}
+.center h2{margin:20px auto 0;max-width:14ch}
+
+/* cta */
+.cta{padding:clamp(80px,12vw,160px) 0}
+.cta-box{position:relative;border-radius:36px;overflow:hidden;padding:clamp(48px,8vw,110px) clamp(24px,6vw,80px);text-align:center;
+  background:radial-gradient(ellipse at 50% 120%,rgba(198,255,0,.55),rgba(198,255,0,.08) 50%,transparent 75%),var(--bg-2);border:1px solid var(--line-soft)}
+.cta-box h2{font-size:clamp(56px,10vw,150px)}
+.cta-box .lede{margin:24px auto 0;text-align:center}
+.stores{display:flex;justify-content:center;flex-wrap:wrap;gap:14px;margin-top:44px}
+.store{display:flex;align-items:center;gap:12px;height:62px;padding:0 22px 0 18px;border-radius:16px;background:#0e0e0c;border:1px solid var(--line);transition:transform .25s,border-color .25s;text-align:left}
+.store:hover{transform:translateY(-2px);border-color:var(--cream)}
+.store svg{width:26px;height:26px}
+.store small{display:block;font-size:11px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;line-height:1.2}
+.store b{display:block;font-size:18px;font-weight:600;line-height:1.2}
+.store.soon{opacity:.55;pointer-events:none}
+
+footer{border-top:1px solid var(--line-soft);padding:40px 0 48px;color:var(--muted);font-size:14px}
+footer .wrap{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap}
+.giant{font-family:var(--display);font-weight:900;text-transform:uppercase;font-size:clamp(90px,24vw,360px);line-height:.8;letter-spacing:-.02em;text-align:center;
+  color:transparent;-webkit-text-stroke:1px var(--line);user-select:none;padding-top:40px;overflow:hidden;white-space:nowrap}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+  .reveal{opacity:1;transform:none}
+  body::before{animation:none}
+}
+</style>
+</head>
+<body>
+
+<header class="nav" id="nav">
+  <div class="wrap">
+    <a href="#top" class="logo" aria-label="Zyntro home">
+      <span class="logo-mark"><svg viewBox="0 0 24 24" fill="#121210"><path d="M4 4h16L9 17h11v3H4l11-13H4z"/></svg></span>
+      ZYNTRO
+    </a>
+    <nav class="nav-links" aria-label="Main">
+      <a href="#idea">The idea</a>
+      <a href="#how">How it works</a>
+      <a href="#app">The app</a>
+      <a href="#features">Features</a>
+      <a href="#vibe">The vibe</a>
+    </nav>
+    <a href="#get" class="btn btn-primary">Get the app</a>
+  </div>
+</header>
+
+<main id="top">
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-grid"></div>
+  <div class="hero-glow"></div>
+  <div class="wrap">
+    <div>
+      <span class="eyebrow">Live social training</span>
+      <h1>
+        <span class="line"><span>Train</span></span>
+        <span class="line"><span class="strike">alone</span></span>
+        <span class="line"><span class="swap">together<span class="dotmark">.</span></span></span>
+      </h1>
+      <p class="lede">Zyntro turns your workout into a live room with your friends. One shared clock. Every set, rep and second — synced. When someone's counting on you, you show up.</p>
+      <div class="hero-cta">
+        <a href="#get" class="btn btn-primary">Start a session
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </a>
+        <a href="#idea" class="btn btn-ghost">Why Zyntro</a>
+      </div>
+      <div class="hero-proof">
+        <div class="avatars"><span>Y</span><span>S</span><span>M</span><span>A</span></div>
+        <span>Gym, cardio & timed workouts.<br>Android now · iOS soon.</span>
+      </div>
+    </div>
+
+    <div class="phone-stage" aria-hidden="true">
+      <div class="float float-1">
+        <div class="wave"><span style="animation-delay:0s"></span><span style="animation-delay:.15s"></span><span style="animation-delay:.3s"></span><span style="animation-delay:.1s"></span><span style="animation-delay:.25s"></span></div>
+        <span><b>Sara</b> · "one more rep!"</span>
+      </div>
+      <div class="float float-2">🔥 <span><b>23-day</b> streak — together</span></div>
+      <div class="phone">
+        <div class="screen">
+          <div class="notch"></div>
+          <div class="scr-top">
+            <span class="pill pill-live"><span class="dot"></span>Live · Gym</span>
+            <span class="clock" id="roomClock">12:47</span>
+          </div>
+          <div class="athlete on" id="athYou">
+            <span class="av">Y</span>
+            <div><b>You</b><small id="youLine">Bench Press · Set 3 · 80kg</small></div>
+            <span class="tag" id="youTag">Your turn</span>
+          </div>
+          <div class="athlete" id="athSara">
+            <span class="av">S</span>
+            <div><b>Sara</b><small id="saraLine">Bench Press · 75kg × 8</small></div>
+            <span class="tag" id="saraTag">Resting</span>
+          </div>
+          <div class="big">
+            <svg class="ring" viewBox="0 0 200 200"><circle class="track" cx="100" cy="100" r="90"/><circle class="prog" id="ring" cx="100" cy="100" r="90"/></svg>
+            <div class="big-num" id="setClock">0:00</div>
+            <div class="big-lbl" id="setLbl">Your current set</div>
+          </div>
+          <div class="feed" id="feed"></div>
+          <div class="log">Log set</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MARQUEE -->
+<div class="marquee" aria-hidden="true">
+  <div class="marquee-track">
+    <span>Sara logged 75kg × 8</span><span>Two phones. One clock.</span><span>Mo just joined the room</span><span>Voice note: "last set, go"</span><span>Day 23 — streak alive</span><span>Nobody skips leg day here</span>
+    <span>Sara logged 75kg × 8</span><span>Two phones. One clock.</span><span>Mo just joined the room</span><span>Voice note: "last set, go"</span><span>Day 23 — streak alive</span><span>Nobody skips leg day here</span>
+  </div>
+</div>
+
+<!-- MANIFESTO -->
+<section class="manifesto pad" id="idea">
+  <div class="wrap">
+    <div class="manifesto-side reveal">
+      <span class="eyebrow">The idea</span>
+      <h2>Workouts don't die in the gym.</h2>
+      <div class="clock-card">
+        <div class="t">6:47<span class="o">pm</span></div>
+        <p>The moment most workouts actually end — on the couch, before they start. Zyntro exists for that moment.</p>
+      </div>
+    </div>
+    <div class="manifesto-text" id="manifesto">
+      <p>Skipping alone is easy. Nobody sees it. Nobody asks. Tomorrow becomes next week and next week becomes January.</p>
+      <p>But when your friend is already warming up — when their timer is running on <em>your</em> screen and their voice note says <em>"you coming or what?"</em> — skipping stops being an option.</p>
+      <p>Zyntro puts you in the same room even when you're miles apart. Not a feed you scroll later. Not a chart you check once. A live session, happening right now, with someone who's counting on you.</p>
+      <p>That's the whole idea. Accountability that feels like hanging out.</p>
+    </div>
+  </div>
+</section>
+
+<!-- HOW -->
+<section class="pad" id="how" style="padding-top:0">
+  <div class="wrap">
+    <div class="head reveal">
+      <div><span class="eyebrow">How it works</span><h2 style="margin-top:20px">Three taps to the same room.</h2></div>
+      <p class="lede muted" style="max-width:34ch">No group chats. No "you still coming?". Just invite, go live, and lift.</p>
+    </div>
+    <div class="steps">
+      <div class="step reveal">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg></div>
+        <h3>Invite your buddy</h3>
+        <p>Build your plan from a full exercise library and send the invite. They get a push, tap, and pick their own workout.</p>
+      </div>
+      <div class="step reveal d1">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49M7.76 16.24a6 6 0 0 1 0-8.49M19.07 4.93a10 10 0 0 1 0 14.14M4.93 19.07a10 10 0 0 1 0-14.14"/></svg></div>
+        <h3>Go live together</h3>
+        <p>Once everyone's ready, the room goes live. A shared clock, a live activity strip, every set landing the moment it's logged.</p>
+      </div>
+      <div class="step reveal d2">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14 0-5.5 3-7 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg></div>
+        <h3>Keep showing up</h3>
+        <p>Finish with a recap you both earned. Streaks grow, your circle climbs the board, and next session is already on the calendar.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MODES -->
+<section class="modes pad">
+  <div class="wrap">
+    <div class="head reveal">
+      <div><span class="eyebrow">Two ways to train</span><h2 style="margin-top:20px">Same room. Your rhythm.</h2></div>
+      <p class="lede muted" style="max-width:36ch">Zyntro reads the room. Same workout? You take turns. Different workouts? You run side by side.</p>
+    </div>
+    <div class="mode-grid">
+      <div class="mode reveal">
+        <span class="chip">Turn-based</span>
+        <h3>Pass the bar.</h3>
+        <p>Both on bench? You lift, they watch your timer tick. You log, it's their turn. Classic spotting energy — even across town.</p>
+        <div class="mode-vis">
+          <div class="baton">
+            <span class="av act" id="bA">Y</span>
+            <span class="baton-line"></span>
+            <span class="av" id="bB">S</span>
+          </div>
+        </div>
+      </div>
+      <div class="mode reveal d1">
+        <span class="chip">Parallel</span>
+        <h3>Lift. Run. Together.</h3>
+        <p>You're on squats, they're on the treadmill. One shared clock, two live lanes — different workouts, same session.</p>
+        <div class="mode-vis">
+          <div class="lanes">
+            <div class="lane"><b>Gym</b><span class="bar"><i></i></span></div>
+            <div class="lane"><b>Run</b><span class="bar"><i></i></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SCREENS -->
+<section class="pad" id="app" style="overflow:hidden">
+  <div class="wrap">
+    <div class="head reveal">
+      <div><span class="eyebrow">The app</span><h2 style="margin-top:20px">From invite to recap.</h2></div>
+      <p class="lede muted" style="max-width:34ch">Real screens from Zyntro. Dark, quiet, and loud only where it matters.</p>
+    </div>
+    <div class="shots">
+      <figure class="shot reveal">
+        <div class="device"><img src="screens/lobby.webp" alt="Gym session setup screen with a workout plan, waiting for your buddy to join" decoding="async" width="600" height="997"></div>
+        <figcaption class="shot-cap"><i>01</i><b>Invite</b><span>Set the plan, send the invite, wait for your buddy to tap in.</span></figcaption>
+      </figure>
+      <figure class="shot reveal d1">
+        <div class="device"><img src="screens/picker.webp" alt="Exercise picker with Bench Press and Incline Bench Press selected" decoding="async" width="600" height="997"></div>
+        <figcaption class="shot-cap"><i>02</i><b>Build</b><span>Search the library, pick exercises and sets in seconds.</span></figcaption>
+      </figure>
+      <figure class="shot reveal d2">
+        <div class="device"><img src="screens/room.webp" alt="Live session room with your set timer at 1:14 and a friend's latest set" decoding="async" width="600" height="997"></div>
+        <figcaption class="shot-cap"><i>03</i><b>Go live</b><span>Your set timer front and centre. Your buddy's set right above it.</span></figcaption>
+      </figure>
+      <figure class="shot reveal d3">
+        <div class="device"><img src="screens/strip.webp" alt="Live room showing three athletes with weight, reps and set time" decoding="async" width="600" height="997"></div>
+        <figcaption class="shot-cap"><i>04</i><b>See every rep</b><span>Weight, reps and set time for everyone in the room.</span></figcaption>
+      </figure>
+      <figure class="shot reveal">
+        <div class="device"><img src="screens/streak.webp" alt="Current streak of 12 days and a friends leaderboard" decoding="async" width="600" height="997"></div>
+        <figcaption class="shot-cap"><i>05</i><b>Keep it alive</b><span>Streaks and a leaderboard with the people who actually train with you.</span></figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="pad" id="features">
+  <div class="wrap">
+    <div class="head reveal">
+      <div><span class="eyebrow">Inside the room</span><h2 style="margin-top:20px">Built for the set.</h2></div>
+      <p class="lede muted" style="max-width:34ch">Big targets. Sweaty-thumb friendly. Everything you need between reps, nothing you don't.</p>
+    </div>
+    <div class="bento">
+      <div class="card c-rep reveal">
+        <h3>Tap anywhere. Count every rep.</h3>
+        <p>The whole screen is the button. No squinting, no tiny fields. Go on — try it.</p>
+        <div class="tapper" id="tapper" role="button" tabindex="0" aria-label="Tap to count a rep">
+          <button class="reset" id="reset" aria-label="Reset reps"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button>
+          <div class="n" id="reps">0</div>
+          <div class="h">Tap to count</div>
+          <div class="msg" id="repMsg"></div>
+        </div>
+      </div>
+
+      <div class="card c-voice reveal d1">
+        <h3>Voice notes mid-set</h3>
+        <p>Hold to talk. Drop a "one more rep" straight into your partner's session while they're under the bar.</p>
+        <div class="voice-row">
+          <span class="play"><svg viewBox="0 0 24 24" fill="#121210"><path d="M7 4v16l13-8z"/></svg></span>
+          <div class="bigwave" id="bigwave"></div>
+          <small>0:04</small>
+        </div>
+      </div>
+
+      <div class="card c-bot reveal d2">
+        <h3>No one free? Never mind.</h3>
+        <p>Pair with a pace-setting bot, or let matchmaking find someone training right now. A session never has to wait.</p>
+        <div class="bot">
+          <div class="scan"><span class="dot" style="color:var(--signal)"></span>Finding someone training now…</div>
+        </div>
+      </div>
+
+      <div class="card c-streak reveal">
+        <h3>Streaks</h3>
+        <div class="streak-n"><b>23</b><span>days alive</span></div>
+        <div class="days" id="days"></div>
+      </div>
+
+      <div class="card c-board reveal d1">
+        <h3>Leaderboards</h3>
+        <div class="board">
+          <div class="row"><span class="r">1</span>Sara<span class="s">2,480</span></div>
+          <div class="row me"><span class="r">2</span>You<span class="s">2,315</span></div>
+          <div class="row"><span class="r">3</span>Mohamed<span class="s">1,990</span></div>
+        </div>
+      </div>
+
+      <div class="card c-build reveal d2">
+        <h3>Plan in seconds</h3>
+        <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span id="typed"></span><span class="caret"></span></div>
+        <div class="tags"><span class="on">Bench Press</span><span>Incline DB</span><span class="on">Squat</span><span>Row</span><span>5K Run</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- VIBE -->
+<section class="vibe pad" id="vibe" style="background:var(--bg-2);border-block:1px solid var(--line-soft)">
+  <div class="wrap">
+    <div class="reveal">
+      <span class="eyebrow">The vibe</span>
+      <h2 style="margin-top:20px">Concrete. Chalk. <span class="o">Volt.</span></h2>
+      <p class="lede" style="margin-top:24px">Zyntro looks like the gym feels at 6am — raw concrete, iron, a single volt-green light that says <em>go</em>. No neon noise, no pastel wellness. Just the room, your people, and the work.</p>
+      <div class="vibe-words">
+        <div class="vw"><b>Warm, not soft</b><p>Charcoal and iron tones that feel like a real place, not a spreadsheet.</p></div>
+        <div class="vw"><b>Loud when it counts</b><p>Volt green is reserved for one thing: it's your move.</p></div>
+        <div class="vw"><b>Friend, not coach</b><p>We talk like the buddy on the next bench — short, honest, a little bit of trash talk.</p></div>
+      </div>
+    </div>
+    <div class="swatches reveal d1">
+      <div class="sw sw1"><small>#1A1A18</small><b>Concrete</b></div>
+      <div class="sw sw2"><small>#2C2A27</small><b>Iron</b></div>
+      <div class="sw sw3"><small>#C6FF00</small><b>Volt</b></div>
+      <div class="sw sw4"><small>#E8E4DC</small><b>Chalk</b></div>
+    </div>
+  </div>
+</section>
+
+<!-- VOICES -->
+<section class="voices pad">
+  <div class="wrap center">
+    <div class="reveal">
+      <span class="eyebrow">Heard in the room</span>
+      <h2>Friendly pressure hits different.</h2>
+    </div>
+    <div class="bubbles">
+      <div class="bubble reveal">🎙<div>"I see your timer. Don't you dare rack it early."<small>Sara · mid-set</small></div></div>
+      <div class="bubble reveal d1">💪<div>"Last set. Go."<small>You · 21:14</small></div></div>
+      <div class="bubble reveal d2">🏃<div>"I'm on km 4, you better be on set 4."<small>Mohamed · parallel run</small></div></div>
+      <div class="bubble reveal">🔥<div>"Day 23. Not breaking it for pizza."<small>Aya · streak</small></div></div>
+      <div class="bubble reveal d1">👀<div>"Why is your 80kg faster than my 75?"<small>Sara · recap</small></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta" id="get">
+  <div class="wrap">
+    <div class="cta-box reveal">
+      <span class="eyebrow">Your move</span>
+      <h2 style="margin-top:22px">Grab your<br>buddy<span class="o">.</span></h2>
+      <p class="lede">Start the session. Make training the thing you both show up for. Sign in with email, Google or Facebook and you're in the room in seconds.</p>
+      <div class="stores">
+        <a class="store" href="https://play.google.com/store/apps/details?id=com.zyntro.app" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24"><path fill="#34D399" d="M3.6 1.8 13.8 12 3.6 22.2c-.4-.2-.6-.6-.6-1.1V2.9c0-.5.2-.9.6-1.1z"/><path fill="#FFD23F" d="m17.3 8.5-3.5 3.5 3.5 3.5 3.9-2.2c.8-.5.8-1.7 0-2.2z"/><path fill="#FF3A44" d="M13.8 12 3.6 22.2c.3.2.8.2 1.2 0l12.5-6.7z"/><path fill="#5AB0FF" d="M3.6 1.8c.4-.2.9-.2 1.2 0l12.5 6.7-3.5 3.5z"/></svg>
+          <span><small>Get it on</small><b>Google Play</b></span>
+        </a>
+        <span class="store soon" aria-disabled="true">
+          <svg viewBox="0 0 24 24" fill="#E8E4DC"><path d="M16.4 12.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9-.8 0-2.1-.9-3.4-.9-1.7 0-3.3 1-4.2 2.6-1.8 3.1-.5 7.8 1.3 10.3.9 1.2 1.9 2.6 3.2 2.6 1.3-.1 1.8-.8 3.3-.8 1.6 0 2 .8 3.4.8 1.4 0 2.3-1.3 3.1-2.5 1-1.4 1.4-2.8 1.4-2.9-.1 0-2.7-1-2.7-4.2zM13.9 5c.7-.9 1.2-2 1.1-3.2-1 0-2.3.7-3 1.6-.7.8-1.3 2-1.1 3.1 1.1.1 2.3-.6 3-1.5z"/></svg>
+          <span><small>Coming soon</small><b>App Store</b></span>
+        </span>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="giant" aria-hidden="true">Zyntro</div>
+<footer>
+  <div class="wrap">
+    <a href="#top" class="logo" style="font-size:20px"><span class="logo-mark" style="width:28px;height:28px;border-radius:8px"><svg viewBox="0 0 24 24" fill="#121210" style="width:16px;height:16px"><path d="M4 4h16L9 17h11v3H4l11-13H4z"/></svg></span>ZYNTRO</a>
+    <span>Train together, live. © <span id="yr">2026</span> Zyntro</span>
+  </div>
+</footer>
+
+<script>
+(() => {
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const $ = id => document.getElementById(id);
+  const fmt = s => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  $('yr').textContent = new Date().getFullYear();
+
+  // nav
+  const nav = $('nav');
+  const onScroll = () => nav.classList.toggle('scrolled', scrollY > 20);
+  addEventListener('scroll', onScroll, { passive: true }); onScroll();
+
+  // reveal
+  const io = new IntersectionObserver(es => es.forEach(e => {
+    if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+  }), { threshold: .15, rootMargin: '0px 0px -40px 0px' });
+  document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+  // manifesto: light words as you scroll
+  const man = $('manifesto');
+  const hot = new Set(['alone.', 'counting', 'live', 'right', 'now,', 'hanging', 'out.', 'showing']);
+  man.querySelectorAll('p').forEach(p => {
+    const walk = n => {
+      [...n.childNodes].forEach(c => {
+        if (c.nodeType === 3) {
+          const frag = document.createDocumentFragment();
+          c.textContent.split(/(\s+)/).forEach(t => {
+            if (!t.trim()) { frag.append(t); return; }
+            const s = document.createElement('span'); s.className = 'w'; s.textContent = t;
+            if (hot.has(t.replace(/[“”"]/g, ''))) s.dataset.hot = 1;
+            frag.append(s);
+          });
+          c.replaceWith(frag);
+        } else walk(c);
+      });
+    };
+    walk(p);
+  });
+  const words = [...man.querySelectorAll('.w')];
+  const lightWords = () => {
+    const r = man.getBoundingClientRect();
+    const prog = Math.min(1, Math.max(0, (innerHeight * .78 - r.top) / (r.height * .9)));
+    const n = Math.round(prog * words.length);
+    words.forEach((w, i) => { const on = i < n; w.classList.toggle('lit', on && !w.dataset.hot); w.classList.toggle('hot', on && !!w.dataset.hot); });
+  };
+  if (reduce) words.forEach(w => w.classList.add(w.dataset.hot ? 'hot' : 'lit'));
+  else { addEventListener('scroll', lightWords, { passive: true }); lightWords(); }
+
+  // live phone
+  let room = 767, set = 0, turn = 'you', setNo = 3;
+  const feed = $('feed'), ring = $('ring');
+  const push = (icon, text) => {
+    const d = document.createElement('div'); d.className = 'ev';
+    d.innerHTML = '<i>' + icon + '</i><span></span>'; d.lastChild.textContent = text;
+    feed.append(d); while (feed.children.length > 4) feed.firstChild.remove();
+  };
+  push('✓', 'Sara logged 75kg × 8');
+  push('🎙', 'Sara: "one more rep!"');
+  const script = [
+    [4, '👀', 'Sara is watching your set'],
+    [9, '🎙', 'Sara: "don\'t rack it early"'],
+  ];
+  setInterval(() => {
+    room++; $('roomClock').textContent = fmt(room);
+    set++;
+    const target = 14;
+    if (turn === 'you') {
+      $('setClock').textContent = fmt(set);
+      ring.style.strokeDashoffset = 565 - 565 * Math.min(1, set / target);
+      script.forEach(([t, i, m]) => { if (t === set) push(i, m); });
+      if (set >= target) {
+        push('✓', 'You logged 80kg × 8 · Set ' + setNo);
+        turn = 'sara'; set = 0;
+        $('athYou').classList.remove('on'); $('athSara').classList.add('on');
+        $('youTag').textContent = 'Resting'; $('saraTag').textContent = 'Lifting';
+        $('setLbl').textContent = "Sara's set";
+        $('youLine').textContent = 'Bench Press · 80kg × 8';
+      }
+    } else {
+      $('setClock').textContent = fmt(set);
+      ring.style.strokeDashoffset = 565 - 565 * Math.min(1, set / 10);
+      if (set === 5) push('🎙', 'You: "last set, go!"');
+      if (set >= 10) {
+        push('✓', 'Sara logged 75kg × 8');
+        turn = 'you'; set = 0; setNo = setNo >= 5 ? 1 : setNo + 1;
+        $('athSara').classList.remove('on'); $('athYou').classList.add('on');
+        $('youTag').textContent = 'Your turn'; $('saraTag').textContent = 'Resting';
+        $('setLbl').textContent = 'Your current set';
+        $('youLine').textContent = 'Bench Press · Set ' + setNo + ' · 80kg';
+        push('↻', 'Your turn · Set ' + setNo);
+      }
+    }
+  }, 1000);
+
+  // turn-based baton
+  const bA = $('bA'), bB = $('bB');
+  setInterval(() => { bA.classList.toggle('act'); bB.classList.toggle('act'); }, 1600);
+
+  // rep counter
+  const tapper = $('tapper'), repsEl = $('reps'), msg = $('repMsg');
+  let reps = 0;
+  const lines = { 5: 'Warmed up.', 8: 'That\'s a set. Log it.', 12: 'Sara just felt that.', 20: 'Okay, show-off.', 50: 'Your thumb is getting a PR.' };
+  const tap = (x, y) => {
+    reps++; repsEl.textContent = reps;
+    repsEl.classList.add('pop'); setTimeout(() => repsEl.classList.remove('pop'), 120);
+    if (!reduce) {
+      const r = document.createElement('span'); r.className = 'ripple';
+      r.style.left = x + 'px'; r.style.top = y + 'px'; tapper.append(r); setTimeout(() => r.remove(), 700);
+    }
+    if (lines[reps]) { msg.textContent = lines[reps]; msg.classList.add('show'); setTimeout(() => msg.classList.remove('show'), 1600); }
+    if (navigator.vibrate) navigator.vibrate(8);
+  };
+  tapper.addEventListener('pointerdown', e => {
+    if (e.target.closest('#reset')) return;
+    const b = tapper.getBoundingClientRect(); tap(e.clientX - b.left, e.clientY - b.top);
+  });
+  tapper.addEventListener('keydown', e => {
+    if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); const b = tapper.getBoundingClientRect(); tap(b.width / 2, b.height / 2); }
+  });
+  $('reset').addEventListener('click', e => { e.stopPropagation(); reps = 0; repsEl.textContent = 0; });
+
+  // waveform
+  const bw = $('bigwave');
+  const hs = [30, 55, 40, 80, 65, 95, 50, 70, 35, 85, 60, 45, 90, 55, 30, 75, 50, 65, 40, 25, 60, 45, 70, 35, 50, 30, 20, 40];
+  hs.forEach(h => { const s = document.createElement('span'); s.style.setProperty('--h', h + '%'); bw.append(s); });
+  let wp = 0;
+  setInterval(() => { [...bw.children].forEach((s, i) => s.classList.toggle('p', i < wp)); wp = (wp + 1) % (hs.length + 6); }, 140);
+
+  // streak grid
+  const days = $('days');
+  for (let i = 0; i < 28; i++) {
+    const d = document.createElement('i');
+    if (i >= 5) d.className = 'f'; else if (i === 2 || i === 4) d.className = 'm';
+    days.append(d);
+  }
+
+  // typing search
+  const words2 = ['bench press', 'squat', 'incline db', '5k run'];
+  let wi = 0, ci = 0, del = false; const typed = $('typed');
+  const type = () => {
+    const w = words2[wi];
+    typed.textContent = w.slice(0, ci);
+    if (!del && ci < w.length) ci++;
+    else if (!del) { del = true; return setTimeout(type, 1400); }
+    else if (ci > 0) ci--;
+    else { del = false; wi = (wi + 1) % words2.length; }
+    setTimeout(type, del ? 40 : 90);
+  };
+  type();
+
+  // card spotlight
+  document.querySelectorAll('.card').forEach(c => c.addEventListener('pointermove', e => {
+    const b = c.getBoundingClientRect();
+    c.style.setProperty('--mx', (e.clientX - b.left) + 'px'); c.style.setProperty('--my', (e.clientY - b.top) + 'px');
+  }));
+})();
+</script>
+</body>
+</html>
