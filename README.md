@@ -1,199 +1,65 @@
 # Zyntro Flutter
 
-A Flutter workout buddy app migrated from React Native.
+A Flutter workout-buddy app (Android and iOS) migrated from React Native. Users run solo or buddy workout sessions, follow each other, earn points and compete on leaderboards. Backend: Firebase.
 
-**Supported platforms:** Android and iOS only. See [`docs/SUPPORTED_PLATFORMS.md`](docs/SUPPORTED_PLATFORMS.md).
-
-## Getting Started
-
-1. Clone the repository
-2. Run `flutter pub get` to install dependencies
-3. Add Firebase platform config files for your environment
-4. Run `flutter run --dart-define=STRIPE_PUBLISHABLE_KEY="$STRIPE_PUBLISHABLE_KEY"` to start the app
-
-## Environment Configuration
-
-Local `.env` files are ignored and are not bundled into release artifacts. If you want local fallback values, copy `.env.example` to `.env` and fill it in on your machine only:
-
-```env
-# Firebase Configuration
-FIREBASE_API_KEY=your_api_key
-FIREBASE_AUTH_DOMAIN=your_domain.firebaseapp.com
-FIREBASE_PROJECT_ID=your_project_id
-FIREBASE_STORAGE_BUCKET=your_bucket.firebasestorage.app
-FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-FIREBASE_APP_ID=your_app_id
-
-# Environment
-ENV=development
-
-# Stripe Configuration
-STRIPE_PUBLISHABLE_KEY=pk_test_your_key_here
-```
+Supported platforms: Android and iOS only. See [`docs/SUPPORTED_PLATFORMS.md`](docs/SUPPORTED_PLATFORMS.md).
 
 ## Features
 
-### Workout Sessions
-- Start solo or buddy workout sessions
-- Strength and cardio session types
-- Real-time timeline with voice notes
-- Session summary and progress tracking
+- **Workout sessions**: solo or buddy; strength and cardio; live timeline with voice notes; session summary and progress charts
+- **Social**: follow/follower system with privacy controls, buddy pairing, activity feed
+- **Leaderboards**: free friends leaderboard; global top 50 behind a one-time $5 Stripe purchase (simulated purchase fallback for testing)
+- **Points**: +10 per workout, +25 to 100 per challenge submission by difficulty, +5 per accurate judgment, +20 first-time partner support, +50 consistency bonus (5+ workouts/week)
+- **Notifications**: in-app centre plus push via Firebase Cloud Messaging
 
-### Social Features
-- Follow/follower system with privacy controls
-- Buddy pairing for accountability
-- Activity feed with workout posts
+## Tech stack
 
-### Leaderboards
+Flutter 3.10+, Firebase (Auth, Firestore, Storage, Messaging, Cloud Functions), Riverpod, GoRouter, Stripe (`flutter_stripe`), FL Chart.
 
-The app includes a competitive leaderboard system:
+## Getting started
 
-#### Friends Leaderboard (Free)
-- Ranks users among their mutual follows (buddies)
-- Shows workout scores and ranks
-- Updates in real-time
+1. `git clone` the repository and run `flutter pub get`.
+2. Add Firebase config files: `google-services.json` in `android/app/` and `GoogleService-Info.plist` in `ios/Runner/`.
+3. Run with your Stripe publishable key:
 
-#### Global Leaderboard (Premium - $5 one-time)
-- Top 50 users worldwide by workout score
-- Requires one-time purchase for lifetime access
-- Stripe payment integration with fallback simulation
+```bash
+flutter run --dart-define=STRIPE_PUBLISHABLE_KEY="$STRIPE_PUBLISHABLE_KEY"
+```
 
-#### Points System
-- **+10** points per completed workout
-- **+25-100** points per challenge submission (based on difficulty)
-- **+5** points per accurate judgment
-- **+20** points for first-time partner support
-- **+50** consistency bonus (5+ workouts/week)
+Optional local fallback values: copy `.env.example` to `.env` (git-ignored, not bundled into release builds) and fill in the Firebase and Stripe values.
 
-### Notifications
-- Push notifications via Firebase Cloud Messaging
-- In-app notification center
-- Session invites and activity alerts
-
-## Stripe Setup
-
-For payment integration:
-
-1. Get your Stripe publishable key from the [Stripe Dashboard](https://dashboard.stripe.com/test/apikeys)
-2. Pass it at build/run time as `--dart-define=STRIPE_PUBLISHABLE_KEY=...`
-3. For production, implement a Cloud Function to create PaymentIntents server-side
-
-The app includes a simulated purchase fallback for testing when Stripe is not fully configured.
-
-## Firebase Indexes
-
-Deploy the Firestore indexes for optimal query performance:
+Deploy Firestore indexes and rules:
 
 ```bash
 firebase deploy --only firestore:indexes
+firebase deploy --only firestore:rules,storage
 ```
 
-See `firebase/firestore.indexes.json` for the index definitions.
-
-## Tech Stack
-
-- Flutter 3.10+
-- Firebase (Auth, Firestore, Storage, Messaging)
-- Riverpod for state management
-- GoRouter for navigation
-- Stripe for payments
-- FL Chart for workout visualizations
-
-## Resources
-
-- [Flutter Documentation](https://docs.flutter.dev/)
-- [Firebase for Flutter](https://firebase.google.com/docs/flutter/setup)
-- [Stripe Flutter SDK](https://pub.dev/packages/flutter_stripe)
-
-## Deployment
-
-### Environment Setup
-
-The app supports multiple environments:
-
-| Environment | Config Source | Firebase Project |
-|-------------|-------------|-----------------|
-| Development | Firebase platform config + dart-defines | `gym-avatar-dev` |
-| Staging | Firebase platform config + dart-defines | `gym-avatar-staging` |
-| Production | Firebase platform config + dart-defines | `zynrto` |
-
-### Build Commands
+## Builds
 
 ```bash
-# Development build
 flutter build apk --dart-define=ENV=dev --dart-define=STRIPE_PUBLISHABLE_KEY="$STRIPE_PUBLISHABLE_KEY"
-
-# Staging build
-flutter build apk --dart-define=ENV=staging --dart-define=STRIPE_PUBLISHABLE_KEY="$STRIPE_PUBLISHABLE_KEY" --release
-
-# Production build
-flutter build apk --dart-define=ENV=prod --dart-define=STRIPE_PUBLISHABLE_KEY="$STRIPE_PUBLISHABLE_KEY" --release
 flutter build appbundle --dart-define=ENV=prod --dart-define=STRIPE_PUBLISHABLE_KEY="$STRIPE_PUBLISHABLE_KEY" --release
-
-# iOS builds
 flutter build ios --dart-define=ENV=prod --dart-define=STRIPE_PUBLISHABLE_KEY="$STRIPE_PUBLISHABLE_KEY" --release
 ```
 
-### Android Release Signing
+Android release signing: create a keystore with `keytool`, copy `android/key.properties.template` to `android/key.properties`, fill in the details. App icons and splash: add `icon.png` and `splash_icon.png` to `assets/`, then run `flutter pub run flutter_launcher_icons` and `flutter pub run flutter_native_splash:create`. Releases: `./scripts/release.sh <version> <build_number>`.
 
-1. Generate a keystore: `keytool -genkey -v -keystore zyntro-release-key.jks -keyalg RSA -keysize 2048 -validity 10000 -alias zyntro-key-alias`
-2. Copy `android/key.properties.template` to `android/key.properties`
-3. Fill in your keystore details
+## Push delivery backend
 
-### Firebase Setup
-
-1. Download `google-services.json` from Firebase Console → Add to `android/app/`
-2. Download `GoogleService-Info.plist` → Add to `ios/Runner/`
-3. Deploy Firestore and Storage rules: `firebase deploy --only firestore:rules,storage`
-
-### CI/CD
-
-**Source of truth:** see `docs/CI.md` (Z-CI-002 / Z-DOC-003).
-
-- **GitHub Actions** (`.github/workflows/flutter-ci.yml`) — PR gate: analyze, unit/widget tests, a11y smoke, Android debug APK
-- **Codemagic** (`codemagic.yaml`) — release builds + store signing (not the PR gate)
-- **Dependabot** (`.github/dependabot.yml`) — weekly pub/npm + monthly Actions updates (Z-CI-006)
-
-### App Icons & Splash
+Push notifications go through the HTTPS Cloud Function `functions/deliverNotificationPush`, not a client-writable queue.
 
 ```bash
-# Add icon.png and splash_icon.png to assets/, then:
-flutter pub run flutter_launcher_icons
-flutter pub run flutter_native_splash:create
-```
-
-### Release Process
-
-```bash
-./scripts/release.sh <version> <build_number>
-# Example: ./scripts/release.sh 1.0.0 1
-```
-
-## Documentation
-
-- [Privacy Policy](docs/privacy-policy.md)
-- [Terms of Service](docs/terms-of-service.md)
-- [Community Guidelines](docs/community-guidelines.md)
-- [Clean Architecture Feature Workflow](docs/clean-architecture-feature-workflow.md)
-
-
-## Push Delivery Backend
-
-Background push now routes through `functions/deliverNotificationPush` instead of a client-writable Firestore queue.
-
-### Deploy the backend
-
-```bash
-cd functions
-npm install
-cd ..
+cd functions && npm install && cd ..
 firebase deploy --only functions:deliverNotificationPush
 ```
 
-The checked-in mobile Firebase config currently targets the `zynrto` project. On March 30, 2026 the required Functions APIs were enabled successfully, but the first deploy still failed because the build service account is missing the permissions needed to finish the Cloud Build step.
+Flow: the app writes the in-app notification under `users/{userId}/notifications`, then calls the function with the caller's Firebase ID token. The function validates the caller against Firestore, reads `users/{userId}/devices`, sends FCM through the Admin SDK and prunes invalid tokens.
 
-### Delivery contract
+## CI/CD
 
-- The Flutter app creates the in-app notification under `users/{userId}/notifications`.
-- `NotificationService` then POSTs to the HTTPS Cloud Function with the current Firebase ID token in the `Authorization` header.
-- The function validates the caller against Firestore state, reads `users/{userId}/devices`, sends FCM with the Admin SDK, and prunes invalid tokens.
+See [`docs/CI.md`](docs/CI.md). GitHub Actions runs the PR gate (analyze, unit/widget tests, accessibility smoke, debug APK); Codemagic handles release builds and signing; Dependabot keeps dependencies current.
+
+## Documentation
+
+[Privacy Policy](docs/privacy-policy.md) · [Terms of Service](docs/terms-of-service.md) · [Community Guidelines](docs/community-guidelines.md) · [Clean Architecture feature workflow](docs/clean-architecture-feature-workflow.md)
