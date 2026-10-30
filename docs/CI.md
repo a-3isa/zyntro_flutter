@@ -22,7 +22,7 @@ Document these as the required status checks for `main` (enable in repo branch p
 2. `functions-test`
 3. `rules-test`
 
-Release jobs (`build-android`, `build-ios`, `deploy-firebase-rules`) are post-gate and may be path/branch filtered.
+Release jobs (`build-android`, `build-ios`, `deploy-firebase-rules`) are post-gate and may be path/branch filtered. Each runs only when its secret is set in GitHub (`KEYSTORE_BASE64`, `IOS_CERTIFICATE_BASE64`, `FIREBASE_TOKEN`); otherwise `release-config` skips it with a warning. The Android build also needs `android/app/google-services.json`, which is not in the repo.
 
 ## Drift rules
 
