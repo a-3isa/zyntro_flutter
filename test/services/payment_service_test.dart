@@ -1,5 +1,6 @@
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zyntro_flutter/core/constants/feature_flags.dart';
 
 import 'package:zyntro_flutter/services/payment_service.dart';
 
@@ -48,53 +49,44 @@ void main() {
     });
   });
 
+  // Z-PAY-001 / Z-PAY-002: payments stay off until store-compliant billing
+  // ships, and access may only be granted by a trusted Cloud Function, never
+  // by the client. These tests pin both guards; the old ones asserted the
+  // client-side purchase and grant that the guards replaced.
   group('createGlobalLeaderboardPaymentIntent', () {
-    test('returns a client secret and intent id for a paying user', () async {
+    test('refuses while payments are disabled', () async {
+      expect(FeatureFlags.isPaymentsEnabled, isFalse);
       await seedUser();
 
-      final intent = await service.createGlobalLeaderboardPaymentIntent(userId);
-
-      expect(intent, isNotNull);
-      expect(intent!['clientSecret'], isNotEmpty);
-      expect(intent['paymentIntentId'], isNotEmpty);
-    });
-
-    test('returns null for a user who already has access', () async {
-      // Charging twice for the same one-off unlock would be a real problem;
-      // the method refuses rather than handing back a payable intent.
-      await seedUser(hasAccess: true);
-
-      expect(
-        await service.createGlobalLeaderboardPaymentIntent(userId),
-        isNull,
+      await expectLater(
+        service.createGlobalLeaderboardPaymentIntent(userId),
+        throwsA(isA<StateError>()),
       );
     });
 
-    test('issues a distinct intent per call', () async {
-      await seedUser();
+    test('refuses even for a user who already has access', () async {
+      await seedUser(hasAccess: true);
 
-      final first = await service.createGlobalLeaderboardPaymentIntent(userId);
-      await Future<void>.delayed(const Duration(milliseconds: 2));
-      final second = await service.createGlobalLeaderboardPaymentIntent(userId);
-
-      expect(first!['paymentIntentId'], isNot(second!['paymentIntentId']));
+      await expectLater(
+        service.createGlobalLeaderboardPaymentIntent(userId),
+        throwsA(isA<StateError>()),
+      );
     });
   });
 
   group('grantGlobalLeaderboardAccess', () {
-    test('sets the access flag and a granted timestamp', () async {
+    test('cannot grant access from the client', () async {
       await seedUser();
 
-      await service.grantGlobalLeaderboardAccess(userId);
-
+      await expectLater(
+        service.grantGlobalLeaderboardAccess(userId),
+        throwsA(isA<UnsupportedError>()),
+      );
       final doc = await firestore.collection('users').doc(userId).get();
-      expect(doc.data()?['hasGlobalLeaderboardAccess'], isTrue);
-      expect(doc.data()?['globalAccessGrantedAt'], isNotNull);
+      expect(doc.data()?['hasGlobalLeaderboardAccess'], isNot(true));
     });
 
-    test('rethrows when the user document is missing', () async {
-      // The caller needs to know the grant failed — silently swallowing it
-      // would leave a paying user without what they bought.
+    test('still throws when the user document is missing', () async {
       await expectLater(
         service.grantGlobalLeaderboardAccess('ghost'),
         throwsA(anything),
