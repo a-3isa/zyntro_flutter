@@ -19,9 +19,13 @@ void main() {
   test(
     'T029: recap page reads exercise summary from session events, not plan',
     () {
+      // The exercise list was extracted into widgets/recap_widgets.dart.
       final source = File(
         'lib/features/session/presentation/recap_page.dart',
-      ).readAsStringSync();
+      ).readAsStringSync() +
+          File(
+            'lib/features/session/presentation/widgets/recap_widgets.dart',
+          ).readAsStringSync();
 
       // Recap reads from session.summary (event-driven), not from plan exercises.
       // Late-added exercises only appear in summary after their sets are logged.

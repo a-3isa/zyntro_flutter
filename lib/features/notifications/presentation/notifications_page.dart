@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -44,7 +45,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
             phase: session.phase,
           );
 
-    context.push(location);
+    unawaited(context.push(location));
   }
 
   @override
@@ -127,7 +128,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                 ],
                 GestureDetector(
                   onTap: () async {
-                    HapticManager.medium();
+                    unawaited(HapticManager.medium());
                     await ref
                         .read(notificationServiceProvider)
                         .markAllNotificationsAsRead(uid);
@@ -147,7 +148,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
           Expanded(
             child: RefreshIndicator(
               onRefresh: () async {
-                HapticManager.medium();
+                unawaited(HapticManager.medium());
                 ref.invalidate(userNotificationsProvider(uid));
               },
               color: AppColors.signal,
@@ -296,7 +297,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         child: const Icon(Icons.delete_outline_rounded, color: AppColors.error),
       ),
       confirmDismiss: (_) async {
-        HapticManager.medium();
+        unawaited(HapticManager.medium());
         return true;
       },
       onDismissed: (_) async {
@@ -314,7 +315,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                 label: 'Undo',
                 textColor: AppColors.signal,
                 onPressed: () async {
-                  HapticManager.medium();
+                  unawaited(HapticManager.medium());
                   if (!mounted) return;
                   await ref
                       .read(notificationServiceProvider)
@@ -576,7 +577,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   }
 
   Future<void> _handleNotificationTap(AppNotification notification) async {
-    HapticManager.light();
+    unawaited(HapticManager.light());
 
     if (!notification.read) {
       await ref
@@ -617,14 +618,14 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       case NotificationType.followRequest:
         final fromUserId = data?['fromUserId'] as String?;
         if (fromUserId != null) {
-          context.push('/user/$fromUserId');
+          unawaited(context.push('/user/$fromUserId'));
         }
         break;
 
       case NotificationType.followAccepted:
         final userId = data?['byUserId'] as String?;
         if (userId != null) {
-          context.push('/user/$userId');
+          unawaited(context.push('/user/$userId'));
         }
         break;
 
@@ -642,7 +643,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       case NotificationType.postComment:
         final postId = data?['postId'] as String?;
         if (postId != null) {
-          context.push('/post/$postId');
+          unawaited(context.push('/post/$postId'));
         }
         break;
       case NotificationType.sessionMilestone:
@@ -654,7 +655,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       case NotificationType.friendStreakExtended:
         final friendId = data?['friendId'] as String?;
         if (friendId != null) {
-          context.push('/user/$friendId');
+          unawaited(context.push('/user/$friendId'));
         } else {
           context.go(
             AppRouteLocations.mainTab(
@@ -677,14 +678,14 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         // complete — open the composer, not the (unpublishable) post detail.
         final invitePostId = data?['postId'] as String?;
         if (invitePostId != null) {
-          context.push(AppRouteLocations.jointPostComposer(invitePostId));
+          unawaited(context.push(AppRouteLocations.jointPostComposer(invitePostId)));
         }
         break;
       case NotificationType.jointPostExpired:
         // Expiry offers go to post detail, where the solo-repost flow lives.
         final expiredPostId = data?['postId'] as String?;
         if (expiredPostId != null) {
-          context.push(AppRouteLocations.postDetail(expiredPostId));
+          unawaited(context.push(AppRouteLocations.postDetail(expiredPostId)));
         }
         break;
     }

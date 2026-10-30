@@ -23,7 +23,7 @@ import {
   assertSucceeds,
   initializeTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { deleteDoc, doc, getDoc, getDocs, collection, query, where, setDoc, updateDoc } from 'firebase/firestore';
+import { deleteDoc, doc, getDoc, getDocs, collection, query, where, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, '..', '..');
@@ -570,12 +570,17 @@ describe('reports/{reportId}', () => {
     });
   }
 
+  // A report must match the schema isReportCreate() enforces (the shape
+  // ModerationService writes): reporterId, reportedUserId, reason, status,
+  // createdAt = request.time.
   it('lets a user file their own report', async () => {
     await assertSucceeds(
       setDoc(doc(as(ALICE), 'reports', 'report-1'), {
         reporterId: ALICE,
-        targetId: MALLORY,
+        reportedUserId: MALLORY,
+        reason: 'spam',
         status: 'pending',
+        createdAt: serverTimestamp(),
       }),
     );
   });
@@ -584,8 +589,10 @@ describe('reports/{reportId}', () => {
     await assertFails(
       setDoc(doc(as(MALLORY), 'reports', 'report-1'), {
         reporterId: ALICE,
-        targetId: BOB,
+        reportedUserId: BOB,
+        reason: 'spam',
         status: 'pending',
+        createdAt: serverTimestamp(),
       }),
     );
   });

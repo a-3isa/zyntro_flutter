@@ -72,7 +72,7 @@ class _EmailVerificationBannerState
           if (mounted && refreshedUser?.emailVerified == true) {
             // Show success animation before hiding
             setState(() => _isVerified = true);
-            _successAnimationController.forward();
+            unawaited(_successAnimationController.forward());
 
             // Refresh auth state to trigger UI updates elsewhere
             ref.invalidate(authSessionProvider);
@@ -150,7 +150,7 @@ class _EmailVerificationBannerState
 
       if (mounted && refreshedUser?.emailVerified == true) {
         setState(() => _isVerified = true);
-        _successAnimationController.forward();
+        unawaited(_successAnimationController.forward());
         ref.invalidate(authSessionProvider);
 
         Future.delayed(const Duration(seconds: 2), () {

@@ -96,12 +96,12 @@ class _WaitingTurnScreenState extends State<WaitingTurnScreen>
   }
 
   Future<void> _handleLongPressStart(LongPressStartDetails _) async {
-    HapticFeedback.mediumImpact();
+    unawaited(HapticFeedback.mediumImpact());
     await widget.onRecordVoice();
   }
 
   Future<void> _handleLongPressStop() async {
-    HapticFeedback.selectionClick();
+    unawaited(HapticFeedback.selectionClick());
     await widget.onRecordVoice();
   }
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -366,7 +367,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           // Ghost Edit button
           TextButton(
             onPressed: () async {
-              HapticFeedback.lightImpact();
+              unawaited(HapticFeedback.lightImpact());
               await context.push(AppRoutes.editProfile);
               if (!mounted) return;
               ref.invalidate(authUserProfileProvider);
@@ -476,7 +477,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   Future<void> _connectFacebook(BuildContext context) async {
-    HapticFeedback.lightImpact();
+    unawaited(HapticFeedback.lightImpact());
     final uid = ref.read(authSessionProvider).value?.id;
     if (uid == null) return;
 
@@ -508,7 +509,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   Future<void> _confirmDisconnectFacebook(BuildContext context) async {
-    HapticFeedback.lightImpact();
+    unawaited(HapticFeedback.lightImpact());
     final messenger = ScaffoldMessenger.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
@@ -755,7 +756,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   // ── Sign-out dialog ───────────────────────────────────────────────────────
 
   Future<void> _confirmSignOut(BuildContext context) async {
-    HapticFeedback.mediumImpact();
+    unawaited(HapticFeedback.mediumImpact());
     final router = GoRouter.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
@@ -813,7 +814,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
 
     if (confirmed == true && mounted) {
-      HapticFeedback.heavyImpact();
+      unawaited(HapticFeedback.heavyImpact());
       await ref.read(authControllerProvider).signOut();
       if (mounted) {
         router.go(AppRoutes.login);

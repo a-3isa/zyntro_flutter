@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -337,9 +338,9 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
     if (!mounted) return false;
 
     if (action == 'resume') {
-      context.push(
+      unawaited(context.push(
         AppRouteLocations.sessionRoom(existingSessionId, type: type.value),
-      );
+      ));
       return false;
     }
     if (action == 'end') {
@@ -564,7 +565,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
         phase: SessionPhase.setup,
       );
       await HapticFeedback.mediumImpact();
-      if (mounted) context.push(AppRouteLocations.gymSessionSetup(sessionId));
+      if (mounted) unawaited(context.push(AppRouteLocations.gymSessionSetup(sessionId)));
     } catch (e) {
       if (mounted) {
         _showError(_mapStartSessionError(e));
@@ -1298,7 +1299,7 @@ class _StartSessionPageState extends ConsumerState<StartSessionPage> {
         _plan.add(selected[i].copyWithPlanFields(order: baseOrder + i));
       }
     });
-    HapticManager.light();
+    unawaited(HapticManager.light());
   }
 
   Future<void> _handleStartSessionWithPlan() async {

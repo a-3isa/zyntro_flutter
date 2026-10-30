@@ -32,8 +32,13 @@ void main() {
 
     test('finishing deliberately still ends the session', () {
       // The removal must be surgical — the member pressing Finish still works.
-      expect(sessionRoom.contains('endSession(widget.sessionId, uid, summary)'),
-          isTrue);
+      // Whitespace-tolerant: the call is formatted across several lines.
+      expect(
+        sessionRoom.contains(RegExp(
+          r'endSession\(\s*widget\.sessionId,\s*uid,\s*summary,?\s*\)',
+        )),
+        isTrue,
+      );
     });
 
     test('detached and hidden still mark the member away', () {

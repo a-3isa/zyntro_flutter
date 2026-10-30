@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -93,9 +94,9 @@ class _ResumeDecisionSurfaceState extends ConsumerState<ResumeDecisionSurface> {
     switch (choice) {
       case ResumePromptChoice.resume:
         if (!mounted) return;
-        context.push(
+        unawaited(context.push(
           AppRouteLocations.sessionRoom(sessionId, type: workoutType),
-        );
+        ));
       case ResumePromptChoice.discard:
         final userId = ref.read(authSessionProvider).value?.id;
         if (userId == null) return;

@@ -40,18 +40,13 @@ class AuthController {
   final SignOutCleanup _signOutCleanup;
 
   AuthController({
-    required AuthenticationUseCase useCase,
-    required MigrationGovernanceRepository migrationRepository,
-    required ValidationEvidenceService validationEvidenceService,
-    required DomainFailureCategoryMapper domainFailureCategoryMapper,
-    required TelemetryBaselineService telemetryBaselineService,
-    required SignOutCleanup signOutCleanup,
-  })  : _useCase = useCase,
-        _migrationRepository = migrationRepository,
-        _validationEvidenceService = validationEvidenceService,
-        _domainFailureCategoryMapper = domainFailureCategoryMapper,
-        _telemetryBaselineService = telemetryBaselineService,
-        _signOutCleanup = signOutCleanup;
+    required this._useCase,
+    required this._migrationRepository,
+    required this._validationEvidenceService,
+    required this._domainFailureCategoryMapper,
+    required this._telemetryBaselineService,
+    required this._signOutCleanup,
+  });
 
   Future<AuthUserEntity> signInWithEmail(String email, String password) async {
     await ensureMigrationSliceInitialized();

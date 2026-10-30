@@ -39,7 +39,6 @@ class AnimationCache {
 /// Performance monitor to detect low-end devices and adjust animation complexity.
 class PerformanceMonitor {
   static bool? _isLowEndDevice;
-  static bool? _shouldReduceMotion;
 
   /// Check if the device should use reduced animations.
   static bool get isLowEndDevice {
@@ -64,7 +63,6 @@ class PerformanceMonitor {
   /// Reset cached device heuristics (call when device settings change).
   static void reset() {
     _isLowEndDevice = null;
-    _shouldReduceMotion = null;
   }
 }
 

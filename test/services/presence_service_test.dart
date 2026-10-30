@@ -1,6 +1,7 @@
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zyntro_flutter/features/session/domain/turn_eligibility.dart';
 import 'package:zyntro_flutter/services/presence_service.dart';
 
 void main() {
@@ -230,18 +231,21 @@ void main() {
       );
     });
 
-    test('tolerates several missed heartbeats', () {
+    test('tolerates a missed heartbeat', () {
       // Used in gyms, where patchy reception is normal. Calling a signal drop a
       // departure would swap the member into solo mode while their partner is
-      // standing next to them.
+      // standing next to them. Since Z-PERF-004 (30s heartbeat) the tolerance
+      // comes from the presence timeout plus the solo damper's grace period:
+      // a missed beat must be repaired by the next one before the view goes
+      // solo.
       expect(
-        PresenceService.presenceTimeout,
-        greaterThanOrEqualTo(PresenceService.heartbeatInterval * 3),
-        reason: 'a couple of dropped beats must not read as leaving',
+        PresenceService.presenceTimeout + SoloModeDamper.graceBeforeSolo,
+        greaterThan(PresenceService.heartbeatInterval * 2),
+        reason: 'a dropped beat must not read as leaving',
       );
       expect(
         PresenceService.isPresenceLive(
-          aged(PresenceStatus.online, PresenceService.heartbeatInterval * 2),
+          aged(PresenceStatus.online, PresenceService.heartbeatInterval),
           now,
         ),
         isTrue,

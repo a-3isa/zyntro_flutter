@@ -586,12 +586,12 @@ class PostService {
       final cached = _prefetchCache.remove(cacheKey)!;
       // Trigger next prefetch
       if (cached.cursor.hasMore) {
-        prefetchNextPage(
+        unawaited(prefetchNextPage(
           currentUserId: currentUserId,
           followingIds: followingIds,
           startAfterDoc: cached.cursor.lastDoc,
           limit: limit,
-        );
+        ));
       }
       return cached;
     }
@@ -716,12 +716,12 @@ class PostService {
 
     // Trigger prefetch for next page if not prefetching
     if (!isPrefetch && result.cursor.hasMore) {
-      prefetchNextPage(
+      unawaited(prefetchNextPage(
         currentUserId: currentUserId,
         followingIds: followingIds,
         startAfterDoc: result.cursor.lastDoc,
         limit: limit,
-      );
+      ));
     }
 
     return result;

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -63,7 +64,7 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
     setState(() => _isSharing = true);
 
     try {
-      HapticFeedback.mediumImpact();
+      unawaited(HapticFeedback.mediumImpact());
 
       // Copy URL to clipboard
       await Clipboard.setData(ClipboardData(text: widget.imageUrl));
@@ -99,7 +100,7 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
     setState(() => _isDownloading = true);
 
     try {
-      HapticFeedback.mediumImpact();
+      unawaited(HapticFeedback.mediumImpact());
 
       // Download the image using http
       final response = await http.get(Uri.parse(widget.imageUrl));

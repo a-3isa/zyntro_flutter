@@ -3,8 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
-import 'package:zyntro_flutter/core/constants/constants.dart';
-import 'package:zyntro_flutter/core/models/models.dart';
 import 'package:zyntro_flutter/services/notification_service.dart';
 import 'package:zyntro_flutter/services/session_analytics_service.dart';
 import 'package:zyntro_flutter/services/session_service.dart';

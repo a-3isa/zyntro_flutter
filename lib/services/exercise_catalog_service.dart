@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
@@ -422,9 +423,9 @@ class ExerciseCatalogService {
           ));
         }
       }
-      FirebaseAnalytics.instance.logEvent(
+      unawaited(FirebaseAnalytics.instance.logEvent(
         name: 'exercise_catalog_fallback_used',
-      );
+      ));
     }
 
     // Activate local fallback when Firestore returns 0 results (not just on

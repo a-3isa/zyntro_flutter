@@ -79,9 +79,10 @@ class PresenceService {
 
   /// How long a presence record stays trustworthy without a refresh.
   ///
-  /// Three beats of tolerance. A stricter timeout would detect a departure
-  /// sooner but start calling a brief signal drop a departure, and this feature
-  /// is used in gyms — patchy reception is the normal case, not the edge one.
+  /// With the 30s heartbeat (Z-PERF-004) this covers jitter on a single beat;
+  /// a missed beat is absorbed by `SoloModeDamper.graceBeforeSolo` on top. This
+  /// feature is used in gyms — patchy reception is the normal case, not the
+  /// edge one.
   static const presenceTimeout = Duration(seconds: 45);
 
   /// How often the heartbeat also pushes the session's own occupancy and expiry
@@ -144,7 +145,7 @@ class PresenceService {
         ),
       });
     } catch (e) {
-      // A dropped beat is survivable — presenceTimeout tolerates three, and the
+      // A dropped beat is survivable — the solo damper absorbs one, and the
       // next beat repairs it. Never let this surface to the member mid-workout.
       debugPrint('[PresenceService] Heartbeat failed for $sessionId: $e');
     }

@@ -123,7 +123,7 @@ class _MatchmakingPageState extends ConsumerState<MatchmakingPage>
     if (_isCancelling) return;
     setState(() => _isCancelling = true);
 
-    _queueSub?.cancel();
+    unawaited(_queueSub?.cancel());
     final docId = _queueDocId;
     if (docId != null) {
       try {

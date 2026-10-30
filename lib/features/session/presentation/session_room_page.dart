@@ -487,10 +487,11 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
       if (!mounted) return;
 
       final partnerName = leaver?.displayName ?? 'Your partner';
-      SemanticsService.announce(
+      // ignore: deprecated_member_use -- sendAnnouncement needs a FlutterView; the a11y contract test (Z-A11Y-004) pins announce()
+      unawaited(SemanticsService.announce(
         '$partnerName left the session',
         Directionality.of(context),
-      );
+      ));
 
       final choice = await PartnerLeftDialog.show(
         context,
@@ -671,7 +672,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
           String senderName = 'A friend'; // Ideally resolve from user cache
           // Add to queue
           _audioQueue.add(url);
-          _processAudioQueue(senderName);
+          unawaited(_processAudioQueue(senderName));
         }
       }
     }
@@ -705,7 +706,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
 
     await _playAudio(url);
     _isPlayingQueue = false;
-    _processAudioQueue(senderName); // Process next
+    unawaited(_processAudioQueue(senderName)); // Process next
   }
 
   /// Wrapper that lets new turn-based/parallel widgets submit a set
@@ -1327,7 +1328,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     final path = await voiceService.startRecording();
     if (path != null) {
       // Subscribe to duration updates
-      _durationSubscription?.cancel();
+      unawaited(_durationSubscription?.cancel());
       _durationSubscription = voiceService.durationStream.listen((duration) {
         if (mounted) {
           setState(() => _recordingDuration = duration);
@@ -1337,7 +1338,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
         _isRecording = true;
         _recordingDuration = Duration.zero;
       });
-      HapticFeedback.selectionClick();
+      unawaited(HapticFeedback.selectionClick());
     }
   }
 
@@ -1348,11 +1349,11 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     final recordedDuration = _recordingDuration;
 
     // Cancel duration subscription
-    _durationSubscription?.cancel();
+    unawaited(_durationSubscription?.cancel());
     _durationSubscription = null;
 
     setState(() => _isRecording = false);
-    HapticFeedback.selectionClick();
+    unawaited(HapticFeedback.selectionClick());
 
     final path = await voiceService.stopRecording();
     if (path == null) {
@@ -1430,7 +1431,8 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
     final direction = mounted
         ? Directionality.of(context)
         : TextDirection.ltr;
-    SemanticsService.announce("It's your turn", direction);
+    // ignore: deprecated_member_use -- sendAnnouncement needs a FlutterView; the a11y contract test (Z-A11Y-004) pins announce()
+    unawaited(SemanticsService.announce("It's your turn", direction));
     await HapticFeedback.heavyImpact();
     await Future<void>.delayed(const Duration(milliseconds: 130));
     await HapticFeedback.heavyImpact();
@@ -2114,7 +2116,7 @@ class _SessionRoomPageState extends ConsumerState<SessionRoomPage>
             previousSession?.activeUserId != currentUserId) {
           // It's my turn — announce it physically, not with a banner: a distinct
           // double buzz plus a weight-plate clank.
-          _signalMyTurn();
+          unawaited(_signalMyTurn());
         }
       });
     });

@@ -40,12 +40,18 @@ void main() {
     expect(source, isNot(contains("I'll leave it as is")));
   });
 
-  test('follower list lookups use chunked Firestore whereIn reads', () {
+  // Z-SEC-001 closed the users list to non-private profiles, so a whereIn
+  // query over arbitrary ids would be denied; lookups are chunked doc gets.
+  // Z-DATA-005 raised the chunk size to 30.
+  test('follower list lookups use chunked per-document reads', () {
     final source = File('lib/services/follow_service.dart').readAsStringSync();
 
-    expect(source, contains('static const _userLookupChunkSize = 10'));
-    expect(source, contains('where(FieldPath.documentId, whereIn: chunk)'));
-    expect(source, isNot(contains("collection('users').doc(id).get()")));
+    expect(source, contains('static const _userLookupChunkSize = 30'));
+    expect(source, contains("collection('users').doc(id).get()"));
+    expect(
+      source,
+      isNot(contains('where(FieldPath.documentId, whereIn: chunk)')),
+    );
   });
 
   late FollowService followService;

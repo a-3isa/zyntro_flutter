@@ -1,3 +1,4 @@
+import 'dart:async';
 // ignore_for_file: deprecated_member_use_from_same_package
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -99,7 +100,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
   /// Handle reaction tap - toggle or change reaction type with haptic feedback.
   Future<void> _handleReaction(ReactionType type) async {
     // Haptic feedback on reaction
-    HapticManager.medium();
+    unawaited(HapticManager.medium());
 
     final authState = ref.read(authSessionProvider);
     final uid = authState.value?.id;
@@ -144,7 +145,7 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
       }
     } catch (e) {
       // Revert on error with error haptic
-      HapticManager.error();
+      unawaited(HapticManager.error());
       setState(() {
         _currentReaction = previousReaction;
         _reactionCounts = previousCounts;
@@ -1145,11 +1146,11 @@ class _PostDetailPageState extends ConsumerState<PostDetailPage> {
           .read(postServiceProvider)
           .repostSoloFromExpiredDraft(_post!.id, uid, visibility: choice);
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(
+      unawaited(Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => PostDetailPage(postId: newPostId),
         ),
-      );
+      ));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

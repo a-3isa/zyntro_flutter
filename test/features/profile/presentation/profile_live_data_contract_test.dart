@@ -48,9 +48,16 @@ void main() {
   });
 
   test('visitor profile uses the social-first follow-back layout', () {
+    // The follow button and header were extracted into widgets/.
     final source = File(
       'lib/features/profile/presentation/profile_page.dart',
-    ).readAsStringSync();
+    ).readAsStringSync() +
+        File(
+          'lib/features/profile/presentation/widgets/profile_follow_button.dart',
+        ).readAsStringSync() +
+        File(
+          'lib/features/profile/presentation/widgets/profile_header_widgets.dart',
+        ).readAsStringSync();
 
     expect(source, contains("'Follow back'"));
     expect(source, contains('decoration: TextDecoration.none'));

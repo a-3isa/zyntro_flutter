@@ -150,14 +150,14 @@ class _ActiveTurnScreenState extends State<ActiveTurnScreen>
   Future<void> _submitSet() async {
     if (_submitting) return;
     if (_weight <= 0) {
-      HapticFeedback.heavyImpact();
+      unawaited(HapticFeedback.heavyImpact());
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Enter a weight before saving')),
       );
       return;
     }
     setState(() => _submitting = true);
-    HapticFeedback.mediumImpact();
+    unawaited(HapticFeedback.mediumImpact());
     try {
       await widget.onSetSubmit(
         reps: _reps,
