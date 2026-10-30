@@ -300,9 +300,17 @@ describe('joint post update — legitimate paths still work (no regression)', ()
     );
   });
 
-  it('DENIES a non-author bumping engagement counters', async () => {
-    await assertFails(
+  // Since Z-SEC-006 any signed-in user may nudge a counter by exactly ±1 (a
+  // like is a +1 from the liker), but nobody may set an arbitrary tally.
+  it('ALLOWS a non-author nudging engagement counters by one', async () => {
+    await assertSucceeds(
       updateDoc(doc(db(MALLORY), 'posts', PUBLISHED_ID), { likesCount: 1 }),
+    );
+  });
+
+  it('DENIES a non-author setting an arbitrary engagement tally', async () => {
+    await assertFails(
+      updateDoc(doc(db(MALLORY), 'posts', PUBLISHED_ID), { likesCount: 50 }),
     );
   });
 });
