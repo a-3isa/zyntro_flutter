@@ -1,5 +1,6 @@
 name: zyntro_flutter
-description: "Zyntro - Workout buddy app migrated from React Native"
+description: "Zyntro: a workout-buddy app for Android and iOS with buddy sessions, leaderboards and Firebase"
+repository: https://github.com/a-3isa/zyntro_flutter
 publish_to: 'none'
 version: 1.0.1+7
 
