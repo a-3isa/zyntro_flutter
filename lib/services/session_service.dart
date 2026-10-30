@@ -569,7 +569,7 @@ class SessionService {
     // Wait, createSession sets 'participants': [hostId].
     // So calling warmSessionParticipants will just fetch the host (who is likely cached).
     // But we should follow instructions.
-    _ref.read(userCacheServiceProvider).warmSessionParticipants(sessionId);
+    unawaited(_ref.read(userCacheServiceProvider).warmSessionParticipants(sessionId));
 
     return sessionId;
   }
@@ -648,7 +648,7 @@ class SessionService {
           ),
         );
 
-    _ref.read(userCacheServiceProvider).warmSessionParticipants(sessionId);
+    unawaited(_ref.read(userCacheServiceProvider).warmSessionParticipants(sessionId));
     return sessionId;
   }
 
@@ -744,7 +744,7 @@ class SessionService {
       );
 
       // Warm cache with new participants
-      _ref.read(userCacheServiceProvider).warmSessionParticipants(sessionId);
+      unawaited(_ref.read(userCacheServiceProvider).warmSessionParticipants(sessionId));
     }, extras: {'session_id': sessionId});
   }
 
@@ -825,7 +825,7 @@ class SessionService {
       cooldownDuration: const Duration(seconds: 30),
     );
 
-    _ref.read(userCacheServiceProvider).warmSessionParticipants(sessionId);
+    unawaited(_ref.read(userCacheServiceProvider).warmSessionParticipants(sessionId));
 
     // Re-fire the invite-accepted event the retired acceptInvite used to track.
     final hostId = (sessionData?['hostId'] ?? '').toString();

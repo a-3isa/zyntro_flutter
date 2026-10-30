@@ -208,7 +208,7 @@ class OfflineManager {
 
     // Process any pending operations if online
     if (_isOnline && !_syncPaused) {
-      processQueue();
+      unawaited(processQueue());
     }
   }
 

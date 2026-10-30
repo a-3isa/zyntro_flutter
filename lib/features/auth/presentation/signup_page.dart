@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -62,7 +63,7 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
     FocusScope.of(context).unfocus();
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
-    HapticFeedback.lightImpact();
+    unawaited(HapticFeedback.lightImpact());
     setState(() {
       _emailLoading = true;
       _errorMessage = null;
@@ -78,14 +79,14 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
           );
 
       if (mounted) {
-        HapticFeedback.mediumImpact();
+        unawaited(HapticFeedback.mediumImpact());
         // New accounts have no profile yet — the router sends them to
         // onboarding rather than straight into the app.
         context.go(AppRoutes.main);
       }
     } on AuthFlowException catch (e) {
       if (mounted) {
-        HapticFeedback.heavyImpact();
+        unawaited(HapticFeedback.heavyImpact());
         setState(() {
           _errorMessage = e.message;
           _errorSuggestion = e.code == 'email-already-in-use'
@@ -95,7 +96,7 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
       }
     } catch (_) {
       if (mounted) {
-        HapticFeedback.heavyImpact();
+        unawaited(HapticFeedback.heavyImpact());
         setState(() {
           _errorMessage = 'Sign-up failed. Please try again.';
           _errorSuggestion = null;
@@ -108,7 +109,7 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
 
   Future<void> _handleGoogleSignIn() async {
     if (_isLoading) return;
-    HapticFeedback.lightImpact();
+    unawaited(HapticFeedback.lightImpact());
     setState(() {
       _socialLoading = 'google';
       _errorMessage = null;
@@ -118,13 +119,13 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
       final user = await ref.read(authControllerProvider).signInWithGoogle();
 
       if (user != null && mounted) {
-        HapticFeedback.mediumImpact();
+        unawaited(HapticFeedback.mediumImpact());
         // Router decides main vs onboarding based on profile completeness.
         context.go(AppRoutes.main);
       }
     } catch (e) {
       if (mounted) {
-        HapticFeedback.heavyImpact();
+        unawaited(HapticFeedback.heavyImpact());
         setState(() {
           _errorSuggestion = null;
           if (e.toString().contains('network_error')) {
@@ -143,7 +144,7 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
 
   Future<void> _handleFacebookSignUp() async {
     if (_isLoading) return;
-    HapticFeedback.lightImpact();
+    unawaited(HapticFeedback.lightImpact());
     setState(() {
       _socialLoading = 'facebook';
       _errorMessage = null;
@@ -153,13 +154,13 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
       final user = await ref.read(authControllerProvider).signInWithFacebook();
 
       if (user != null && mounted) {
-        HapticFeedback.mediumImpact();
+        unawaited(HapticFeedback.mediumImpact());
         // Router decides main vs onboarding based on profile completeness.
         context.go(AppRoutes.main);
       }
     } catch (e) {
       if (mounted) {
-        HapticFeedback.heavyImpact();
+        unawaited(HapticFeedback.heavyImpact());
         setState(() {
           _errorSuggestion = null;
           if (e.toString().contains('canceled')) {
@@ -176,7 +177,7 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
 
   Future<void> _handleAppleSignUp() async {
     if (_isLoading) return;
-    HapticFeedback.lightImpact();
+    unawaited(HapticFeedback.lightImpact());
     setState(() {
       _socialLoading = 'apple';
       _errorMessage = null;
@@ -186,12 +187,12 @@ class _SignUpPageState extends ConsumerState<SignUpPage> {
       final user = await ref.read(authControllerProvider).signInWithApple();
 
       if (user != null && mounted) {
-        HapticFeedback.mediumImpact();
+        unawaited(HapticFeedback.mediumImpact());
         context.go(AppRoutes.main);
       }
     } catch (e) {
       if (mounted) {
-        HapticFeedback.heavyImpact();
+        unawaited(HapticFeedback.heavyImpact());
         setState(() {
           _errorSuggestion = null;
           if (e.toString().contains('canceled')) {

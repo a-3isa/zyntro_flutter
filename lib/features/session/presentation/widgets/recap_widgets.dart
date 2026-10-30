@@ -14,7 +14,7 @@ import '../../../../core/constants/constants.dart';
 // ────────────────────────────────────────────────────────────────────────────
 
 class RecapDoneHeader extends StatelessWidget {
-  const RecapDoneHeader();
+  const RecapDoneHeader({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +39,7 @@ class RecapStatCell extends StatelessWidget {
   final String label;
   final Color accentColor;
 
-  const RecapStatCell({
+  const RecapStatCell({super.key, 
     required this.value,
     required this.label,
     required this.accentColor,
@@ -97,7 +97,7 @@ class RecapStatCell extends StatelessWidget {
 class RecapBreakdownSection extends StatelessWidget {
   final List<ExerciseSummary> exercises;
 
-  const RecapBreakdownSection({required this.exercises});
+  const RecapBreakdownSection({super.key, required this.exercises});
 
   String _fmtWeight(double w) =>
       w == w.truncateToDouble() ? '${w.toInt()}' : '$w';
@@ -244,7 +244,7 @@ class RecapShareCardSection extends StatelessWidget {
   final int points;
   final String username;
 
-  const RecapShareCardSection({
+  const RecapShareCardSection({super.key, 
     required this.expanded,
     required this.onToggle,
     required this.session,
@@ -431,7 +431,7 @@ class RecapCardStat extends StatelessWidget {
   final String label;
   final String value;
 
-  const RecapCardStat({required this.label, required this.value});
+  const RecapCardStat({super.key, required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
@@ -470,7 +470,7 @@ class RecapPostToFeedSection extends StatelessWidget {
   final ValueChanged<bool> onToggleFriendsOnly;
   final VoidCallback onShare;
 
-  const RecapPostToFeedSection({
+  const RecapPostToFeedSection({super.key, 
     required this.postedToFeed,
     required this.selectedPhotoPath,
     required this.isPickingPhoto,
@@ -716,7 +716,7 @@ class RecapGhostButton extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
 
-  const RecapGhostButton({required this.label, required this.onTap});
+  const RecapGhostButton({super.key, required this.label, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -749,7 +749,7 @@ class RecapGhostButton extends StatelessWidget {
 class RecapLocalPhotoViewer extends StatelessWidget {
   final String path;
 
-  const RecapLocalPhotoViewer({required this.path});
+  const RecapLocalPhotoViewer({super.key, required this.path});
 
   @override
   Widget build(BuildContext context) {

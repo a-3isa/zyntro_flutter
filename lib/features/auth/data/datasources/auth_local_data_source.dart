@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -35,14 +36,14 @@ class AuthLocalDataSource {
 
       if (encoded == null || cachedAt == null) {
         try {
-          FirebaseAnalytics.instance.logEvent(name: 'auth_startup_cache_miss');
+          unawaited(FirebaseAnalytics.instance.logEvent(name: 'auth_startup_cache_miss'));
         } catch (_) {}
         return null;
       }
 
       final user = AuthUserModel.fromEncodedJson(encoded);
       try {
-        FirebaseAnalytics.instance.logEvent(name: 'auth_startup_cache_hit');
+        unawaited(FirebaseAnalytics.instance.logEvent(name: 'auth_startup_cache_hit'));
       } catch (_) {}
       return user;
     } catch (_) {
@@ -56,9 +57,9 @@ class AuthLocalDataSource {
       await prefs.remove(_cachedUserKey);
       await prefs.remove(_cachedUserAtKey);
       try {
-        FirebaseAnalytics.instance.logEvent(
+        unawaited(FirebaseAnalytics.instance.logEvent(
           name: 'auth_startup_sign_in_required',
-        );
+        ));
       } catch (_) {}
     } catch (_) {
       throw AuthDataException.cache('Failed to clear auth cache.');

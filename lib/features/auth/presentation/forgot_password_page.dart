@@ -82,7 +82,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
     if (!_formKey.currentState!.validate()) return;
     if (_cooldownSeconds > 0) return;
 
-    HapticFeedback.mediumImpact();
+    unawaited(HapticFeedback.mediumImpact());
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -96,7 +96,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
       await _saveCooldownTimestamp();
 
       if (mounted) {
-        HapticFeedback.heavyImpact();
+        unawaited(HapticFeedback.heavyImpact());
         setState(() {
           _emailSent = true;
           _cooldownSeconds = _cooldownDuration;
@@ -120,7 +120,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
           _startCooldownTimer();
         }
       } else if (mounted) {
-        HapticFeedback.heavyImpact();
+        unawaited(HapticFeedback.heavyImpact());
         setState(() => _errorMessage = _getErrorMessage(message));
       }
     } finally {

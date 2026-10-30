@@ -438,7 +438,7 @@ class NotificationService {
     if (data['type'] == 'follow_request') {
       final fromUserId = data['fromUserId'] as String?;
       if (fromUserId != null && navigatorContext.mounted) {
-        navigatorContext.push('/user/$fromUserId');
+        unawaited(navigatorContext.push('/user/$fromUserId'));
         return;
       }
     }
@@ -467,7 +467,7 @@ class NotificationService {
           }
         }
         if (!navigatorContext.mounted) return;
-        navigatorContext.push(AppRouteLocations.gymSessionSetup(sessionId));
+        unawaited(navigatorContext.push(AppRouteLocations.gymSessionSetup(sessionId)));
         return;
       }
 
@@ -491,12 +491,12 @@ class NotificationService {
           }
         }
         if (!navigatorContext.mounted) return;
-        navigatorContext.push(
+        unawaited(navigatorContext.push(
           AppRouteLocations.sessionRoom(
             sessionId,
             type: (data['sessionType'] as String?) ?? WorkoutType.gym.value,
           ),
-        );
+        ));
         return;
       }
 
@@ -511,11 +511,11 @@ class NotificationService {
           notificationType == 'joint_post_expired') {
         final postId = data['postId'] as String?;
         if (postId != null && navigatorContext.mounted) {
-          navigatorContext.push(
+          unawaited(navigatorContext.push(
             notificationType == 'joint_post_invite'
                 ? AppRouteLocations.jointPostComposer(postId)
                 : AppRouteLocations.postDetail(postId),
-          );
+          ));
         }
         return;
       }
@@ -547,20 +547,20 @@ class NotificationService {
       }
 
       if (!navigatorContext.mounted) return;
-      navigatorContext.push(location, extra: data);
+      unawaited(navigatorContext.push(location, extra: data));
     } else if (data.containsKey('postId')) {
       final postId = data['postId'] as String;
       if (!navigatorContext.mounted) return;
-      navigatorContext.push('/post/$postId');
+      unawaited(navigatorContext.push('/post/$postId'));
     } else if (data.containsKey('buddyPairId') ||
         data.containsKey('fromUserId')) {
       // Navigate to notifications list for buddy/follow requests
       if (!navigatorContext.mounted) return;
-      navigatorContext.push(AppRoutes.notifications);
+      unawaited(navigatorContext.push(AppRoutes.notifications));
     } else {
       // Default: go to notifications list
       if (!navigatorContext.mounted) return;
-      navigatorContext.push(AppRoutes.notifications);
+      unawaited(navigatorContext.push(AppRoutes.notifications));
     }
   }
 
@@ -1111,7 +1111,7 @@ class NotificationService {
       recipientId: recipientId,
       data: data,
     );
-    FirebaseAnalytics.instance.logEvent(name: 'follow_notification_delivered');
+    unawaited(FirebaseAnalytics.instance.logEvent(name: 'follow_notification_delivered'));
   }
 
   /// Notify user that their follow request was accepted.

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -129,8 +130,8 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
 
       // T037: write fresh data to cache.
       if (workouts.isNotEmpty && _lastDoc == null) {
-        ref.read(profileCacheServiceProvider)
-            .writeWorkoutHistory(userId, workouts.map(_workoutToMap).toList());
+        unawaited(ref.read(profileCacheServiceProvider)
+            .writeWorkoutHistory(userId, workouts.map(_workoutToMap).toList()));
       }
 
       setState(() {
@@ -214,7 +215,7 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage> {
           Expanded(
             child: RefreshIndicator(
               onRefresh: () async {
-                HapticManager.medium();
+                unawaited(HapticManager.medium());
                 await _refresh();
               },
               color: AppColors.signal,

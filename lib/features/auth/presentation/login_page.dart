@@ -50,7 +50,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     FocusScope.of(context).unfocus();
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
-    HapticFeedback.lightImpact();
+    unawaited(HapticFeedback.lightImpact());
     setState(() {
       _emailLoading = true;
       _errorMessage = null;
@@ -66,13 +66,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           );
 
       if (mounted) {
-        HapticFeedback.mediumImpact();
+        unawaited(HapticFeedback.mediumImpact());
         // Router decides main vs onboarding based on profile completeness.
         context.go(AppRoutes.main);
       }
     } on AuthFlowException catch (e) {
       if (mounted) {
-        HapticFeedback.heavyImpact();
+        unawaited(HapticFeedback.heavyImpact());
         setState(() {
           _errorMessage = e.message;
           _errorSuggestion = null;
@@ -80,7 +80,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       }
     } catch (_) {
       if (mounted) {
-        HapticFeedback.heavyImpact();
+        unawaited(HapticFeedback.heavyImpact());
         setState(() {
           _errorMessage = 'Sign-in failed. Please try again.';
           _errorSuggestion = null;
@@ -93,7 +93,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   Future<void> _handleGoogleSignIn() async {
     if (_isLoading) return;
-    HapticFeedback.lightImpact();
+    unawaited(HapticFeedback.lightImpact());
     setState(() {
       _socialLoading = 'google';
       _errorMessage = null;
@@ -103,13 +103,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       final user = await ref.read(authControllerProvider).signInWithGoogle();
 
       if (user != null && mounted) {
-        HapticFeedback.mediumImpact();
+        unawaited(HapticFeedback.mediumImpact());
         // Router decides main vs onboarding based on profile completeness.
         context.go(AppRoutes.main);
       }
     } catch (e) {
       if (mounted) {
-        HapticFeedback.heavyImpact();
+        unawaited(HapticFeedback.heavyImpact());
         setState(() {
           _errorSuggestion = null;
           if (e.toString().contains('network_error')) {
@@ -128,7 +128,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   Future<void> _handleFacebookSignIn() async {
     if (_isLoading) return;
-    HapticFeedback.lightImpact();
+    unawaited(HapticFeedback.lightImpact());
     setState(() {
       _socialLoading = 'facebook';
       _errorMessage = null;
@@ -138,12 +138,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       final user = await ref.read(authControllerProvider).signInWithFacebook();
 
       if (user != null && mounted) {
-        HapticFeedback.mediumImpact();
+        unawaited(HapticFeedback.mediumImpact());
         context.go(AppRoutes.main);
       }
     } catch (e) {
       if (mounted) {
-        HapticFeedback.heavyImpact();
+        unawaited(HapticFeedback.heavyImpact());
         setState(() {
           _errorSuggestion = null;
           if (e.toString().contains('canceled')) {
@@ -160,7 +160,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   Future<void> _handleAppleSignIn() async {
     if (_isLoading) return;
-    HapticFeedback.lightImpact();
+    unawaited(HapticFeedback.lightImpact());
     setState(() {
       _socialLoading = 'apple';
       _errorMessage = null;
@@ -170,12 +170,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       final user = await ref.read(authControllerProvider).signInWithApple();
 
       if (user != null && mounted) {
-        HapticFeedback.mediumImpact();
+        unawaited(HapticFeedback.mediumImpact());
         context.go(AppRoutes.main);
       }
     } catch (e) {
       if (mounted) {
-        HapticFeedback.heavyImpact();
+        unawaited(HapticFeedback.heavyImpact());
         setState(() {
           _errorSuggestion = null;
           if (e.toString().contains('canceled')) {

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -128,7 +129,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
   }
 
   Future<void> _pickImage() async {
-    HapticFeedback.lightImpact();
+    unawaited(HapticFeedback.lightImpact());
     final picker = ImagePicker();
     final image = await picker.pickImage(
       source: ImageSource.gallery,
@@ -152,7 +153,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
     final uid = authState.value?.id;
     if (uid == null) return;
 
-    HapticFeedback.mediumImpact();
+    unawaited(HapticFeedback.mediumImpact());
     setState(() => _isLoading = true);
 
     try {
@@ -193,7 +194,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
       ref.invalidate(authUserProfileProvider);
 
       if (mounted) {
-        HapticFeedback.heavyImpact();
+        unawaited(HapticFeedback.heavyImpact());
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Row(
@@ -213,7 +214,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
         context.pop();
       }
     } catch (e) {
-      HapticFeedback.heavyImpact();
+      unawaited(HapticFeedback.heavyImpact());
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

@@ -161,7 +161,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
 
   Future<void> _finishOnboarding() async {
     if (_isFinishing) return;
-    HapticFeedback.heavyImpact();
+    unawaited(HapticFeedback.heavyImpact());
     final uid = ref.read(authSessionProvider).value?.id;
     if (uid == null) return;
 

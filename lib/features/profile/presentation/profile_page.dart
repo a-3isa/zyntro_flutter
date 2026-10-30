@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart' hide Badge;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -240,7 +241,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     if (currentUserId == null) return;
     final followerName = authState.value?.displayName ?? 'Someone';
 
-    HapticFeedback.mediumImpact();
+    unawaited(HapticFeedback.mediumImpact());
     setState(() => _isFollowLoading = true);
 
     try {
@@ -301,7 +302,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     final currentUserId = authState.value?.id;
     if (currentUserId == null) return;
 
-    HapticFeedback.mediumImpact();
+    unawaited(HapticFeedback.mediumImpact());
     setState(() => _isFollowLoading = true);
 
     try {

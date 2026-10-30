@@ -37,7 +37,7 @@ void main() {
       'status': 'published',
       'coAuthored': false,
       'visibility': visibility,
-      if (authorIsPrivate != null) 'authorIsPrivate': authorIsPrivate,
+      'authorIsPrivate': ?authorIsPrivate,
       'title': 't',
       'type': 'strength',
       'summary': SessionSummary().toMap(),

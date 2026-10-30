@@ -1,4 +1,3 @@
-import '../../../core/models/models.dart';
 import 'live_participant_progress.dart';
 
 /// Parses the session-progress service map into live UI models (Z-ARCH-002).

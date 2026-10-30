@@ -363,7 +363,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
     if (!offlineManager.isOnline) {
       _privateSaveDone = true; // prevent the private-save fallback
       final summary = _session!.summary ?? SessionSummary();
-      offlineManager.queueOperation('post_create', {
+      unawaited(offlineManager.queueOperation('post_create', {
         'authorId': uid,
         'sessionId': widget.sessionId,
         'visibility': _shareWithFriendsOnly ? 'friends' : 'public',
@@ -373,7 +373,7 @@ class _RecapPageState extends ConsumerState<RecapPage> {
         'photoUri': null,
         'buddyId': null,
         'buddyName': null,
-      });
+      }));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
