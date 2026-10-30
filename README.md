@@ -1,5 +1,7 @@
 # Zyntro Flutter
 
+[![CI](https://github.com/a-3isa/zyntro_flutter/actions/workflows/flutter-ci.yml/badge.svg?branch=main)](https://github.com/a-3isa/zyntro_flutter/actions/workflows/flutter-ci.yml)
+
 A Flutter workout-buddy app (Android and iOS) migrated from React Native. Users run solo or buddy workout sessions, follow each other, earn points and compete on leaderboards. Backend: Firebase.
 
 Supported platforms: Android and iOS only. See [`docs/SUPPORTED_PLATFORMS.md`](docs/SUPPORTED_PLATFORMS.md).
