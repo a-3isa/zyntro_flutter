@@ -10,9 +10,13 @@ void main() {
     expect(chip, contains('class SessionElapsedTimerChip'));
     expect(chip, contains('Z-ARCH-002'));
 
+    // The header that hosts the chip was later extracted (SessionV2Header).
     final room = File(
       'lib/features/session/presentation/session_room_page.dart',
-    ).readAsStringSync();
+    ).readAsStringSync() +
+        File(
+          'lib/features/session/presentation/widgets/session_v2_header.dart',
+        ).readAsStringSync();
     expect(room, contains('SessionElapsedTimerChip('));
     expect(room, contains('session_elapsed_timer_chip.dart'));
 
