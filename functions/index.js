@@ -861,7 +861,7 @@ async function enforcePushRateLimit(callerId) {
       {
         windowStartMs,
         count: count + 1,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       },
       { merge: true },
     );
@@ -892,7 +892,7 @@ async function enforcePushDedup(callerId, type, recipientId, payloadData) {
     {
       lastAtMs: now,
       key,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     },
     { merge: true },
   );
