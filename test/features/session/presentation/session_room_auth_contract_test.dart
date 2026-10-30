@@ -31,7 +31,11 @@ void main() {
 
     final headerStart = source.indexOf('Widget _buildV2SessionHeader');
     final headerEnd = source.indexOf('Widget _buildV2ProgressRow');
-    final headerSource = source.substring(headerStart, headerEnd);
+    // The header body moved into SessionV2Header.
+    final headerSource = source.substring(headerStart, headerEnd) +
+        File(
+          'lib/features/session/presentation/widgets/session_v2_header.dart',
+        ).readAsStringSync();
 
     expect(headerSource, contains('LayoutBuilder'));
     expect(headerSource, contains('isCompactHeader'));
@@ -47,7 +51,11 @@ void main() {
 
       final headerStart = source.indexOf('Widget _buildV2SessionHeader');
       final headerEnd = source.indexOf('Widget _buildV2ProgressRow');
-      final headerSource = source.substring(headerStart, headerEnd);
+      // The header body moved into SessionV2Header.
+    final headerSource = source.substring(headerStart, headerEnd) +
+        File(
+          'lib/features/session/presentation/widgets/session_v2_header.dart',
+        ).readAsStringSync();
       final compactStart = headerSource.indexOf('if (isCompactHeader)');
       final compactSource = headerSource.substring(compactStart);
 
@@ -69,18 +77,32 @@ void main() {
   });
 
   test('session room exposes setup readiness states before live start', () {
-    final source = File(
+    final source = (File(
       'lib/features/session/presentation/session_room_page.dart',
-    ).readAsStringSync();
+    ).readAsStringSync() +
+        // Pieces of the room extracted since this contract was written.
+        File('lib/features/session/presentation/widgets/session_header_chips.dart')
+            .readAsStringSync() +
+        File('lib/features/session/presentation/widgets/session_plan_complete_view.dart')
+            .readAsStringSync() +
+        File('lib/features/session/presentation/late_add_plan.dart')
+            .readAsStringSync());
 
     expect(source, contains('Waiting for workout plans'));
     expect(source, contains('SessionPhase.setup'));
   });
 
   test('session room drives turn-based gym plans from planned progress', () {
-    final source = File(
+    final source = (File(
       'lib/features/session/presentation/session_room_page.dart',
-    ).readAsStringSync();
+    ).readAsStringSync() +
+        // Pieces of the room extracted since this contract was written.
+        File('lib/features/session/presentation/widgets/session_header_chips.dart')
+            .readAsStringSync() +
+        File('lib/features/session/presentation/widgets/session_plan_complete_view.dart')
+            .readAsStringSync() +
+        File('lib/features/session/presentation/late_add_plan.dart')
+            .readAsStringSync());
 
     expect(source, contains('TurnPlanProgress.participantState'));
     expect(source, contains('TurnPlanProgress.nextActiveParticipant'));
@@ -135,9 +157,16 @@ void main() {
   test(
     'T028: late-add plan mutation uses catalog/custom picker result identity',
     () {
-      final source = File(
-        'lib/features/session/presentation/session_room_page.dart',
-      ).readAsStringSync();
+      final source = (File(
+          'lib/features/session/presentation/session_room_page.dart',
+      ).readAsStringSync() +
+            // Pieces of the room extracted since this contract was written.
+            File('lib/features/session/presentation/widgets/session_header_chips.dart')
+                .readAsStringSync() +
+            File('lib/features/session/presentation/widgets/session_plan_complete_view.dart')
+                .readAsStringSync() +
+            File('lib/features/session/presentation/late_add_plan.dart')
+                .readAsStringSync());
 
       // Late-add relies on the domain helper so catalog/custom identity is
       // preserved without duplicating source-specific copy logic in the page.
@@ -146,7 +175,12 @@ void main() {
       expect(source, contains('picked.copyWithPlanFields('));
       expect(
         source,
-        contains("id: 'extra_\${DateTime.now().microsecondsSinceEpoch}_\$nextOrder'"),
+        contains("id: 'extra_\${stamp()}_\$nextOrder'"),
+      );
+      // stamp() defaults to the microsecond clock (injectable for tests).
+      expect(
+        source,
+        contains('DateTime.now().microsecondsSinceEpoch'),
       );
     },
   );
@@ -156,9 +190,16 @@ void main() {
   // ---------------------------------------------------------------------------
   test('T055: each participant plan is saved under their own userId, '
       'not a shared plan path', () {
-    final source = File(
+    final source = (File(
       'lib/features/session/presentation/session_room_page.dart',
-    ).readAsStringSync();
+    ).readAsStringSync() +
+        // Pieces of the room extracted since this contract was written.
+        File('lib/features/session/presentation/widgets/session_header_chips.dart')
+            .readAsStringSync() +
+        File('lib/features/session/presentation/widgets/session_plan_complete_view.dart')
+            .readAsStringSync() +
+        File('lib/features/session/presentation/late_add_plan.dart')
+            .readAsStringSync());
 
     // The _openLateAddPicker builds updatedPlan with userId = currentPlan.userId
     // (the acting participant's id), not a shared or host id.
@@ -186,22 +227,25 @@ void main() {
   // it the scorer's cardio branch never fires, so the finish handler must set it
   // from the tracked distance and the session clock.
   // ---------------------------------------------------------------------------
+  // The summary is built by buildSessionSummary() in
+  // session_summary_builder.dart, which _handleFinishSession() calls; the
+  // checks below read that builder (they used to slice the room page).
   test(
     'finish handler populates SessionSummary.averageSpeed from distance and elapsed',
     () {
-      final source = File(
+      final room = File(
         'lib/features/session/presentation/session_room_page.dart',
       ).readAsStringSync();
-
-      final start = source.indexOf('Future<void> _handleFinishSession()');
-      final end = source.indexOf('Widget _buildAnimatedBackground()');
+      final start = room.indexOf('Future<void> _handleFinishSession()');
       expect(start, greaterThan(-1));
-      expect(end, greaterThan(start));
-      final finishSource = source.substring(start, end);
+      expect(room.indexOf('buildSessionSummary(', start), greaterThan(start));
 
-      expect(finishSource, contains('averageSpeed: averageSpeedKmh('));
-      expect(finishSource, contains('distanceKm: totalDistance'));
-      expect(finishSource, contains('elapsed: activityElapsed'));
+      final builder = File(
+        'lib/features/session/presentation/session_summary_builder.dart',
+      ).readAsStringSync();
+      expect(builder, contains('averageSpeed: averageSpeedKmh('));
+      expect(builder, contains('distanceKm: totalDistance'));
+      expect(builder, contains('elapsed: activityElapsed'));
     },
   );
 
@@ -217,48 +261,27 @@ void main() {
     'finish handler derives cardio speed elapsed time from myProgress.totalDuration, '
     'not the wall-clock session timer',
     () {
-      final source = File(
-        'lib/features/session/presentation/session_room_page.dart',
+      final builder = File(
+        'lib/features/session/presentation/session_summary_builder.dart',
       ).readAsStringSync();
 
-      final start = source.indexOf('Future<void> _handleFinishSession()');
-      final end = source.indexOf('Widget _buildAnimatedBackground()');
-      expect(start, greaterThan(-1));
-      expect(end, greaterThan(start));
-      final finishSource = source.substring(start, end);
-
-      // Primary path: activity-duration-based elapsed, sourced from the
-      // logged-activity progress record rather than DateTime.now() /
-      // the wall-clock session timer.
+      // Primary path: the logged activity duration. Fallback: the wall-clock
+      // time, only when there is no progress record (never a null crash).
       expect(
-        finishSource,
-        contains(
-          'final activityElapsed = myProgress != null\n'
-          '        ? Duration(minutes: myProgress.totalDuration)\n'
-          '        : elapsed;',
-        ),
+        builder,
+        contains(RegExp(
+          r'final activityElapsed = myProgress != null\s*'
+          r'\?\s*Duration\(minutes: myProgress\.totalDuration\)\s*'
+          r':\s*wallClockElapsed;',
+        )),
       );
-
-      // Fallback path: degrade to the existing wall-clock `elapsed` only
-      // when there is no progress record to read a real duration from —
-      // never crash on a null myProgress.
-      final activityElapsedStart = finishSource.indexOf(
-        'final activityElapsed =',
-      );
-      expect(activityElapsedStart, greaterThan(-1));
-      final activityElapsedDecl = finishSource.substring(
-        activityElapsedStart,
-        activityElapsedStart + 120,
-      );
-      expect(activityElapsedDecl, contains('myProgress != null'));
-      expect(activityElapsedDecl, contains(': elapsed;'));
 
       // The averageSpeedKmh call site itself must use the fixed variable.
-      final callSiteIndex = finishSource.indexOf('averageSpeed: averageSpeedKmh(');
+      final callSiteIndex = builder.indexOf('averageSpeed: averageSpeedKmh(');
       expect(callSiteIndex, greaterThan(-1));
-      final callSite = finishSource.substring(callSiteIndex, callSiteIndex + 120);
+      final callSite = builder.substring(callSiteIndex, callSiteIndex + 120);
       expect(callSite, contains('elapsed: activityElapsed'));
-      expect(callSite, isNot(contains('elapsed: elapsed')));
+      expect(callSite, isNot(contains('elapsed: wallClockElapsed')));
     },
   );
 }
