@@ -4,6 +4,20 @@ A Flutter workout-buddy app (Android and iOS) migrated from React Native. Users 
 
 Supported platforms: Android and iOS only. See [`docs/SUPPORTED_PLATFORMS.md`](docs/SUPPORTED_PLATFORMS.md).
 
+## Architecture
+
+```mermaid
+flowchart LR
+    app[Flutter app<br/>Riverpod + GoRouter] -->|Auth, Firestore,<br/>Storage| fb[(Firebase)]
+    app -->|ID token + App Check| fn[Cloud Functions<br/>deliverNotificationPush,<br/>applySessionScore]
+    fn -->|Admin SDK| fb
+    fn -->|FCM| devices[Devices]
+    sched[Scheduled and Firestore-triggered<br/>functions] --> fb
+    app -->|leaderboard purchase| stripe[Stripe]
+```
+
+Feature code lives in `lib/features/<feature>/{data,domain,presentation}` (clean architecture); shared services are in `lib/services`, and Firestore and Storage rules in `firebase/`.
+
 ## Features
 
 - **Workout sessions**: solo or buddy; strength and cardio; live timeline with voice notes; session summary and progress charts
@@ -14,7 +28,7 @@ Supported platforms: Android and iOS only. See [`docs/SUPPORTED_PLATFORMS.md`](d
 
 ## Tech stack
 
-Flutter 3.10+, Firebase (Auth, Firestore, Storage, Messaging, Cloud Functions), Riverpod, GoRouter, Stripe (`flutter_stripe`), FL Chart.
+Flutter 3.44 (Dart 3.12+), Firebase (Auth, Firestore, Storage, Messaging, Cloud Functions), Riverpod, GoRouter, Stripe (`flutter_stripe`), FL Chart.
 
 ## Getting started
 
@@ -58,8 +72,28 @@ Flow: the app writes the in-app notification under `users/{userId}/notifications
 
 ## CI/CD
 
-See [`docs/CI.md`](docs/CI.md). GitHub Actions runs the PR gate (analyze, unit/widget tests, accessibility smoke, debug APK); Codemagic handles release builds and signing; Dependabot keeps dependencies current.
+See [`docs/CI.md`](docs/CI.md). On every pull request GitHub Actions runs `flutter analyze`, the unit and widget tests with a 30% line-coverage floor, the accessibility smoke test, the Cloud Functions tests and the Firestore rules tests in the emulator. Pushes to `main` also build signed Android and iOS releases and deploy the Firestore and Storage rules. Codemagic (`codemagic.yaml`) is the alternative release pipeline. Dependabot is configured but its version-update pull requests are switched off (limit 0).
 
 ## Documentation
 
 [Privacy Policy](docs/privacy-policy.md) · [Terms of Service](docs/terms-of-service.md) · [Community Guidelines](docs/community-guidelines.md) · [Clean Architecture feature workflow](docs/clean-architecture-feature-workflow.md)
+
+## Testing
+
+```bash
+flutter analyze
+flutter test --coverage
+cd functions && npm ci && npm test            # Cloud Functions unit tests
+cd test/rules && npm ci && npm test           # Firestore rules (needs the Firebase emulator and Java 21)
+```
+
+## Security notes
+
+- Firestore and Storage rules (`firebase/`) are tested in the emulator on every pull request.
+- The HTTPS functions require both a Firebase ID token and an App Check token.
+- The Firebase API keys in `lib/firebase_options.dart` and the Stripe *publishable* key are client identifiers, not secrets; restrict the Firebase keys in Google Cloud. Signing keys and `key.properties` are git-ignored.
+- See [SECURITY.md](SECURITY.md) to report a vulnerability.
+
+## Author
+
+Built by Ahmed Ibrahim Hussien ([a-3isa](https://github.com/a-3isa)). No licence file: all rights reserved.
