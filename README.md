@@ -72,7 +72,7 @@ Flow: the app writes the in-app notification under `users/{userId}/notifications
 
 ## CI/CD
 
-See [`docs/CI.md`](docs/CI.md). On every pull request GitHub Actions runs `flutter analyze`, the unit and widget tests with a 30% line-coverage floor, the accessibility smoke test, the Cloud Functions tests and the Firestore rules tests in the emulator. Pushes to `main` also build signed Android and iOS releases and deploy the Firestore and Storage rules. Codemagic (`codemagic.yaml`) is the alternative release pipeline. Dependabot is configured but its version-update pull requests are switched off (limit 0).
+See [`docs/CI.md`](docs/CI.md) (audit item Z-DOC-003). On every pull request GitHub Actions runs `flutter analyze`, the unit and widget tests with a 30% line-coverage floor, the accessibility smoke test, the Cloud Functions tests and the Firestore rules tests in the emulator. Pushes to `main` also build signed Android and iOS releases and deploy the Firestore and Storage rules. Codemagic (`codemagic.yaml`) is the alternative release pipeline. Dependabot is configured but its version-update pull requests are switched off (limit 0).
 
 ## Documentation
 

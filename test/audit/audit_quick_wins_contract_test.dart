@@ -41,7 +41,9 @@ void main() {
     final idx = ci.indexOf('deploy-firebase-rules:');
     expect(idx, isNonNegative);
     final section = ci.substring(idx, idx + 400);
-    expect(section, contains('needs: [analyze]'));
+    // Deploying rules waits for analyze (and, since then, the functions and
+    // rules tests too).
+    expect(section, matches(RegExp(r'needs: \[analyze[,\]]')));
     expect(section, contains("node-version: '22'"));
   });
 }
