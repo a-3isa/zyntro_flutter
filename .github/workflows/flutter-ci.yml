@@ -154,12 +154,43 @@ jobs:
           arch: x86_64
           script: flutter test integration_test/smoke_test.dart
 
+  release-config:
+    name: Release Config
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    outputs:
+      android: ${{ steps.check.outputs.android }}
+      ios: ${{ steps.check.outputs.ios }}
+      rules: ${{ steps.check.outputs.rules }}
+    steps:
+      # Release jobs need signing / deploy secrets. Skip a job with a visible
+      # warning when its secrets are not configured, instead of failing main.
+      - name: Check release secrets
+        id: check
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          IOS_CERTIFICATE_BASE64: ${{ secrets.IOS_CERTIFICATE_BASE64 }}
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          check() {
+            if [ -n "$2" ]; then
+              echo "$1=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "$1=false" >> "$GITHUB_OUTPUT"
+              echo "::warning::$3 is not set; skipping the $1 release job"
+            fi
+          }
+          check android "$KEYSTORE_BASE64" KEYSTORE_BASE64
+          check ios "$IOS_CERTIFICATE_BASE64" IOS_CERTIFICATE_BASE64
+          check rules "$FIREBASE_TOKEN" FIREBASE_TOKEN
+
   build-android:
     name: Build Android Release
     timeout-minutes: 45
-    needs: [analyze, functions-test, rules-test]
+    needs: [analyze, functions-test, rules-test, release-config]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && needs.release-config.outputs.android == 'true'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -229,9 +260,9 @@ jobs:
   build-ios:
     name: Build iOS Release
     timeout-minutes: 60
-    needs: [analyze, functions-test, rules-test]
+    needs: [analyze, functions-test, rules-test, release-config]
     runs-on: macos-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && needs.release-config.outputs.ios == 'true'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -283,8 +314,8 @@ jobs:
     name: Deploy Firebase Rules
     timeout-minutes: 10
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    needs: [analyze, functions-test, rules-test]
+    if: github.ref == 'refs/heads/main' && needs.release-config.outputs.rules == 'true'
+    needs: [analyze, functions-test, rules-test, release-config]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7

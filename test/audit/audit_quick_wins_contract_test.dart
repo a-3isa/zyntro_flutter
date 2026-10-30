@@ -40,7 +40,7 @@ void main() {
     final ci = File('.github/workflows/flutter-ci.yml').readAsStringSync();
     final idx = ci.indexOf('deploy-firebase-rules:');
     expect(idx, isNonNegative);
-    final section = ci.substring(idx, idx + 400);
+    final section = ci.substring(idx, idx + 600);
     // Deploying rules waits for analyze (and, since then, the functions and
     // rules tests too).
     expect(section, matches(RegExp(r'needs: \[analyze[,\]]')));
